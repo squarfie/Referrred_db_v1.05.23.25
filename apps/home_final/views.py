@@ -2037,7 +2037,7 @@ def _pdf_has_long_recommendation(value):
             for part in re.split(r"[\r\n]+", text)
             if part.strip()
         ]
-    return len(recommendation_items) > 3
+    return len(recommendation_items) > 2
 
 
 
@@ -3907,31 +3907,7 @@ def clean_str(val):
 
 
 def classify_id_concordance(site_org, ars_pre, ars_org):
-
-    site = clean_str(site_org)
-    ars = clean_str(ars_org)
-    pre = clean_str(ars_pre)
-
-    # Mixed Culture detection
-    if "mixed culture of" in pre:
-        return "M", "M"
-
-    if pre in {"nv", "not viable", "nonviable", "no growth"}:
-        return "N", "N"
-
-    if ars == "not viable":
-        return "X", "X"
-
-    if site and ars in {"", "n/a", "na", "none", "null", "-"}:
-        return "X", "X"
-
-    if site and ars and site == ars:
-        return "G", "S"
-
-    if site and ars and site != ars:
-        return "X", "X"
-
-    return None, None
+    return concordance_service.classify_id_concordance(site_org, ars_pre, ars_org)
 
 # ==============================
 # AST CONCORDANCE

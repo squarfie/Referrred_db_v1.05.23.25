@@ -115,8 +115,9 @@ table.report-table tr {
     font-size: 9.5px;
     vertical-align: middle !important;
     text-align: center !important;
-    padding: 1px 2px !important;
-    line-height: 1 !important;
+    padding: 0 !important;
+    height: 13px !important;
+    line-height: 13px !important;
 }
 
 .mic {
@@ -272,6 +273,11 @@ td[colspan="4"] div {
     overflow-wrap: break-word;
     word-wrap: break-word;
 }
+
+.recommendation-continuation {
+    font-family: "Courier New", monospace !important;
+}
+
 /* ================= SIGNATURE / SPACING ================= */
 
 .spacer {
@@ -285,25 +291,25 @@ td[colspan="4"] div {
 .signature-row td {
     height: 12px !important;
     line-height: 12px !important;
-    padding-top: 1px !important;
+    padding-top: 0.5px !important;
     padding-bottom: 1px !important;
 }
 
 
 .signature-gap td {
-    height: 6px !important;
-    line-height: 6px !important;
+    height: 1px !important;
+    line-height: 1px !important;
 }
 
 .signature-bottom-spacer td {
-    height: 28px !important;
-    line-height: 28px !important;
+    height: 6px !important;
+    line-height: 6px !important;
     border: none !important;
 }
 
 .single-isolate-signature-spacer td {
-    height: 560px !important;
-    line-height: 560px !important;
+    height: 520px !important;
+    line-height: 520px !important;
 }
 
 .page-break {
@@ -413,8 +419,10 @@ td[colspan="4"] div {
 }
 
 .compact-pdf-page .abx-header {
-    padding: 0.2px 0.5px !important;
-    line-height: 0.88 !important;
+    padding: 0 !important;
+    height: 12px !important;
+    line-height: 12px !important;
+    vertical-align: middle !important;
 }
 
 .compact-pdf-page .mic,
@@ -462,18 +470,18 @@ td[colspan="4"] div {
 }
 
 .compact-pdf-page .signature-gap td {
-    height: 3px !important;
-    line-height: 3px !important;
+    height: 1px !important;
+    line-height: 1px !important;
 }
 
 .compact-pdf-page .signature-bottom-spacer td {
-    height: 8px !important;
-    line-height: 8px !important;
+    height: 4px !important;
+    line-height: 4px !important;
 }
 
 .compact-pdf-page .single-isolate-signature-spacer td {
-    height: 440px !important;
-    line-height: 440px !important;
+    height: 400px !important;
+    line-height: 400px !important;
 }
 
 .compact-pdf-page .result-cell,
@@ -519,17 +527,22 @@ table.report-table td.mic.enris-cell .result-value {
 
 table.report-table td.result-cell.mic,
 .compact-pdf-page table.report-table td.result-cell.mic {
-    white-space: normal !important;
+    white-space: nowrap !important;
 }
 
 table.report-table td.result-cell.mic .result-value {
-    white-space: normal;
+    white-space: nowrap;
     word-wrap: normal;
+}
+
+.compact-pdf-page table.report-table td.result-cell.mic .result-value {
+    padding-top: 0.4px !important;
+    white-space: nowrap !important;
 }
 
 .compact-pdf-page table.report-table td.result-cell,
 .compact-pdf-page table.report-table td.result-cell.mic {
-    font-size: 10.4px !important;
+    font-size: 10.7px !important;
     line-height: 12px !important;
     padding: 0 !important;
     text-align: center !important;
@@ -900,7 +913,7 @@ table.report-table td.patient-cell .lab-box span {
                 {% for abx, data in row %}
                     <td class="result-cell mic">
                         {% if data.mic_show_value %}
-                            <div class="result-value">{{ data.mic.ab_MIC_operand }} {{ data.mic.ab_MIC_value|mic_format|default_if_none:"&nbsp;"|safe }}</div>
+                            <div class="result-value">{{ data.mic.ab_MIC_operand }}{{ data.mic.ab_MIC_value|mic_format|default_if_none:"&nbsp;"|safe }}</div>
                         {% else %}
                             <div class="result-value">&nbsp;</div>
                         {% endif %}
@@ -1125,7 +1138,7 @@ table.report-table td.patient-cell .lab-box span {
                                 {% for abx, data in row %}
                                     <td class="result-cell mic">
                                         {% if data.mic_show_value %}
-                                            <div class="result-value">{{ data.mic.ab_Retest_MIC_operand }} {{ data.mic.ab_Retest_MICValue|mic_format|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }}</div>
+                                            <div class="result-value">{{ data.mic.ab_Retest_MIC_operand }}{{ data.mic.ab_Retest_MICValue|mic_format|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }}</div>
                                         {% else %}
                                             <div class="result-value">&nbsp;</div>
                                         {% endif %}
@@ -1228,11 +1241,11 @@ table.report-table td.patient-cell .lab-box span {
                 </tr>
 
                 <tr class="signature-row">
-                    <td colspan="2" style="border-left:0; border-bottom:0; border-right:0; border-top:0;">
+                    <td colspan="1" style="border-left:0; border-bottom:0; border-right:0; border-top:0;">
                         <strong>Date:</strong>
                     </td>
 
-                    <td colspan="4" style="border-left:0; border-right:0; border-top:0;">
+                    <td colspan="5" style="border-left:0; border-right:0; border-top:0;">
                         {% if batch.bat_Date_Accomplished %}
                             {{ batch.bat_Date_Accomplished|date:"d-M-Y" }}
                         {% elif isolate.f_Date_Accomplished_ARSP %}
@@ -1333,7 +1346,7 @@ table.report-table td.patient-cell .lab-box span {
                     </td>
                 </tr>
                 <tr class="signature-label-gap">
-                    <td colspan="42" style="border:none; height:3px; line-height:3px; padding:0;"></td>
+                    <td colspan="42" style="border:none; height:2px; line-height:2px; padding:0;"></td>
                 </tr>
             <tr>
                   <th colspan="42" style="font-size: 9px; border: 1px solid black; padding-top: 1px;"><strong>THIS CONFIFMATORY TEST RESULTS ARE FOR THE LABORATORY WHOSE NAME

@@ -762,6 +762,10 @@ def _recommendation_items(value):
     return cleaned_items
 
 
+def _preserve_recommendation_spacing(line):
+    return str(escape(line.expandtabs(4))).replace(" ", "&nbsp;")
+
+
 @register.filter
 def number_recommendations(value):
     """
@@ -794,20 +798,10 @@ def number_recommendations(value):
                 )
 
             else:
-                # Preserve indentation of continuation line
-                expanded_line = line.expandtabs(4)
-
-                leading_spaces = len(expanded_line) - len(
-                    expanded_line.lstrip(' ')
-                )
-
-                continuation_text = expanded_line.strip()
-
-                # Convert original indentation to HTML spaces
-                indentation = '&nbsp;' * leading_spaces
-
                 formatted_lines.append(
-                    f'{indentation}{escape(continuation_text)}'
+                    '<span class="recommendation-continuation">'
+                    f'{_preserve_recommendation_spacing(line)}'
+                    '</span>'
                 )
 
         numbered_lines.append(

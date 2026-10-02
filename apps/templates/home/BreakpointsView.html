@@ -2,7 +2,130 @@
 {% load custom_filters %}
 {% block title %}Breakpoints Database{% endblock title %}
 
+
+
+
+
+
+
 {% block content %}
+
+
+<style>
+  /* ===== FILTER + ALERT-ONLY DELETE TOOLBAR ===== */
+.filter-toolbar-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: #f8fcfd;
+  border: 1px solid #d1e8ed;
+  border-radius: 0.5rem;
+  padding: 14px 16px;
+}
+
+.filter-fields-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+  margin: 0;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+  flex: 1;
+}
+
+.filter-field-buttons {
+  min-width: auto;
+  flex: 0 0 auto;
+}
+
+.filter-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #5a6c72;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin: 0;
+}
+
+.filter-field select {
+  border: 1px solid #d1e8ed;
+  border-radius: 6px;
+}
+
+.filter-field select:focus {
+  border-color: #2d9cad;
+  box-shadow: 0 0 0 0.15rem rgba(45, 156, 173, 0.15);
+}
+
+/* ALERT-ONLY DELETE - inline group */
+.alert-only-delete-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 20px;
+  border-left: 1px solid #d1e8ed;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.alert-only-count {
+  background: #fff8e6;
+  border: 1px solid #f3d37a;
+  color: #8e581a;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1200px) {
+  .filter-toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .alert-only-delete-group {
+    padding-left: 0;
+    border-left: 0;
+    padding-top: 14px;
+    border-top: 1px solid #d1e8ed;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-fields-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-field {
+    min-width: 100%;
+  }
+
+  .filter-field-buttons .d-flex {
+    width: 100%;
+  }
+
+  .filter-field-buttons button,
+  .filter-field-buttons a {
+    flex: 1;
+  }
+
+  .alert-only-delete-group .d-flex {
+    flex-wrap: wrap;
+  }
+}
+</style>
 
 <!-- Header Section -->
 <div class="header pb-6" style="height: 180px; background: linear-gradient(135deg, #12142b 0%, #243064 50%, #2e578d 100%); position: relative; overflow: hidden;">
@@ -65,128 +188,145 @@
             </div>
 
     <!-- Toolbar Section -->
-    <div class="card-body border-bottom" style="background: linear-gradient(to bottom, #f8fcfd 0%, #ffffff 100%);">
+<!-- Toolbar Section -->
+<div class="card-body border-bottom" style="background: linear-gradient(to bottom, #f8fcfd 0%, #ffffff 100%);">
 
-          <!-- Search Bar (SERVER-SIDE SEARCH) -->
-          <div class="row justify-content-left mb-3">
-             <div class="col-xl-6 col-lg-7 col-md-9 col-sm-12">
-              <form method="get" class="w-100">
-                <input type="hidden" name="organism" value="{{ organism }}">
-                <input type="hidden" name="test_method" value="{{ test_method }}">
-                <input type="hidden" name="whonet_abx" value="{{ whonet_abx }}">
-                <input type="hidden" name="resistance_phenotype" value="{{ resistance_phenotype }}">
-                <div class="input-group"
-                    style="box-shadow: 0 2px 8px rgba(29, 156, 173, 0.15);
-                            border-radius: 0.5rem;
-                            border: 1px solid #d1e8ed;">
+  <!-- Search Bar (SERVER-SIDE SEARCH) -->
+  <div class="row justify-content-left mb-3">
+     <div class="col-xl-6 col-lg-7 col-md-9 col-md-12">
+      <form method="get" class="w-100">
+        <input type="hidden" name="organism" value="{{ organism }}">
+        <input type="hidden" name="test_method" value="{{ test_method }}">
+        <input type="hidden" name="whonet_abx" value="{{ whonet_abx }}">
+        <input type="hidden" name="resistance_phenotype" value="{{ resistance_phenotype }}">
+        <div class="input-group"
+            style="box-shadow: 0 2px 8px rgba(29, 156, 173, 0.15);
+                    border-radius: 0.5rem;
+                    border: 1px solid #d1e8ed;">
 
-                  <div class="input-group-prepend">
-                    <span class="input-group-text"
-                          style="background: linear-gradient(135deg, #e8f5f7 0%, #d1e8ed 100%);
-                                border: none; color: #1a7a8e;">
-                      <i class="fas fa-search"></i>
-                    </span>
-                  </div>
-
-                  <input
-                    name="q"
-                    value="{{ q }}"
-                    class="form-control"
-                    placeholder="Search antibiotic, code, organism, guideline, breakpoint values…"
-                    type="text"
-                    style="border:none; background:white;"
-                  >
-
-                  <div class="input-group-append">
-                    <button class="btn" type="submit"
-                            style="background:#e8f5f7; border:none; color:#1a7a8e;">
-                      <i class="fas fa-search"></i>
-                    </button>
-
-                    {% if q %}
-                    <a href="{% url 'breakpoints_view' %}"
-                      class="btn"
-                      style="background:#e8f5f7; border:none; color:#1a7a8e;"
-                      title="Clear search">
-                      <i class="fas fa-times"></i>
-                    </a>
-                    {% endif %}
-                  </div>
-
-                </div>
-              </form>
-            </div>
+          <div class="input-group-prepend">
+            <span class="input-group-text"
+                  style="background: linear-gradient(135deg, #e8f5f7 0%, #d1e8ed 100%);
+                        border: none; color: #1a7a8e;">
+              <i class="fas fa-search"></i>
+            </span>
           </div>
 
+          <input
+            name="q"
+            value="{{ q }}"
+            class="form-control"
+            placeholder="Search antibiotic, code, organism, guideline, breakpoint values…"
+            type="text"
+            style="border:none; background:white;"
+          >
 
-      <!-- Important Note -->
-      <!-- Dedicated Filters -->
-      <form method="get" class="w-100 mb-3">
-        <input type="hidden" name="q" value="{{ q }}">
-        <div class="row align-items-end">
-          <div class="col-xl-3 col-lg-3 col-md-6 mb-2">
-            <label class="form-control-label text-muted small mb-1">Organism</label>
-            <select name="organism" class="form-control">
-              <option value="">All organisms</option>
-              {% for value in filter_options.organisms %}
-                <option value="{{ value }}" {% if value == organism %}selected{% endif %}>{{ value }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="col-xl-2 col-lg-3 col-md-6 mb-2">
-            <label class="form-control-label text-muted small mb-1">Test Method</label>
-            <select name="test_method" class="form-control">
-              <option value="">All methods</option>
-              {% for value in filter_options.test_methods %}
-                <option value="{{ value }}" {% if value == test_method %}selected{% endif %}>{{ value }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="col-xl-3 col-lg-3 col-md-6 mb-2">
-            <label class="form-control-label text-muted small mb-1">WHONET ABX</label>
-            <select name="whonet_abx" class="form-control">
-              <option value="">All WHONET codes</option>
-              {% for value in filter_options.whonet_abx %}
-                <option value="{{ value }}" {% if value == whonet_abx %}selected{% endif %}>{{ value }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="col-xl-2 col-lg-3 col-md-6 mb-2">
-            <label class="form-control-label text-muted small mb-1">Resistance Phenotype</label>
-            <select name="resistance_phenotype" class="form-control">
-              <option value="">All phenotypes</option>
-              {% for value in filter_options.resistance_phenotypes %}
-                <option value="{{ value }}" {% if value == resistance_phenotype %}selected{% endif %}>{{ value }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="col-xl-2 col-lg-12 col-md-12 mb-2">
-            <button class="btn btn-primary btn-sm" type="submit">
-              <i class="fas fa-filter mr-1"></i>Filter
+          <div class="input-group-append">
+            <button class="btn" type="submit"
+                    style="background:#e8f5f7; border:none; color:#1a7a8e;">
+              <i class="fas fa-search"></i>
             </button>
-            {% if q or organism or test_method or whonet_abx or resistance_phenotype %}
-              <a href="{% url 'breakpoints_view' %}" class="btn btn-secondary btn-sm">
-                <i class="fas fa-times mr-1"></i>Clear
-              </a>
+
+            {% if q %}
+            <a href="{% url 'breakpoints_view' %}"
+              class="btn"
+              style="background:#e8f5f7; border:none; color:#1a7a8e;"
+              title="Clear search">
+              <i class="fas fa-times"></i>
+            </a>
             {% endif %}
           </div>
+
         </div>
       </form>
+    </div>
+  </div>
 
-      <div class="alert" style="background: linear-gradient(135deg, #e8f5f7 0%, #d1e8ed 100%); border-left: 4px solid #2d9cad; border-radius: 0.5rem;">
-        <div class="d-flex align-items-center">
-          <i class="fas fa-info-circle mr-3" style="font-size: 1.5rem; color: #2d9cad;"></i>
-          <div>
-            <strong style="color: #1a7a8e;">Important Note:</strong>
-            <span style="color: #5a6c72;">For MIC antibiotics, the Susceptible (S) breakpoint should be interpreted as "≤" the indicated value.</span>
-          </div>
+  <!-- COMBINED FILTER + ALERT-ONLY DELETE TOOLBAR -->
+  <div class="filter-toolbar-row mb-3">
+    <form method="get" class="filter-fields-form">
+      <input type="hidden" name="q" value="{{ q }}">
+      <div class="filter-field">
+        <label class="filter-field-label">Organism</label>
+        <select name="organism" class="form-control form-control-md">
+          <option value="">All organisms</option>
+          {% for value in filter_options.organisms %}
+            <option value="{{ value }}" {% if value == organism %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label class="filter-field-label">Test Method</label>
+        <select name="test_method" class="form-control form-control-md">
+          <option value="">All methods</option>
+          {% for value in filter_options.test_methods %}
+            <option value="{{ value }}" {% if value == test_method %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label class="filter-field-label">WHONET ABX</label>
+        <select name="whonet_abx" class="form-control form-control-md">
+          <option value="">All WHONET codes</option>
+          {% for value in filter_options.whonet_abx %}
+            <option value="{{ value }}" {% if value == whonet_abx %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label class="filter-field-label">Resistance Phenotype</label>
+        <select name="resistance_phenotype" class="form-control form-control-md">
+          <option value="">All phenotypes</option>
+          {% for value in filter_options.resistance_phenotypes %}
+            <option value="{{ value }}" {% if value == resistance_phenotype %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-field filter-field-buttons">
+        <label class="filter-field-label">&nbsp;</label>
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary btn-md" type="submit">
+            <i class="fas fa-filter mr-1"></i>Filter
+          </button>
+          {% if q or organism or test_method or whonet_abx or resistance_phenotype %}
+            <a href="{% url 'breakpoints_view' %}" class="btn btn-secondary btn-md">
+              <i class="fas fa-times mr-1"></i>Clear
+            </a>
+          {% endif %}
         </div>
       </div>
+    </form>
+
+    <!-- ALERT-ONLY DELETE - now inline on the same row -->
+    <form method="POST"
+          action="{% url 'delete_alert_only_breakpoints' %}"
+          class="alert-only-delete-group"
+          onsubmit="return confirm('WARNING: This will delete {{ alert_only_breakpoint_count }} breakpoint record(s) that have Alert Value only and no R, I, SDD, or S values. Continue?');">
+      {% csrf_token %}
+      <label class="filter-field-label">Delete Alert-Only Rows</label>
+      <div class="d-flex align-items-center gap-2">
+        <button type="submit" class="btn btn-danger btn-md text-nowrap">
+          <i class="fa fa-trash-alt mr-1"></i>Delete
+        </button>
+        <span class="alert-only-count">{{ alert_only_breakpoint_count }}</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="alert" style="background: linear-gradient(135deg, #e8f5f7 0%, #d1e8ed 100%); border-left: 4px solid #2d9cad; border-radius: 0.5rem;">
+    <div class="d-flex align-items-center">
+      <i class="fas fa-info-circle mr-3" style="font-size: 1.5rem; color: #2d9cad;"></i>
+      <div>
+        <strong style="color: #1a7a8e;">Important Note:</strong>
+        <span style="color: #5a6c72;">For MIC antibiotics, the Susceptible (S) breakpoint should be interpreted as "≤" the indicated value.</span>
+      </div>
     </div>
+  </div>
+</div>
 
     <!-- Table -->
     <div class="table-responsive" style="max-height: 500px; overflow-y: auto; overflow-x: auto;">

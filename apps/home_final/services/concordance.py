@@ -120,9 +120,16 @@ def _is_explicit_no_identification(ars_pre, ars_post=""):
     return "no" in pre and ("recovered" in (pre + " " + post) or "isolated" in (pre + " " + post))
 
 
+def _normalize_taxon_token(value):
+    """Remove punctuation around organism name tokens before comparison."""
+    return re.sub(r"[^a-z0-9]+", "", clean_str(value).lower())
+
+
 def _genus_name(organism_name):
     organism_name = clean_str(organism_name)
-    return organism_name.split()[0].lower() if organism_name else ""
+    if not organism_name:
+        return ""
+    return _normalize_taxon_token(organism_name.split()[0])
 
 
 def _species_name(organism_name):

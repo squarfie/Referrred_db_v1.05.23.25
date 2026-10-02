@@ -4399,7 +4399,7 @@ def _pdf_has_long_recommendation(value):
             for part in re.split(r"[\r\n]+", text)
             if part.strip()
         ]
-    return len(recommendation_items) > 3
+    return len(recommendation_items) > 2
 
 
 
@@ -6175,6 +6175,13 @@ def _blank_breakpoint_values_filter():
     )
 
 
+def _alert_only_breakpoint_values_filter():
+    return (
+        _blank_breakpoint_values_filter() &
+        ~(Q(Alert_val__isnull=True) | Q(Alert_val__exact=""))
+    )
+
+
 
 
 @login_required(login_url="login")
@@ -6188,6 +6195,9 @@ def breakpoints_view(request):
     total_breakpoints = BreakpointsTable.objects.count()
     blank_breakpoint_count = BreakpointsTable.objects.filter(
         _blank_breakpoint_values_filter()
+    ).count()
+    alert_only_breakpoint_count = BreakpointsTable.objects.filter(
+        _alert_only_breakpoint_values_filter()
     ).count()
     breakpoints = BreakpointsTable.objects.all().order_by('-Date_Modified')
 
@@ -6279,6 +6289,7 @@ def breakpoints_view(request):
             "resistance_phenotype": resistance_phenotype,
             "total_breakpoints": total_breakpoints,
             "blank_breakpoint_count": blank_breakpoint_count,
+            "alert_only_breakpoint_count": alert_only_breakpoint_count,
             "filtered_count": filtered_count,
             "filter_options": filter_options,
             "preserved_params": preserved_params,
@@ -6315,6 +6326,25 @@ def delete_blank_breakpoint_values(request):
         request,
         f"Deleted {deleted_blank} record(s) with no R, I, SDD, or S breakpoint values"
         f"{' plus the selected breakpoint record' if deleted_selected else ''}."
+    )
+    return redirect('breakpoints_view')
+
+
+
+@login_required(login_url="login")
+def delete_alert_only_breakpoints(request):
+    if request.method != "POST":
+        messages.error(request, "Invalid request method.")
+        return redirect('breakpoints_view')
+
+    deleted_count, _ = (
+        BreakpointsTable.objects
+        .filter(_alert_only_breakpoint_values_filter())
+        .delete()
+    )
+    messages.success(
+        request,
+        f"Deleted {deleted_count} alert-only breakpoint record(s)."
     )
     return redirect('breakpoints_view')
 
