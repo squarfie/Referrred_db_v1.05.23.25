@@ -13,6 +13,11 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name="final_data",
+            name="raw_updated_after_copy_raw_id",
+            field=models.PositiveBigIntegerField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name="final_data",
             name="raw_updated_after_copy",
             field=models.BooleanField(default=False),
         ),
