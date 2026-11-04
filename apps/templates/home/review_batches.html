@@ -191,7 +191,7 @@ th.sortable.sorted::after {
 
         <div>
             <label class="form-label mb-1">Rows per page</label>
-            <select name="per_page" class="form-control" onchange="this.form.submit()">
+            <select name="per_page" class="form-control form-control-sm" onchange="this.form.submit()">
                 {% for size in per_page_options %}
                     <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>
                         {{ size }}
@@ -324,8 +324,54 @@ th.sortable.sorted::after {
                             {% endfor %}
                             </tbody>
                         </table>
-
-
+                    </div>
+                    <!-- Pagination footer matching Antibiotic_View.html -->
+                    <div class="card-footer py-4 bg-light">
+                      <div class="row align-items-center">
+                        <div class="col-md-4 mb-2 mb-md-0">
+                          <form method="get" class="form-inline">
+                            <input type="hidden" name="q" value="{{ q }}">
+                            <input type="hidden" name="per_page" value="{{ current_per_page }}">
+                            <label for="review-page-number" class="mr-2 mb-0 text-primary">Go to page:</label>
+                            <input id="review-page-number" type="number" name="page" min="1" max="{{ paginator.num_pages }}"
+                                   value="{{ page_obj.number }}" class="form-control form-control-sm mr-2" style="width: 70px;">
+                            <button type="submit" class="btn btn-sm btn-primary" aria-label="Go to page"><i class="fas fa-arrow-right"></i></button>
+                          </form>
+                        </div>
+                        <div class="col-md-4 text-center mb-2 mb-md-0">
+                          <span class="text-primary">Page <strong>{{ page_obj.number }}</strong> of <strong>{{ paginator.num_pages }}</strong></span>
+                          <small class="d-block text-muted">Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ paginator.count }} rows</small>
+                        </div>
+                        <div class="col-md-4">
+                          <nav aria-label="Batch review pagination">
+                            <ul class="pagination justify-content-end mb-0">
+                              {% if page_obj.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page=1&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}" title="First page"><i class="fas fa-angle-double-left"></i></a></li>
+                                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}" title="Previous page"><i class="fas fa-angle-left"></i></a></li>
+                              {% else %}
+                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-double-left"></i></span></li>
+                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-left"></i></span></li>
+                              {% endif %}
+                              {% for num in page_range %}
+                                {% if num == paginator.ELLIPSIS %}
+                                  <li class="page-item disabled"><span class="page-link">{{ num }}</span></li>
+                                {% elif num == page_obj.number %}
+                                  <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% else %}
+                                  <li class="page-item"><a class="page-link" href="?page={{ num }}&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}">{{ num }}</a></li>
+                                {% endif %}
+                              {% endfor %}
+                              {% if page_obj.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}" title="Next page"><i class="fas fa-angle-right"></i></a></li>
+                                <li class="page-item"><a class="page-link" href="?page={{ paginator.num_pages }}&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}" title="Last page"><i class="fas fa-angle-double-right"></i></a></li>
+                              {% else %}
+                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-right"></i></span></li>
+                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-double-right"></i></span></li>
+                              {% endif %}
+                            </ul>
+                          </nav>
+                        </div>
+                      </div>
                     </div>
 
                 </div>
