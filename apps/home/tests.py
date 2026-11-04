@@ -242,3 +242,105 @@ class DeleteAllSiteCodesSecurityTests(TestCase):
         response = self.client.post(self.url, {"confirmation": "DELETE ALL SITES"})
         self.assertRedirects(response, "/site-view")
         self.assertFalse(SiteData.objects.exists())
+
+
+class BatchDeletionSecurityTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from apps.home.models import Batch_Table, Referred_Data
+        self.admin = User.objects.create_user("batch-admin", password="pass")
+        self.admin.groups.add(Group.objects.get_or_create(name="Admin")[0])
+        self.encoder = User.objects.create_user("batch-encoder", password="pass")
+        self.encoder.groups.add(Group.objects.get_or_create(name="DMU Encoder")[0])
+        self.viewer = User.objects.create_user("batch-viewer", password="pass")
+        self.batch = Batch_Table.objects.create(created_by=self.encoder, bat_Batch_Name="B1", bat_Batch_Code="B1")
+        Referred_Data.objects.create(Batch_id=self.batch, Batch_Code="B1", AccessionNo="B1-1")
+        self.clean_url = reverse("clean_batch", args=[self.batch.pk])
+        self.all_url = reverse("delete_all_batches")
+        self.blank_url = reverse("delete_blank_batches")
+
+    def test_anonymous_cannot_delete(self):
+        from apps.home.models import Batch_Table
+        self.client.post(self.clean_url)
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_unprivileged_user_cannot_delete(self):
+        from apps.home.models import Batch_Table
+        self.client.force_login(self.viewer)
+        self.client.post(self.clean_url)
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_encoder_cannot_delete_others_batch(self):
+        from apps.home.models import Batch_Table
+        from django.contrib.auth.models import Group
+        other = User.objects.create_user("other-encoder", password="pass")
+        other.groups.add(Group.objects.get(name="DMU Encoder"))
+        self.client.force_login(other)
+        self.client.post(self.clean_url)
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_get_is_not_allowed(self):
+        from apps.home.models import Batch_Table
+        self.client.force_login(self.admin)
+        for url in (self.clean_url, self.all_url, self.blank_url):
+            self.assertEqual(self.client.get(url).status_code, 405)
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_bulk_requires_admin_and_correct_confirmation(self):
+        from apps.home.models import Batch_Table
+        self.client.force_login(self.encoder)
+        self.client.post(self.all_url, {"confirmation": "DELETE ALL BATCHES"})
+        self.client.post(self.blank_url, {"confirmation": "DELETE BLANK BATCHES"})
+        self.client.force_login(self.admin)
+        self.client.post(self.all_url, {"confirmation": "incorrect"})
+        self.client.post(self.blank_url, {"confirmation": "incorrect"})
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_owner_can_delete_unlocked_batch(self):
+        from apps.home.models import Batch_Table
+        self.client.force_login(self.encoder)
+        self.client.post(self.clean_url)
+        self.assertFalse(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_blank_deletion_preserves_mixed_batch(self):
+        from apps.home.models import Batch_Table, Referred_Data
+        Referred_Data.objects.create(Batch_id=self.batch, Batch_Code="B1", AccessionNo="B1-2", Site_Org="eco")
+        self.client.force_login(self.admin)
+        self.client.post(self.blank_url, {"confirmation": "DELETE BLANK BATCHES"})
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_admin_can_delete_all_after_confirmation(self):
+        from apps.home.models import Batch_Table
+        self.client.force_login(self.admin)
+        self.client.post(self.all_url, {"confirmation": "DELETE ALL BATCHES"})
+        self.assertFalse(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_admin_can_delete_fully_blank_batches(self):
+        from apps.home.models import Batch_Table
+        self.client.force_login(self.admin)
+        self.client.post(self.blank_url, {"confirmation": "DELETE BLANK BATCHES"})
+        self.assertFalse(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_active_verification_blocks_single_batch_deletion(self):
+        from apps.home.models import Batch_Table
+        from apps.verification.models import VerificationCase
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.admin)
+        self.client.post(self.clean_url)
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_active_verification_blocks_bulk_deletion(self):
+        from apps.home.models import Batch_Table
+        from apps.verification.models import VerificationCase
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.admin)
+        self.client.post(self.all_url, {"confirmation": "DELETE ALL BATCHES"})
+        self.client.post(self.blank_url, {"confirmation": "DELETE BLANK BATCHES"})
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())

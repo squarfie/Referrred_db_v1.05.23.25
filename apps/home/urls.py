@@ -197,7 +197,7 @@ urlpatterns = [
     path("settings/non-working/delete/<int:pk>/", settings_write_required(views.delete_non_working_day), name="delete_non_working_day"),
     path("settings/non-working/delete-all/", settings_write_required(views.delete_all_non_working_days), name="delete_all_non_working_days"),
     path("batches/delete-all/",views.delete_all_batches,name="delete_all_batches"),
-    path("batches/delete-all/",views.delete_blank_batches,name="delete_blank_batches"),
+    path("batches/delete-blank/",views.delete_blank_batches,name="delete_blank_batches"),
    
 
 
