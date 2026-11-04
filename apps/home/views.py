@@ -2155,21 +2155,26 @@ def review_batches(request):
 
 
 @login_required(login_url="login")
+@role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
+@require_POST
+@transaction.atomic
 def clean_batch(request, batch_id):
-    """
-    Deletes a batch and all related Referred_Data records.
-    """
-    batch = get_object_or_404(Batch_Table, pk=batch_id)
-    
-    # Delete related isolates manually
-    Referred_Data.objects.filter(Batch_Code=batch.bat_Batch_Code).delete()
-    
-    # Delete the batch itself
+    """Delete an authorized, unlocked batch and its associated records."""
+    batch = get_object_or_404(Batch_Table.objects.select_for_update(), pk=batch_id)
+    if not can_manage_batch(request.user, batch):
+        messages.error(request, "You can only delete batches that you created.")
+        return redirect("review_batches")
+    case = _raw_verification_case_map([batch.pk]).get(batch.pk)
+    if verification_case_blocks_operational_outputs(case):
+        messages.error(request, "Deletion is blocked while the batch is in verification.")
+        return redirect("review_batches")
+
+    Referred_Data.objects.filter(Batch_id=batch).delete()
+    Final_Data.objects.filter(f_Batch_id=batch).delete()
+    name = batch.bat_Batch_Name
     batch.delete()
-    
-    messages.success(request, f"Batch '{batch.bat_Batch_Name}' and all related isolates have been deleted.")
-    
-    return redirect('review_batches')
+    messages.success(request, f"Batch '{name}' and its related records were deleted.")
+    return redirect("review_batches")
 
 
 
@@ -2213,87 +2218,71 @@ def delete_batch(request, batch_id):
 
 
 
+def _deletion_has_locked_batches(batch_ids):
+    case_map = _raw_verification_case_map(batch_ids)
+    return any(verification_case_blocks_operational_outputs(c) for c in case_map.values())
+
+
 @login_required(login_url="login")
+@role_required(ROLE_ADMIN)
+@require_POST
 @transaction.atomic
 def delete_all_batches(request):
-    """
-    Deletes all batches and all related Referred_Data and Final_Data records.
-    """
-
-    batches = Batch_Table.objects.all()
-
-    deleted_batches = batches.count()
-
-    if deleted_batches == 0:
-        messages.warning(request, "No batches found to delete.")
+    if request.POST.get("confirmation", "").strip() != "DELETE ALL BATCHES":
+        messages.error(request, "Type DELETE ALL BATCHES to confirm.")
         return redirect("review_batches")
 
-    # collect batch codes first
-    batch_codes = list(
-        batches.values_list("bat_Batch_Code", flat=True)
-    )
+    batches = Batch_Table.objects.select_for_update()
+    ids = list(batches.values_list("pk", flat=True))
+    if not ids:
+        messages.warning(request, "No batches found.")
+        return redirect("review_batches")
+    if _deletion_has_locked_batches(ids):
+        messages.error(request, "Deletion blocked: a batch is in active verification.")
+        return redirect("review_batches")
 
-    # delete related data
-    Referred_Data.objects.filter(
-        Batch_Code__in=batch_codes
-    ).delete()
-
-    Final_Data.objects.filter(
-        f_Batch_Code__in=batch_codes
-    ).delete()
-
-    # delete the batches
+    Referred_Data.objects.filter(Batch_id_id__in=ids).delete()
+    Final_Data.objects.filter(f_Batch_id_id__in=ids).delete()
     batches.delete()
-
-    messages.success(
-        request,
-        f"All {deleted_batches} batches and related records have been deleted."
-    )
-
+    messages.success(request, f"Deleted {len(ids)} batches and related records.")
     return redirect("review_batches")
-
-
 
 
 @login_required(login_url="login")
+@role_required(ROLE_ADMIN)
+@require_POST
 @transaction.atomic
 def delete_blank_batches(request):
-
-    blank_isolates = (
-        Referred_Data.objects
-        .exclude(
-            Q(Site_Org__isnull=False) & ~Q(Site_Org="")
-            |
-            Q(Spec_Type__isnull=False)
-        )
-    )
-
-    batch_ids = list(
-        blank_isolates.values_list("Batch_id", flat=True).distinct()
-    )
-
-    batches = Batch_Table.objects.filter(id__in=batch_ids)
-
-    deleted_batches = batches.count()
-
-    if deleted_batches == 0:
-        messages.warning(request, "No blank batches found.")
+    if request.POST.get("confirmation", "").strip() != "DELETE BLANK BATCHES":
+        messages.error(request, "Type DELETE BLANK BATCHES to confirm.")
         return redirect("review_batches")
 
-    Referred_Data.objects.filter(Batch_id__in=batch_ids).delete()
-    Final_Data.objects.filter(f_Batch_id__in=batch_ids).delete()
-    batches.delete()
-
-    messages.success(
-        request,
-        f"{deleted_batches} blank batch(es) deleted."
+    populated = (
+        (Q(Site_Org__isnull=False) & ~Q(Site_Org=""))
+        | Q(Spec_Type__isnull=False)
     )
+    candidate_ids = Referred_Data.objects.filter(Batch_id__isnull=False).exclude(
+        populated
+    ).values_list("Batch_id_id", flat=True).distinct()
+    populated_ids = Referred_Data.objects.filter(
+        populated, Batch_id__isnull=False
+    ).values_list("Batch_id_id", flat=True).distinct()
+    batches = Batch_Table.objects.select_for_update().filter(
+        pk__in=candidate_ids
+    ).exclude(pk__in=populated_ids)
+    ids = list(batches.values_list("pk", flat=True))
+    if not ids:
+        messages.warning(request, "No fully blank batches found.")
+        return redirect("review_batches")
+    if _deletion_has_locked_batches(ids):
+        messages.error(request, "Deletion blocked: a blank batch is in active verification.")
+        return redirect("review_batches")
 
+    Referred_Data.objects.filter(Batch_id_id__in=ids).delete()
+    Final_Data.objects.filter(f_Batch_id_id__in=ids).delete()
+    batches.delete()
+    messages.success(request, f"Deleted {len(ids)} fully blank batch(es).")
     return redirect("review_batches")
-
-
-
-
 
 
 @login_required(login_url="login")
