@@ -2219,8 +2219,17 @@ def delete_batch(request, batch_id):
 
 
 def _deletion_has_locked_batches(batch_ids):
-    case_map = _raw_verification_case_map(batch_ids)
-    return any(verification_case_blocks_operational_outputs(c) for c in case_map.values())
+    """Do not erase batches with active batch-level or accession-level reviews."""
+    if not batch_ids:
+        return False
+    VerificationCase = django_apps.get_model("verification", "VerificationCase")
+    active_cases = VerificationCase.objects.filter(
+        Q(final_batch_id__in=batch_ids)
+        | Q(final_accession__f_Batch_id_id__in=batch_ids)
+    ).exclude(
+        status__in=["withdrawn_by_checker", "signed_by_head", "released"]
+    )
+    return active_cases.exists()
 
 
 @login_required(login_url="login")
