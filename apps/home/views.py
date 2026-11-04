@@ -3593,12 +3593,18 @@ def raw_batch_rows(request):
         .filter(f_AccessionNo__in=records.values_list("AccessionNo", flat=True))
         .values_list("f_AccessionNo", flat=True)
     )
+    raw_changed_final_ids = set(
+        Final_Data.objects
+        .filter(f_AccessionNo__in=copied_ids, raw_updated_after_copy=True)
+        .values_list("f_AccessionNo", flat=True)
+    )
     records = _attach_raw_verification_flags(records)
     html = render_to_string(
         "home/partials/raw_batch_rows.html",
         {
             "records": records,
             "copied_ids": copied_ids,
+            "raw_changed_final_ids": raw_changed_final_ids,
             "batch_dom_id": batch_dom_id,
             "request": request,
         },
