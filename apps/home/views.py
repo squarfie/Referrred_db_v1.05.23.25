@@ -3595,8 +3595,9 @@ def raw_batch_rows(request):
     )
     raw_changed_final_ids = set(
         Final_Data.objects
-        .filter(f_AccessionNo__in=copied_ids, raw_updated_after_copy=True)
-        .values_list("f_AccessionNo", flat=True)
+        .filter(f_Batch_id_id=batch_id, raw_updated_after_copy=True)
+        .exclude(raw_updated_after_copy_raw_id__isnull=True)
+        .values_list("raw_updated_after_copy_raw_id", flat=True)
     )
     records = _attach_raw_verification_flags(records)
     html = render_to_string(
@@ -4069,6 +4070,7 @@ def _flag_final_copy_after_raw_edit(isolate, editor, changed_fields, *, previous
     changed = list(changed_fields) or ["Raw antibiotics or form reviewed"]
     count = final_qs.update(
         raw_updated_after_copy=True,
+        raw_updated_after_copy_raw_id=isolate.pk,
         raw_updated_after_copy_at=timezone.now(),
         raw_updated_after_copy_by=editor,
         raw_updated_after_copy_fields=changed,
