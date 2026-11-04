@@ -160,24 +160,45 @@ th.sortable.sorted::after {
   </div>
 
   <!-- RIGHT: Search (fixed width, stacked) -->
-  <div style="min-width:360px">
+  <div class="d-flex flex-wrap justify-content-between align-items-end mb-3" style="gap: 12px;">
 
-    <form method="get">
-      <div class="input-group">
-        <input
-          type="text"
-          name="q"
-          value="{{ q }}"
-          class="form-control"
-          placeholder="Search batch name"
-          autocomplete="off"
-        >
-        <div class="input-group-append">
-          <button class="btn btn-primary" type="submit">
-            <i class="fas fa-search"></i>
-          </button>
+
+    <!-- Search form -->
+    <form method="get" class="d-flex align-items-end" style="gap: 10px;">
+        <div>
+            <label class="form-label mb-1">Search</label>
+            <input
+                type="text"
+                name="q"
+                value="{{ q }}"
+                class="form-control"
+                placeholder="Search batch / accession / site"
+            >
         </div>
-      </div>
+
+        <input type="hidden" name="per_page" value="{{ current_per_page }}">
+
+        <div>
+            <button type="submit" class="btn btn-primary btn-sm">
+                Search
+            </button>
+        </div>
+    </form>
+
+    <!-- Rows per page -->
+    <form method="get" class="d-flex align-items-end" style="gap: 10px;">
+        <input type="hidden" name="q" value="{{ q }}">
+
+        <div>
+            <label class="form-label mb-1">Rows per page</label>
+            <select name="per_page" class="form-control" onchange="this.form.submit()">
+                {% for size in per_page_options %}
+                    <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>
+                        {{ size }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
     </form>
 
     {% if q %}
@@ -303,6 +324,8 @@ th.sortable.sorted::after {
                             {% endfor %}
                             </tbody>
                         </table>
+
+
                     </div>
 
                 </div>
