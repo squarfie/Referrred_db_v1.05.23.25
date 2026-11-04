@@ -59,6 +59,46 @@ th.sortable.sorted::after {
   padding-bottom: 0.85rem;
 }
 
+/* Keep Batch Review summary, search, and page-size controls on one line. */
+.batch-review-toolbar {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) minmax(260px, 340px) 125px;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 8px;
+  padding: 14px 18px;
+}
+.batch-review-title { min-width: 0; }
+.batch-review-title h4 { font-size: 1rem; white-space: nowrap; }
+.batch-review-title .small { white-space: nowrap; }
+.batch-review-search-form,
+.batch-review-size-form { min-width: 0; margin: 0; }
+.batch-review-search-form label,
+.batch-review-size-form label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.batch-review-search-form .form-control { min-width: 0; }
+.batch-review-search-form .input-group { flex-wrap: nowrap; }
+.batch-review-search-form .input-group-append .btn { margin: 0; }
+.batch-review-search-feedback {
+  grid-column: 2 / 4;
+  justify-self: end;
+  font-size: 0.75rem;
+}
+@media (max-width: 1050px) {
+  .batch-review-toolbar { grid-template-columns: minmax(0, 1fr) minmax(220px, 320px) 120px; gap: 12px; }
+  .batch-review-title h4 { white-space: normal; }
+  .batch-review-title .small { white-space: normal; }
+}
+@media (max-width: 767px) {
+  .batch-review-toolbar { grid-template-columns: 1fr; }
+  .batch-review-search-feedback { grid-column: 1; }
+}
+
 @media (max-width: 768px) {
   .batch-review-header {
     min-height: 104px;
@@ -112,8 +152,6 @@ th.sortable.sorted::after {
                         Review and delete batches or view TAT Compliance. 
                     </p>
                 </div>
-                <form method="get" class="mb-3">
-  
             </div>
         </div>
     </div>
@@ -145,71 +183,46 @@ th.sortable.sorted::after {
                             </a>
           
                 </div>
-<div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
-
-  <!-- LEFT: Title + Stats -->
-  <div>
-    <h4 class="mb-1">
-      <i class="ni ni-bullet-list-67"></i> &nbsp; Review Blank Records
-    </h4>
-
+<div class="card-header batch-review-toolbar">
+  <div class="batch-review-title">
+    <h4 class="mb-1"><i class="ni ni-bullet-list-67"></i>&nbsp; Review Blank Records</h4>
     <div class="text-info small">
-      <strong>Total Batches:</strong> {{ total_batches }} &nbsp; | &nbsp;
+      <strong>Total Batches:</strong> {{ total_batches }}
+      <span class="mx-1">|</span>
       <strong>Blank Accessions:</strong> {{ total_accessions_all }}
     </div>
   </div>
 
-  <!-- RIGHT: Search (fixed width, stacked) -->
-  <div class="d-flex flex-wrap justify-content-between align-items-end mb-3" style="gap: 12px;">
+  <form method="get" class="batch-review-search-form">
+    <input type="hidden" name="per_page" value="{{ current_per_page }}">
+    <label for="batch-review-search">Search</label>
+    <div class="input-group input-group-sm">
+      <input id="batch-review-search" type="text" name="q" value="{{ q }}"
+             class="form-control" placeholder="Search batch / accession / site"
+             autocomplete="off">
+      <div class="input-group-append">
+        <button type="submit" class="btn btn-primary">Search</button>
+      </div>
+    </div>
+  </form>
 
+  <form method="get" class="batch-review-size-form">
+    <input type="hidden" name="q" value="{{ q }}">
+    <label for="batch-review-per-page">Rows per page</label>
+    <select id="batch-review-per-page" name="per_page"
+            class="form-control form-control-sm" onchange="this.form.submit()">
+      {% for size in per_page_options %}
+        <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>{{ size }}</option>
+      {% endfor %}
+    </select>
+  </form>
 
-    <!-- Search form -->
-    <form method="get" class="d-flex align-items-end" style="gap: 10px;">
-        <div>
-            <label class="form-label mb-1">Search</label>
-            <input
-                type="text"
-                name="q"
-                value="{{ q }}"
-                class="form-control"
-                placeholder="Search batch / accession / site"
-            >
-        </div>
-
-        <input type="hidden" name="per_page" value="{{ current_per_page }}">
-
-        <div>
-            <button type="submit" class="btn btn-primary btn-sm">
-                Search
-            </button>
-        </div>
-    </form>
-
-    <!-- Rows per page -->
-    <form method="get" class="d-flex align-items-end" style="gap: 10px;">
-        <input type="hidden" name="q" value="{{ q }}">
-
-        <div>
-            <label class="form-label mb-1">Rows per page</label>
-            <select name="per_page" class="form-control" onchange="this.form.submit()">
-                {% for size in per_page_options %}
-                    <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>
-                        {{ size }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-    </form>
-
-    {% if q %}
-      <small class="text-muted d-block mt-1 text-right">
-        Showing <strong>{{ q }}</strong>
-        <a href="{% url 'review_batches' %}" class="ml-2 text-danger">Clear</a>
-      </small>
-    {% endif %}
-
-  </div>
-
+  {% if q %}
+    <div class="batch-review-search-feedback">
+      Showing <strong>{{ q }}</strong>
+      <a href="{% url 'review_batches' %}" class="ml-2 text-danger">Clear</a>
+    </div>
+  {% endif %}
 </div>
 
                 <!-- Table Section -->
@@ -324,8 +337,54 @@ th.sortable.sorted::after {
                             {% endfor %}
                             </tbody>
                         </table>
-
-
+                    </div>
+                    <!-- Pagination footer matching Antibiotic_View.html -->
+                    <div class="card-footer py-4 bg-light">
+                      <div class="row align-items-center">
+                        <div class="col-md-4 mb-2 mb-md-0">
+                          <form method="get" class="form-inline">
+                            <input type="hidden" name="q" value="{{ q }}">
+                            <input type="hidden" name="per_page" value="{{ current_per_page }}">
+                            <label for="review-page-number" class="mr-2 mb-0 text-primary">Go to page:</label>
+                            <input id="review-page-number" type="number" name="page" min="1" max="{{ paginator.num_pages }}"
+                                   value="{{ page_obj.number }}" class="form-control form-control-sm mr-2" style="width: 70px;">
+                            <button type="submit" class="btn btn-sm btn-primary" aria-label="Go to page"><i class="fas fa-arrow-right"></i></button>
+                          </form>
+                        </div>
+                        <div class="col-md-4 text-center mb-2 mb-md-0">
+                          <span class="text-primary">Page <strong>{{ page_obj.number }}</strong> of <strong>{{ paginator.num_pages }}</strong></span>
+                          <small class="d-block text-muted">Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ paginator.count }} rows</small>
+                        </div>
+                        <div class="col-md-4">
+                          <nav aria-label="Batch review pagination">
+                            <ul class="pagination justify-content-end mb-0">
+                              {% if page_obj.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page=1&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}" title="First page"><i class="fas fa-angle-double-left"></i></a></li>
+                                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}" title="Previous page"><i class="fas fa-angle-left"></i></a></li>
+                              {% else %}
+                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-double-left"></i></span></li>
+                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-left"></i></span></li>
+                              {% endif %}
+                              {% for num in page_range %}
+                                {% if num == paginator.ELLIPSIS %}
+                                  <li class="page-item disabled"><span class="page-link">{{ num }}</span></li>
+                                {% elif num == page_obj.number %}
+                                  <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% else %}
+                                  <li class="page-item"><a class="page-link" href="?page={{ num }}&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}">{{ num }}</a></li>
+                                {% endif %}
+                              {% endfor %}
+                              {% if page_obj.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}" title="Next page"><i class="fas fa-angle-right"></i></a></li>
+                                <li class="page-item"><a class="page-link" href="?page={{ paginator.num_pages }}&amp;per_page={{ current_per_page }}&amp;q={{ q|urlencode }}" title="Last page"><i class="fas fa-angle-double-right"></i></a></li>
+                              {% else %}
+                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-right"></i></span></li>
+                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-double-right"></i></span></li>
+                              {% endif %}
+                            </ul>
+                          </nav>
+                        </div>
+                      </div>
                     </div>
 
                 </div>

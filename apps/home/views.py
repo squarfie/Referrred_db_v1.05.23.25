@@ -2088,118 +2088,138 @@ def show_batches(request):
 #         },
 #     )
 
-# review batches with pagination and search
+# Review batches: retain original grouped and unbatched records
 @login_required(login_url="login")
 def review_batches(request):
     q = request.GET.get("q", "").strip()
-
-    # rows per page
-    allowed_per_page = [10, 25, 50, 100]
-    per_page_raw = request.GET.get("per_page", "25")
-
-    try:
-        per_page = int(per_page_raw)
-    except (TypeError, ValueError):
-        per_page = 25
-
-    if per_page not in allowed_per_page:
-        per_page = 25
-
     isolate_qs = (
         Referred_Data.objects
-        .select_related("Batch_id")
-        .order_by("-Batch_id__bat_Date_of_Entry", "-Batch_id_id", "bat_seq", "id")
+        .only(
+            "id",
+            "AccessionNo",
+            "Batch_id",
+        )
+        .exclude(
+            Q(Site_Org__isnull=False) & ~Q(Site_Org="")
+            |
+            Q(Spec_Type__isnull=False)
+        )
     )
-
+    # Accession-only filter
     if q:
         isolate_qs = isolate_qs.filter(
-            Q(Batch_Code__icontains=q) |
-            Q(Batch_Name__icontains=q) |
-            Q(AccessionNo__icontains=q) |
-            Q(SiteCode__icontains=q) |
-            Q(Site_Name__icontains=q)
+            AccessionNo__icontains=q
         )
-
-    # --- EXISTING LOGIC: build batch summary list ---
-    batch_map = OrderedDict()
+    batches = Batch_Table.objects.all().order_by("-bat_Referral_Date")
+    #  Batch name filter
+    if q:
+        batches = batches.filter(
+            bat_Batch_Code__icontains=q
+        )
+    batches = list(batches.prefetch_related(
+        Prefetch(
+            "Batch_isolates",
+            queryset=isolate_qs,
+            to_attr="prefetched_isolates",
+        )
+    ))
     total_accessions_all = 0
-
-    for isolate in isolate_qs:
-        batch = isolate.Batch_id
-
-        # raw unbatched isolate
-        if not batch:
-            key = f"raw-unbatched-{isolate.pk}"
-            batch_map[key] = {
-                "id": None,
-                "bat_Batch_Name": isolate.Batch_Name or "Unbatched Raw Record",
-                "bat_Batch_Code": isolate.Batch_Code or "",
-                "bat_SiteCode": isolate.SiteCode or "",
-                "bat_Site_Name": isolate.Site_Name or "",
-                "bat_Date_of_Entry": isolate.Date_of_Entry,
-                "total_isolates": 1,
-                "is_copied_to_final": False,
-                "is_unbatched_raw": True,
-                "is_unbatched_final": False,
-            }
-            total_accessions_all += 1
-            continue
-
-        # grouped batch
-        if batch.pk not in batch_map:
-            batch_map[batch.pk] = {
-                "id": batch.pk,
-                "bat_Batch_Name": batch.bat_Batch_Name,
-                "bat_Batch_Code": batch.bat_Batch_Code,
-                "bat_SiteCode": batch.bat_SiteCode,
-                "bat_Site_Name": batch.bat_Site_Name,
-                "bat_Date_of_Entry": batch.bat_Date_of_Entry,
-                "total_isolates": 0,
-                "is_copied_to_final": False,
-                "is_unbatched_raw": False,
-                "is_unbatched_final": False,
-            }
-
-        batch_map[batch.pk]["total_isolates"] += 1
-        total_accessions_all += 1
-
-    # optional: if you already have existing logic for copied-to-final / final-unbatched
-    # keep it here exactly as you currently have it
-
-    batches = list(batch_map.values())
-
-    # ---------------------------
-    # PAGINATION BLOCK (NEW)
-    # ---------------------------
-    paginator = Paginator(batches, per_page)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-
-    # for nice compact pagination display
-    page_range = paginator.get_elided_page_range(
-        number=page_obj.number,
-        on_each_side=1,
-        on_ends=1,
+    final_batch_ids = set(
+        Final_Data.objects.values_list("f_Batch_id", flat=True).distinct()
     )
+    for batch in batches:
+        isolates = getattr(batch, "prefetched_isolates", [])
+        batch.display_isolates = isolates
+        batch.total_isolates = len(isolates)
+        total_accessions_all += len(isolates)
+        batch.is_copied_to_final = batch.id in final_batch_ids
+    raw_unbatched = (
+        isolate_qs
+        .filter(Batch_id__isnull=True)
+        .order_by("AccessionNo")
+    )
+    if q:
+        raw_unbatched = raw_unbatched.filter(
+            Q(AccessionNo__icontains=q) |
+            Q(SiteCode__icontains=q)
+        )
+    raw_unbatched_items = [
+        SimpleNamespace(AccessionNo=isolate.AccessionNo)
+        for isolate in raw_unbatched
+        if isolate.AccessionNo
+    ]
+    if raw_unbatched_items:
+        batches.insert(0, SimpleNamespace(
+            id=None,
+            bat_Batch_Name="Unbatched Raw Records",
+            bat_Referral_Date=None,
+            bat_Site_Name="Raw data without batch",
+            display_isolates=raw_unbatched_items,
+            total_isolates=len(raw_unbatched_items),
+            is_copied_to_final=False,
+            is_unbatched_raw=True,
+            is_unbatched_final=False,
+        ))
+        total_accessions_all += len(raw_unbatched_items)
+    final_unbatched = (
+        Final_Data.objects
+        .filter(f_Batch_id__isnull=True)
+        .exclude(f_AccessionNo__isnull=True)
+        .exclude(f_AccessionNo="")
+        .order_by("f_AccessionNo")
+    )
+    if q:
+        final_unbatched = final_unbatched.filter(
+            Q(f_AccessionNo__icontains=q) |
+            Q(f_SiteCode__icontains=q) |
+            Q(f_Batch_Code__icontains=q)
+        )
+    final_unbatched_items = [
+        SimpleNamespace(AccessionNo=isolate.f_AccessionNo)
+        for isolate in final_unbatched
+        if isolate.f_AccessionNo
+    ]
+    if final_unbatched_items:
+        batches.insert(0, SimpleNamespace(
+            id=None,
+            bat_Batch_Name="Unbatched Final Records",
+            bat_Referral_Date=None,
+            bat_Site_Name="Final data without batch",
+            display_isolates=final_unbatched_items,
+            total_isolates=len(final_unbatched_items),
+            is_copied_to_final=True,
+            is_unbatched_raw=False,
+            is_unbatched_final=True,
+        ))
+        total_accessions_all += len(final_unbatched_items)
+    allowed_sizes = (10, 25, 50, 100)
+    try:
+        per_page = int(request.GET.get("per_page", "25"))
+    except (ValueError, TypeError):
+        per_page = 25
+    if per_page not in allowed_sizes:
+        per_page = 25
 
+    paginator = Paginator(batches, per_page)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    page_range = paginator.get_elided_page_range(
+        number=page_obj.number, on_each_side=2, on_ends=1
+    )
     return render(
         request,
         "home/review_batches.html",
         {
-            "batches": page_obj.object_list,   # only current page rows
+            "batches": page_obj.object_list,
             "page_obj": page_obj,
             "paginator": paginator,
             "page_range": page_range,
-            "is_paginated": page_obj.has_other_pages(),
             "current_per_page": per_page,
-            "per_page_options": allowed_per_page,
-            "total_batches": len(batches),
+            "per_page_options": allowed_sizes,
+            "total_batches": paginator.count,
             "total_accessions_all": total_accessions_all,
             "q": q,
         },
     )
-
-
 
 @login_required(login_url="login")
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
