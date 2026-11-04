@@ -2271,15 +2271,19 @@ def delete_blank_batches(request):
          & ~Q(Batch_isolates__Site_Org=""))
         | Q(Batch_isolates__Spec_Type__isnull=False)
     )
-    batches = (
-        Batch_Table.objects
-        .select_for_update()
-        .annotate(
+    # First identify eligible IDs with aggregation (GROUP BY).
+    # PostgreSQL cannot apply SELECT FOR UPDATE directly to grouped rows.
+    eligible_ids = list(
+        Batch_Table.objects.annotate(
             raw_count=Count("Batch_isolates", distinct=True),
             populated_count=Count("Batch_isolates", filter=populated, distinct=True),
         )
         .filter(raw_count__gt=0, populated_count=0)
+        .values_list("pk", flat=True)
     )
+
+    # Lock the underlying Batch_Table rows in a separate, non-aggregate query.
+    batches = Batch_Table.objects.select_for_update().filter(pk__in=eligible_ids)
     ids = list(batches.values_list("pk", flat=True))
     if not ids:
         messages.warning(request, "No fully blank batches found.")
