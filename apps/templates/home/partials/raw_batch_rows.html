@@ -7,6 +7,9 @@
   <td style="text-align:center;">
     {% if isolate.AccessionNo in copied_ids %}
       <span class="copied-badge yes" title="Copied to Final"><i class="fas fa-check"></i></span>
+      {% if isolate.AccessionNo in raw_changed_final_ids %}
+        <span class="badge badge-warning ml-1" title="Raw was edited after copying. Review Final; it was not overwritten.">Review Final</span>
+      {% endif %}
     {% else %}
       <span class="copied-badge no" title="Not yet copied"><i class="fas fa-minus"></i></span>
     {% endif %}
