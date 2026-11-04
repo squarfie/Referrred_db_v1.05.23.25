@@ -321,3 +321,26 @@ class BatchDeletionSecurityTests(TestCase):
         self.client.force_login(self.admin)
         self.client.post(self.blank_url, {"confirmation": "DELETE BLANK BATCHES"})
         self.assertFalse(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_active_verification_blocks_single_batch_deletion(self):
+        from apps.home.models import Batch_Table
+        from apps.verification.models import VerificationCase
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.admin)
+        self.client.post(self.clean_url)
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_active_verification_blocks_bulk_deletion(self):
+        from apps.home.models import Batch_Table
+        from apps.verification.models import VerificationCase
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.admin)
+        self.client.post(self.all_url, {"confirmation": "DELETE ALL BATCHES"})
+        self.client.post(self.blank_url, {"confirmation": "DELETE BLANK BATCHES"})
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
