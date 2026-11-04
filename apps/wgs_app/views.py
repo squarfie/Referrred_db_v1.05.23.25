@@ -43,6 +43,7 @@ from .utils import format_accession
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from datetime import datetime
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.text import slugify
 from django.template.loader import render_to_string
@@ -10172,13 +10173,26 @@ def delete_rawantibiotic_by_date(request):
 
 @login_required(login_url="login")
 def export_Final_Antibioticentry(request):
-    objects = Final_AntibioticEntry.objects.all()
+    objects = Final_AntibioticEntry.objects.select_related("ab_idNum_f_referred").all()
     data = []
 
+    def excel_datetime(value):
+        if not value:
+            return None
+        if timezone.is_aware(value):
+            value = timezone.localtime(value)
+        return value.replace(tzinfo=None)
+
     for obj in objects:
+        final = obj.ab_idNum_f_referred
+
         data.append({
-            "ab_idNum_f_referred": obj.ab_idNum_f_referred.f_AccessionNo if obj.ab_idNum_f_referred else None,
+            "ab_idNum_f_referred": final.f_AccessionNo if final else None,
             "f_Accession_No": obj.ab_AccessionNo,
+            "f_Date_of_Entry": excel_datetime(final.f_Date_of_Entry) if final else None,
+            "f_Date_Modified": excel_datetime(final.f_Date_Modified) if final else None,
+            "f_arsp_Encoder": final.f_arsp_Encoder if final else "",
+            "f_arsp_Checker": final.f_arsp_Checker if final else "",
             "f_Site_Org": obj.ab_Site_Org,
             "Antibiotic": obj.ab_Antibiotic,
             "Abx_code": obj.ab_Abx_code,
@@ -10223,13 +10237,26 @@ def export_Final_Antibioticentry(request):
 
 @login_required(login_url="login")
 def export_raw_Antibioticentry(request):
-    objects = AntibioticEntry.objects.all()
+    objects = AntibioticEntry.objects.select_related("ab_idNum_referred").all()
     data = []
 
+    def excel_datetime(value):
+        if not value:
+            return None
+        if timezone.is_aware(value):
+            value = timezone.localtime(value)
+        return value.replace(tzinfo=None)
+
     for obj in objects:
+        referred = obj.ab_idNum_referred
+
         data.append({
-            "ab_idNum_f_referred": obj.ab_idNum_referred.AccessionNo if obj.ab_idNum_referred else None,
+            "ab_idNum_f_referred": referred.AccessionNo if referred else None,
             "f_Accession_No": obj.ab_AccessionNo,
+            "Date_of_Entry": excel_datetime(referred.Date_of_Entry) if referred else None,
+            "Date_Modified": excel_datetime(referred.Date_Modified) if referred else None,
+            "arsp_Encoder": referred.arsp_Encoder if referred else "",
+            "arsp_Checker": referred.arsp_Checker if referred else "",
             "f_Site_Org": obj.ab_Site_Org,
             "Antibiotic": obj.ab_Antibiotic,
             "Abx_code": obj.ab_Abx_code,

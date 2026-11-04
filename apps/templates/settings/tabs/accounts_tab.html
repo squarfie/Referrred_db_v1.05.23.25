@@ -131,13 +131,13 @@
                   <form method="post" action="{% url 'link_account_staff' row.user.id %}" class="d-flex align-items-center mb-2">
                     {% csrf_token %}
                     <input type="hidden" name="next_tab" value="accounts_tab">
-                    <select name="staff_id" class="form-control form-control-md mr-2" required style="line-height: 1.8;">
+                    <select name="staff_id" class="form-control form-control-md mr-2" required style="line-height: 2.0;">
                       <option value="">Select staff to link</option>
                       {% for staff in available_staff %}
                         <option value="{{ staff.id }}" >{{ staff.display_name }}</option>
                       {% endfor %}
                     </select>
-                    <button type="submit" class="btn btn-sm btn-primary">Link</button>
+                    <button type="submit" class="btn btn-md btn-primary">Link</button>
                   </form>
                   {% endif %}
                   <div class="d-flex">

@@ -531,6 +531,22 @@
       font-size: 0.75rem; cursor: pointer;
       transition: all 0.2s ease; text-decoration: none; background: transparent;
     }
+    .action-btn-icon.disabled,
+    .action-btn-icon:disabled,
+    .action-btn-icon.disabled:hover,
+    .action-btn-icon:disabled:hover {
+      color: #8f9eae !important;
+      border-color: #ccd5df !important;
+      background: #edf1f5 !important;
+      box-shadow: none !important;
+      cursor: not-allowed !important;
+      transform: none !important;
+      opacity: 1;
+    }
+    .action-btn-icon.disabled i,
+    .action-btn-icon:disabled i {
+      color: #8f9eae !important;
+    }
     .action-btn-icon.edit {
       color: #26a69a; border-color: rgba(38,166,154,0.4); background: rgba(38,166,154,0.07);
     }
@@ -963,6 +979,17 @@
                   </span>
                   {% if batch_group.batch_id %}
                     {% if batch_group.verification_case_id %}
+                      {% if batch_group.verification_status_code == "for_final_encoding" and user_access.can_send_final_to_verification %}
+                      <button type="button"
+                              class="batch-workflow-btn send-verification-btn"
+                              data-action="{% url 'send_batch_to_verifier' batch_group.batch_id %}"
+                              data-batch="{{ batch_group.code }}"
+                              data-site="{{ batch_group.site_code|default:'No site' }}"
+                              data-count="{{ batch_group.count }}"
+                              title="Endorse final encoding to verifier">
+                        <i class="fas fa-paper-plane"></i>Send
+                      </button>
+                      {% else %}
                       {% if batch_group.verification_can_withdraw %}
                       {% if user_access.can_send_to_verification %}
                       <form method="post"
@@ -978,14 +1005,15 @@
                       </form>
                       {% endif %}
                       {% endif %}
-                    {% elif user_access.can_send_to_verification %}
+                      {% endif %}
+                    {% elif user_access.can_send_final_to_verification %}
                       <button type="button"
                               class="batch-workflow-btn send-verification-btn"
                               data-action="{% url 'send_batch_to_verifier' batch_group.batch_id %}"
                               data-batch="{{ batch_group.code }}"
                               data-site="{{ batch_group.site_code|default:'No site' }}"
                               data-count="{{ batch_group.count }}"
-                              title="Send this batch to verifier">
+                              title="Endorse final encoding to verifier">
                         <i class="fas fa-paper-plane"></i>Send
                       </button>
                     {% endif %}
@@ -1008,7 +1036,7 @@
                     </a>
                     {% endif %}
                     {% endif %}
-                    {% if user_access.can_view_correction_badges and batch_group.verification_pending_comment_count %}
+                    {% if batch_group.verification_pending_comment_count %}
                     <span class="batch-comment-alert"
                           title="{{ batch_group.verification_pending_comment_count }} accession comment(s) need correction. {{ batch_group.verification_pending_comment_preview|default:'Open this batch to see the marked accession.' }}">
                       <i class="fas fa-exclamation"></i>
@@ -1062,7 +1090,7 @@
                 {% else %}
                   <span style="color:#9fb0c4; font-size:0.72rem;">View only</span>
                 {% endif %}
-                {% if user_access.can_view_correction_badges and isolate.verification_pending_comment_count %}
+                {% if isolate.verification_pending_comment_count %}
                 <span class="isolate-comment-pill"
                       title="{{ isolate.verification_pending_comment_preview|default:'Pending verifier comments' }}">
                   <i class="fas fa-comment-dots"></i>Needs correction{% if isolate.verification_pending_comment_count > 1 %} ({{ isolate.verification_pending_comment_count }}){% endif %}
@@ -1228,7 +1256,7 @@
                   </td>
               <!-- Edit Author -->
               <td style="text-align:center;">
-                {% if isolate.f_Batch_id and isolate.verification_pdf_blocked %}
+                {% if isolate.f_Batch_id and isolate.verification_pdf_blocked and not isolate.workflow_final_editable %}
                 <span title="Batch signatory editing is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
                       style="display:inline-flex;">
                   <button type="button"
@@ -1237,6 +1265,11 @@
                     <i class="ni ni-single-02"></i>
                   </button>
                 </span>
+                {% elif isolate.f_Batch_id and isolate.workflow_final_editable and user_access.can_update %}
+                <a href="{% url 'batch_edit_view' isolate.f_Batch_id.id %}"
+                   class="action-btn-icon edit" title="Edit Batch">
+                  <i class="ni ni-single-02"></i>
+                </a>
                 {% elif isolate.f_Batch_id and user_access.can_update and user_access.can_view_all or isolate.f_Batch_id and user_access.can_update and isolate.f_Batch_id.created_by_id == request.user.id %}
                 <a href="{% url 'batch_edit_view' isolate.f_Batch_id.id %}"
                    class="action-btn-icon edit" title="Edit Batch">
@@ -1469,7 +1502,7 @@
         </div>
       </div>
       <div class="modal-body" style="text-align:left; background:#f8fbfd;">
-        <p class="text-muted small mb-3">Checker sends this final batch to the selected verifier.</p>
+        <p class="text-muted small mb-3">Final Encoder sends this batch to the selected verifier.</p>
         <div class="workflow-batch-card">
           <div class="d-flex justify-content-between align-items-start" style="gap:0.75rem;">
             <div>

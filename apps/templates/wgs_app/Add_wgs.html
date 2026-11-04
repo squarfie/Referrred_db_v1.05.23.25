@@ -722,13 +722,12 @@
 
   </div><!-- /wgs grid -->
 
-  {% if user_access.is_admin %}
+
   <div class="upload-section-divider" style="margin-top:2.5rem">
     <i class="ni ni-bullet-list-67"></i>
     <h3>Custom WGS Pipelines</h3>
   </div>
   <p class="section-intro">Upload configurable short-read, long-read, or hybrid pipeline outputs</p>
-
   <div class="upload-card-grid">
     {% for pipeline in custom_pipelines %}
     <div class="upload-card a-custom">
@@ -752,6 +751,8 @@
           <i class="ni ni-cloud-download-95"></i> Export
         </a>
       </div>
+
+
       {% if user_access.can_wgs_create %}
       <div class="pipeline-danger-actions mt-2">
         <form method="post" action="{% url 'custom_pipeline_deactivate' pipeline.slug %}" class="pipeline-action-form">
@@ -765,7 +766,7 @@
             <i class="ni ni-fat-remove"></i> Deactivate Pipeline
           </button>
         </form>
-        {% if user_access.is_admin %}
+
         <form method="post" action="{% url 'custom_pipeline_delete' pipeline.slug %}" class="pipeline-action-form">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -779,7 +780,7 @@
         </form>
         {% endif %}
       </div>
-      {% endif %}
+
     </div>
     {% empty %}
     <div class="upload-card a-custom">
@@ -810,7 +811,7 @@
     </div>
     {% endif %}
   </div>
-  {% endif %}
+
 </div><!-- /upload-main -->
 </div><!-- /upload-page -->
 

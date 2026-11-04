@@ -11,13 +11,21 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from apps.home.forms import staff_role_q
-from apps.home.models import Antibiotic_List, Batch_Table, TATform, arsStaff_Details
+from apps.home.models import (
+    AntibioticEntry,
+    Antibiotic_List,
+    Batch_Table,
+    Referred_Data,
+    TATform,
+    arsStaff_Details,
+)
 from apps.home.permissions import (
     ROLE_ADMIN,
     ROLE_CHECKER,
     ROLE_ENCODER,
     ROLE_LAB_MANAGER,
     ROLE_VERIFIER,
+    can_manage_batch,
     get_user_roles,
     role_required,
 )
@@ -25,10 +33,12 @@ from apps.home_final.models import Final_AntibioticEntry, Final_Data
 from apps.home_final.utils import antibiotic_print_order, sort_abx_codes_by_antibiotic
 
 from .models import VerificationCase, VerificationComment
+from .workflow import next_raw_draft_status
 
 
 GENERAL_NOTE_FIELD_PREFIX = "case-note:"
 GENERAL_NOTE_AUDIENCE_CHOICES = (
+    ("encoder", "Encoder"),
     ("checker", "Checker"),
     ("verifier", "Verifier"),
     ("lab_manager", "Lab Manager"),
@@ -388,6 +398,7 @@ def _can_write_case_field_comments(case, roles, user):
     if ROLE_ADMIN in roles:
         return True
     if ROLE_VERIFIER in roles and case.status in {
+        VerificationCase.STATUS_FOR_RAW_VERIFICATION,
         VerificationCase.STATUS_FOR_VERIFICATION,
         VerificationCase.STATUS_RETURNED_TO_VERIFIER,
         VerificationCase.STATUS_RETURNED_TO_CHECKER,
@@ -409,6 +420,7 @@ def _can_submit_verifier_actions(case, roles):
     return ROLE_ADMIN in roles or (
         ROLE_VERIFIER in roles
         and case.status in {
+            VerificationCase.STATUS_FOR_RAW_VERIFICATION,
             VerificationCase.STATUS_FOR_VERIFICATION,
             VerificationCase.STATUS_RETURNED_TO_VERIFIER,
             VerificationCase.STATUS_RETURNED_TO_CHECKER,
@@ -421,6 +433,26 @@ def _can_submit_lab_manager_actions(case, roles, user):
         ROLE_LAB_MANAGER in roles
         and case.status == VerificationCase.STATUS_FOR_LAB_MANAGER
         and _is_assigned_lab_manager(case, user)
+    )
+
+
+def _can_route_final_review(case, roles, user):
+    if case.status != VerificationCase.STATUS_FOR_FINAL_VERIFICATION:
+        return False
+    if ROLE_ADMIN in roles:
+        return True
+    if ROLE_VERIFIER in roles:
+        return not case.assigned_verifier_id or case.assigned_verifier_id == user.id
+    return False
+
+
+def _can_route_lab_final_review(case, roles, user):
+    return case.status == VerificationCase.STATUS_FOR_LAB_MANAGER and (
+        ROLE_ADMIN in roles
+        or (
+            ROLE_LAB_MANAGER in roles
+            and _is_assigned_lab_manager(case, user)
+        )
     )
 
 
@@ -439,7 +471,10 @@ def _can_undo_send_to_lab_manager(case, roles, user):
 
 
 def _can_withdraw_from_head(case, roles, user):
-    return case.status == VerificationCase.STATUS_FOR_HEAD and (
+    return case.status in {
+        VerificationCase.STATUS_FOR_HEAD,
+        VerificationCase.STATUS_FOR_FINAL_PRINTING,
+    } and (
         ROLE_ADMIN in roles
         or (
             ROLE_LAB_MANAGER in roles
@@ -453,7 +488,10 @@ def _can_withdraw_from_head(case, roles, user):
 
 
 def _can_submit_head_actions(case, roles, user):
-    return case.status == VerificationCase.STATUS_FOR_HEAD and (
+    return case.status in {
+        VerificationCase.STATUS_FOR_HEAD,
+        VerificationCase.STATUS_FOR_FINAL_PRINTING,
+    } and (
         ROLE_ADMIN in roles or (case.assigned_head_id and case.assigned_head_id == user.id)
     )
 
@@ -470,14 +508,31 @@ def _can_undo_head_disapprove(case, roles, user):
     )
 
 
+def _case_uses_raw_records(case):
+    if not case.final_batch_id:
+        return False
+    if case.status in {
+        VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        VerificationCase.STATUS_RETURNED_TO_ENCODER,
+    }:
+        return True
+    return not Final_Data.objects.filter(f_Batch_id=case.final_batch).exists()
+
+
 def _case_accession_nav(case, requested_accession_id=None):
     if case.final_batch_id:
-        accession_ids = list(
-            Final_Data.objects
-            .filter(f_Batch_id=case.final_batch)
-            .order_by("f_bat_seq", "f_AccessionNo", "id")
-            .values_list("id", flat=True)
-        )
+        if _case_uses_raw_records(case):
+            accession_ids = list(
+                Referred_Data.objects.filter(Batch_id=case.final_batch)
+                .order_by("bat_seq", "AccessionNo", "id")
+                .values_list("id", flat=True)
+            )
+        else:
+            accession_ids = list(
+                Final_Data.objects.filter(f_Batch_id=case.final_batch)
+                .order_by("f_bat_seq", "f_AccessionNo", "id")
+                .values_list("id", flat=True)
+            )
     elif case.final_accession_id:
         accession_ids = [case.final_accession_id]
     else:
@@ -557,7 +612,10 @@ def verification_dashboard(request):
         },
         "for_head": {
             "label": "For Head Approval",
-            "statuses": {VerificationCase.STATUS_FOR_HEAD},
+            "statuses": {
+                VerificationCase.STATUS_FOR_HEAD,
+                VerificationCase.STATUS_FOR_FINAL_PRINTING,
+            },
         },
         "ready": {
             "label": "Ready for Release",
@@ -585,13 +643,18 @@ def verification_dashboard(request):
     pending_q = Q(pk__in=[])
     if roles & {ROLE_ADMIN, ROLE_CHECKER}:
         pending_q |= Q(status__in=[
+            VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+            VerificationCase.STATUS_FOR_FINAL_ENCODING,
             VerificationCase.STATUS_FOR_VERIFICATION,
             VerificationCase.STATUS_RETURNED_TO_CHECKER,
             VerificationCase.STATUS_RETURNED_TO_ENCODER,
         ])
     if ROLE_VERIFIER in roles:
         pending_q |= (
-            Q(status=VerificationCase.STATUS_FOR_VERIFICATION)
+            Q(status__in=[
+                VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+                VerificationCase.STATUS_FOR_FINAL_VERIFICATION,
+            ])
             & (Q(assigned_verifier=request.user) | Q(assigned_verifier__isnull=True))
         ) | (
             Q(status=VerificationCase.STATUS_RETURNED_TO_VERIFIER)
@@ -601,11 +664,14 @@ def verification_dashboard(request):
         pending_q |= (
             Q(status=VerificationCase.STATUS_FOR_LAB_MANAGER)
             & (Q(assigned_lab_manager=request.user) | Q(assigned_lab_manager__isnull=True))
-        )
+        ) | Q(status=VerificationCase.STATUS_FOR_FINAL_VERIFICATION)
     if request.user.is_authenticated:
         pending_q |= Q(
             assigned_head=request.user,
-            status=VerificationCase.STATUS_FOR_HEAD,
+            status__in=[
+                VerificationCase.STATUS_FOR_HEAD,
+                VerificationCase.STATUS_FOR_FINAL_PRINTING,
+            ],
         )
 
     returned_q = Q(status__in=[
@@ -635,6 +701,7 @@ def verification_dashboard(request):
     else:
         displayed_cases = cases.none()
 
+    displayed_cases = displayed_cases.order_by("-updated_at", "-created_at", "-id")
     paginator = Paginator(displayed_cases, 20)
     page_obj = paginator.get_page(request.GET.get("page"))
     page_case_ids = [case.id for case in page_obj.object_list]
@@ -712,7 +779,7 @@ def verification_dashboard(request):
 
 
 @login_required(login_url="login")
-@role_required(ROLE_ADMIN, ROLE_CHECKER)
+@role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
 @transaction.atomic
 def send_batch_to_verifier(request, batch_id):
     if request.method != "POST":
@@ -723,11 +790,9 @@ def send_batch_to_verifier(request, batch_id):
         next_url = ""
 
     batch = get_object_or_404(Batch_Table, pk=batch_id)
-    verifier_staff = get_object_or_404(
-        _staff_for_role(ROLE_VERIFIER, ROLE_ADMIN),
-        pk=request.POST.get("verifier_staff"),
-    )
-    checker_staff = _staff_for_user(request.user)
+    if not can_manage_batch(request.user, batch):
+        messages.error(request, "You can only endorse batches that you are allowed to manage.")
+        return redirect(next_url or "show_data")
     note = request.POST.get("note", "").strip()
 
     case, created = VerificationCase.objects.get_or_create(
@@ -735,12 +800,55 @@ def send_batch_to_verifier(request, batch_id):
         final_accession=None,
         defaults={
             "created_by": request.user,
-            "assigned_checker": request.user,
+            "assigned_checker": None,
         },
     )
-    case.assigned_checker = request.user
-    case.assigned_verifier = verifier_staff.User_Account
-    case.status = VerificationCase.STATUS_FOR_VERIFICATION
+    has_final_records = Final_Data.objects.filter(f_Batch_id=batch).exists()
+    is_raw_endorsement = not has_final_records and (
+        created
+        or case.status in {
+            VerificationCase.STATUS_DRAFT,
+            VerificationCase.STATUS_WITHDRAWN,
+            VerificationCase.STATUS_RETURNED_TO_ENCODER,
+        }
+    )
+    is_final_endorsement = (
+        has_final_records
+        and (
+            created
+            or case.status in {
+                VerificationCase.STATUS_DRAFT,
+                VerificationCase.STATUS_WITHDRAWN,
+                VerificationCase.STATUS_FOR_FINAL_ENCODING,
+            }
+        )
+    )
+    if not is_raw_endorsement and not is_final_endorsement:
+        messages.error(request, "This batch is not currently available for endorsement to the verifier.")
+        return redirect(next_url or _case_detail_url(case.id))
+    sender_roles = get_user_roles(request.user)
+    if is_raw_endorsement and not sender_roles.intersection({ROLE_ADMIN, ROLE_ENCODER}):
+        messages.error(request, "Only the Raw Data Encoder can endorse Raw Data for verification.")
+        return redirect(next_url or _case_detail_url(case.id))
+    if is_final_endorsement and not sender_roles.intersection({ROLE_ADMIN, ROLE_CHECKER}):
+        messages.error(request, "Only the Final Encoder can endorse Final Data for verification.")
+        return redirect(next_url or _case_detail_url(case.id))
+
+    verifier_staff = None
+    if is_final_endorsement:
+        verifier_staff = get_object_or_404(
+            _staff_for_role(ROLE_VERIFIER, ROLE_ADMIN),
+            pk=request.POST.get("verifier_staff"),
+        )
+        case.assigned_checker = request.user
+        case.assigned_verifier = verifier_staff.User_Account
+    else:
+        case.assigned_verifier = None
+    case.status = (
+        VerificationCase.STATUS_FOR_RAW_VERIFICATION
+        if is_raw_endorsement
+        else VerificationCase.STATUS_FOR_FINAL_VERIFICATION
+    )
     case.sent_by_checker = request.user
     case.sent_to_verifier_at = timezone.now()
     case.withdrawn_at = None
@@ -749,11 +857,16 @@ def send_batch_to_verifier(request, batch_id):
         case.note = note
     case.save()
 
-    if batch.bat_Status != "Verification":
-        batch.bat_Status = "Verification"
+    if is_raw_endorsement:
+        batch.bat_Status = next_raw_draft_status(batch.bat_Status)
         batch.save(update_fields=["bat_Status"])
 
-    _sync_case_signatories(case, checker_staff=checker_staff, verifier_staff=verifier_staff)
+    if verifier_staff:
+        _sync_case_signatories(
+            case,
+            checker_staff=_staff_for_user(request.user),
+            verifier_staff=verifier_staff,
+        )
 
     action = "created and sent" if created else "sent"
     messages.success(request, f"Verification case {action} for {batch.bat_Batch_Code or batch.bat_Batch_Name}.")
@@ -761,13 +874,16 @@ def send_batch_to_verifier(request, batch_id):
 
 
 @login_required(login_url="login")
-@role_required(ROLE_ADMIN, ROLE_CHECKER)
+@role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
 @transaction.atomic
 def withdraw_verification_case(request, case_id):
     if request.method != "POST":
         return redirect("verification_case_detail", case_id=case_id)
 
     case = get_object_or_404(VerificationCase, pk=case_id)
+    if case.final_batch_id and not can_manage_batch(request.user, case.final_batch):
+        messages.error(request, "You can only withdraw batches that you are allowed to manage.")
+        return redirect("show_data")
     next_url = request.POST.get("next") or request.GET.get("next") or ""
     if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
         next_url = ""
@@ -809,18 +925,38 @@ def _review_rows_for_case(case, selected_accession_id=None):
     elif case.final_accession_id:
         final_qs = Final_Data.objects.filter(pk=case.final_accession_id)
 
-    if selected_accession_id:
-        final_qs = final_qs.filter(pk=selected_accession_id)
-
-    final_qs = final_qs.prefetch_related(
-        Prefetch("final_entries", queryset=Final_AntibioticEntry.objects.order_by("ab_Antibiotic", "ab_Retest_Antibiotic"))
-    ).order_by("f_bat_seq", "f_AccessionNo", "id")
+    is_raw = _case_uses_raw_records(case)
+    if is_raw:
+        accession_qs = Referred_Data.objects.filter(Batch_id=case.final_batch)
+        if selected_accession_id:
+            accession_qs = accession_qs.filter(pk=selected_accession_id)
+        accession_qs = accession_qs.prefetch_related(
+            Prefetch(
+                "antibiotic_entries",
+                queryset=AntibioticEntry.objects.order_by("ab_Antibiotic", "ab_Retest_Antibiotic"),
+            )
+        ).order_by("bat_seq", "AccessionNo", "id")
+    else:
+        accession_qs = final_qs
+        if selected_accession_id:
+            accession_qs = accession_qs.filter(pk=selected_accession_id)
+        accession_qs = accession_qs.prefetch_related(
+            Prefetch(
+                "final_entries",
+                queryset=Final_AntibioticEntry.objects.order_by("ab_Antibiotic", "ab_Retest_Antibiotic"),
+            )
+        ).order_by("f_bat_seq", "f_AccessionNo", "id")
 
     rows = []
-    for accession in final_qs:
+    for accession in accession_qs:
+        accession_comment_filter = (
+            {"raw_accession_ref_sequence": accession}
+            if is_raw
+            else {"final_accession_ref_sequence": accession}
+        )
         accession_comments = list(
             case.comments
-            .filter(final_accession_ref_sequence=accession)
+            .filter(**accession_comment_filter)
             .select_related("created_by", "resolved_by")
         )
         comments_by_field = {}
@@ -829,12 +965,15 @@ def _review_rows_for_case(case, selected_accession_id=None):
 
         field_rows = []
         for field_name, label in FINAL_REVIEW_FIELDS:
-            value = getattr(accession, field_name, "")
+            source_field = field_name[2:] if is_raw and field_name.startswith("f_") else field_name
+            value = getattr(accession, source_field, "")
             fallback_field = FINAL_REVIEW_FALLBACK_FIELDS.get(field_name)
             if fallback_field and value in ("", None):
+                if is_raw and fallback_field.startswith("f_"):
+                    fallback_field = fallback_field[2:]
                 value = getattr(accession, fallback_field, "")
             if field_name == "f_Age_Display" and value in ("", None):
-                value = accession.f_Age
+                value = getattr(accession, "Age" if is_raw else "f_Age", "")
             recommendation_items = _recommendation_items(value) if field_name == "f_ars_reco" else []
             field_rows.append({
                 "name": field_name,
@@ -846,7 +985,8 @@ def _review_rows_for_case(case, selected_accession_id=None):
             })
 
         antibiotic_rows_by_code = {}
-        for entry in accession.final_entries.all():
+        antibiotic_entries = accession.antibiotic_entries.all() if is_raw else accession.final_entries.all()
+        for entry in antibiotic_entries:
             site_result = antibiotic_result(
                 "Site",
                 entry.ab_Disk_value,
@@ -945,6 +1085,27 @@ def _review_rows_for_case(case, selected_accession_id=None):
 
         rows.append({
             "accession": accession,
+            "accession_id": accession.id,
+            "accession_no": getattr(accession, "AccessionNo" if is_raw else "f_AccessionNo", ""),
+            "patient_name": " ".join(
+                str(getattr(accession, field, "") or "").strip()
+                for field in (
+                    ("First_Name", "Last_Name") if is_raw else ("f_First_Name", "f_Last_Name")
+                )
+            ).strip(),
+            "age_display": getattr(accession, "Age_Display" if is_raw else "f_Age_Display", "")
+                or getattr(accession, "Age" if is_raw else "f_Age", ""),
+            "sex": getattr(accession, "Sex" if is_raw else "f_Sex", ""),
+            "site_code": getattr(accession, "SiteCode" if is_raw else "f_SiteCode", ""),
+            "specimen_type": getattr(accession, "Spec_Type" if is_raw else "f_Spec_Type", ""),
+            "organism": (
+                getattr(accession, "ars_OrgName" if is_raw else "f_ars_OrgName", "")
+                or getattr(accession, "Site_OrgName" if is_raw else "f_Site_OrgName", "")
+                or getattr(accession, "ars_OrgCode" if is_raw else "f_ars_OrgCode", "")
+                or getattr(accession, "Site_Org" if is_raw else "f_Site_Org", "")
+            ),
+            "specimen_date": getattr(accession, "Spec_Date" if is_raw else "f_Spec_Date", None),
+            "is_raw": is_raw,
             "field_rows": field_rows,
             "antibiotic_rows": antibiotic_rows,
             "additional_antibiotic_comments": [
@@ -956,6 +1117,27 @@ def _review_rows_for_case(case, selected_accession_id=None):
             "general_comments": comments_by_field.get("", []),
         })
     return rows
+
+
+def _posted_case_accession(request, case):
+    raw_accession_id = request.POST.get("raw_accession_id")
+    final_accession_id = request.POST.get("final_accession_id")
+    if raw_accession_id:
+        raw_accession = get_object_or_404(
+            Referred_Data,
+            pk=raw_accession_id,
+            Batch_id=case.final_batch_id,
+        )
+        return raw_accession, None, raw_accession, raw_accession.id
+    if final_accession_id:
+        final_filters = {"pk": final_accession_id}
+        if case.final_batch_id:
+            final_filters["f_Batch_id"] = case.final_batch_id
+        elif case.final_accession_id:
+            final_filters["pk"] = case.final_accession_id
+        final_accession = get_object_or_404(Final_Data, **final_filters)
+        return final_accession, final_accession, None, final_accession.id
+    return None, None, None, None
 
 
 @login_required(login_url="login")
@@ -994,10 +1176,7 @@ def verification_case_detail(request, case_id):
             if not can_write_field_comments:
                 messages.error(request, "Field comments are locked while this case is with another review role. Use General Remarks unless the case is returned to you.")
                 return redirect("verification_case_detail", case_id=case.id)
-            accession = None
-            accession_id = request.POST.get("final_accession_id")
-            if accession_id:
-                accession = get_object_or_404(Final_Data, pk=accession_id)
+            accession, final_accession, raw_accession, accession_id = _posted_case_accession(request, case)
 
             decision = request.POST.get("decision") or VerificationComment.DECISION_NOTE
             field_name = request.POST.get("field_name", "").strip()
@@ -1007,7 +1186,8 @@ def verification_case_detail(request, case_id):
             if decision == VerificationComment.DECISION_APPROVED:
                 comments_to_clear = VerificationComment.objects.filter(
                     verification_case=case,
-                    final_accession_ref_sequence=accession,
+                    final_accession_ref_sequence=final_accession,
+                    raw_accession_ref_sequence=raw_accession,
                     field_name=field_name,
                 )
                 cleared_count, _ = comments_to_clear.delete()
@@ -1027,7 +1207,8 @@ def verification_case_detail(request, case_id):
 
             VerificationComment.objects.create(
                 verification_case=case,
-                final_accession_ref_sequence=accession,
+                final_accession_ref_sequence=final_accession,
+                raw_accession_ref_sequence=raw_accession,
                 field_name=field_name,
                 field_label=field_label,
                 field_value_snapshot=field_value_snapshot,
@@ -1042,8 +1223,10 @@ def verification_case_detail(request, case_id):
             if not can_write_field_comments:
                 messages.error(request, "Antibiotic comments are locked while this case is with another review role. Use General Remarks unless the case is returned to you.")
                 return redirect("verification_case_detail", case_id=case.id)
-            accession_id = request.POST.get("final_accession_id")
-            accession = get_object_or_404(Final_Data, pk=accession_id)
+            accession, final_accession, raw_accession, accession_id = _posted_case_accession(request, case)
+            if accession is None:
+                messages.error(request, "The accession could not be identified.")
+                return redirect("verification_case_detail", case_id=case.id)
             antibiotic_code = request.POST.get("antibiotic_code", "").strip()
             test_method = request.POST.get("test_method", "").strip()
             arsrl_test_method = request.POST.get("arsrl_test_method", "").strip()
@@ -1067,7 +1250,8 @@ def verification_case_detail(request, case_id):
             if decision == VerificationComment.DECISION_APPROVED:
                 cleared_count, _ = VerificationComment.objects.filter(
                     verification_case=case,
-                    final_accession_ref_sequence=accession,
+                    final_accession_ref_sequence=final_accession,
+                    raw_accession_ref_sequence=raw_accession,
                     field_name=field_name,
                 ).delete()
                 if cleared_count:
@@ -1081,7 +1265,8 @@ def verification_case_detail(request, case_id):
 
             VerificationComment.objects.create(
                 verification_case=case,
-                final_accession_ref_sequence=accession,
+                final_accession_ref_sequence=final_accession,
+                raw_accession_ref_sequence=raw_accession,
                 field_name=field_name,
                 field_label=field_label,
                 field_value_snapshot=" | ".join(
@@ -1098,6 +1283,71 @@ def verification_case_detail(request, case_id):
             )
             messages.success(request, "Antibiotic comment saved.")
             return redirect(_case_detail_url(case.id, accession_id))
+
+        if action in {
+            "return_raw_encoding",
+            "send_final_encoding",
+            "return_final_encoding",
+            "send_final_printing",
+        }:
+            roles = get_user_roles(request.user)
+            if action in {"return_raw_encoding", "send_final_encoding"}:
+                allowed = (
+                    case.status == VerificationCase.STATUS_FOR_RAW_VERIFICATION
+                    and (
+                        ROLE_ADMIN in roles
+                        or (
+                            ROLE_VERIFIER in roles
+                            and (
+                                not case.assigned_verifier_id
+                                or case.assigned_verifier_id == request.user.id
+                            )
+                        )
+                    )
+                )
+                if not allowed:
+                    messages.error(request, "Raw review actions are available only to Verifiers.")
+                    return redirect("verification_case_detail", case_id=case.id)
+                case.status = (
+                    VerificationCase.STATUS_RETURNED_TO_ENCODER
+                    if action == "return_raw_encoding"
+                    else VerificationCase.STATUS_FOR_FINAL_ENCODING
+                )
+                case.verifier_decision_at = timezone.now()
+                case.verifier_decision_by = request.user
+            else:
+                can_verifier_route = _can_route_final_review(case, roles, request.user)
+                can_lab_route = _can_route_lab_final_review(case, roles, request.user)
+                if action == "return_final_encoding" and not (can_verifier_route or can_lab_route):
+                    messages.error(request, "This case cannot currently be returned for Final Encoding.")
+                    return redirect("verification_case_detail", case_id=case.id)
+                if action == "send_final_printing" and not can_lab_route:
+                    messages.error(request, "Only the assigned Lab Manager can endorse this case for Final Printing.")
+                    return redirect("verification_case_detail", case_id=case.id)
+                if action == "return_final_encoding":
+                    case.status = VerificationCase.STATUS_FOR_FINAL_ENCODING
+                else:
+                    head_staff = get_object_or_404(
+                        arsStaff_Details.objects.filter(
+                            Q(Is_Default_Head=True) | staff_role_q(ROLE_ADMIN),
+                            User_Account__isnull=False,
+                        ),
+                        pk=request.POST.get("head_staff"),
+                    )
+                    case.status = VerificationCase.STATUS_FOR_FINAL_PRINTING
+                    case.assigned_head = head_staff.User_Account
+                    case.sent_to_head_at = timezone.now()
+                    case.sent_to_head_by = request.user
+                    _sync_case_signatories(case, head_staff=head_staff)
+                if ROLE_LAB_MANAGER in roles:
+                    case.lab_manager_decision_at = timezone.now()
+                    case.lab_manager_decision_by = request.user
+                else:
+                    case.verifier_decision_at = timezone.now()
+                    case.verifier_decision_by = request.user
+            case.save()
+            messages.success(request, f"Case updated to: {case.get_status_display()}.")
+            return redirect("verification_case_detail", case_id=case.id)
 
         if action == "return_encoder":
             messages.error(request, "Verifier corrections must be returned to Checker.")
@@ -1193,7 +1443,7 @@ def verification_case_detail(request, case_id):
                 case.lab_manager_decision_at = timezone.now()
                 case.lab_manager_decision_by = request.user
             elif action == "lab_return_verifier":
-                case.status = VerificationCase.STATUS_RETURNED_TO_VERIFIER
+                case.status = VerificationCase.STATUS_FOR_FINAL_ENCODING
                 case.lab_manager_decision_at = timezone.now()
                 case.lab_manager_decision_by = request.user
             elif action == "send_head":
@@ -1204,7 +1454,7 @@ def verification_case_detail(request, case_id):
                     ),
                     pk=request.POST.get("head_staff"),
                 )
-                case.status = VerificationCase.STATUS_FOR_HEAD
+                case.status = VerificationCase.STATUS_FOR_FINAL_PRINTING
                 case.assigned_head = head_staff.User_Account
                 case.sent_to_head_at = timezone.now()
                 case.sent_to_head_by = request.user
@@ -1234,7 +1484,7 @@ def verification_case_detail(request, case_id):
                 case.signed_by_head = request.user
                 case.mark_qr_generated()
             elif action == "withdraw_from_ready":
-                case.status = VerificationCase.STATUS_FOR_HEAD
+                case.status = VerificationCase.STATUS_FOR_FINAL_PRINTING
                 case.qr_generated_at = None
                 case.head_decision_at = timezone.now()
                 case.head_decision_by = request.user
@@ -1263,7 +1513,17 @@ def verification_case_detail(request, case_id):
     can_submit_head_actions = _can_submit_head_actions(case, roles, request.user)
     can_withdraw_from_ready = _can_withdraw_from_ready(case, roles, request.user)
     can_undo_head_disapprove = _can_undo_head_disapprove(case, roles, request.user)
-    can_submit_verifier_actions = _can_submit_verifier_actions(case, roles)
+    can_submit_raw_review = bool(
+        case.status == VerificationCase.STATUS_FOR_RAW_VERIFICATION
+        and _can_submit_verifier_actions(case, roles)
+    )
+    can_route_final_review = _can_route_final_review(case, roles, request.user)
+    can_route_lab_final_review = _can_route_lab_final_review(case, roles, request.user)
+    can_submit_verifier_actions = bool(
+        _can_submit_verifier_actions(case, roles)
+        and case.status != VerificationCase.STATUS_FOR_RAW_VERIFICATION
+        and case.status != VerificationCase.STATUS_FOR_FINAL_VERIFICATION
+    )
     can_submit_lab_manager_actions = _can_submit_lab_manager_actions(case, roles, request.user)
     can_undo_send_lab_manager = _can_undo_send_to_lab_manager(case, roles, request.user)
     can_withdraw_from_head = _can_withdraw_from_head(case, roles, request.user)
@@ -1284,6 +1544,13 @@ def verification_case_detail(request, case_id):
         "general_case_notes": general_case_notes,
         "can_write_field_comments": can_write_field_comments,
         "can_submit_verifier_actions": can_submit_verifier_actions,
+        "can_submit_raw_review": can_submit_raw_review,
+        "can_route_final_review": can_route_final_review,
+        "can_route_lab_final_review": can_route_lab_final_review,
+        "is_raw_stage": case.status in {
+            VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+            VerificationCase.STATUS_RETURNED_TO_ENCODER,
+        },
         "can_submit_lab_manager_actions": can_submit_lab_manager_actions,
         "can_undo_send_lab_manager": can_undo_send_lab_manager,
         "can_withdraw_from_head": can_withdraw_from_head,
@@ -1386,3 +1653,29 @@ def final_comment_action(request, final_id, comment_id):
         label = comment.field_label or comment.field_name or "comment"
         messages.success(request, f"{label} comment updated.")
     return redirect("edit_final_data", id=final_record.id)
+
+
+@login_required(login_url="login")
+@transaction.atomic
+def raw_comment_action(request, raw_id, comment_id):
+    if request.method != "POST":
+        return redirect("edit_data", id=raw_id)
+
+    raw_record = get_object_or_404(Referred_Data, pk=raw_id)
+    comment = get_object_or_404(
+        VerificationComment,
+        pk=comment_id,
+        raw_accession_ref_sequence=raw_record,
+    )
+    action = request.POST.get("comment_action", "")
+    note = request.POST.get("resolution_note", "").strip()
+    updated = _bulk_comment_update(
+        request,
+        VerificationComment.objects.filter(pk=comment.pk),
+        action,
+        note,
+    )
+    if updated:
+        label = comment.field_label or comment.field_name or "comment"
+        messages.success(request, f"{label} comment updated.")
+    return redirect("edit_data", id=raw_record.id)

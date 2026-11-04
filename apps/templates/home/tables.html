@@ -364,6 +364,21 @@
       background: rgba(218, 245, 250, 0.58);
     }
 
+    .batch-comment-alert {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(245, 126, 74, 0.45);
+      background: #fff7f2;
+      color: #d95227;
+      font-size: 0.72rem;
+      font-weight: 900;
+      box-shadow: 0 1px 4px rgba(15, 58, 95, 0.08);
+    }
+
     .batch-toggle-icon {
       width: 28px;
       height: 28px;
@@ -444,6 +459,92 @@
       border-color: #d85d45;
       color: #4f120b;
     }
+    .isolate-comment-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.24rem;
+      margin-top: 0.35rem;
+      min-height: 22px;
+      padding: 0.18rem 0.48rem;
+      border-radius: 7px;
+      border: 1px solid rgba(245, 126, 74, 0.38);
+      background: #fff7f2;
+      color: #d95227;
+      font-size: 0.66rem;
+      font-weight: 900;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+    .batch-workflow-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.28rem;
+      height: 24px;
+      padding: 0 0.55rem;
+      border-radius: 7px;
+      border: 1px solid rgba(0, 188, 212, 0.42);
+      background: #ffffff;
+      color: #07889a;
+      font-size: 0.7rem;
+      font-weight: 900;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(15, 58, 95, 0.08);
+    }
+    .batch-workflow-btn:hover {
+      background: #00bcd4;
+      color: #ffffff;
+      border-color: #00bcd4;
+    }
+    .batch-workflow-form { display: inline-flex; margin: 0; }
+    .batch-workflow-undo {
+      height: 24px;
+      padding: 0 0.48rem;
+      border-radius: 7px;
+      border: 1px solid rgba(245, 126, 74, 0.45);
+      background: #fff7f2;
+      color: #d95227;
+      font-size: 0.68rem;
+      font-weight: 900;
+      box-shadow: 0 2px 6px rgba(15, 58, 95, 0.08);
+    }
+    .batch-workflow-undo:hover {
+      background: #f57e4a;
+      border-color: #f57e4a;
+      color: #ffffff;
+    }
+    .modal-header-workflow {
+      background: #123f4e;
+      border-bottom: none;
+      padding: 1rem 1.5rem;
+    }
+    .modal-header-workflow .modal-title { color: #ffffff !important; font-weight: 800 !important; }
+    .workflow-batch-card {
+      border: 1px solid rgba(15, 89, 116, 0.14);
+      border-radius: 8px;
+      padding: 0.9rem;
+      background: #ffffff;
+    }
+    .workflow-batch-title { font-weight: 800; color: #152d4f; margin-bottom: 0.15rem; }
+    .workflow-batch-meta { color: #71819b; font-size: 0.78rem; }
+    .workflow-count-badge {
+      border-radius: 999px;
+      padding: 0.25rem 0.6rem;
+      background: #e8f9fc;
+      color: #07889a;
+      font-size: 0.72rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .workflow-send-form {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) auto;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.75rem;
+    }
+    @media (max-width: 768px) { .workflow-send-form { grid-template-columns: 1fr; } }
 
     .batch-status-pack {
       margin-left: auto;
@@ -725,6 +826,24 @@
       transition: all 0.2s ease;
       text-decoration: none;
       background: transparent;
+    }
+
+    .action-btn-icon.disabled,
+    .action-btn-icon:disabled,
+    .action-btn-icon.disabled:hover,
+    .action-btn-icon:disabled:hover {
+      color: #8f9eae !important;
+      border-color: #ccd5df !important;
+      background: #edf1f5 !important;
+      box-shadow: none !important;
+      cursor: not-allowed !important;
+      transform: none !important;
+      opacity: 1;
+    }
+
+    .action-btn-icon.disabled i,
+    .action-btn-icon:disabled i {
+      color: #8f9eae !important;
     }
 
     .action-btn-icon.edit {
@@ -1328,7 +1447,34 @@
                     {% endif %}
                     <span class="batch-count-badge">{{ batch_group.count }}</span>
                   </span>
+                  {% if batch_group.can_send_raw and user_access.can_send_raw_to_verification %}
+                  <button type="button"
+                          class="batch-workflow-btn send-raw-verification-btn"
+                          data-action="{% url 'send_batch_to_verifier' batch_group.batch_id %}"
+                          data-batch="{{ batch_group.code }}"
+                          data-site="{{ batch_group.site_code|default:'No site' }}"
+                          data-count="{{ batch_group.count }}"
+                          title="Endorse raw data for all verifiers">
+                    <i class="fas fa-paper-plane"></i>Send
+                  </button>
+                  {% elif batch_group.verification_can_withdraw and user_access.can_send_raw_to_verification %}
+                  <form method="post"
+                        action="{% url 'withdraw_verification_case' batch_group.verification_case_id %}"
+                        class="batch-workflow-form"
+                        onclick="event.stopPropagation();"
+                        onsubmit="event.stopPropagation(); return confirm('Withdraw {{ batch_group.code|escapejs }} from verification?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="batch-workflow-undo" title="Withdraw raw endorsement"><i class="fas fa-undo"></i> Undo</button>
+                  </form>
+                  {% endif %}
                   <span class="batch-status-pack">
+                  {% if batch_group.verification_pending_comment_count %}
+                    <span class="batch-comment-alert"
+                          title="{{ batch_group.verification_pending_comment_count }} accession comment(s) need correction. {{ batch_group.verification_pending_comment_preview|default:'Open this batch to see the marked accession.' }}">
+                      <i class="fas fa-exclamation"></i>
+                    </span>
+                  {% endif %}
                   {% if batch_group.verification_status and batch_group.batch_id %}
                     {% if batch_group.verification_status_code == "signed_by_head" %}
                     <a href="{% url 'tat_monitoring_view' batch_group.batch_id %}"
@@ -1409,10 +1555,18 @@
                           class="accession-copy-form"
                           onsubmit="return confirmAccessionCopyToFinal(this, '{{ isolate.AccessionNo|escapejs }}');">
                       {% csrf_token %}
+                      {% if isolate.verification_pdf_blocked and user_access.are_disabled %}
+                      <button type="submit" class="action-btn-icon copy"
+                              title="Copy accession to Final" disabled>
+                        <i class="fas fa-clipboard"></i>
+                      </button>
+
+                      {% else %}
                       <button type="submit" class="action-btn-icon copy"
                               title="Copy accession to Final">
                         <i class="fas fa-clipboard"></i>
-                      </button>
+
+                      {% endif %}
                     </form>
 
                     <form method="post"
@@ -1614,7 +1768,7 @@
 
               <!-- Edit Author -->
                     <td style="text-align:center;">
-                    {% if isolate.Batch_id_id and isolate.verification_pdf_blocked %}
+                    {% if isolate.Batch_id_id and isolate.verification_pdf_blocked and not isolate.workflow_raw_editable %}
                       <span title="Batch signatory editing is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
                             style="display:inline-flex;">
                         <button type="button"
@@ -1623,6 +1777,11 @@
                           <i class="ni ni-single-02"></i>
                         </button>
                       </span>
+                    {% elif isolate.Batch_id_id and isolate.workflow_raw_editable and user_access.can_update %}
+                      <a href="{% url 'batch_edit_view' isolate.Batch_id.id %}"
+                        class="action-btn-icon edit" title="Edit Batch">
+                        <i class="ni ni-single-02"></i>
+                      </a>
                     {% elif isolate.Batch_id_id and user_access.can_update and user_access.can_view_all or isolate.Batch_id_id and user_access.can_update and isolate.Batch_id.created_by_id == request.user.id %}
                       <a href="{% url 'batch_edit_view' isolate.Batch_id.id %}"
                         class="action-btn-icon edit" title="Edit Batch">
@@ -1824,6 +1983,48 @@
 </div><!-- /page-wrapper -->
 
 
+<!-- ── Send Raw Batch to Verifiers Modal ── -->
+<div class="modal fade" id="sendRawVerificationModal" tabindex="-1" role="dialog" aria-labelledby="sendRawVerificationModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none;">
+      <div class="modal-header modal-header-workflow">
+        <h6 class="modal-title" id="sendRawVerificationModalLabel">
+          <i class="fas fa-paper-plane mr-2"></i>Send Raw Batch
+        </h6>
+        <div class="d-flex align-items-center" style="gap:0.5rem;">
+          <a href="{% url 'verification_dashboard' %}" class="btn btn-sm btn-light">
+            <i class="fas fa-list mr-1"></i>Workflow
+          </a>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span>&times;</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body" style="text-align:left; background:#f8fbfd;">
+        <p class="text-muted small mb-3">Raw Data Encoder sends this batch for review. All verifiers will be able to see the endorsed records.</p>
+        <div class="workflow-batch-card">
+          <div class="d-flex justify-content-between align-items-start" style="gap:0.75rem;">
+            <div>
+              <div class="workflow-batch-title" id="sendRawVerificationBatchName">Selected batch</div>
+              <div class="workflow-batch-meta" id="sendRawVerificationBatchMeta">Select a batch from the table.</div>
+            </div>
+            <span class="workflow-count-badge" id="sendRawVerificationBatchCount">0 raw</span>
+          </div>
+          <form method="post" action="" class="workflow-send-form" id="sendRawVerificationForm" style="grid-template-columns:minmax(220px, 1fr) auto;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="text" name="note" class="form-control form-control-md" placeholder="Optional note">
+            <button type="submit" class="btn btn-sm btn-success">
+              <i class="fas fa-paper-plane mr-1"></i>Send
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <!-- ── Delete Confirmation Modal ── -->
 <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-sm" role="document">
@@ -1886,6 +2087,22 @@ document.addEventListener("DOMContentLoaded", function() {
     const deleteForm = document.getElementById("deleteForm");
 
     document.addEventListener("click", function(event) {
+        const sendRawVerificationButton = event.target.closest(".send-raw-verification-btn");
+        if (sendRawVerificationButton) {
+            const form = document.getElementById("sendRawVerificationForm");
+            const batchName = document.getElementById("sendRawVerificationBatchName");
+            const batchMeta = document.getElementById("sendRawVerificationBatchMeta");
+            const batchCount = document.getElementById("sendRawVerificationBatchCount");
+            if (form) form.setAttribute("action", sendRawVerificationButton.getAttribute("data-action") || "");
+            if (batchName) batchName.textContent = sendRawVerificationButton.getAttribute("data-batch") || "Selected batch";
+            if (batchMeta) batchMeta.textContent = sendRawVerificationButton.getAttribute("data-site") || "No site";
+            if (batchCount) batchCount.textContent = `${sendRawVerificationButton.getAttribute("data-count") || "0"} raw`;
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.modal) {
+                window.jQuery("#sendRawVerificationModal").modal("show");
+            }
+            return;
+        }
+
         const deleteButton = event.target.closest(".delete-btn");
         if (deleteButton && deleteForm) {
             const url = deleteButton.getAttribute("data-url");
@@ -1894,7 +2111,10 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     document.querySelectorAll(".batch-accordion-row").forEach(row => {
-        row.addEventListener("click", async function() {
+        row.addEventListener("click", async function(event) {
+            if (event.target.closest("button, form, a, input, select, textarea")) {
+                return;
+            }
             const target = this.getAttribute("data-batch-target");
             const loadUrl = this.getAttribute("data-load-url");
             const isOpen = this.classList.toggle("is-open");

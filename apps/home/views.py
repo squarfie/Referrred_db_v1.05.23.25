@@ -3093,13 +3093,105 @@ def _raw_verification_case_map(batch_ids):
         return {}
 
 
+def _raw_verification_blocks_final_copy(batch):
+    verification_case = _raw_verification_case_map({batch.pk}).get(batch.pk)
+    if not verification_case:
+        return False
+    VerificationCase = verification_case.__class__
+    return verification_case.status == VerificationCase.STATUS_FOR_RAW_VERIFICATION
+
+
+def _advance_verification_after_complete_final_copy(batch):
+    raw_count = Referred_Data.objects.filter(Batch_id=batch).count()
+    final_count = Final_Data.objects.filter(f_Batch_id=batch).count()
+    from apps.verification.workflow import raw_batch_is_fully_copied
+
+    if not raw_batch_is_fully_copied(raw_count=raw_count, final_count=final_count):
+        return
+    try:
+        VerificationCase = django_apps.get_model("verification", "VerificationCase")
+        case = VerificationCase.objects.filter(
+            final_batch=batch,
+            final_accession__isnull=True,
+        ).exclude(status=VerificationCase.STATUS_WITHDRAWN).first()
+    except (LookupError, ProgrammingError, OperationalError):
+        return
+    if case and case.status in {
+        VerificationCase.STATUS_DRAFT,
+        VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        VerificationCase.STATUS_RETURNED_TO_ENCODER,
+    }:
+        case.status = VerificationCase.STATUS_FOR_FINAL_ENCODING
+        case.save(update_fields=["status", "updated_at"])
+
+
 def _attach_raw_verification_flags(records):
     record_list = list(records)
-    case_map = _raw_verification_case_map([
-        record.Batch_id_id for record in record_list if record.Batch_id_id
-    ])
+    batch_ids = {record.Batch_id_id for record in record_list if record.Batch_id_id}
+    case_map = _raw_verification_case_map(batch_ids)
+    raw_counts = dict(
+        Referred_Data.objects.filter(Batch_id_id__in=batch_ids)
+        .values_list("Batch_id_id")
+        .annotate(record_count=Count("id"))
+    )
+    final_counts = dict(
+        Final_Data.objects.filter(f_Batch_id_id__in=batch_ids)
+        .values_list("f_Batch_id_id")
+        .annotate(record_count=Count("id"))
+    )
+    from apps.verification.workflow import (
+        open_correction_comments,
+        raw_batch_is_fully_copied,
+        raw_encoding_is_editable,
+    )
+    correction_counts = defaultdict(int)
+    correction_previews = {}
+    for comment in (
+        open_correction_comments()
+        .filter(raw_accession_ref_sequence_id__in=[record.id for record in record_list])
+        .order_by("-created_at")
+    ):
+        record_id = comment.raw_accession_ref_sequence_id
+        correction_counts[record_id] += 1
+        if record_id not in correction_previews:
+            correction_previews[record_id] = " | ".join(
+                part for part in [
+                    comment.field_label or comment.field_name or "General",
+                    comment.comment,
+                ]
+                if part
+            )
+
+    correction_batch_ids = {
+        record.Batch_id_id
+        for record in record_list
+        if record.Batch_id_id and correction_counts.get(record.id)
+    }
+
     for record in record_list:
         verification_case = case_map.get(record.Batch_id_id)
+        final_count = final_counts.get(record.Batch_id_id, 0)
+        final_records_exist = final_count > 0
+        fully_copied = raw_batch_is_fully_copied(
+            raw_count=raw_counts.get(record.Batch_id_id, 0),
+            final_count=final_count,
+        )
+        case_status = verification_case.status if verification_case else None
+        record.workflow_raw_editable = raw_encoding_is_editable(
+            case_status,
+            final_records_exist=final_records_exist,
+            has_open_corrections=record.Batch_id_id in correction_batch_ids,
+        )
+        record.verification_pending_comment_count = correction_counts.get(record.id, 0)
+        record.verification_pending_comment_preview = correction_previews.get(record.id, "")
+        record.workflow_copy_blocked_by_verification = bool(
+            verification_case
+            and case_status == verification_case.STATUS_FOR_RAW_VERIFICATION
+        )
+        record.workflow_can_copy = bool(
+            not fully_copied
+            and not record.workflow_copy_blocked_by_verification
+        )
         record.verification_pdf_blocked = verification_case_blocks_operational_outputs(verification_case)
         record.verification_pdf_block_reason = (
             "Printing disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
@@ -3107,6 +3199,106 @@ def _attach_raw_verification_flags(records):
             else ""
         )
     return record_list
+
+
+def _raw_verification_comment_context(isolate):
+    comment_map = {}
+    antibiotic_site_comments = []
+    antibiotic_retest_comments = []
+    general_comments = []
+
+    try:
+        VerificationComment = django_apps.get_model("verification", "VerificationComment")
+        comments = (
+            VerificationComment.objects
+            .filter(raw_accession_ref_sequence=isolate, is_resolved=False)
+            .select_related("created_by", "verification_case")
+            .order_by("-created_at")
+        )
+        for comment in comments:
+            field_name = (comment.field_name or "").strip()
+            payload = {
+                "id": comment.id,
+                "field_label": comment.field_label or field_name or "General",
+                "comment": comment.comment or "",
+                "decision": comment.get_decision_display(),
+                "resolution_status": comment.get_resolution_status_display(),
+                "field_value_snapshot": comment.field_value_snapshot or "",
+                "created_by": str(comment.created_by or "Unknown"),
+                "created_at": timezone.localtime(comment.created_at).strftime("%b %d, %Y %I:%M %p") if comment.created_at else "",
+                "case_id": comment.verification_case_id,
+                "action_url": reverse("raw_comment_action", args=[isolate.id, comment.id]),
+            }
+            if field_name:
+                if field_name.startswith("abx:"):
+                    if field_name.endswith(":arsrl"):
+                        antibiotic_retest_comments.append(payload)
+                    else:
+                        antibiotic_site_comments.append(payload)
+                else:
+                    raw_field_name = field_name[2:] if field_name.startswith("f_") else field_name
+                    comment_map.setdefault(raw_field_name, payload)
+            else:
+                general_comments.append(payload)
+    except (LookupError, ProgrammingError, OperationalError):
+        pass
+
+    return {
+        "verification_comment_map": comment_map,
+        "verification_antibiotic_site_comments": antibiotic_site_comments,
+        "verification_antibiotic_retest_comments": antibiotic_retest_comments,
+        "verification_general_comments": general_comments,
+        "verification_comment_count": (
+            len(comment_map)
+            + len(antibiotic_site_comments)
+            + len(antibiotic_retest_comments)
+            + len(general_comments)
+        ),
+    }
+
+
+def _handle_saved_raw_comment_action(request, isolate):
+    action = (request.POST.get("verification_comment_action") or "").strip()
+    comment_id = (request.POST.get("verification_comment_id") or "").strip()
+    if action not in {"mark_handled", "reject_all"} or not comment_id:
+        return
+
+    try:
+        VerificationComment = django_apps.get_model("verification", "VerificationComment")
+    except LookupError:
+        return
+
+    comment = (
+        VerificationComment.objects
+        .filter(
+            pk=comment_id,
+            raw_accession_ref_sequence=isolate,
+            is_resolved=False,
+        )
+        .first()
+    )
+    if not comment:
+        return
+
+    if action == "mark_handled":
+        comment.resolution_status = VerificationComment.RESOLUTION_HANDLED
+        status_message = "marked as applied"
+    else:
+        comment.resolution_status = VerificationComment.RESOLUTION_REJECTED
+        status_message = "rejected"
+
+    comment.is_resolved = True
+    comment.resolved_at = timezone.now()
+    comment.resolved_by = request.user
+    comment.save(update_fields=[
+        "is_resolved",
+        "resolution_status",
+        "resolved_at",
+        "resolved_by",
+    ])
+
+    label = comment.field_label or comment.field_name or "comment"
+    messages.success(request, f"{label} comment {status_message}.")
 
 
 # with year filters
@@ -3184,6 +3376,48 @@ def show_data(request):
         if tat.tat_Batch_Code
     }
     page_case_map = _raw_verification_case_map(page_batch_ids)
+    raw_counts = {
+        row["Batch_id_id"]: row["record_count"]
+        for row in (
+            Referred_Data.objects.filter(Batch_id_id__in=page_batch_ids)
+            .values("Batch_id_id")
+            .annotate(record_count=Count("id"))
+        )
+    }
+    final_counts = {
+        row["f_Batch_id_id"]: row["record_count"]
+        for row in (
+        Final_Data.objects.filter(f_Batch_id_id__in=page_batch_ids)
+        .values("f_Batch_id_id")
+        .annotate(record_count=Count("id"))
+        )
+    }
+    from apps.verification.workflow import open_correction_comments, raw_batch_is_fully_copied
+
+    batch_correction_counts = defaultdict(int)
+    batch_correction_previews = {}
+    page_case_ids = [case.id for case in page_case_map.values()]
+    for comment in (
+        open_correction_comments()
+        .filter(
+            verification_case_id__in=page_case_ids,
+            raw_accession_ref_sequence__Batch_id_id__in=page_batch_ids,
+        )
+        .select_related("raw_accession_ref_sequence")
+        .order_by("-created_at")
+    ):
+        raw_record = comment.raw_accession_ref_sequence
+        batch_id = raw_record.Batch_id_id
+        batch_correction_counts[batch_id] += 1
+        if batch_id not in batch_correction_previews:
+            batch_correction_previews[batch_id] = " | ".join(
+                part for part in [
+                    raw_record.AccessionNo,
+                    comment.field_label or comment.field_name or "General",
+                    comment.comment,
+                ]
+                if part
+            )
 
     page_groups = []
     for batch_summary in page_obj.object_list:
@@ -3191,6 +3425,10 @@ def show_data(request):
         batch_code = raw_batch_code.strip() or "Unbatched"
         batch_id = batch_summary.get("Batch_id") or ""
         tat_summary = tat_by_batch_id.get(batch_id, tat_by_batch_code.get(batch_code, {}))
+        fully_copied = raw_batch_is_fully_copied(
+            raw_count=raw_counts.get(batch_id, 0),
+            final_count=final_counts.get(batch_id, 0),
+        )
         verification_case = page_case_map.get(batch_id)
         verification_status_label = ""
         if verification_case:
@@ -3207,6 +3445,20 @@ def show_data(request):
             "tat_pressure": tat_summary.get("pressure", "none"),
             "verification_status": verification_status_label,
             "verification_status_code": verification_case.status if verification_case else "",
+            "verification_case_id": verification_case.id if verification_case else "",
+            "verification_pending_comment_count": batch_correction_counts.get(batch_id, 0),
+            "verification_pending_comment_preview": batch_correction_previews.get(batch_id, ""),
+            "verification_can_withdraw": bool(
+                verification_case
+                and verification_case.status == verification_case.STATUS_FOR_RAW_VERIFICATION
+            ),
+            "can_send_raw": bool(
+                not fully_copied
+                and (
+                    not verification_case
+                    or verification_case.status == verification_case.STATUS_RETURNED_TO_ENCODER
+                )
+            ),
             "verification_pdf_blocked": verification_case_blocks_operational_outputs(verification_case),
             "verification_pdf_block_reason": (
                 "Printing disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
@@ -3731,6 +3983,22 @@ def edit_data(request, id):
     if isolates.Batch_id and not can_manage_batch(request.user, isolates.Batch_id):
         messages.error(request, "You can only update records from batches that you created.")
         return redirect("show_data")
+    if isolates.Batch_id:
+        from apps.verification.workflow import open_correction_comments, raw_encoding_is_editable
+
+        verification_case = _raw_verification_case_map([isolates.Batch_id_id]).get(isolates.Batch_id_id)
+        final_records_exist = Final_Data.objects.filter(f_Batch_id=isolates.Batch_id).exists()
+        case_status = verification_case.status if verification_case else None
+        has_open_corrections = open_correction_comments().filter(
+            raw_accession_ref_sequence__Batch_id=isolates.Batch_id,
+        ).exists()
+        if not raw_encoding_is_editable(
+            case_status,
+            final_records_exist=final_records_exist,
+            has_open_corrections=has_open_corrections,
+        ):
+            messages.error(request, "Raw encoding is locked at the current verification stage.")
+            return redirect("show_data")
     antibiotic_view = _antibiotic_view_mode(request)
 
 
@@ -3762,7 +4030,7 @@ def edit_data(request, id):
             ab_Retest_Abx_code__isnull=True
         )
 
-        return render(request, "home/edit.html", {
+        context = {
             "form": form,
             "isolates": isolates,
             "batch_nav": _raw_batch_navigation(isolates),
@@ -3772,7 +4040,9 @@ def edit_data(request, id):
             "retest_entries": retest_entries,
             "edit_mode": True,
             "antibiotic_view": antibiotic_view,
-        })
+        }
+        context.update(_raw_verification_comment_context(isolates))
+        return render(request, "home/edit.html", context)
 
     # save form first before processing antibiotics
     old_site_org = (isolates.Site_Org or "").strip()
@@ -3806,7 +4076,7 @@ def edit_data(request, id):
         messages.error(request, "Please check the highlighted fields.")
         existing_entries = AntibioticEntry.objects.filter(ab_idNum_referred=isolates)
         specimen_year = isolates.Spec_Date.year if isolates.Spec_Date else None
-        return render(request, "home/edit.html", {
+        context = {
             "form": form,
             "isolates": isolates,
             "batch_nav": _raw_batch_navigation(isolates),
@@ -3829,7 +4099,9 @@ def edit_data(request, id):
             "retest_entries": existing_entries.exclude(ab_Retest_Abx_code__isnull=True),
             "edit_mode": True,
             "antibiotic_view": antibiotic_view,
-        })
+        }
+        context.update(_raw_verification_comment_context(isolates))
+        return render(request, "home/edit.html", context)
 
     isolates = form.save(commit=False)
     for field_name, original_value in original_phenotypes.items():
@@ -4200,6 +4472,7 @@ def edit_data(request, id):
             "ab_Retest_Alert_val",
         ])
 
+    _handle_saved_raw_comment_action(request, isolates)
     messages.success(request, "Data saved successfully.")
     next_after_save = (request.POST.get("next_after_save") or "").strip()
     if next_after_save and url_has_allowed_host_and_scheme(
@@ -6175,15 +6448,6 @@ def _blank_breakpoint_values_filter():
     )
 
 
-def _alert_only_breakpoint_values_filter():
-    return (
-        _blank_breakpoint_values_filter() &
-        ~(Q(Alert_val__isnull=True) | Q(Alert_val__exact=""))
-    )
-
-
-
-
 @login_required(login_url="login")
 def breakpoints_view(request):
     q = request.GET.get('q', '').strip()
@@ -6195,9 +6459,6 @@ def breakpoints_view(request):
     total_breakpoints = BreakpointsTable.objects.count()
     blank_breakpoint_count = BreakpointsTable.objects.filter(
         _blank_breakpoint_values_filter()
-    ).count()
-    alert_only_breakpoint_count = BreakpointsTable.objects.filter(
-        _alert_only_breakpoint_values_filter()
     ).count()
     breakpoints = BreakpointsTable.objects.all().order_by('-Date_Modified')
 
@@ -6267,6 +6528,14 @@ def breakpoints_view(request):
             .values_list("Emerging_Pheno_Flag", flat=True)
             .distinct()
         ),
+        "years": (
+            BreakpointsTable.objects
+            .exclude(Year__isnull=True)
+            .exclude(Year__exact="")
+            .order_by("-Year")
+            .values_list("Year", flat=True)
+            .distinct()
+        ),
     }
 
     paginator = Paginator(breakpoints, 25)
@@ -6289,7 +6558,6 @@ def breakpoints_view(request):
             "resistance_phenotype": resistance_phenotype,
             "total_breakpoints": total_breakpoints,
             "blank_breakpoint_count": blank_breakpoint_count,
-            "alert_only_breakpoint_count": alert_only_breakpoint_count,
             "filtered_count": filtered_count,
             "filter_options": filter_options,
             "preserved_params": preserved_params,
@@ -6332,19 +6600,46 @@ def delete_blank_breakpoint_values(request):
 
 
 @login_required(login_url="login")
-def delete_alert_only_breakpoints(request):
+def delete_breakpoints_by_date_modified_range(request):
     if request.method != "POST":
         messages.error(request, "Invalid request method.")
         return redirect('breakpoints_view')
 
-    deleted_count, _ = (
-        BreakpointsTable.objects
-        .filter(_alert_only_breakpoint_values_filter())
-        .delete()
+    breakpoint_year = (request.POST.get("breakpoint_year") or "").strip()
+    start_date_raw = (request.POST.get("date_modified_start") or "").strip()
+    end_date_raw = (request.POST.get("date_modified_end") or "").strip()
+    start_date = parse_date(start_date_raw)
+    end_date = parse_date(end_date_raw)
+
+    has_date_filter = bool(start_date_raw or end_date_raw)
+    if not breakpoint_year and not has_date_filter:
+        messages.error(request, "Please select a breakpoint year or provide a Date Modified range to delete.")
+        return redirect('breakpoints_view')
+
+    if has_date_filter and (not start_date or not end_date):
+        messages.error(request, "Please provide both Date Modified start and end dates, or leave both blank for year-only deletion.")
+        return redirect('breakpoints_view')
+
+    if has_date_filter and start_date > end_date:
+        messages.error(request, "Date Modified start date cannot be later than the end date.")
+        return redirect('breakpoints_view')
+
+    breakpoints_to_delete = BreakpointsTable.objects.all()
+    if breakpoint_year:
+        breakpoints_to_delete = breakpoints_to_delete.filter(Year=breakpoint_year)
+    if has_date_filter:
+        breakpoints_to_delete = breakpoints_to_delete.filter(Date_Modified__range=(start_date, end_date))
+
+    deleted_count, _ = breakpoints_to_delete.delete()
+    year_label = f" for year {breakpoint_year}" if breakpoint_year else ""
+    date_label = (
+        f" modified from {start_date:%b %d, %Y} to {end_date:%b %d, %Y}"
+        if has_date_filter
+        else ""
     )
     messages.success(
         request,
-        f"Deleted {deleted_count} alert-only breakpoint record(s)."
+        f"Deleted {deleted_count} breakpoint record(s){year_label}{date_label}."
     )
     return redirect('breakpoints_view')
 
@@ -7427,15 +7722,29 @@ def export_specimens(request):
 
 ####### Download Antibiotic Entries
 
+def _excel_datetime(value):
+    if not value:
+        return None
+    if timezone.is_aware(value):
+        value = timezone.localtime(value)
+    return value.replace(tzinfo=None)
+
+
 @login_required(login_url="login")
 def export_Antibioticentry(request):
-    objects = AntibioticEntry.objects.all()
+    objects = AntibioticEntry.objects.select_related("ab_idNum_referred").all()
     data = []
 
     for obj in objects:
+        referred = obj.ab_idNum_referred
+
         data.append({
-            "ab_idNumber_referred": obj.ab_idNum_referred.AccessionNo if obj.ab_idNum_referred else None,
+            "ab_idNumber_referred": referred.AccessionNo if referred else None,
             "Accession_No": obj.ab_AccessionNo,
+            "Date_of_Entry": _excel_datetime(referred.Date_of_Entry) if referred else None,
+            "Date_Modified": _excel_datetime(referred.Date_Modified) if referred else None,
+            "arsp_Encoder": referred.arsp_Encoder if referred else "",
+            "arsp_Checker": referred.arsp_Checker if referred else "",
             "Site_Org": obj.ab_Site_Org,
             "Antibiotic": obj.ab_Antibiotic,
             "Abx_code": obj.ab_Abx_code,
@@ -8365,7 +8674,12 @@ def copy_batch_to_final(request, batch_id):
     if not can_manage_batch(request.user, batch):
         messages.error(request, "You can only finalize batches that you created.")
         return redirect("show_data")
-
+    if _raw_verification_blocks_final_copy(batch):
+        messages.error(
+            request,
+            "Copy to Final is disabled while Raw verification is pending. Withdraw the endorsement first.",
+        )
+        return redirect("show_data")
     isolates = Referred_Data.objects.filter(
         Batch_id=batch
     )
@@ -8613,6 +8927,7 @@ def copy_batch_to_final(request, batch_id):
     # SESSION ISOLATE SET ONCE, AFTER COPY
     if last_final_obj:
         request.session["current_final_isolate_id"] = last_final_obj.id
+    _advance_verification_after_complete_final_copy(batch)
 
     status_parts = []
     if copied:
@@ -8731,7 +9046,12 @@ def copy_data_to_final(request, id):
     if not can_manage_batch(request.user, isolate.Batch_id):
         messages.error(request, "You can only finalize records from batches that you created.")
         return redirect("show_data")
-
+    if isolate.Batch_id and _raw_verification_blocks_final_copy(isolate.Batch_id):
+        messages.error(
+            request,
+            "Copy to Final is disabled while Raw verification is pending. Withdraw the endorsement first.",
+        )
+        return redirect("show_data")
     raw_entries = AntibioticEntry.objects.filter(
         ab_idNum_referred=isolate
     )
@@ -8944,6 +9264,9 @@ def copy_data_to_final(request, id):
             "ab_Retest_Alert_val",
         ])
 
+
+    if isolate.Batch_id:
+        _advance_verification_after_complete_final_copy(isolate.Batch_id)
 
     messages.success(
         request,

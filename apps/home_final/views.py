@@ -760,11 +760,20 @@ def _attach_final_verification_comment_flags(records):
         record.verification_pending_comment_preview = comment_previews.get(record.id, "")
         record.verification_pdf_blocked = False
         record.verification_pdf_block_reason = ""
+        record.workflow_final_editable = False
+
+    correction_batch_ids = {
+        record.f_Batch_id_id
+        for record in record_list
+        if record.f_Batch_id_id and comment_counts.get(record.id)
+    }
 
     batch_ids = [record.f_Batch_id_id for record in record_list if record.f_Batch_id_id]
     if batch_ids:
         try:
             VerificationCase = django_apps.get_model("verification", "VerificationCase")
+            from apps.verification.workflow import final_encoding_is_editable
+
             cases_by_batch_id = {
                 case.final_batch_id: case
                 for case in VerificationCase.objects.filter(
@@ -774,6 +783,11 @@ def _attach_final_verification_comment_flags(records):
             }
             for record in record_list:
                 case = cases_by_batch_id.get(record.f_Batch_id_id)
+                record.workflow_final_editable = final_encoding_is_editable(
+                    case.status if case else None,
+                    final_records_exist=True,
+                    has_open_corrections=record.f_Batch_id_id in correction_batch_ids,
+                )
                 if verification_case_blocks_operational_outputs(case):
                     record.verification_pdf_blocked = True
                     record.verification_pdf_block_reason = "Printing disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
@@ -1432,7 +1446,7 @@ def _handle_saved_final_comment_action(request, isolate):
 
 
 @login_required(login_url="login")
-@role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
+@role_required(ROLE_ADMIN, ROLE_CHECKER)
 @transaction.atomic
 def edit_final_data(request, id):
 
@@ -1440,6 +1454,25 @@ def edit_final_data(request, id):
     if isolate.f_Batch_id and not can_manage_batch(request.user, isolate.f_Batch_id):
         messages.error(request, "You can only update final records from batches that you created.")
         return redirect("show_final_table")
+    if isolate.f_Batch_id:
+        from apps.verification.models import VerificationCase
+        from apps.verification.workflow import final_encoding_is_editable, open_correction_comments
+
+        verification_case = VerificationCase.objects.filter(
+            final_batch=isolate.f_Batch_id,
+            final_accession__isnull=True,
+        ).exclude(status=VerificationCase.STATUS_WITHDRAWN).first()
+        case_status = verification_case.status if verification_case else None
+        has_open_corrections = open_correction_comments().filter(
+            final_accession_ref_sequence__f_Batch_id=isolate.f_Batch_id,
+        ).exists()
+        if not final_encoding_is_editable(
+            case_status,
+            final_records_exist=True,
+            has_open_corrections=has_open_corrections,
+        ):
+            messages.error(request, "Final encoding is locked until the batch is returned For Final Encoding.")
+            return redirect("show_final_table")
 
     request.session["current_final_isolate_id"] = isolate.id
     antibiotic_view = _antibiotic_view_mode(request)
@@ -3383,6 +3416,13 @@ def export_final_antibiotic_entries(request):
 
     data = []
 
+    def excel_datetime(value):
+        if not value:
+            return None
+        if timezone.is_aware(value):
+            value = timezone.localtime(value)
+        return value.replace(tzinfo=None)
+
     for obj in objects:
         final = obj.ab_idNum_f_referred
 
@@ -3393,6 +3433,10 @@ def export_final_antibiotic_entries(request):
             "Final_Site_Name": final.f_Site_Name if final else None,
             "Final_Site_Org": final.f_Site_Org if final else None,
             "Final_ARS_Org": final.f_ars_OrgCode if final else None,
+            "f_Date_of_Entry": excel_datetime(final.f_Date_of_Entry) if final else None,
+            "f_Date_Modified": excel_datetime(final.f_Date_Modified) if final else None,
+            "f_arsp_Encoder": final.f_arsp_Encoder if final else "",
+            "f_arsp_Checker": final.f_arsp_Checker if final else "",
 
             ######### flag
             "Org_Flag": obj.ab_Org_Flag,

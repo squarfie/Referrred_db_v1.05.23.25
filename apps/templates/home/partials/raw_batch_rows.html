@@ -15,7 +15,11 @@
     {% if user_access.can_update and not isolate.Batch_id or user_access.can_update and user_access.can_view_all or user_access.can_update and isolate.Batch_id.created_by_id == request.user.id %}
     <div class="action-grid">
       <div class="action-row">
+        {% if isolate.workflow_raw_editable %}
         <a href="{% url 'edit_data' isolate.id %}" class="action-btn-icon edit" title="Edit record"><i class="fa fa-pencil-alt"></i></a>
+        {% else %}
+        <button type="button" class="action-btn-icon edit disabled" title="Raw encoding is locked at the current workflow stage" disabled><i class="fa fa-pencil-alt"></i></button>
+        {% endif %}
         {% if isolate.verification_pdf_blocked %}
         <span title="Accession deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release." style="display:inline-flex;"><button type="button" class="action-btn-icon del disabled" disabled><i class="fa fa-trash"></i></button></span>
         {% else %}
@@ -24,6 +28,7 @@
       </div>
       <div class="action-row">
         {% if isolate.Batch_id_id and user_access.can_update and user_access.can_view_all or isolate.Batch_id_id and user_access.can_update and isolate.Batch_id.created_by_id == request.user.id %}
+        {% if isolate.workflow_can_copy %}
         <form method="post"
               id="copy-accession-{{ isolate.id }}"
               action="{% url 'copy_data_to_final' isolate.id %}"
@@ -40,6 +45,14 @@
           {% csrf_token %}
           <button type="submit" class="action-btn-icon batch-copy" title="Copy entire batch to Final"><i class="fa fa-share"></i></button>
         </form>
+        {% elif isolate.workflow_copy_blocked_by_verification %}
+        <span title="Copy to Final is disabled while Raw verification is pending. Withdraw the endorsement first." style="display:inline-flex;">
+          <button type="button" class="action-btn-icon copy disabled" disabled><i class="fas fa-clipboard"></i></button>
+        </span>
+        <span title="Copy to Final is disabled while Raw verification is pending. Withdraw the endorsement first." style="display:inline-flex;">
+          <button type="button" class="action-btn-icon batch-copy disabled" disabled><i class="fa fa-share"></i></button>
+        </span>
+        {% endif %}
         {% if copied_ids %}
         <button type="button" class="action-btn-icon undo" onclick="return confirm('Undo FINAL COPY for the whole batch {{ isolate.Batch_id.bat_Batch_Name }}?\n\nThis will DELETE all Final Data and Final Antibiotic results copied from this batch.') && (window.location.href='{% url 'undo_copy_batch_to_final' isolate.Batch_id.id %}')" title="Undo final copy for this batch"><i class="fas fa-undo"></i></button>
         {% endif %}
@@ -48,6 +61,12 @@
     </div>
     {% else %}
       <span style="color:#9fb0c4; font-size:0.72rem;">View only</span>
+    {% endif %}
+    {% if isolate.verification_pending_comment_count %}
+    <span class="isolate-comment-pill"
+          title="{{ isolate.verification_pending_comment_preview|default:'Pending verifier comments' }}">
+      <i class="fas fa-comment-dots"></i>Needs correction{% if isolate.verification_pending_comment_count > 1 %} ({{ isolate.verification_pending_comment_count }}){% endif %}
+    </span>
     {% endif %}
   </td>
   <td class="info-cell">
@@ -137,8 +156,10 @@
               </td>
 
   <td style="text-align:center;">
-    {% if isolate.Batch_id_id and isolate.verification_pdf_blocked %}
+    {% if isolate.Batch_id_id and isolate.verification_pdf_blocked and not isolate.workflow_raw_editable %}
     <span title="Batch signatory editing is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release." style="display:inline-flex;"><button type="button" class="action-btn-icon disabled" disabled><i class="ni ni-single-02"></i></button></span>
+    {% elif isolate.Batch_id_id and isolate.workflow_raw_editable and user_access.can_update %}
+    <a href="{% url 'batch_edit_view' isolate.Batch_id.id %}" class="action-btn-icon edit" title="Edit Batch"><i class="ni ni-single-02"></i></a>
     {% elif isolate.Batch_id_id and user_access.can_update and user_access.can_view_all or isolate.Batch_id_id and user_access.can_update and isolate.Batch_id.created_by_id == request.user.id %}
     <a href="{% url 'batch_edit_view' isolate.Batch_id.id %}" class="action-btn-icon edit" title="Edit Batch"><i class="ni ni-single-02"></i></a>
     {% elif user_access.can_update and not isolate.Batch_id %}

@@ -6,7 +6,7 @@ from .models import VerificationCase, VerificationComment
 class VerificationCommentInline(admin.TabularInline):
     model = VerificationComment
     extra = 0
-    fields = ("final_accession_ref_sequence", "field_label", "decision", "is_resolved", "created_by", "created_at")
+    fields = ("raw_accession_ref_sequence", "final_accession_ref_sequence", "field_label", "decision", "is_resolved", "created_by", "created_at")
     readonly_fields = ("created_at",)
 
 
@@ -26,6 +26,6 @@ class VerificationCaseAdmin(admin.ModelAdmin):
 
 @admin.register(VerificationComment)
 class VerificationCommentAdmin(admin.ModelAdmin):
-    list_display = ("id", "verification_case", "final_accession_ref_sequence", "field_label", "decision", "created_by", "created_at")
+    list_display = ("id", "verification_case", "raw_accession_ref_sequence", "final_accession_ref_sequence", "field_label", "decision", "created_by", "created_at")
     list_filter = ("decision", "is_resolved", "created_at")
-    search_fields = ("comment", "field_name", "field_label", "final_accession_ref_sequence__f_AccessionNo")
+    search_fields = ("comment", "field_name", "field_label", "raw_accession_ref_sequence__AccessionNo", "final_accession_ref_sequence__f_AccessionNo")

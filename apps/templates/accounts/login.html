@@ -31,6 +31,7 @@
     padding-top: 1.35rem !important;
     padding-bottom: 1.25rem !important;
   }
+
   .welcome-eyebrow {
     font-size: 0.89rem;
     font-weight: 700;
@@ -55,7 +56,11 @@
 
   .logo-explanation-modal .modal-header {
     align-items: center;
-    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--arsp-teal) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--primary-dark) 0%,
+      var(--arsp-teal) 100%
+    );
     border: 0;
     display: flex;
     flex-direction: column;
@@ -136,137 +141,426 @@
     margin: 0;
   }
 
+  /* Register section below login card */
+  .register-section {
+    margin-top: 1rem;
+    text-align: center;
+    font-size: 0.95rem;
+  }
+
+  .register-section .register-text {
+    color: var(--arsp-muted);
+  }
+
+  .register-section .register-link {
+    font-weight: 700;
+    margin-left: 0.25rem;
+  }
+
+  /* Footer */
+  .login-footer {
+    margin-top: 2.25rem;
+    text-align: center;
+    font-size: 10px;
+  }
 
   
+  .version-container {
+    text-align: center;
+    margin-top: 6px;
+}
+
+.version-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+
+    padding: 4px 10px;
+    border-radius: 20px;
+
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+
+    color: rgba(255, 255, 255, 0.70);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.version-badge i {
+    font-size: 9px;
+    opacity: 0.8;
+}
 </style>
 {% endblock stylesheets %}
 
+
 {% block content %}
 
-    <!-- Page content -->
-    <div class="container mt--8 pb-5">
-      <div class="row justify-content-center">
-        <div class="col-lg-5 col-md-7 login-card-wrap">
-          <div class="card bg-secondary shadow border-0">
-            <div class="card-header bg-transparent pb-4 login-card-header">
-              <img src="/static/assets/img/theme/arsp_logo_v2026.1.png" class="login-brand-logo" alt="ARSP logo. Open larger view" role="button" tabindex="0" data-toggle="modal" data-target="#logoExplanationModal">
-              <div class="text-muted text-center mt-2 mb-3">
-                Sign IN
+<div class="container mt--8 pb-5">
+
+  <div class="row justify-content-center">
+
+    <div class="col-lg-5 col-md-7 login-card-wrap">
+
+      <!-- Login Card -->
+      <div class="card bg-secondary shadow border-0">
+
+        <!-- Card Header -->
+        <div class="card-header bg-transparent pb-4 login-card-header">
+
+          <img
+            src="/static/assets/img/theme/arsp_logo_v2026.1.png"
+            class="login-brand-logo"
+            alt="ARSP logo. Open larger view"
+            role="button"
+            tabindex="0"
+            data-toggle="modal"
+            data-target="#logoExplanationModal"
+          >
+
+          <div class="text-muted text-center mt-2 mb-3">
+            Sign In
+          </div>
+
+        </div>
+                <div class="version-container">
+                <span class="version-badge text-primary" style=" font-size: 10px">
+                    <i class="fas fa-code-branch"></i>
+                    v1.05.23.25
+                </span>
+            </div>
+
+
+        <!-- Card Body -->
+        <div class="card-body px-lg-5 py-lg-5">
+
+          <div class="text-center mb-4">
+
+            {% if msg %}
+
+              <p class="text-danger font-weight-bold mb-0">
+                {{ msg }}
+              </p>
+
+            {% else %}
+
+              <h6 class="welcome-eyebrow">
+                Welcome Back!
+              </h6>
+
+              <p class="welcome-subtext">
+                Already a member? Sign in to continue.
+              </p>
+
+            {% endif %}
+
+          </div>
+
+
+          <form method="POST">
+
+            {% csrf_token %}
+
+            <!-- Username -->
+            <div class="form-group mb-3">
+
+              <div class="input-group input-group-alternative">
+
+                <div class="input-group-prepend">
+                  <span class="input-group-text">
+                    <i class="ni ni-hat-3"></i>
+                  </span>
+                </div>
+
+                {{ form.username }}
+
               </div>
+
             </div>
-            <div class="card-body px-lg-5 py-lg-5">
-                          <div class="text-center mb-4">
 
-                            {% if msg %}
-                              <p class="text-danger font-weight-bold mb-0">{{ msg }}</p>
-                            {% else %}
-                              <h6 class="welcome-eyebrow">Welcome Back!</h6>
-                              <p class="welcome-subtext">Already a member? Sign in to continue.</p>
-                            {% endif %}  
 
-                          </div>
+            <!-- Password -->
+            <div class="form-group">
 
-              <form method="POST">
+              <div class="input-group input-group-alternative">
 
-                {% csrf_token %}
+                <div class="input-group-prepend">
 
-                <div class="form-group mb-3">
-                  <div class="input-group input-group-alternative">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text"><i class="ni ni-hat-3"></i></span>
-                    </div>
-                    {{ form.username }}
-                  </div>
-                </div>
-                <div class="form-group">
-                  <div class="input-group input-group-alternative">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text"><i class="ni ni-lock-circle-open"></i></span>
-                    </div>
-                    {{ form.password }}
-                                          <!-- Toggle icon aligned to the right -->
-                      <div class="input-group-append">
-                        <span class="input-group-text" style="cursor: pointer;">
-                          <i class="fa fa-eye-slash" id="togglePassword"></i>
-                        </span>
-                      </div>
-                  </div>
-                  
+                  <span class="input-group-text">
+                    <i class="ni ni-lock-circle-open"></i>
+                  </span>
 
                 </div>
-                <div class="remember-login-row">
-                  <label class="remember-login-label" for="rememberMe">
-                    <input id="rememberMe" name="remember_me" type="checkbox">
-                    <span>Remember me</span>
-                  </label>
+
+                {{ form.password }}
+
+                <!-- Password visibility toggle -->
+                <div class="input-group-append">
+
+                  <span
+                    class="input-group-text"
+                    style="cursor: pointer;"
+                  >
+
+                    <i
+                      class="fa fa-eye-slash"
+                      id="togglePassword"
+                    ></i>
+
+                  </span>
+
                 </div>
-                <div class="text-center">
-                  <button type="submit" class="btn btn-primary my-4">Sign in</button>
-                </div>
-                <div class="row mt-3">
-                <div class="col text-end" style="font-size: 12px; text-align-last: right;">
-                  <a href="{% url 'reset_password' %}" >Forgot Password</a>
-                </div></div>
-              </form>
+
+              </div>
+
             </div>
-          </div>
-          <div class="row mt-3">
-            <div class="col-6">
-              <a href="{% url 'register' %}" class="text-light"><large>Register</large></a>
+
+
+            <!-- Remember Me -->
+            <div class="remember-login-row">
+
+              <label
+                class="remember-login-label"
+                for="rememberMe"
+              >
+
+                <input
+                  id="rememberMe"
+                  name="remember_me"
+                  type="checkbox"
+                >
+
+                <span>
+                  Remember me
+                </span>
+
+              </label>
+
             </div>
-            <div class="col-6 text-right">
-              <a href="{% url 'login' %}" class="text-light"><large>Login</large></a>
+
+
+            <!-- Sign In Button -->
+            <div class="text-center">
+
+              <button
+                type="submit"
+                class="btn btn-primary my-4"
+              >
+                Sign in
+              </button>
+
             </div>
-           
-          </div>
+
+
+            <!-- Forgot Password -->
+            <div class="row mt-3">
+
+              <div
+                class="col-12 text-right"
+                style="font-size: 12px;"
+              >
+
+                <a href="{% url 'reset_password' %}">
+                  Forgot Password
+                </a>
+
+              </div>
+
+            </div>
+
+          </form>
+
         </div>
+
       </div>
+      <!-- End Login Card -->
+
+
+      <!-- Register -->
+      <div class="register-section">
+
+        <span class="register-text">
+          Don't have an account?
+        </span>
+
+        <a
+          href="{% url 'register' %}"
+          class="register-link">
+          Register
+        </a>
+
+      </div>
+
     </div>
 
-    <div class="modal fade logo-explanation-modal" id="logoExplanationModal" tabindex="-1" role="dialog" aria-labelledby="logoExplanationModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-            <img src="/static/assets/img/theme/arsp_logo_v2026.png" class="logo-preview-image" alt="ARSP logo enlarged preview">
-            <h5 class="modal-title" id="logoExplanationModalLabel">About the ARSP Logo</h5>
-          </div>
-          <div class="modal-body" style="text-align: center;">
-            The ARSP logo represents the intersection of scientific expertise, technological innovation, and collaborative action in the fight against antimicrobial resistance. Each element - the microscope for research, the computer for surveillance, and the pills and flasks for intervention - symbolizes a core objective of the program. Together, they reflect ARSP's commitment to protecting public health through a multi-faceted approach to monitoring, understanding, and addressing the spread of resistant pathogens.
-          </div>
-        </div>
-      </div>
+  </div>
+
+
+  <!-- Footer -->
+  <div class="row justify-content-center">
+
+    <div class="col-12 login-footer text-muted">
+
+      <p class="mb-0" style="font-size: smaller;">
+
+       by
+        <a
+          href="https://github.com/squarfie"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          squarfie &copy;2025
+        </a>
+
+      </p>
+
     </div>
+
+  </div>
+
+</div>
+
+
+<!-- Logo Explanation Modal -->
+<div
+  class="modal fade logo-explanation-modal"
+  id="logoExplanationModal"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="logoExplanationModalLabel"
+  aria-hidden="true"
+>
+
+  <div
+    class="modal-dialog modal-dialog-centered"
+    role="document"
+  >
+
+    <div class="modal-content">
+
+      <div class="modal-header">
+
+        <button
+          type="button"
+          class="close"
+          data-dismiss="modal"
+          aria-label="Close"
+        >
+
+          <span aria-hidden="true">
+            &times;
+          </span>
+
+        </button>
+
+
+        <img
+          src="/static/assets/img/theme/arsp_logo_v2026.png"
+          class="logo-preview-image"
+          alt="ARSP logo enlarged preview"
+        >
+
+
+        <h5
+          class="modal-title"
+          id="logoExplanationModalLabel"
+        >
+          About the ARSP Logo
+        </h5>
+
+      </div>
+
+
+      <div
+        class="modal-body"
+        style="text-align: center;"
+      >
+
+        The ARSP logo represents the intersection of scientific expertise,
+        technological innovation, and collaborative action in the fight
+        against antimicrobial resistance.
+
+        Each element - the microscope for research, the computer for
+        surveillance, and the pills and flasks for intervention - symbolizes
+        a core objective of the program.
+
+        Together, they reflect ARSP's commitment to protecting public health
+        through a multi-faceted approach to monitoring, understanding, and
+        addressing the spread of resistant pathogens.
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
 
 {% endblock content %}
 
-<!-- Specific JS goes HERE --> 
+
+<!-- Specific JS goes HERE -->
 {% block javascripts %}
+
 <script>
-  const passwordField = document.getElementById("id_password");
-  const toggleIcon = document.getElementById("togglePassword");
+
+  const passwordField =
+    document.getElementById("id_password");
+
+  const toggleIcon =
+    document.getElementById("togglePassword");
+
 
   if (toggleIcon && passwordField) {
+
     toggleIcon.addEventListener("click", () => {
-    const isPassword = passwordField.type === "password";
-    passwordField.type = isPassword ? "text" : "password";
 
-    // Switch icon
-    toggleIcon.classList.toggle("fa-eye");
-    toggleIcon.classList.toggle("fa-eye-slash");
+      const isPassword =
+        passwordField.type === "password";
+
+      passwordField.type =
+        isPassword ? "text" : "password";
+
+
+      toggleIcon.classList.toggle("fa-eye");
+
+      toggleIcon.classList.toggle(
+        "fa-eye-slash"
+      );
+
     });
+
   }
 
-  const logo = document.querySelector(".login-brand-logo");
+
+  const logo =
+    document.querySelector(".login-brand-logo");
+
+
   if (logo) {
-    logo.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        $("#logoExplanationModal").modal("show");
+
+    logo.addEventListener(
+      "keydown",
+      (event) => {
+
+        if (
+          event.key === "Enter" ||
+          event.key === " "
+        ) {
+
+          event.preventDefault();
+
+          $("#logoExplanationModal")
+            .modal("show");
+
+        }
+
       }
-    });
+    );
+
   }
+
 </script>
+
 {% endblock javascripts %}

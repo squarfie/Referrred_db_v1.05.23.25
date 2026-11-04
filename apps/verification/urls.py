@@ -12,4 +12,5 @@ urlpatterns = [
     path("case/<int:case_id>/withdraw/", views.withdraw_verification_case, name="withdraw_verification_case"),
     path("final/<int:final_id>/comments/bulk/", views.bulk_final_comment_action, name="bulk_final_comment_action"),
     path("final/<int:final_id>/comments/<int:comment_id>/action/", views.final_comment_action, name="final_comment_action"),
+    path("raw/<int:raw_id>/comments/<int:comment_id>/action/", views.raw_comment_action, name="raw_comment_action"),
 ]

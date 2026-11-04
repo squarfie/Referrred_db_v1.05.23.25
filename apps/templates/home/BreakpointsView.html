@@ -65,8 +65,7 @@
   box-shadow: 0 0 0 0.15rem rgba(45, 156, 173, 0.15);
 }
 
-/* ALERT-ONLY DELETE - inline group */
-.alert-only-delete-group {
+.year-range-delete-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -76,15 +75,29 @@
   flex: 0 0 auto;
 }
 
-.alert-only-count {
-  background: #fff8e6;
-  border: 1px solid #f3d37a;
-  color: #8e581a;
-  font-weight: 700;
-  font-size: 0.75rem;
-  padding: 4px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
+.date-range-delete-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 20px;
+  border-left: 1px solid #d1e8ed;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.date-range-delete-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.date-range-delete-controls input[type="date"],
+.date-range-delete-controls select {
+  width: 150px;
+  border: 1px solid #d1e8ed;
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
 }
 
 /* ===== RESPONSIVE ===== */
@@ -94,7 +107,8 @@
     align-items: stretch;
   }
 
-  .alert-only-delete-group {
+  .year-range-delete-group,
+  .date-range-delete-group {
     padding-left: 0;
     border-left: 0;
     padding-top: 14px;
@@ -121,7 +135,8 @@
     flex: 1;
   }
 
-  .alert-only-delete-group .d-flex {
+  .year-range-delete-group .d-flex,
+  .date-range-delete-controls {
     flex-wrap: wrap;
   }
 }
@@ -242,7 +257,7 @@
     </div>
   </div>
 
-  <!-- COMBINED FILTER + ALERT-ONLY DELETE TOOLBAR -->
+  <!-- COMBINED FILTER + BREAKPOINT DELETE TOOLBAR -->
   <div class="filter-toolbar-row mb-3">
     <form method="get" class="filter-fields-form">
       <input type="hidden" name="q" value="{{ q }}">
@@ -301,20 +316,29 @@
       </div>
     </form>
 
-    <!-- ALERT-ONLY DELETE - now inline on the same row -->
+    {% if user_access.is_admin %}
     <form method="POST"
-          action="{% url 'delete_alert_only_breakpoints' %}"
-          class="alert-only-delete-group"
-          onsubmit="return confirm('WARNING: This will delete {{ alert_only_breakpoint_count }} breakpoint record(s) that have Alert Value only and no R, I, SDD, or S values. Continue?');">
+          action="{% url 'delete_breakpoints_by_date_modified_range' %}"
+          class="year-range-delete-group"
+          onsubmit="return confirm('WARNING: This will permanently delete breakpoint records' + (this.breakpoint_year.value ? ' for year ' + this.breakpoint_year.value : '') + (this.date_modified_start.value || this.date_modified_end.value ? ' with Date Modified from ' + this.date_modified_start.value + ' to ' + this.date_modified_end.value : '') + '. Continue?');">
       {% csrf_token %}
-      <label class="filter-field-label">Delete Alert-Only Rows</label>
-      <div class="d-flex align-items-center gap-2">
+      <label class="filter-field-label">Delete by Year / Date Modified</label>
+      <div class="date-range-delete-controls">
+        <select name="breakpoint_year" aria-label="Breakpoint year">
+          <option value="">Any year</option>
+          {% for value in filter_options.years %}
+            <option value="{{ value }}">{{ value }}</option>
+          {% endfor %}
+        </select>
+        <input type="date" name="date_modified_start" aria-label="Date modified start">
+        <span class="text-muted">to</span>
+        <input type="date" name="date_modified_end" aria-label="Date modified end">
         <button type="submit" class="btn btn-danger btn-md text-nowrap">
           <i class="fa fa-trash-alt mr-1"></i>Delete
         </button>
-        <span class="alert-only-count">{{ alert_only_breakpoint_count }}</span>
       </div>
     </form>
+    {% endif %}
   </div>
 
   <div class="alert" style="background: linear-gradient(135deg, #e8f5f7 0%, #d1e8ed 100%); border-left: 4px solid #2d9cad; border-radius: 0.5rem;">

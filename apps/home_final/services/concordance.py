@@ -99,6 +99,7 @@ def _is_nonviable_ars_organism(isolate):
     )
 
 
+
 def resolve_ars_concordance_identification(isolate):
     ars_pre_edit = clean_str(getattr(isolate, "f_ars_Pre_ed", ""))
     ars_pre = clean_str(getattr(isolate, "f_ars_Pre", ""))
@@ -106,6 +107,10 @@ def resolve_ars_concordance_identification(isolate):
     preferred_ars_pre = ars_pre_edit or ars_pre
 
     if _is_nonviable_identification(preferred_ars_pre):
+        return "Not viable"
+    if _is_nonviable_identification(ars_org):
+        if preferred_ars_pre:
+            return f"{preferred_ars_pre} (NV)"
         return "Not viable"
     if _is_no_identification_value(ars_org) and not _is_no_identification_value(preferred_ars_pre):
         return preferred_ars_pre
@@ -151,10 +156,7 @@ def classify_id_concordance(site_org, ars_pre, ars_org, ars_post="", no_serotypi
     if _is_explicit_no_identification(pre, post):
         return "X", "X"
 
-    if _is_nonviable_identification(ars):
-        return "X", "X"
-
-    if _is_nonviable_identification(pre, post):
+    if _is_nonviable_identification(ars, pre, post):
         return "N", "N"
 
     if site and _is_no_identification_value(ars):
@@ -580,6 +582,13 @@ def _persist_report_options(report, options_data):
 def calculate_isolate_concordance(isolate, rule_context=None):
     rule_context = rule_context or {}
     ars_concordance_identification = resolve_ars_concordance_identification(isolate)
+    is_nonviable = (
+        _is_nonviable_ars_organism(isolate)
+        or _is_nonviable_identification(
+            ars_concordance_identification,
+            isolate.f_ars_Post,
+        )
+    )
     id_text = " ".join([
         clean_str(isolate.f_Site_OrgName),
         clean_str(isolate.f_ars_OrgName),
@@ -592,9 +601,7 @@ def calculate_isolate_concordance(isolate, rule_context=None):
             genus_con, species_con = "M", "M"
         elif _is_explicit_no_identification(ars_concordance_identification, isolate.f_ars_Post):
             genus_con, species_con = "X", "X"
-        elif _is_nonviable_ars_organism(isolate):
-            genus_con, species_con = "X", "X"
-        elif _is_nonviable_identification(
+        elif _is_nonviable_ars_organism(isolate) or _is_nonviable_identification(
             ars_concordance_identification,
             isolate.f_ars_Post,
         ):
@@ -674,7 +681,7 @@ def calculate_isolate_concordance(isolate, rule_context=None):
         "genus_match": 1 if genus_con == "G" else 0,
         "species_match": 1 if species_con == "S" else 0,
         "mixed": 1 if genus_con == "M" else 0,
-        "nonviable": 1 if genus_con == "N" else 0,
+        "nonviable": 1 if is_nonviable else 0,
         "different_org": 1 if genus_con == "X" else 0,
         "total_pairs": total_pairs,
         "concordant_pairs": concordant_pairs,

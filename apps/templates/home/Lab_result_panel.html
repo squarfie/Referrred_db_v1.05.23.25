@@ -518,8 +518,8 @@ table.report-table td.result-cell.mic .result-value {
                             Page {{ forloop.counter }} of {{ pages|length }}
                         </div>
                             <div style="line-height: 3px;">&nbsp;</div>
-                        <div style="font-size:15px; color:gray; font-weight:bold; margin:0; padding:0;">
-                            RAW DATA
+                        <div style="font-size:10px; color:gray; font-weight:bold; margin:0; padding:0; white-space:nowrap;">
+                            {{ batch.bat_Status|default:"First Draft" }} - Raw Data
                         </div>
                     </div>
 

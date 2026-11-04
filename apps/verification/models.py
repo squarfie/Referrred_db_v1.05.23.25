@@ -7,7 +7,11 @@ from django.utils import timezone
 
 class VerificationCase(models.Model):
     STATUS_DRAFT = "draft"
+    STATUS_FOR_RAW_VERIFICATION = "for_raw_verification"
+    STATUS_FOR_FINAL_ENCODING = "for_final_encoding"
     STATUS_FOR_VERIFICATION = "for_verification"
+    STATUS_FOR_FINAL_VERIFICATION = STATUS_FOR_VERIFICATION
+    STATUS_FOR_FINAL_PRINTING = "for_final_printing"
     STATUS_WITHDRAWN = "withdrawn_by_checker"
     STATUS_RETURNED_TO_ENCODER = "returned_to_encoder"
     STATUS_RETURNED_TO_CHECKER = "returned_to_checker"
@@ -23,7 +27,10 @@ class VerificationCase(models.Model):
 
     STATUS_CHOICES = (
         (STATUS_DRAFT, "Draft"),
-        (STATUS_FOR_VERIFICATION, "For Verification"),
+        (STATUS_FOR_RAW_VERIFICATION, "For Raw Verification"),
+        (STATUS_FOR_FINAL_ENCODING, "For Final Encoding"),
+        (STATUS_FOR_VERIFICATION, "For Final Verification"),
+        (STATUS_FOR_FINAL_PRINTING, "For Final Printing"),
         (STATUS_WITHDRAWN, "Withdrawn by Checker"),
         (STATUS_RETURNED_TO_ENCODER, "Returned to Encoder"),
         (STATUS_RETURNED_TO_CHECKER, "Returned to Checker"),
@@ -39,7 +46,10 @@ class VerificationCase(models.Model):
     )
 
     WORKFLOW_FILTER_CHOICES = (
-        (STATUS_FOR_VERIFICATION, "For Verification"),
+        (STATUS_FOR_RAW_VERIFICATION, "For Raw Verification"),
+        (STATUS_FOR_FINAL_ENCODING, "For Final Encoding"),
+        (STATUS_FOR_VERIFICATION, "For Final Verification"),
+        (STATUS_FOR_FINAL_PRINTING, "For Final Printing"),
         (STATUS_RETURNED_TO_CHECKER, "Returned to Checker"),
         (STATUS_FOR_LAB_MANAGER, "For Lab Manager"),
         (STATUS_RETURNED_TO_VERIFIER, "Returned to Verifier"),
@@ -236,6 +246,13 @@ class VerificationComment(models.Model):
         null=True,
         blank=True,
     )
+    raw_accession_ref_sequence = models.ForeignKey(
+        "home.Referred_Data",
+        on_delete=models.CASCADE,
+        related_name="verifier_comments",
+        null=True,
+        blank=True,
+    )
     field_name = models.CharField(max_length=150, blank=True, default="")
     field_label = models.CharField(max_length=150, blank=True, default="")
     field_value_snapshot = models.TextField(blank=True, default="")
@@ -271,6 +288,6 @@ class VerificationComment(models.Model):
         ordering = ("-created_at",)
 
     def __str__(self):
-        accession = self.final_accession_ref_sequence or "Batch"
+        accession = self.final_accession_ref_sequence or self.raw_accession_ref_sequence or "Batch"
         label = self.field_label or self.field_name or "General"
         return f"{accession} - {label}"
