@@ -98,7 +98,8 @@ class PasswordResetSecurityTests(TestCase):
 
     def test_expired_link_is_rejected(self):
         from django.contrib.auth.tokens import PasswordResetTokenGenerator
-        current = timezone.now()
+        # Django's PasswordResetTokenGenerator._now() returns a naive datetime.
+        current = timezone.now().replace(tzinfo=None)
         with patch.object(PasswordResetTokenGenerator, "_now", return_value=current - timedelta(hours=2)):
             self._request_link()
         path = self._get_reset_path()
