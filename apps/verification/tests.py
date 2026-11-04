@@ -631,6 +631,7 @@ class RawEditAfterCopyFlagTests(TestCase):
         self.assertEqual(changed, 1)
         self.final.refresh_from_db()
         self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertEqual(self.final.raw_updated_after_copy_raw_id, self.raw.pk)
         self.assertEqual(self.final.raw_updated_after_copy_by, self.encoder)
         self.assertIsNotNone(self.final.raw_updated_after_copy_at)
         self.assertEqual(self.final.raw_updated_after_copy_fields, ["Site_Name"])
