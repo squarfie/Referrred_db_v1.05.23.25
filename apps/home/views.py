@@ -2662,6 +2662,8 @@ def raw_data(request, id):
             "antibiotic_view": antibiotic_view,
         })
 
+    # Capture user-editable fields for the audit record before saving.
+    changed_raw_fields = list(form.changed_data)
     isolates = form.save(commit=False)
     for field_name, original_value in original_phenotypes.items():
         setattr(isolates, field_name, original_value)
@@ -3591,12 +3593,19 @@ def raw_batch_rows(request):
         .filter(f_AccessionNo__in=records.values_list("AccessionNo", flat=True))
         .values_list("f_AccessionNo", flat=True)
     )
+    raw_changed_final_ids = set(
+        Final_Data.objects
+        .filter(f_Batch_id_id=batch_id, raw_updated_after_copy=True)
+        .exclude(raw_updated_after_copy_raw_id__isnull=True)
+        .values_list("raw_updated_after_copy_raw_id", flat=True)
+    )
     records = _attach_raw_verification_flags(records)
     html = render_to_string(
         "home/partials/raw_batch_rows.html",
         {
             "records": records,
             "copied_ids": copied_ids,
+            "raw_changed_final_ids": raw_changed_final_ids,
             "batch_dom_id": batch_dom_id,
             "request": request,
         },
@@ -4041,6 +4050,47 @@ def _raw_batch_navigation(isolate):
     }
 
 
+def _flag_final_copy_after_raw_edit(isolate, editor, changed_fields, *, previous_accession_no=None):
+    """Persist a review flag and an audit record after a successful Raw edit.
+
+    A submitted Raw form may also update antibiotic results, so treat every
+    successful edit submission as potentially affecting the copied Final record.
+    """
+    from django.contrib.admin.models import LogEntry, CHANGE
+    from django.contrib.contenttypes.models import ContentType
+
+    accession_to_flag = previous_accession_no or isolate.AccessionNo
+    final_qs = Final_Data.objects.filter(f_AccessionNo=accession_to_flag)
+    if isolate.Batch_id_id:
+        final_qs = final_qs.filter(f_Batch_id_id=isolate.Batch_id_id)
+    else:
+        # Never infer a matching Final record solely from an unbatched accession.
+        return 0
+
+    changed = list(changed_fields) or ["Raw antibiotics or form reviewed"]
+    count = final_qs.update(
+        raw_updated_after_copy=True,
+        raw_updated_after_copy_raw_id=isolate.pk,
+        raw_updated_after_copy_at=timezone.now(),
+        raw_updated_after_copy_by=editor,
+        raw_updated_after_copy_fields=changed,
+    )
+    if count:
+        LogEntry.objects.log_action(
+            user_id=editor.pk,
+            content_type_id=ContentType.objects.get_for_model(Referred_Data).pk,
+            object_id=str(isolate.pk),
+            object_repr=str(isolate)[:200],
+            action_flag=CHANGE,
+            change_message=json.dumps({
+                "action": "raw_edit_after_final_copy",
+                "changed_fields": changed,
+                "final_records_flagged": count,
+            }),
+        )
+    return count
+
+
 ### much safer error-proof version 
 
 @login_required(login_url="login")
@@ -4050,6 +4100,8 @@ def edit_data(request, id):
 
     # fetch the isolate
     isolates = get_object_or_404(Referred_Data, pk=id)
+    # Keep the original accession before ModelForm validation mutates the instance.
+    previous_accession_no = isolates.AccessionNo
     if isolates.Batch_id and not can_manage_batch(request.user, isolates.Batch_id):
         messages.error(request, "You can only update records from batches that you created.")
         return redirect("show_data")
@@ -4543,6 +4595,16 @@ def edit_data(request, id):
         ])
 
     _handle_saved_raw_comment_action(request, isolates)
+    flagged_final_count = _flag_final_copy_after_raw_edit(
+        isolates, request.user, changed_raw_fields,
+        previous_accession_no=previous_accession_no,
+    )
+    if flagged_final_count:
+        messages.warning(
+            request,
+            "Raw data saved. The corresponding Final record is flagged for review; "
+            "Final results were not overwritten.",
+        )
     messages.success(request, "Data saved successfully.")
     next_after_save = (request.POST.get("next_after_save") or "").strip()
     if next_after_save and url_has_allowed_host_and_scheme(

@@ -5,10 +5,13 @@
     data-search-text="{{ isolate.AccessionNo }} {{ isolate.First_Name }} {{ isolate.Last_Name }} {{ isolate.Spec_Type }}">
   <td style="text-align:center;"><span class="row-num">{{ isolate.AccessionNo|accession_ref_no|default:isolate.bat_seq }}</span></td>
   <td style="text-align:center;">
-    {% if isolate.AccessionNo in copied_ids %}
+    {% if isolate.AccessionNo in copied_ids or isolate.id in raw_changed_final_ids %}
       <span class="copied-badge yes" title="Copied to Final"><i class="fas fa-check"></i></span>
     {% else %}
       <span class="copied-badge no" title="Not yet copied"><i class="fas fa-minus"></i></span>
+    {% endif %}
+    {% if isolate.id in raw_changed_final_ids %}
+      <span class="badge badge-warning ml-1" title="Raw changed after copying. Review the corresponding Final entry; it was not overwritten.">Review Final</span>
     {% endif %}
   </td>
   <td class="action-col">

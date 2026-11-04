@@ -34,11 +34,14 @@ def open_correction_comments():
 
 
 def raw_encoding_is_editable(case_status, *, final_records_exist, has_open_corrections=False):
+    """Raw edits follow verification status, not whether a Final copy exists.
+
+    A correction explicitly requested during Raw Verification remains permitted.
+    Final records must be flagged for review if Raw changes after copying.
+    """
     if has_open_corrections and case_status == VerificationCase.STATUS_FOR_RAW_VERIFICATION:
         return True
-    if final_records_exist:
-        return False
-    return case_status in {None, "", VerificationCase.STATUS_RETURNED_TO_ENCODER}
+    return case_status in {None, "", VerificationCase.STATUS_RETURNED_TO_ENCODER, VerificationCase.STATUS_WITHDRAWN}
 
 
 def final_encoding_is_editable(case_status, *, final_records_exist, has_open_corrections=False):
