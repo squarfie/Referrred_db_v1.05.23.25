@@ -114,6 +114,7 @@ class Final_Data(models.Model):
     f_AccessionNo = models.CharField(max_length=255, unique=True)
     # Flag only: Raw edits never silently overwrite approved/edited Final data.
     raw_updated_after_copy = models.BooleanField(default=False)
+    raw_updated_after_copy_raw_id = models.PositiveBigIntegerField(null=True, blank=True)
     raw_updated_after_copy_at = models.DateTimeField(null=True, blank=True)
     raw_updated_after_copy_by = models.ForeignKey(
         "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
