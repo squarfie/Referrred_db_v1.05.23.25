@@ -6200,10 +6200,19 @@ def delete_dropdown(request, id):
     site_items.delete()
     return redirect('site_view')
 
+@login_required(login_url="login")
+@role_required(ROLE_ADMIN)
+@require_POST
 def delete_all_dropdown(request):
+    """Delete all site codes only after an explicit Admin confirmation."""
+    if request.POST.get("confirmation", "").strip() != "DELETE ALL SITES":
+        messages.error(request, "Deletion cancelled. Type DELETE ALL SITES to confirm.")
+        return redirect("site_view")
+
+    deleted_count = SiteData.objects.count()
     SiteData.objects.all().delete()
-    messages.success(request, "All site codes were deleted successfully.")
-    return redirect('site_view')
+    messages.success(request, f"Deleted {deleted_count} site code(s).")
+    return redirect("site_view")
 
 @login_required(login_url="login")
 def site_view(request):
