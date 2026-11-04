@@ -605,3 +605,63 @@ class FinalEndorsementPermissionTests(TestCase):
         self.assertEqual(case.status, VerificationCase.STATUS_FOR_FINAL_VERIFICATION)
         self.assertEqual(case.assigned_checker, self.final_encoder)
         self.assertEqual(case.assigned_verifier, self.verifier)
+
+
+class RawEditAfterCopyFlagTests(TestCase):
+    def setUp(self):
+        from apps.home_final.models import Final_Data
+        self.encoder = User.objects.create_user("raw-change-encoder", password="test-pass")
+        self.batch = Batch_Table.objects.create(
+            created_by=self.encoder, bat_Batch_Name="RAW-AUDIT", bat_Batch_Code="RAW-AUDIT"
+        )
+        self.raw = Referred_Data.objects.create(
+            Batch_id=self.batch, AccessionNo="RAW-AUDIT-001", Batch_Code="RAW-AUDIT"
+        )
+        self.final = Final_Data.objects.create(
+            f_Batch_id=self.batch, f_AccessionNo="RAW-AUDIT-001",
+            f_Batch_Code="RAW-AUDIT", f_Site_Name="Reviewed Final Site"
+        )
+
+    def test_raw_edit_flags_final_but_preserves_final_values_and_audits_editor(self):
+        from django.contrib.admin.models import LogEntry
+        from apps.home.views import _flag_final_copy_after_raw_edit
+        changed = _flag_final_copy_after_raw_edit(
+            self.raw, self.encoder, ["Site_Name"]
+        )
+        self.assertEqual(changed, 1)
+        self.final.refresh_from_db()
+        self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertEqual(self.final.raw_updated_after_copy_by, self.encoder)
+        self.assertIsNotNone(self.final.raw_updated_after_copy_at)
+        self.assertEqual(self.final.raw_updated_after_copy_fields, ["Site_Name"])
+        self.assertEqual(self.final.f_Site_Name, "Reviewed Final Site")
+        self.assertTrue(
+            LogEntry.objects.filter(
+                user=self.encoder, object_id=str(self.raw.pk),
+                change_message__contains="raw_edit_after_final_copy",
+            ).exists()
+        )
+
+    def test_original_final_still_flagged_when_raw_accession_changes(self):
+        from apps.home.views import _flag_final_copy_after_raw_edit
+        self.raw.AccessionNo = "RAW-AUDIT-002"
+        self.raw.save(update_fields=["AccessionNo"])
+        changed = _flag_final_copy_after_raw_edit(
+            self.raw, self.encoder, ["AccessionNo"],
+            previous_accession_no="RAW-AUDIT-001",
+        )
+        self.assertEqual(changed, 1)
+        self.final.refresh_from_db()
+        self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertEqual(self.final.f_AccessionNo, "RAW-AUDIT-001")
+
+    def test_no_final_copy_produces_no_flag_or_audit(self):
+        from django.contrib.admin.models import LogEntry
+        from apps.home_final.models import Final_Data
+        from apps.home.views import _flag_final_copy_after_raw_edit
+        Final_Data.objects.filter(pk=self.final.pk).delete()
+        changed = _flag_final_copy_after_raw_edit(
+            self.raw, self.encoder, ["Spec_Type"]
+        )
+        self.assertEqual(changed, 0)
+        self.assertFalse(LogEntry.objects.filter(object_id=str(self.raw.pk)).exists())
