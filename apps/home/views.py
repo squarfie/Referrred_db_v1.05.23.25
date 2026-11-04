@@ -4049,7 +4049,7 @@ def _raw_batch_navigation(isolate):
     }
 
 
-def _flag_final_copy_after_raw_edit(isolate, editor, changed_fields):
+def _flag_final_copy_after_raw_edit(isolate, editor, changed_fields, *, previous_accession_no=None):
     """Persist a review flag and an audit record after a successful Raw edit.
 
     A submitted Raw form may also update antibiotic results, so treat every
@@ -4058,7 +4058,8 @@ def _flag_final_copy_after_raw_edit(isolate, editor, changed_fields):
     from django.contrib.admin.models import LogEntry, CHANGE
     from django.contrib.contenttypes.models import ContentType
 
-    final_qs = Final_Data.objects.filter(f_AccessionNo=isolate.AccessionNo)
+    accession_to_flag = previous_accession_no or isolate.AccessionNo
+    final_qs = Final_Data.objects.filter(f_AccessionNo=accession_to_flag)
     if isolate.Batch_id_id:
         final_qs = final_qs.filter(f_Batch_id_id=isolate.Batch_id_id)
     else:
@@ -4097,6 +4098,8 @@ def edit_data(request, id):
 
     # fetch the isolate
     isolates = get_object_or_404(Referred_Data, pk=id)
+    # Keep the original accession before ModelForm validation mutates the instance.
+    previous_accession_no = isolates.AccessionNo
     if isolates.Batch_id and not can_manage_batch(request.user, isolates.Batch_id):
         messages.error(request, "You can only update records from batches that you created.")
         return redirect("show_data")
@@ -4592,6 +4595,7 @@ def edit_data(request, id):
     _handle_saved_raw_comment_action(request, isolates)
     flagged_final_count = _flag_final_copy_after_raw_edit(
         isolates, request.user, changed_raw_fields,
+        previous_accession_no=previous_accession_no,
     )
     if flagged_final_count:
         messages.warning(
