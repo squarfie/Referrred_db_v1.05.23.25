@@ -59,6 +59,46 @@ th.sortable.sorted::after {
   padding-bottom: 0.85rem;
 }
 
+/* Keep Batch Review summary, search, and page-size controls on one line. */
+.batch-review-toolbar {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) minmax(260px, 340px) 125px;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 8px;
+  padding: 14px 18px;
+}
+.batch-review-title { min-width: 0; }
+.batch-review-title h4 { font-size: 1rem; white-space: nowrap; }
+.batch-review-title .small { white-space: nowrap; }
+.batch-review-search-form,
+.batch-review-size-form { min-width: 0; margin: 0; }
+.batch-review-search-form label,
+.batch-review-size-form label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.batch-review-search-form .form-control { min-width: 0; }
+.batch-review-search-form .input-group { flex-wrap: nowrap; }
+.batch-review-search-form .input-group-append .btn { margin: 0; }
+.batch-review-search-feedback {
+  grid-column: 2 / 4;
+  justify-self: end;
+  font-size: 0.75rem;
+}
+@media (max-width: 1050px) {
+  .batch-review-toolbar { grid-template-columns: minmax(0, 1fr) minmax(220px, 320px) 120px; gap: 12px; }
+  .batch-review-title h4 { white-space: normal; }
+  .batch-review-title .small { white-space: normal; }
+}
+@media (max-width: 767px) {
+  .batch-review-toolbar { grid-template-columns: 1fr; }
+  .batch-review-search-feedback { grid-column: 1; }
+}
+
 @media (max-width: 768px) {
   .batch-review-header {
     min-height: 104px;
@@ -112,8 +152,6 @@ th.sortable.sorted::after {
                         Review and delete batches or view TAT Compliance. 
                     </p>
                 </div>
-                <form method="get" class="mb-3">
-  
             </div>
         </div>
     </div>
@@ -145,71 +183,46 @@ th.sortable.sorted::after {
                             </a>
           
                 </div>
-<div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
-
-  <!-- LEFT: Title + Stats -->
-  <div>
-    <h4 class="mb-1">
-      <i class="ni ni-bullet-list-67"></i> &nbsp; Review Blank Records
-    </h4>
-
+<div class="card-header batch-review-toolbar">
+  <div class="batch-review-title">
+    <h4 class="mb-1"><i class="ni ni-bullet-list-67"></i>&nbsp; Review Blank Records</h4>
     <div class="text-info small">
-      <strong>Total Batches:</strong> {{ total_batches }} &nbsp; | &nbsp;
+      <strong>Total Batches:</strong> {{ total_batches }}
+      <span class="mx-1">|</span>
       <strong>Blank Accessions:</strong> {{ total_accessions_all }}
     </div>
   </div>
 
-  <!-- RIGHT: Search (fixed width, stacked) -->
-  <div class="d-flex flex-wrap justify-content-between align-items-end mb-3" style="gap: 12px;">
+  <form method="get" class="batch-review-search-form">
+    <input type="hidden" name="per_page" value="{{ current_per_page }}">
+    <label for="batch-review-search">Search</label>
+    <div class="input-group input-group-sm">
+      <input id="batch-review-search" type="text" name="q" value="{{ q }}"
+             class="form-control" placeholder="Search batch / accession / site"
+             autocomplete="off">
+      <div class="input-group-append">
+        <button type="submit" class="btn btn-primary">Search</button>
+      </div>
+    </div>
+  </form>
 
+  <form method="get" class="batch-review-size-form">
+    <input type="hidden" name="q" value="{{ q }}">
+    <label for="batch-review-per-page">Rows per page</label>
+    <select id="batch-review-per-page" name="per_page"
+            class="form-control form-control-sm" onchange="this.form.submit()">
+      {% for size in per_page_options %}
+        <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>{{ size }}</option>
+      {% endfor %}
+    </select>
+  </form>
 
-    <!-- Search form -->
-    <form method="get" class="d-flex align-items-end" style="gap: 10px;">
-        <div>
-            <label class="form-label mb-1">Search</label>
-            <input
-                type="text"
-                name="q"
-                value="{{ q }}"
-                class="form-control"
-                placeholder="Search batch / accession / site"
-            >
-        </div>
-
-        <input type="hidden" name="per_page" value="{{ current_per_page }}">
-
-        <div>
-            <button type="submit" class="btn btn-primary btn-sm">
-                Search
-            </button>
-        </div>
-    </form>
-
-    <!-- Rows per page -->
-    <form method="get" class="d-flex align-items-end" style="gap: 10px;">
-        <input type="hidden" name="q" value="{{ q }}">
-
-        <div>
-            <label class="form-label mb-1">Rows per page</label>
-            <select name="per_page" class="form-control form-control-sm" onchange="this.form.submit()">
-                {% for size in per_page_options %}
-                    <option value="{{ size }}" {% if current_per_page == size %}selected{% endif %}>
-                        {{ size }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-    </form>
-
-    {% if q %}
-      <small class="text-muted d-block mt-1 text-right">
-        Showing <strong>{{ q }}</strong>
-        <a href="{% url 'review_batches' %}" class="ml-2 text-danger">Clear</a>
-      </small>
-    {% endif %}
-
-  </div>
-
+  {% if q %}
+    <div class="batch-review-search-feedback">
+      Showing <strong>{{ q }}</strong>
+      <a href="{% url 'review_batches' %}" class="ml-2 text-danger">Clear</a>
+    </div>
+  {% endif %}
 </div>
 
                 <!-- Table Section -->
