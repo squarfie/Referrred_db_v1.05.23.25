@@ -344,3 +344,42 @@ class BatchDeletionSecurityTests(TestCase):
         self.client.post(self.all_url, {"confirmation": "DELETE ALL BATCHES"})
         self.client.post(self.blank_url, {"confirmation": "DELETE BLANK BATCHES"})
         self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+
+class ReviewBatchesPaginationTests(TestCase):
+    def setUp(self):
+        from apps.home.models import Batch_Table
+        from django.urls import reverse
+        self.user = User.objects.create_user("review-pagination-user", password="test-pass")
+        self.client.force_login(self.user)
+        self.url = reverse("review_batches")
+        for index in range(31):
+            Batch_Table.objects.create(
+                bat_Batch_Code=f"REVIEW-{index:03d}",
+                bat_Batch_Name=f"Review batch {index}",
+            )
+
+    def test_default_25_rows_and_second_page(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["batches"]), 25)
+        self.assertEqual(response.context["paginator"].count, 31)
+        self.assertContains(response, "Go to page:")
+        response2 = self.client.get(self.url, {"page": "2"})
+        self.assertEqual(len(response2.context["batches"]), 6)
+
+    def test_rows_per_page_selection(self):
+        for size in (10, 25, 50, 100):
+            response = self.client.get(self.url, {"per_page": size})
+            self.assertEqual(response.context["current_per_page"], size)
+            self.assertEqual(len(response.context["batches"]), min(size, 31))
+
+    def test_invalid_page_size_defaults_to_25(self):
+        for invalid in ("abc", "0", "200"):
+            response = self.client.get(self.url, {"per_page": invalid})
+            self.assertEqual(response.context["current_per_page"], 25)
+
+    def test_search_preserves_rows_per_page(self):
+        response = self.client.get(self.url, {"q": "REVIEW-00", "per_page": "10"})
+        self.assertEqual(response.context["paginator"].count, 10)
+        self.assertContains(response, "per_page=10")
