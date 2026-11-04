@@ -73,6 +73,26 @@ th.sortable.sorted::after {
 .batch-review-title .small { white-space: nowrap; }
 .batch-review-search-form,
 .batch-review-size-form { min-width: 0; margin: 0; }
+/* Override theme rules that make the selected page-size value invisible. */
+#batch-review-per-page {
+  color: #344767 !important;
+  -webkit-text-fill-color: #344767 !important;
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+  font-weight: 600;
+  min-width: 110px;
+  height: 36px;
+  padding: 0.35rem 1.75rem 0.35rem 0.75rem;
+}
+#batch-review-per-page option {
+  color: #344767;
+  background-color: #ffffff;
+}
+#batch-review-per-page:focus {
+  color: #344767 !important;
+  -webkit-text-fill-color: #344767 !important;
+}
+
 .batch-review-search-form label,
 .batch-review-size-form label {
   display: block;
