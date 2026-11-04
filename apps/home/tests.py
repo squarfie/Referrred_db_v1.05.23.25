@@ -380,6 +380,20 @@ class ReviewBatchesPaginationTests(TestCase):
             self.assertEqual(response.context["current_per_page"], 25)
 
     def test_search_preserves_rows_per_page(self):
+        # A search returning only one page has no pagination links.
+        # Confirm the form retains the selected page size instead.
         response = self.client.get(self.url, {"q": "REVIEW-00", "per_page": "10"})
         self.assertEqual(response.context["paginator"].count, 10)
-        self.assertContains(response, "per_page=10")
+        self.assertEqual(response.context["current_per_page"], 10)
+        self.assertContains(response, 'name="per_page" value="10"')
+        self.assertContains(response, '<option value="10" selected>')
+
+    def test_multi_page_navigation_preserves_search_and_page_size(self):
+        response = self.client.get(self.url, {"q": "REVIEW-0", "per_page": "10"})
+        self.assertEqual(response.context["paginator"].count, 31)
+        self.assertContains(response, "page=2&amp;per_page=10&amp;q=REVIEW-0")
+        next_page = self.client.get(
+            self.url, {"q": "REVIEW-0", "per_page": "10", "page": "2"}
+        )
+        self.assertEqual(next_page.context["page_obj"].number, 2)
+        self.assertEqual(len(next_page.context["batches"]), 10)
