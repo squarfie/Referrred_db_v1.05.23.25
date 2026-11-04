@@ -2267,18 +2267,19 @@ def delete_blank_batches(request):
         return redirect("review_batches")
 
     populated = (
-        (Q(Site_Org__isnull=False) & ~Q(Site_Org=""))
-        | Q(Spec_Type__isnull=False)
+        (Q(Batch_isolates__Site_Org__isnull=False)
+         & ~Q(Batch_isolates__Site_Org=""))
+        | Q(Batch_isolates__Spec_Type__isnull=False)
     )
-    candidate_ids = Referred_Data.objects.filter(Batch_id__isnull=False).exclude(
-        populated
-    ).values_list("Batch_id_id", flat=True).distinct()
-    populated_ids = Referred_Data.objects.filter(
-        populated, Batch_id__isnull=False
-    ).values_list("Batch_id_id", flat=True).distinct()
-    batches = Batch_Table.objects.select_for_update().filter(
-        pk__in=candidate_ids
-    ).exclude(pk__in=populated_ids)
+    batches = (
+        Batch_Table.objects
+        .select_for_update()
+        .annotate(
+            raw_count=Count("Batch_isolates", distinct=True),
+            populated_count=Count("Batch_isolates", filter=populated, distinct=True),
+        )
+        .filter(raw_count__gt=0, populated_count=0)
+    )
     ids = list(batches.values_list("pk", flat=True))
     if not ids:
         messages.warning(request, "No fully blank batches found.")
