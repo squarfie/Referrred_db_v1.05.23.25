@@ -42,6 +42,25 @@ class VerificationWorkflowRulesTests(SimpleTestCase):
             )
         )
 
+    def test_final_copy_does_not_lock_raw_draft_or_returned_encoder(self):
+        self.assertTrue(raw_encoding_is_editable(None, final_records_exist=True))
+        self.assertTrue(raw_encoding_is_editable("", final_records_exist=True))
+        self.assertTrue(
+            raw_encoding_is_editable(
+                VerificationCase.STATUS_RETURNED_TO_ENCODER,
+                final_records_exist=True,
+            )
+        )
+
+    def test_final_copy_does_not_unlock_active_verification(self):
+        for status in (
+            VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+            VerificationCase.STATUS_FOR_FINAL_ENCODING,
+            VerificationCase.STATUS_FOR_FINAL_VERIFICATION,
+            VerificationCase.STATUS_RELEASED,
+        ):
+            self.assertFalse(raw_encoding_is_editable(status, final_records_exist=True))
+
     def test_final_encoding_is_open_before_endorsement_and_for_final_encoding_status(self):
         self.assertTrue(
             final_encoding_is_editable(
