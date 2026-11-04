@@ -189,3 +189,56 @@ class AntibioticEntryExportAuditColumnTests(TestCase):
         self.assertEqual(row["f_arsp_Checker"], "Final Checker")
         self.assertIsNotNone(row["f_Date_of_Entry"])
         self.assertIsNotNone(row["f_Date_Modified"])
+
+
+class DeleteAllSiteCodesSecurityTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+
+        from apps.home.models import SiteData
+
+        self.url = reverse("delete_all_dropdown")
+        self.site = SiteData.objects.create(SiteCode="ABC", SiteName="Test Hospital")
+        self.admin_user = User.objects.create_user(username="site-admin", password="test-pass")
+        self.admin_user.groups.add(Group.objects.get_or_create(name="Admin")[0])
+        self.regular_user = User.objects.create_user(username="site-viewer", password="test-pass")
+
+    def test_anonymous_post_redirects_to_login_without_deleting(self):
+        from apps.home.models import SiteData
+
+        response = self.client.post(self.url, {"confirmation": "DELETE ALL SITES"})
+        self.assertRedirects(response, "/login/?next=" + self.url)
+        self.assertEqual(SiteData.objects.count(), 1)
+
+    def test_non_admin_cannot_delete(self):
+        from apps.home.models import SiteData
+
+        self.client.force_login(self.regular_user)
+        response = self.client.post(self.url, {"confirmation": "DELETE ALL SITES"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(SiteData.objects.count(), 1)
+
+    def test_get_never_deletes_even_for_admin(self):
+        from apps.home.models import SiteData
+
+        self.client.force_login(self.admin_user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(SiteData.objects.count(), 1)
+
+    def test_admin_must_type_confirmation(self):
+        from apps.home.models import SiteData
+
+        self.client.force_login(self.admin_user)
+        response = self.client.post(self.url, {"confirmation": "wrong"})
+        self.assertRedirects(response, "/site-view")
+        self.assertEqual(SiteData.objects.count(), 1)
+
+    def test_admin_post_with_confirmation_deletes_all(self):
+        from apps.home.models import SiteData
+
+        self.client.force_login(self.admin_user)
+        response = self.client.post(self.url, {"confirmation": "DELETE ALL SITES"})
+        self.assertRedirects(response, "/site-view")
+        self.assertFalse(SiteData.objects.exists())
