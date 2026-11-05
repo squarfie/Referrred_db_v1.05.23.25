@@ -397,3 +397,122 @@ class ReviewBatchesPaginationTests(TestCase):
         )
         self.assertEqual(next_page.context["page_obj"].number, 2)
         self.assertEqual(len(next_page.context["batches"]), 10)
+
+
+class DestructiveBatchActionsSecurityTests(TestCase):
+    """Regression coverage for GET, authorization, confirmation and CSRF safety."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from apps.home.models import Batch_Table
+        from apps.home_final.models import Final_Data
+
+        self.owner = User.objects.create_user("action-owner", password="test-password")
+        self.owner.groups.add(Group.objects.get_or_create(name="DMU Encoder")[0])
+        self.other = User.objects.create_user("action-other", password="test-password")
+        self.other.groups.add(Group.objects.get(name="DMU Encoder"))
+        self.viewer = User.objects.create_user("action-viewer", password="test-password")
+        self.batch = Batch_Table.objects.create(
+            created_by=self.owner, bat_Batch_Name="ACTIONS", bat_Batch_Code="ACTIONS"
+        )
+        self.raw = Referred_Data.objects.create(
+            Batch_id=self.batch, Batch_Code="ACTIONS", AccessionNo="ACTIONS-1"
+        )
+        self.final = Final_Data.objects.create(
+            f_Batch_id=self.batch, f_Batch_Code="ACTIONS", f_AccessionNo="ACTIONS-1"
+        )
+        self.batch_url = reverse("delete_batch", args=[self.batch.pk])
+        self.record_url = reverse("delete_record_in_batch", args=[self.raw.pk])
+        self.undo_url = reverse("undo_copy_batch_to_final", args=[self.batch.pk])
+
+    def _all_records_remain(self):
+        from apps.home.models import Batch_Table
+        from apps.home_final.models import Final_Data
+
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+        self.assertTrue(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+        self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
+
+    def test_get_never_deletes_anything(self):
+        self.client.force_login(self.owner)
+        for url in (self.batch_url, self.record_url, self.undo_url):
+            self.assertEqual(self.client.get(url).status_code, 405)
+            self._all_records_remain()
+
+    def test_confirmation_is_required_server_side(self):
+        self.client.force_login(self.owner)
+        for url in (self.batch_url, self.record_url, self.undo_url):
+            response = self.client.post(url)
+            self.assertEqual(response.status_code, 302)
+            self._all_records_remain()
+
+    def test_anonymous_and_viewer_post_cannot_delete(self):
+        for url, confirmation in (
+            (self.batch_url, "DELETE BATCH"),
+            (self.record_url, "DELETE RECORD"),
+            (self.undo_url, "UNDO FINAL COPY"),
+        ):
+            self.client.logout()
+            self.client.post(url, {"confirmation": confirmation})
+            self._all_records_remain()
+            self.client.force_login(self.viewer)
+            self.client.post(url, {"confirmation": confirmation})
+            self._all_records_remain()
+
+    def test_another_encoder_cannot_delete_owned_records(self):
+        self.client.force_login(self.other)
+        for url, confirmation in (
+            (self.batch_url, "DELETE BATCH"),
+            (self.record_url, "DELETE RECORD"),
+            (self.undo_url, "UNDO FINAL COPY"),
+        ):
+            self.client.post(url, {"confirmation": confirmation})
+            self._all_records_remain()
+
+    def test_owner_can_undo_copy_using_post_confirmation(self):
+        from apps.home_final.models import Final_Data
+        self.client.force_login(self.owner)
+        response = self.client.post(self.undo_url, {"confirmation": "UNDO FINAL COPY"})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Final_Data.objects.filter(pk=self.final.pk).exists())
+        self.assertTrue(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+
+    def test_owner_can_delete_single_record_using_post_confirmation(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self.record_url, {"confirmation": "DELETE RECORD"})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+
+    def test_owner_can_delete_batch_using_post_confirmation(self):
+        from apps.home.models import Batch_Table
+        self.client.force_login(self.owner)
+        response = self.client.post(self.batch_url, {"confirmation": "DELETE BATCH"})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_active_verification_blocks_undo(self):
+        from apps.verification.models import VerificationCase
+        from apps.home_final.models import Final_Data
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.owner)
+        response = self.client.post(self.undo_url, {"confirmation": "UNDO FINAL COPY"})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
+
+    def test_csrf_required_for_each_destructive_post(self):
+        from django.test import Client
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.owner)
+        for url, confirmation in (
+            (self.batch_url, "DELETE BATCH"),
+            (self.record_url, "DELETE RECORD"),
+            (self.undo_url, "UNDO FINAL COPY"),
+        ):
+            self.assertEqual(
+                csrf_client.post(url, {"confirmation": confirmation}).status_code, 403
+            )
+            self._all_records_remain()

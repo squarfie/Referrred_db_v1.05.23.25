@@ -57,7 +57,11 @@
         </span>
         {% endif %}
         {% if copied_ids %}
-        <button type="button" class="action-btn-icon undo" onclick="return confirm('Undo FINAL COPY for the whole batch {{ isolate.Batch_id.bat_Batch_Name }}?\n\nThis will DELETE all Final Data and Final Antibiotic results copied from this batch.') && (window.location.href='{% url 'undo_copy_batch_to_final' isolate.Batch_id.id %}')" title="Undo final copy for this batch"><i class="fas fa-undo"></i></button>
+        <form method="post" action="{% url 'undo_copy_batch_to_final' isolate.Batch_id.id %}" class="d-inline" onsubmit="return confirm('Undo FINAL COPY for this batch? This permanently deletes its Final results and antibiotics.')">
+          {% csrf_token %}
+          <input type="hidden" name="confirmation" value="UNDO FINAL COPY">
+          <button type="submit" class="action-btn-icon undo" title="Undo final copy for this batch"><i class="fas fa-undo"></i></button>
+        </form>
         {% endif %}
         {% endif %}
       </div>
@@ -177,7 +181,11 @@
     {% if isolate.Batch_id_id and isolate.verification_pdf_blocked %}
     <span title="Batch deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release." style="display:inline-flex;"><button type="button" class="action-btn-icon delete disabled" disabled><i class="ni ni-archive-2"></i></button></span>
     {% elif isolate.Batch_id_id and user_access.can_delete and user_access.can_view_all or isolate.Batch_id_id and user_access.can_delete and isolate.Batch_id.created_by_id == request.user.id %}
-    <a href="{% url 'delete_batch' isolate.Batch_id.id %}" class="action-btn-icon delete" title="Delete Batch"><i class="ni ni-archive-2 text-warning"></i></a>
+    <form method="post" action="{% url 'delete_batch' isolate.Batch_id.id %}" class="d-inline" onsubmit="return confirm('Delete this batch and all its Raw and Final records? This cannot be undone.')">
+      {% csrf_token %}
+      <input type="hidden" name="confirmation" value="DELETE BATCH">
+      <button type="submit" class="action-btn-icon delete" title="Delete Batch"><i class="ni ni-archive-2 text-warning"></i></button>
+    </form>
     {% else %}
       <span style="color:#ccc;">-</span>
     {% endif %}

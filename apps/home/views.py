@@ -2248,12 +2248,16 @@ def clean_batch(request, batch_id):
 
 @login_required(login_url="login")
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
+@require_POST
 @transaction.atomic
 def delete_batch(request, batch_id):
     """
     Deletes a batch and all related Referred_Data and Final_Data records.
     """
 
+    if request.POST.get("confirmation") != "DELETE BATCH":
+        messages.error(request, "Confirm batch deletion before proceeding.")
+        return redirect("show_data")
     batch = get_object_or_404(Batch_Table, pk=batch_id)
     if not can_manage_batch(request.user, batch):
         messages.error(request, "You can only delete batches that you created.")
@@ -2368,9 +2372,13 @@ def delete_blank_batches(request):
 
 @login_required(login_url="login")
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
+@require_POST
 @transaction.atomic
 def delete_record_in_batch(request, id):
 
+    if request.POST.get("confirmation") != "DELETE RECORD":
+        messages.error(request, "Confirm accession deletion before proceeding.")
+        return redirect("show_data")
     isolate = get_object_or_404(Referred_Data, pk=id)
     if isolate.Batch_id and not can_manage_batch(request.user, isolate.Batch_id):
         messages.error(request, "You can only delete records from batches that you created.")
@@ -9090,13 +9098,27 @@ def copy_batch_to_final(request, batch_id):
 ####### undo batch copy
 @login_required(login_url="login")
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
+@require_POST
 @transaction.atomic
 def undo_copy_batch_to_final(request, batch_id):
+    if request.POST.get("confirmation") != "UNDO FINAL COPY":
+        messages.error(request, "Confirm undoing the Final copy before proceeding.")
+        return redirect("show_data")
     try:
         # Get batch
         batch = get_object_or_404(Batch_Table, pk=batch_id)
         if not can_manage_batch(request.user, batch):
             messages.error(request, "You can only undo batches that you created.")
+            return redirect("show_data")
+        # Undo is only safe before verification starts. Do not delete Final
+        # results that have entered a review, sign-off or release workflow.
+        VerificationCase = django_apps.get_model("verification", "VerificationCase")
+        has_started_verification = VerificationCase.objects.filter(
+            Q(final_batch_id=batch.pk)
+            | Q(final_accession__f_Batch_id_id=batch.pk)
+        ).exclude(status=VerificationCase.STATUS_WITHDRAWN).exists()
+        if has_started_verification:
+            messages.error(request, "Undo blocked: this batch has entered verification.")
             return redirect("show_data")
 
         # Get all referred isolates in this batch
