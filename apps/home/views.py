@@ -9110,9 +9110,15 @@ def undo_copy_batch_to_final(request, batch_id):
         if not can_manage_batch(request.user, batch):
             messages.error(request, "You can only undo batches that you created.")
             return redirect("show_data")
-        # Final data in active verification must not be removed via Undo.
-        if _deletion_has_locked_batches([batch.pk]):
-            messages.error(request, "Undo blocked: this batch has active verification.")
+        # Undo is only safe before verification starts. Do not delete Final
+        # results that have entered a review, sign-off or release workflow.
+        VerificationCase = django_apps.get_model("verification", "VerificationCase")
+        has_started_verification = VerificationCase.objects.filter(
+            Q(final_batch_id=batch.pk)
+            | Q(final_accession__f_Batch_id_id=batch.pk)
+        ).exclude(status=VerificationCase.STATUS_WITHDRAWN).exists()
+        if has_started_verification:
+            messages.error(request, "Undo blocked: this batch has entered verification.")
             return redirect("show_data")
 
         # Get all referred isolates in this batch
