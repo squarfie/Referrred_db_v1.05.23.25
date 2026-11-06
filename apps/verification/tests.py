@@ -666,3 +666,73 @@ class RawEditAfterCopyFlagTests(TestCase):
         )
         self.assertEqual(changed, 0)
         self.assertFalse(LogEntry.objects.filter(object_id=str(self.raw.pk)).exists())
+
+
+class AdminVerificationStageSecurityTests(TestCase):
+    """An Admin can work across batches, but cannot skip workflow stages."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="workflow-stage-admin", password="test-password",
+        )
+        self.admin.groups.add(Group.objects.get_or_create(name=ROLE_ADMIN)[0])
+        self.batch = Batch_Table.objects.create(
+            created_by=self.admin,
+            bat_Batch_Name="SECURITY-STAGE",
+            bat_Batch_Code="SECURITY-STAGE",
+        )
+        self.case = VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_DRAFT,
+        )
+        self.url = reverse("verification_case_detail", args=[self.case.pk])
+        self.client.force_login(self.admin)
+
+    def test_admin_cannot_perform_verifier_actions_from_draft(self):
+        for action in ("approve", "return_checker", "send_lab_manager"):
+            with self.subTest(action=action):
+                response = self.client.post(self.url, {"action": action})
+                self.assertEqual(response.status_code, 302)
+                self.case.refresh_from_db()
+                self.assertEqual(self.case.status, VerificationCase.STATUS_DRAFT)
+
+    def test_admin_cannot_perform_lab_actions_from_draft(self):
+        for action in ("lab_approve", "lab_disapprove",
+                       "lab_return_verifier", "send_head"):
+            with self.subTest(action=action):
+                response = self.client.post(self.url, {"action": action})
+                self.assertEqual(response.status_code, 302)
+                self.case.refresh_from_db()
+                self.assertEqual(self.case.status, VerificationCase.STATUS_DRAFT)
+
+    def test_admin_cannot_use_final_review_action_in_raw_verification(self):
+        self.case.status = VerificationCase.STATUS_FOR_RAW_VERIFICATION
+        self.case.save(update_fields=["status"])
+        for action in ("approve", "return_checker", "send_lab_manager"):
+            with self.subTest(action=action):
+                response = self.client.post(self.url, {"action": action})
+                self.assertEqual(response.status_code, 302)
+                self.case.refresh_from_db()
+                self.assertEqual(
+                    self.case.status, VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+                )
+
+    def test_admin_can_approve_at_correct_verifier_stage(self):
+        self.case.status = VerificationCase.STATUS_FOR_FINAL_VERIFICATION
+        self.case.save(update_fields=["status"])
+        response = self.client.post(self.url, {"action": "approve"})
+        self.assertEqual(response.status_code, 302)
+        self.case.refresh_from_db()
+        self.assertEqual(
+            self.case.status, VerificationCase.STATUS_APPROVED_BY_VERIFIER,
+        )
+
+    def test_admin_can_approve_at_correct_lab_manager_stage(self):
+        self.case.status = VerificationCase.STATUS_FOR_LAB_MANAGER
+        self.case.save(update_fields=["status"])
+        response = self.client.post(self.url, {"action": "lab_approve"})
+        self.assertEqual(response.status_code, 302)
+        self.case.refresh_from_db()
+        self.assertEqual(
+            self.case.status, VerificationCase.STATUS_APPROVED_BY_LAB_MANAGER,
+        )
