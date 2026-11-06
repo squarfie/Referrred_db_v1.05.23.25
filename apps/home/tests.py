@@ -614,6 +614,57 @@ class ReferredUploadSecurityTests(TestCase):
         self.owned.refresh_from_db()
         self.assertEqual(self.owned.First_Name, "Original")
 
+    def test_mixed_import_skips_foreign_batch_but_imports_eligible_rows(self):
+        self.client.force_login(self.other)
+        response = self._upload(
+            "AccessionNo,First_Name\n"
+            "NEW-MIX,Alice\n"
+            "UP-EXIST,ShouldNotChange\n"
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            Referred_Data.objects.get(AccessionNo="NEW-MIX").First_Name, "Alice"
+        )
+        self.owned.refresh_from_db()
+        self.assertEqual(self.owned.First_Name, "Original")
+        details = " ".join(str(message) for message in list(response.wsgi_request._messages))
+        self.assertIn("1 protected records skipped", details)
+        self.assertIn("UP-EXIST", details)
+
+    def test_mixed_import_skips_verified_batch_and_updates_unlocked_record(self):
+        from apps.verification.models import VerificationCase
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.encoder)
+        response = self._upload(
+            "AccessionNo,First_Name\n"
+            "UP-EXIST,ShouldNotChange\n"
+            "NEW-MIX,Allowed\n"
+        )
+        self.assertEqual(response.status_code, 302)
+        self.owned.refresh_from_db()
+        self.assertEqual(self.owned.First_Name, "Original")
+        self.assertEqual(
+            Referred_Data.objects.get(AccessionNo="NEW-MIX").First_Name, "Allowed"
+        )
+
+    def test_invalid_row_still_rolls_back_otherwise_eligible_rows_and_skips(self):
+        self.client.force_login(self.other)
+        response = self._upload(
+            "AccessionNo,First_Name\n"
+            "NEW-ROLLBACK,ShouldRollback\n"
+            "UP-EXIST,Protected\n"
+            "NEW-BAD," + ("X" * 300) + "\n"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            Referred_Data.objects.filter(AccessionNo="NEW-ROLLBACK").exists()
+        )
+        self.owned.refresh_from_db()
+        self.assertEqual(self.owned.First_Name, "Original")
+
     def test_csrf_required_for_post_upload(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
         from django.test import Client
