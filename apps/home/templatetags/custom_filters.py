@@ -513,6 +513,32 @@ def mic_format(value):
         return value
 
 
+@register.filter
+def highlight_interpretations(value):
+    """Highlight standalone antimicrobial interpretations in a result string."""
+    if value in (None, "", "-"):
+        return ""
+
+    escaped_value = str(escape(value))
+
+    def badge(match):
+        interpretation = match.group(1)
+        return (
+            f'<span class="interpretation-badge interpretation-{interpretation.lower()}" '
+            f'aria-label="Interpretation {interpretation}">{interpretation}</span>'
+        )
+
+    return mark_safe(
+        re.sub(r"(?<![A-Za-z0-9_])(SDD|R|I|S)(?![A-Za-z0-9_])", badge, escaped_value)
+    )
+
+
+@register.filter
+def blank_if_dash(value):
+    """Render internal dash placeholders as visually empty table cells."""
+    return "" if value in (None, "", "-") else value
+
+
 # def _recommendation_items(value):
 #     if value is None or str(value).strip() == "":
 #         return []
