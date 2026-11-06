@@ -301,7 +301,8 @@ class RawEndorsementTests(TestCase):
             ab_Antibiotic="Ampicillin",
             ab_Abx_code="AMP",
             ab_Disk_value="10",
-            ab_Disk_RIS="R",
+            ab_Disk_RIS="I",
+            ab_Disk_enRIS="R",
         )
         self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
         case = VerificationCase.objects.get(final_batch=self.batch)
@@ -367,6 +368,59 @@ class RawEndorsementTests(TestCase):
         comment.refresh_from_db()
         self.assertTrue(comment.is_resolved)
         self.assertEqual(comment.resolution_status, VerificationComment.RESOLUTION_HANDLED)
+
+    def test_raw_verification_displays_retest_disk_and_mic_enris_in_arsrl_result(self):
+        raw = Referred_Data.objects.create(
+            Batch_id=self.batch,
+            Batch_Code="RAW-001",
+            AccessionNo="RAW-ENRIS-1",
+        )
+        AntibioticEntry.objects.create(
+            ab_idNum_referred=raw,
+            ab_Antibiotic="Tetracycline",
+            ab_Abx_code="TCY_NM",
+            ab_MIC_value="0.125",
+            ab_MIC_enRIS="S",
+            ab_Retest_Antibiotic="Tetracycline",
+            ab_Retest_Abx_code="TCY_ND30",
+            ab_Retest_DiskValue="16",
+            ab_Retest_Disk_RIS="I",
+            ab_Retest_Disk_enRIS="S",
+            ab_Retest_MIC_operand=">=",
+            ab_Retest_MICValue="4",
+            ab_Retest_MIC_RIS="S",
+            ab_Retest_MIC_enRIS="R",
+        )
+        AntibioticEntry.objects.create(
+            ab_idNum_referred=raw,
+            ab_Retest_Antibiotic="Gentamicin",
+            ab_Retest_Abx_code="GEN_ND10",
+            ab_Retest_DiskValue="12",
+            ab_Retest_Disk_RIS="R",
+        )
+        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
+        case = VerificationCase.objects.get(final_batch=self.batch)
+        verifier = User.objects.create_user("enris_verifier", password="test-pass")
+        verifier.groups.add(Group.objects.create(name=ROLE_VERIFIER))
+        self.client.force_login(verifier)
+
+        response = self.client.get(reverse("verification_case_detail", args=[case.pk]))
+
+        antibiotic_rows = {
+            row["antibiotic_name"]: row
+            for row in response.context["review_rows"][0]["antibiotic_rows"]
+        }
+        self.assertEqual(antibiotic_rows["Tetracycline"]["site_result"], "0.125 S")
+        self.assertEqual(antibiotic_rows["Tetracycline"]["arsrl_result"], "16 S | >=4 R")
+        self.assertEqual(antibiotic_rows["Gentamicin"]["arsrl_result"], "12")
+        self.assertContains(response, 'class="interpretation-badge interpretation-s"')
+        self.assertContains(response, 'class="interpretation-badge interpretation-r"')
+        self.assertContains(
+            response,
+            '<div class="field-value"></div><div class="antibiotic-code"></div>'
+            '<div class="antibiotic-result"></div>',
+            html=True,
+        )
 
     def test_raw_table_keeps_showing_current_status_after_copy_to_final(self):
         raw = Referred_Data.objects.create(

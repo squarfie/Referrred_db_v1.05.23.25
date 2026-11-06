@@ -29,6 +29,7 @@ from apps.home.permissions import (
     get_user_roles,
     role_required,
 )
+from apps.home.templatetags.custom_filters import mic_format
 from apps.home_final.models import Final_AntibioticEntry, Final_Data
 from apps.home_final.utils import antibiotic_print_order, sort_abx_codes_by_antibiotic
 
@@ -914,7 +915,8 @@ def _review_rows_for_case(case, selected_accession_id=None):
             result_parts.append(f"{disk_value or '-'} {disk_ris or ''}".strip())
         if mic_value not in (None, "") or mic_operand or mic_ris:
             methods.append("MIC")
-            mic_display = f"{mic_operand or ''}{mic_value if mic_value not in (None, '') else '-'} {mic_ris or ''}".strip()
+            formatted_mic = mic_format(mic_value) if mic_value not in (None, "") else "-"
+            mic_display = f"{mic_operand or ''}{formatted_mic} {mic_ris or ''}".strip()
             result_parts.append(mic_display)
         return {
             "test_method": " / ".join(methods) or method_prefix,
@@ -992,18 +994,18 @@ def _review_rows_for_case(case, selected_accession_id=None):
             site_result = antibiotic_result(
                 "Site",
                 entry.ab_Disk_value,
-                entry.ab_Disk_RIS,
+                entry.ab_Disk_enRIS,
                 entry.ab_MIC_operand,
                 entry.ab_MIC_value,
-                entry.ab_MIC_RIS,
+                entry.ab_MIC_enRIS,
             )
             ars_result = antibiotic_result(
                 "Retest",
                 entry.ab_Retest_DiskValue,
-                entry.ab_Retest_Disk_RIS,
+                entry.ab_Retest_Disk_enRIS,
                 entry.ab_Retest_MIC_operand,
                 entry.ab_Retest_MICValue,
-                entry.ab_Retest_MIC_RIS,
+                entry.ab_Retest_MIC_enRIS,
             )
             has_site_result = bool(entry.ab_Antibiotic and site_result["encoded_result"] != "-")
             has_arsrl_result = bool(entry.ab_Retest_Antibiotic and ars_result["encoded_result"] != "-")
