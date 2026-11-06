@@ -2231,8 +2231,7 @@ def clean_batch(request, batch_id):
     if not can_manage_batch(request.user, batch):
         messages.error(request, "You can only delete batches that you created.")
         return redirect("review_batches")
-    case = _raw_verification_case_map([batch.pk]).get(batch.pk)
-    if verification_case_blocks_operational_outputs(case):
+    if _deletion_has_locked_batches([batch.pk]):
         messages.error(request, "Deletion is blocked while the batch is in verification.")
         return redirect("review_batches")
 
@@ -2262,11 +2261,11 @@ def delete_batch(request, batch_id):
     if not can_manage_batch(request.user, batch):
         messages.error(request, "You can only delete batches that you created.")
         return redirect("show_data")
-    verification_case = _raw_verification_case_map([batch.pk]).get(batch.pk)
-    if verification_case_blocks_operational_outputs(verification_case):
+    if _deletion_has_locked_batches([batch.pk]):
         messages.error(
             request,
-            "Batch deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
+            "Deletion blocked: this batch contains records under verification "
+            "or records that have been signed or released."
         )
         return redirect("show_data")
 
@@ -2289,18 +2288,83 @@ def delete_batch(request, batch_id):
 
 
 
+# def _deletion_has_locked_batches(batch_ids):
+#     """Do not erase batches with active batch-level or accession-level reviews."""
+#     if not batch_ids:
+#         return False
+#     VerificationCase = django_apps.get_model("verification", "VerificationCase")
+#     active_cases = VerificationCase.objects.filter(
+#         Q(final_batch_id__in=batch_ids)
+#         | Q(final_accession__f_Batch_id_id__in=batch_ids)
+#     ).exclude(
+#         status__in=["withdrawn_by_checker", "signed_by_head", "released"]
+#     )
+#     return active_cases.exists()
+
+
+
+
 def _deletion_has_locked_batches(batch_ids):
-    """Do not erase batches with active batch-level or accession-level reviews."""
+    """
+    Protect batches from deletion if they have any
+    non-withdrawn verification cases.
+
+    Applies to Admins and all other roles.
+
+    Protected statuses include:
+    - Active verification
+    - Signed by Head
+    - Released
+    """
     if not batch_ids:
         return False
-    VerificationCase = django_apps.get_model("verification", "VerificationCase")
-    active_cases = VerificationCase.objects.filter(
-        Q(final_batch_id__in=batch_ids)
-        | Q(final_accession__f_Batch_id_id__in=batch_ids)
-    ).exclude(
-        status__in=["withdrawn_by_checker", "signed_by_head", "released"]
+
+    VerificationCase = django_apps.get_model(
+        "verification",
+        "VerificationCase",
     )
-    return active_cases.exists()
+
+    return (
+        VerificationCase.objects.filter(
+            Q(final_batch_id__in=batch_ids)
+            | Q(final_accession__f_Batch_id_id__in=batch_ids)
+        )
+        .exclude(
+            status=VerificationCase.STATUS_WITHDRAWN
+        )
+        .exists()
+    )
+
+
+
+def _deletion_has_locked_accession(isolate):
+    """
+    Return True when a Raw Data accession or its related
+    Final Data record has a non-withdrawn verification case.
+
+    Protects verified records regardless of user role.
+    """
+    VerificationCase = django_apps.get_model(
+        "verification",
+        "VerificationCase",
+    )
+
+    accession_no = isolate.AccessionNo
+
+    protected_cases = VerificationCase.objects.exclude(
+        status=VerificationCase.STATUS_WITHDRAWN
+    )
+
+    # Protect the entire batch if it has a verification case.
+    if isolate.Batch_id_id:
+        if _deletion_has_locked_batches([isolate.Batch_id_id]):
+            return True
+
+    # Protect accession-level verification, including
+    # records that have no batch.
+    return protected_cases.filter(
+        final_accession__f_AccessionNo=accession_no
+    ).exists()
 
 
 @login_required(login_url="login")
@@ -2383,14 +2447,15 @@ def delete_record_in_batch(request, id):
     if isolate.Batch_id and not can_manage_batch(request.user, isolate.Batch_id):
         messages.error(request, "You can only delete records from batches that you created.")
         return redirect("show_data")
-    if isolate.Batch_id_id:
-        verification_case = _raw_verification_case_map([isolate.Batch_id_id]).get(isolate.Batch_id_id)
-        if verification_case_blocks_operational_outputs(verification_case):
-            messages.error(
-                request,
-                "Accession deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
-            )
-            return redirect("show_data")
+
+    if _deletion_has_locked_accession(isolate):
+        messages.error(
+            request,
+            "Deletion blocked: this accession or its batch has "
+            "a protected verification record."
+        )
+        return redirect("show_data")
+
 
     accession_no = isolate.AccessionNo
 
@@ -4633,6 +4698,7 @@ def edit_data(request, id):
 # DELETE DATA 
 @login_required(login_url="login")
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
+@require_POST
 @transaction.atomic
 def delete_data(request, id):
 
@@ -4640,14 +4706,15 @@ def delete_data(request, id):
     if isolate.Batch_id and not can_manage_batch(request.user, isolate.Batch_id):
         messages.error(request, "You can only delete records from batches that you created.")
         return redirect("show_data")
-    if isolate.Batch_id_id:
-        verification_case = _raw_verification_case_map([isolate.Batch_id_id]).get(isolate.Batch_id_id)
-        if verification_case_blocks_operational_outputs(verification_case):
-            messages.error(
-                request,
-                "Accession deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
-            )
-            return redirect("show_data")
+
+    if _deletion_has_locked_accession(isolate):
+        messages.error(
+            request,
+            "Deletion blocked: this accession or its batch has "
+            "a protected verification record."
+        )
+        return redirect("show_data")
+
     accession = isolate.AccessionNo
 
     if request.method == "POST":
@@ -9149,6 +9216,41 @@ def undo_copy_batch_to_final(request, batch_id):
             )
             return redirect("show_data")
 
+        
+        # Protect every Final Data record selected for deletion,
+        # including records whose batch differs from the Raw batch.
+        protected_final_ids = list(
+            VerificationCase.objects.filter(
+                final_accession__in=final_qs
+            )
+            .exclude(status=VerificationCase.STATUS_WITHDRAWN)
+            .values_list("final_accession_id", flat=True)
+        )
+
+        if protected_final_ids:
+            messages.error(
+                request,
+                "Undo blocked: one or more matching Final Data "
+                "records have entered verification."
+            )
+            return redirect("show_data")
+
+        # Also protect any other batch linked to the Final
+        # records selected by accession number.
+        final_batch_ids = list(
+            final_qs.exclude(f_Batch_id__isnull=True)
+            .values_list("f_Batch_id_id", flat=True)
+            .distinct()
+        )
+
+        if _deletion_has_locked_batches(final_batch_ids):
+            messages.error(
+                request,
+                "Undo blocked: a matching Final Data record "
+                "belongs to a protected batch."
+            )
+            return redirect("show_data")
+
         # Delete Final Antibiotic Entries first
         Final_AntibioticEntry.objects.filter(
             ab_idNum_f_referred__in=final_qs
@@ -9174,6 +9276,7 @@ def undo_copy_batch_to_final(request, batch_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        transaction.set_rollback(True)
         messages.error(
             request,
             f"Error undoing batch copy: {e}"

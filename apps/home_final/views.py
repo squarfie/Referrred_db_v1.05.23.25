@@ -4577,6 +4577,7 @@ def edit_concordance_setting(request, pk):
 
 
 @login_required(login_url="login")
+@require_POST
 @transaction.atomic
 @role_required(ROLE_ADMIN, ROLE_CHECKER)
 def delete_concordance_setting(request, pk):
