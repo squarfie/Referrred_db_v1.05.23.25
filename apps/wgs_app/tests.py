@@ -153,7 +153,7 @@ class FourUploadWorkflowSecurityTests(TestCase):
         )
         self.client.force_login(self.encoder)
         data = SimpleUploadedFile(
-            "abx.csv", b"AccessionNo,AMP_ND10_Val\\nFOUR-UP-1,20\\n",
+            "abx.csv", b"AccessionNo,AMP_ND10_Val\nFOUR-UP-1,20\n",
             content_type="text/csv"
         )
         with patch("apps.wgs_app.views.reapply_raw_breakpoints_for_batches", return_value=0):
@@ -182,7 +182,7 @@ class FourUploadWorkflowSecurityTests(TestCase):
         )
         self.client.force_login(self.encoder)
         data = SimpleUploadedFile(
-            "abx.csv", b"f_AccessionNo,AMP_ND10_Val\\nFOUR-UP-1,20\\n",
+            "abx.csv", b"f_AccessionNo,AMP_ND10_Val\nFOUR-UP-1,20\n",
             content_type="text/csv"
         )
         with patch("apps.wgs_app.views.reapply_final_breakpoints_for_batches", return_value=0):
@@ -194,3 +194,47 @@ class FourUploadWorkflowSecurityTests(TestCase):
         self.assertFalse(Final_AntibioticEntry.objects.filter(
             ab_idNum_f_referred=self.final
         ).exists())
+
+    def test_raw_demographic_upload_skips_verified_accession(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.encoder)
+        upload = SimpleUploadedFile(
+            "demogs.csv",
+            b"AccessionNo,Batch_Code,First_Name\nFOUR-UP-1,FOUR-UP,Changed\n",
+            content_type="text/csv",
+        )
+        response = self.client.post(
+            reverse("upload_referred_table"),
+            {"DemogsDataFile": upload, "overwrite": "true",
+             "demographic_upload_mode": "raw"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.raw.refresh_from_db()
+        self.assertNotEqual(self.raw.First_Name, "Changed")
+
+    def test_final_demographic_upload_skips_verified_accession(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_VERIFICATION,
+        )
+        self.client.force_login(self.encoder)
+        upload = SimpleUploadedFile(
+            "final_demogs.csv",
+            b"f_AccessionNo,f_Batch_Code,f_First_Name\nFOUR-UP-1,FOUR-UP,Changed\n",
+            content_type="text/csv",
+        )
+        response = self.client.post(
+            reverse("upload_referred_table"),
+            {"DemogsDataFile": upload, "overwrite": "true",
+             "demographic_upload_mode": "final"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.final.refresh_from_db()
+        self.assertNotEqual(self.final.f_First_Name, "Changed")
