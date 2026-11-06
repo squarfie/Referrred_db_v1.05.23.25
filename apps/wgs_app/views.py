@@ -21,6 +21,7 @@ from apps.home.permissions import (
     ROLE_LAB_MANAGER,
     ROLE_VERIFIER,
     can_manage_batch,
+    get_user_roles,
     role_flags,
     role_required,
     verification_case_blocks_operational_outputs,
@@ -10223,7 +10224,11 @@ def delete_final_antibiotic(request, pk):
         ), pk=pk
     )
     parent = target.ab_idNum_f_referred
-    reason = _referred_bulk_upload_skip_reason(request.user, parent, final=True)
+    # Admin overrides ownership and verification locks for explicit deletion.
+    # Other roles must satisfy the usual accession-level safeguards.
+    reason = None
+    if ROLE_ADMIN not in get_user_roles(request.user):
+        reason = _referred_bulk_upload_skip_reason(request.user, parent, final=True)
     if reason:
         messages.error(
             request,
@@ -10254,7 +10259,11 @@ def delete_raw_antibiotic(request, pk):
         ), pk=pk
     )
     parent = target.ab_idNum_referred
-    reason = _referred_bulk_upload_skip_reason(request.user, parent)
+    # Admin overrides ownership and verification locks for explicit deletion.
+    # Other roles must satisfy the usual accession-level safeguards.
+    reason = None
+    if ROLE_ADMIN not in get_user_roles(request.user):
+        reason = _referred_bulk_upload_skip_reason(request.user, parent)
     if reason:
         messages.error(
             request,
