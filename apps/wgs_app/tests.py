@@ -113,7 +113,7 @@ class FourUploadWorkflowSecurityTests(TestCase):
             status=VerificationCase.STATUS_WITHDRAWN,
         )
         VerificationCase.objects.create(
-            final_batch=self.batch,
+            final_accession=self.final,
             status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
         )
         self.assertEqual(
