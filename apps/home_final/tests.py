@@ -1,6 +1,13 @@
 from types import SimpleNamespace
-
 from django.test import SimpleTestCase
+from django.test import TestCase
+from django.urls import reverse
+from django.contrib.auth.models import User, Group
+
+from apps.home_final.models import (
+    ConcordanceOptions,
+    ConcordanceReport,
+)
 
 from apps.home_final.services.concordance import (
     build_id_stats,
@@ -81,4 +88,110 @@ class ConcordanceIdentificationTests(SimpleTestCase):
         self.assertEqual(
             stats["discordant_rows"][0]["ars_org"],
             "No Raoultella planticola isolated (NV)",
+        )
+
+
+
+class ConcordanceRuleDeletionSecurityTests(TestCase):
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="concordance-delete-admin",
+            password="test-password",
+        )
+        self.admin.groups.add(
+            Group.objects.get_or_create(name="Admin")[0]
+        )
+
+        self.rule = ConcordanceOptions.objects.create(
+            report=None,
+            applied_org="ECOL",
+            is_active=True,
+        )
+
+        self.other_rule = ConcordanceOptions.objects.create(
+            report=None,
+            applied_org="KPNE",
+            is_active=True,
+        )
+
+        self.report = ConcordanceReport.objects.create(
+            created_by=self.admin,
+        )
+
+        self.report_options = ConcordanceOptions.objects.create(
+            report=self.report,
+            applied_org="ECOL",
+            is_active=True,
+        )
+
+        self.url = reverse(
+            "delete_concordance_setting",
+            args=[self.rule.pk],
+        )
+
+    def test_get_does_not_delete_rule(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(
+            ConcordanceOptions.objects.filter(
+                pk=self.rule.pk
+            ).exists()
+        )
+
+    def test_deleting_rule_preserves_report_options(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 302)
+
+        # Selected global rule is deleted.
+        self.assertFalse(
+            ConcordanceOptions.objects.filter(
+                pk=self.rule.pk
+            ).exists()
+        )
+
+        # Other global rules remain.
+        self.assertTrue(
+            ConcordanceOptions.objects.filter(
+                pk=self.other_rule.pk
+            ).exists()
+        )
+
+        # Existing report remains.
+        self.assertTrue(
+            ConcordanceReport.objects.filter(
+                pk=self.report.pk
+            ).exists()
+        )
+
+        # Historical report options remain.
+        self.assertTrue(
+            ConcordanceOptions.objects.filter(
+                pk=self.report_options.pk,
+                report=self.report,
+            ).exists()
+        )
+
+    def test_cannot_delete_report_specific_options(self):
+        self.client.force_login(self.admin)
+
+        url = reverse(
+            "delete_concordance_setting",
+            args=[self.report_options.pk],
+        )
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+
+        self.assertTrue(
+            ConcordanceOptions.objects.filter(
+                pk=self.report_options.pk
+            ).exists()
         )
