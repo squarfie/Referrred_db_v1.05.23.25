@@ -137,3 +137,60 @@ class FourUploadWorkflowSecurityTests(TestCase):
             _referred_bulk_upload_skip_reason(self.other, self.final, final=True),
             "another user's batch",
         )
+
+    def test_raw_antibiotic_upload_skips_protected_accession(self):
+        from unittest.mock import patch
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        from apps.home.models import Antibiotic_List, AntibioticEntry
+
+        Antibiotic_List.objects.create(
+            Whonet_Abx="AMP_ND10", Abx_code="AMP", Antibiotic="Ampicillin"
+        )
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.encoder)
+        data = SimpleUploadedFile(
+            "abx.csv", b"AccessionNo,AMP_ND10_Val\\nFOUR-UP-1,20\\n",
+            content_type="text/csv"
+        )
+        with patch("apps.wgs_app.views.reapply_raw_breakpoints_for_batches", return_value=0):
+            response = self.client.post(
+                reverse("upload_raw_antibiotics"),
+                {"RawAntibioticFile": data, "overwrite": "true"},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AntibioticEntry.objects.filter(
+            ab_idNum_referred=self.raw
+        ).exists())
+
+    def test_final_antibiotic_upload_skips_protected_accession(self):
+        from unittest.mock import patch
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        from apps.home.models import Antibiotic_List
+        from apps.home_final.models import Final_AntibioticEntry
+
+        Antibiotic_List.objects.create(
+            Whonet_Abx="AMP_ND10", Abx_code="AMP", Antibiotic="Ampicillin"
+        )
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_VERIFICATION,
+        )
+        self.client.force_login(self.encoder)
+        data = SimpleUploadedFile(
+            "abx.csv", b"f_AccessionNo,AMP_ND10_Val\\nFOUR-UP-1,20\\n",
+            content_type="text/csv"
+        )
+        with patch("apps.wgs_app.views.reapply_final_breakpoints_for_batches", return_value=0):
+            response = self.client.post(
+                reverse("upload_final_antibiotics"),
+                {"FinalAntibioticFile": data, "overwrite": "true"},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Final_AntibioticEntry.objects.filter(
+            ab_idNum_f_referred=self.final
+        ).exists())
