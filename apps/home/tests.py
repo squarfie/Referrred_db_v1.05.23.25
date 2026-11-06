@@ -403,6 +403,71 @@ class ReviewBatchesPaginationTests(TestCase):
 class DestructiveBatchActionsSecurityTests(TestCase):
     """Regression coverage for GET, authorization, confirmation and CSRF safety."""
 
+    
+    def test_delete_data_rejects_get_request(self):
+        from django.urls import reverse
+
+        url = reverse("delete_data", args=[self.raw.pk])
+        self.client.force_login(self.owner)
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)
+        self._all_records_remain()
+
+    def test_delete_data_requires_confirmation(self):
+        from django.urls import reverse
+
+        url = reverse("delete_data", args=[self.raw.pk])
+        self.client.force_login(self.owner)
+
+        for confirmation in ("", "WRONG", "DELETE BATCH"):
+            with self.subTest(confirmation=confirmation):
+                response = self.client.post(
+                    url,
+                    {"confirmation": confirmation},
+                )
+
+                self.assertEqual(response.status_code, 302)
+                self._all_records_remain()
+
+    def test_delete_data_deletes_raw_and_matching_final(self):
+        from django.urls import reverse
+        from apps.home_final.models import Final_Data
+
+        url = reverse("delete_data", args=[self.raw.pk])
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            url,
+            {"confirmation": "DELETE RECORD"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.assertFalse(
+            Referred_Data.objects.filter(pk=self.raw.pk).exists()
+        )
+
+        self.assertFalse(
+            Final_Data.objects.filter(pk=self.final.pk).exists()
+        )
+
+    def test_delete_data_cannot_delete_another_encoders_record(self):
+        from django.urls import reverse
+
+        url = reverse("delete_data", args=[self.raw.pk])
+        self.client.force_login(self.other)
+
+        response = self.client.post(
+            url,
+            {"confirmation": "DELETE RECORD"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self._all_records_remain()
+
+
     def setUp(self):
         from django.contrib.auth.models import Group
         from django.urls import reverse

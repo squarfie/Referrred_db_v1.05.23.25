@@ -4780,43 +4780,107 @@ def edit_data(request, id):
 
 
 # DELETE DATA 
+# @login_required(login_url="login")
+# @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
+# @require_POST
+# @transaction.atomic
+# def delete_data(request, id):
+
+#     isolate = get_object_or_404(Referred_Data, pk=id)
+#     if isolate.Batch_id and not can_manage_batch(request.user, isolate.Batch_id):
+#         messages.error(request, "You can only delete records from batches that you created.")
+#         return redirect("show_data")
+
+#     if _deletion_has_locked_accession(isolate):
+#         messages.error(
+#             request,
+#             "Deletion blocked: this accession or its batch has "
+#             "a protected verification record."
+#         )
+#         return redirect("show_data")
+
+#     accession = isolate.AccessionNo
+
+#     if request.method == "POST":
+
+#         # 🔹 Delete related Final_Data (if exists)
+#         Final_Data.objects.filter(
+#             f_AccessionNo=accession
+#         ).delete()
+
+#         # 🔹 Delete isolate (will cascade to AntibioticEntry)
+#         isolate.delete()
+
+#         messages.success(
+#             request,
+#             f"Accession {accession} deleted successfully."
+#         )
+
+#     return redirect("show_data")
+
+
+
+
 @login_required(login_url="login")
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
 @require_POST
 @transaction.atomic
 def delete_data(request, id):
+    """
+    Delete an authorized, unprotected Raw accession and
+    its matching Final Data record in one transaction.
+    """
 
-    isolate = get_object_or_404(Referred_Data, pk=id)
-    if isolate.Batch_id and not can_manage_batch(request.user, isolate.Batch_id):
-        messages.error(request, "You can only delete records from batches that you created.")
+    # Require explicit confirmation before any deletion.
+    if request.POST.get("confirmation", "").strip() != "DELETE RECORD":
+        messages.error(
+            request,
+            "Deletion cancelled. Confirm accession deletion before proceeding."
+        )
         return redirect("show_data")
 
+    # Lock the Raw Data record while validating deletion.
+    isolate = get_object_or_404(
+        Referred_Data.objects.select_for_update(),
+        pk=id,
+    )
+
+    # Preserve batch ownership and role permissions.
+    if isolate.Batch_id and not can_manage_batch(
+        request.user, isolate.Batch_id
+    ):
+        messages.error(
+            request,
+            "You do not have permission to delete this accession."
+        )
+        return redirect("show_data")
+
+    # Protect active, approved, signed, and released records.
     if _deletion_has_locked_accession(isolate):
         messages.error(
             request,
-            "Deletion blocked: this accession or its batch has "
-            "a protected verification record."
+            "Deletion blocked: this accession or its batch "
+            "has a protected verification record."
         )
         return redirect("show_data")
 
     accession = isolate.AccessionNo
 
-    if request.method == "POST":
+    # Preserve your intended Raw/Final synchronized deletion.
+    Final_Data.objects.filter(
+        f_AccessionNo=accession
+    ).delete()
 
-        # 🔹 Delete related Final_Data (if exists)
-        Final_Data.objects.filter(
-            f_AccessionNo=accession
-        ).delete()
+    isolate.delete()
 
-        # 🔹 Delete isolate (will cascade to AntibioticEntry)
-        isolate.delete()
-
-        messages.success(
-            request,
-            f"Accession {accession} deleted successfully."
-        )
+    messages.success(
+        request,
+        f"Accession {accession} and its corresponding "
+        "Final Data record were deleted successfully."
+    )
 
     return redirect("show_data")
+
 
 
 

@@ -2053,12 +2053,22 @@
         <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">
           <i class="fa fa-times mr-1"></i>Cancel
         </button>
-        <form id="deleteForm" method="POST" action="">
+        <!-- <form id="deleteForm" method="POST" action="">
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-danger">
                 <i class="fa fa-trash mr-1"></i>Delete
             </button>
-        </form>
+        </form> -->
+        
+      <form id="deleteForm" method="POST" action="">
+          {% csrf_token %}
+          <input type="hidden" name="confirmation" value="DELETE RECORD">
+
+          <button type="submit" class="btn btn-sm btn-danger">
+              <i class="fa fa-trash mr-1"></i>Delete
+          </button>
+      </form>
+
 
       </div>
     </div>
