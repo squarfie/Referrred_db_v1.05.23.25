@@ -462,7 +462,7 @@
                 {% endfor %}
               </ol>
               {% else %}
-              {{ field.value|default:"-" }}
+              {{ field.value|default:"" }}
               {% endif %}
             </div>
             <div class="saved-comments">{% for comment in field.comments %}<div class="saved-comment"><div class="saved-comment-top"><strong>{{ comment.get_decision_display }}</strong><span class="d-inline-flex align-items-center" style="gap:6px;"><span class="status-pill">{{ comment.get_resolution_status_display }}</span>{% if can_delete_case_comments and can_write_field_comments %}<button type="submit" class="saved-comment-delete" title="Delete saved comment" formaction="{% url 'delete_verification_comment' case.id comment.id %}" formmethod="post" onclick="return confirm('Delete this saved comment?');"><i class="fas fa-trash"></i></button>{% endif %}</span></div><div>{{ comment.comment }}</div><div class="text-muted">{{ comment.created_by|default:"Unknown" }}{% if comment.created_at %} | {{ comment.created_at|date:"M d, Y h:i A" }}{% endif %}</div></div>{% empty %}<span class="empty-comment">No saved comments</span>{% endfor %}</div>
