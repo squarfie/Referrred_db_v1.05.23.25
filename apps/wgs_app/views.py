@@ -6895,6 +6895,57 @@ def reapply_final_breakpoints_for_batches(batch_ids, debug=False):
     return updated
 
 
+def _referred_bulk_upload_skip_reason(user, isolate, *, final=False):
+    """Protect existing Raw/Final accessions in mass uploads.
+
+    Unlike an interactive correction form, bulk imports are not scoped to an
+    approved correction field. Active review, sign-off and release are locked.
+    A withdrawn review and Raw returned-to-encoder stage can be edited.
+    Final encoding is editable while its case explicitly permits encoding.
+    """
+    from apps.verification.models import VerificationCase
+
+    batch = isolate.f_Batch_id if final else isolate.Batch_id
+    if batch is None and final:
+        raw = Referred_Data.objects.select_related("Batch_id").filter(
+            AccessionNo=isolate.f_AccessionNo
+        ).first()
+        batch = raw.Batch_id if raw else None
+
+    if batch is None:
+        # Encoders cannot claim or alter an unbatched existing record.
+        if not user.is_superuser and not user.groups.filter(
+            name__in=[ROLE_ADMIN, ROLE_CHECKER]
+        ).exists():
+            return "unbatched existing record"
+        return None
+
+    if not can_manage_batch(user, batch):
+        return "another user's batch"
+
+    cases = VerificationCase.objects.filter(
+        Q(final_batch_id=batch.pk)
+        | Q(final_accession__f_Batch_id_id=batch.pk)
+    ).distinct()
+    # All active cases must allow this action, not merely the newest one.
+    for case in cases:
+        if final:
+            allowed = {
+                VerificationCase.STATUS_DRAFT,
+                VerificationCase.STATUS_WITHDRAWN,
+                VerificationCase.STATUS_FOR_FINAL_ENCODING,
+            }
+        else:
+            allowed = {
+                VerificationCase.STATUS_DRAFT,
+                VerificationCase.STATUS_WITHDRAWN,
+                VerificationCase.STATUS_RETURNED_TO_ENCODER,
+            }
+        if case.status not in allowed:
+            return "verification or release lock"
+    return None
+
+
 ########## UPLOADING DEMOGS
 @login_required
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
@@ -7028,6 +7079,7 @@ def upload_referred_table(request):
             to_create = []
             to_update = []
             skipped = 0
+            protected_skips = defaultdict(int)
             touched_batch_ids = set()
 
             for normalized in normalized_rows:
@@ -7103,6 +7155,13 @@ def upload_referred_table(request):
 
                 final_obj = existing.get(accession)
                 if final_obj:
+                    skip_reason = _referred_bulk_upload_skip_reason(
+                        request.user, final_obj, final=True
+                    )
+                    if skip_reason:
+                        skipped += 1
+                        protected_skips[skip_reason] += 1
+                        continue
                     if not overwrite:
                         skipped += 1
                         continue
@@ -7159,6 +7218,13 @@ def upload_referred_table(request):
                 f"{refreshed_tat} TAT record(s) refreshed."
             )
 
+            if protected_skips:
+                messages.warning(
+                    request,
+                    "Protected Final demographics skipped: " + "; ".join(
+                        f"{count} {reason}" for reason, count in sorted(protected_skips.items())
+                    )
+                )
             return redirect("show_final_data")
 
         # ================= FIELD LIST =================
@@ -7202,6 +7268,7 @@ def upload_referred_table(request):
         to_update = []
         uploaded_batch_codes = set()
         skipped = 0
+        protected_skips = defaultdict(int)
 
         def normalize_ref_no(value, accession):
             inferred = infer_ref_from_accession(accession)
@@ -7502,6 +7569,13 @@ def upload_referred_table(request):
 
             # ================= CREATE / UPDATE =================
             if accession in existing:
+                skip_reason = _referred_bulk_upload_skip_reason(
+                    request.user, existing[accession], final=False
+                )
+                if skip_reason:
+                    skipped += 1
+                    protected_skips[skip_reason] += 1
+                    continue
                 if not overwrite:
                     skipped += 1
                     continue
@@ -7554,6 +7628,13 @@ def upload_referred_table(request):
             "Final data, emerging, concordance, and TAT were not refreshed."
         )
 
+        if protected_skips:
+            messages.warning(
+                request,
+                "Protected Raw demographics skipped: " + "; ".join(
+                    f"{count} {reason}" for reason, count in sorted(protected_skips.items())
+                )
+            )
         return redirect("show_batches")
 
     except Exception as e:
@@ -9031,6 +9112,7 @@ def upload_final_antibiotics(request):
     created = 0
     updated = 0
     skipped = 0
+    protected_skips = defaultdict(int)
     invalid_ris_values = 0
     affected_batch_ids = set()
     pending_entries = {}
@@ -9127,6 +9209,14 @@ def upload_final_antibiotics(request):
             if not isolate:
                 skipped += 1
                 print(f"[FINAL ABX DEBUG] Accession skipped: {accession} not found in Final_Data.")
+                continue
+
+            skip_reason = _referred_bulk_upload_skip_reason(
+                request.user, isolate, final=True
+            )
+            if skip_reason:
+                skipped += 1
+                protected_skips[skip_reason] += 1
                 continue
 
             matched_accessions += 1
@@ -9636,6 +9726,7 @@ def upload_raw_antibiotics(request):
     created = 0
     updated = 0
     skipped = 0
+    protected_skips = defaultdict(int)
     invalid_ris_values = 0
     affected_batch_ids = set()
     pending_entries = {}
@@ -9690,6 +9781,14 @@ def upload_raw_antibiotics(request):
 
             if not isolate:
                 skipped += 1
+                continue
+
+            skip_reason = _referred_bulk_upload_skip_reason(
+                request.user, isolate, final=False
+            )
+            if skip_reason:
+                skipped += 1
+                protected_skips[skip_reason] += 1
                 continue
 
             if isolate.Batch_id_id:
