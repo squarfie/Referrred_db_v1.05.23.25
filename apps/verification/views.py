@@ -417,22 +417,24 @@ def _can_write_case_field_comments(case, roles, user):
 
 
 def _can_submit_verifier_actions(case, roles):
-    return ROLE_ADMIN in roles or (
-        ROLE_VERIFIER in roles
-        and case.status in {
-            VerificationCase.STATUS_FOR_RAW_VERIFICATION,
-            VerificationCase.STATUS_FOR_VERIFICATION,
-            VerificationCase.STATUS_RETURNED_TO_VERIFIER,
-            VerificationCase.STATUS_RETURNED_TO_CHECKER,
-        }
-    )
+    # Admins may act across batches, but cannot act outside review stages.
+    if case.status not in {
+        VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        VerificationCase.STATUS_FOR_VERIFICATION,
+        VerificationCase.STATUS_RETURNED_TO_VERIFIER,
+        VerificationCase.STATUS_RETURNED_TO_CHECKER,
+    }:
+        return False
+    return bool(ROLE_ADMIN in roles or ROLE_VERIFIER in roles)
 
 
 def _can_submit_lab_manager_actions(case, roles, user):
-    return ROLE_ADMIN in roles or (
-        ROLE_LAB_MANAGER in roles
-        and case.status == VerificationCase.STATUS_FOR_LAB_MANAGER
-        and _is_assigned_lab_manager(case, user)
+    # No role, including Admin, may skip Lab Manager review.
+    if case.status != VerificationCase.STATUS_FOR_LAB_MANAGER:
+        return False
+    return bool(
+        ROLE_ADMIN in roles
+        or (ROLE_LAB_MANAGER in roles and _is_assigned_lab_manager(case, user))
     )
 
 
@@ -1380,6 +1382,15 @@ def verification_case_detail(request, case_id):
             roles = get_user_roles(request.user)
             is_assigned_head = case.assigned_head_id and case.assigned_head_id == request.user.id
             can_release_case = bool(ROLE_ADMIN in roles or ROLE_CHECKER in roles)
+            # Final-review actions must never be used during Raw review, Draft,
+            # signed/released review, or any unrelated workflow stage.
+            if action in {"approve", "return_checker", "send_lab_manager"} and case.status not in {
+                VerificationCase.STATUS_FOR_FINAL_VERIFICATION,
+                VerificationCase.STATUS_RETURNED_TO_VERIFIER,
+                VerificationCase.STATUS_RETURNED_TO_CHECKER,
+            }:
+                messages.error(request, "This action is only available during Final Verification review.")
+                return redirect("verification_case_detail", case_id=case.id)
             if action in {"approve", "return_checker", "send_lab_manager"} and not _can_submit_verifier_actions(case, roles):
                 messages.error(request, "Verifier actions are available only while the case is on the verifier side.")
                 return redirect("verification_case_detail", case_id=case.id)
