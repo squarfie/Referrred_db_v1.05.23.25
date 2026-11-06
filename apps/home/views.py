@@ -59,7 +59,11 @@ import pandas as pd
 from django.utils import timezone
 from django.db.models import Q, F, Case, When
 from django.utils.timezone import now
+import logging
 
+
+
+logger = logging.getLogger(__name__)
 
 def _breakpoint_year_filter(bp_qs, specimen_year):
     target_year = _year_as_int(specimen_year)
@@ -9424,16 +9428,22 @@ def undo_copy_batch_to_final(request, batch_id):
 
         return redirect("show_data")
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    except Exception:
         transaction.set_rollback(True)
+
+        logger.exception(
+            "Undo Final Copy failed for batch_id=%s",
+            batch_id,
+        )
+
         messages.error(
             request,
-            f"Error undoing batch copy: {e}"
+            "Unable to undo the Final copy. "
+            "No database changes were saved. "
+            "Please contact the administrator if the problem persists."
         )
-        return redirect("show_data")
 
+        return redirect("show_data")
 
 
 
