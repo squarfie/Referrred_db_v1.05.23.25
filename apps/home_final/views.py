@@ -4576,20 +4576,52 @@ def edit_concordance_setting(request, pk):
     return redirect("/settings/?tab=concordance_settings")
 
 
+# @login_required(login_url="login")
+# @require_POST
+# @transaction.atomic
+# @role_required(ROLE_ADMIN, ROLE_CHECKER)
+# def delete_concordance_setting(request, pk):
+#     rule = get_object_or_404(
+#         ConcordanceOptions,
+#         pk=pk,
+#         report__isnull=True,
+#     )
+#     rule.delete()
+#     ConcordanceOptions.objects.filter(report__isnull=False).delete()
+#     messages.success(request, "Concordance rule deleted successfully.")
+#     return redirect("/settings/?tab=concordance_settings")
+
+
+
 @login_required(login_url="login")
 @require_POST
 @transaction.atomic
 @role_required(ROLE_ADMIN, ROLE_CHECKER)
 def delete_concordance_setting(request, pk):
+    """
+    Delete only the selected global concordance rule.
+
+    Existing report-specific options and concordance
+    reports must remain untouched.
+    """
+
     rule = get_object_or_404(
         ConcordanceOptions,
         pk=pk,
         report__isnull=True,
     )
+
     rule.delete()
-    ConcordanceOptions.objects.filter(report__isnull=False).delete()
-    messages.success(request, "Concordance rule deleted successfully.")
+
+    messages.success(
+        request,
+        "Concordance rule deleted successfully. "
+        "Existing concordance reports were preserved."
+    )
+
     return redirect("/settings/?tab=concordance_settings")
+
+
 
 
 @login_required(login_url="login")

@@ -403,6 +403,71 @@ class ReviewBatchesPaginationTests(TestCase):
 class DestructiveBatchActionsSecurityTests(TestCase):
     """Regression coverage for GET, authorization, confirmation and CSRF safety."""
 
+    
+    def test_delete_data_rejects_get_request(self):
+        from django.urls import reverse
+
+        url = reverse("delete_data", args=[self.raw.pk])
+        self.client.force_login(self.owner)
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)
+        self._all_records_remain()
+
+    def test_delete_data_requires_confirmation(self):
+        from django.urls import reverse
+
+        url = reverse("delete_data", args=[self.raw.pk])
+        self.client.force_login(self.owner)
+
+        for confirmation in ("", "WRONG", "DELETE BATCH"):
+            with self.subTest(confirmation=confirmation):
+                response = self.client.post(
+                    url,
+                    {"confirmation": confirmation},
+                )
+
+                self.assertEqual(response.status_code, 302)
+                self._all_records_remain()
+
+    def test_delete_data_deletes_raw_and_matching_final(self):
+        from django.urls import reverse
+        from apps.home_final.models import Final_Data
+
+        url = reverse("delete_data", args=[self.raw.pk])
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            url,
+            {"confirmation": "DELETE RECORD"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.assertFalse(
+            Referred_Data.objects.filter(pk=self.raw.pk).exists()
+        )
+
+        self.assertFalse(
+            Final_Data.objects.filter(pk=self.final.pk).exists()
+        )
+
+    def test_delete_data_cannot_delete_another_encoders_record(self):
+        from django.urls import reverse
+
+        url = reverse("delete_data", args=[self.raw.pk])
+        self.client.force_login(self.other)
+
+        response = self.client.post(
+            url,
+            {"confirmation": "DELETE RECORD"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self._all_records_remain()
+
+
     def setUp(self):
         from django.contrib.auth.models import Group
         from django.urls import reverse
@@ -512,6 +577,104 @@ class DestructiveBatchActionsSecurityTests(TestCase):
             with self.subTest(url=url):
                 self.client.post(url, payload)
                 self._all_records_remain()
+
+    
+    def test_batch_deletion_does_not_delete_another_batch_with_same_code(self):
+        from apps.home.models import Batch_Table, Referred_Data
+        from apps.home_final.models import Final_Data
+        from apps.verification.models import VerificationCase
+
+        # Two batches deliberately share the same text code.
+        other_batch = Batch_Table.objects.create(
+            created_by=self.owner,
+            bat_Batch_Name="OTHER BATCH",
+            bat_Batch_Code="ACTIONS",
+        )
+
+        other_raw = Referred_Data.objects.create(
+            Batch_id=other_batch,
+            Batch_Code="ACTIONS",
+            AccessionNo="OTHER-ACCESSION-001",
+        )
+
+        other_final = Final_Data.objects.create(
+            f_Batch_id=other_batch,
+            f_Batch_Code="ACTIONS",
+            f_AccessionNo="OTHER-ACCESSION-001",
+        )
+
+        # The other batch has a released verification case.
+        verification = VerificationCase.objects.create(
+            final_batch=other_batch,
+            status=VerificationCase.STATUS_RELEASED,
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.batch_url,
+            {"confirmation": "DELETE BATCH"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        # The selected, eligible batch was deleted.
+        self.assertFalse(
+            Batch_Table.objects.filter(pk=self.batch.pk).exists()
+        )
+        self.assertFalse(
+            Referred_Data.objects.filter(pk=self.raw.pk).exists()
+        )
+        self.assertFalse(
+            Final_Data.objects.filter(pk=self.final.pk).exists()
+        )
+
+        # The other batch and its protected records survive.
+        self.assertTrue(
+            Batch_Table.objects.filter(pk=other_batch.pk).exists()
+        )
+        self.assertTrue(
+            Referred_Data.objects.filter(pk=other_raw.pk).exists()
+        )
+        self.assertTrue(
+            Final_Data.objects.filter(pk=other_final.pk).exists()
+        )
+        self.assertTrue(
+            VerificationCase.objects.filter(pk=verification.pk).exists()
+        )
+
+    def test_batch_deletion_uses_foreign_keys_not_text_codes(self):
+        from apps.home.models import Batch_Table, Referred_Data
+        from apps.home_final.models import Final_Data
+
+        # Text codes intentionally differ from their parent batch.
+        self.raw.Batch_Code = "LEGACY-RAW-CODE"
+        self.raw.save(update_fields=["Batch_Code"])
+
+        self.final.f_Batch_Code = "LEGACY-FINAL-CODE"
+        self.final.save(update_fields=["f_Batch_Code"])
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.batch_url,
+            {"confirmation": "DELETE BATCH"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        # Actual FK relationships determine deletion.
+        self.assertFalse(
+            Batch_Table.objects.filter(pk=self.batch.pk).exists()
+        )
+        self.assertFalse(
+            Referred_Data.objects.filter(pk=self.raw.pk).exists()
+        )
+        self.assertFalse(
+            Final_Data.objects.filter(pk=self.final.pk).exists()
+        )
+
+
 
     def test_released_accession_cannot_be_deleted(self):
         from django.contrib.auth.models import Group
