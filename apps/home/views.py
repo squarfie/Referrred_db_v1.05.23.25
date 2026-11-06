@@ -9443,182 +9443,17 @@ def copy_data_to_final(request, id):
 
 
 #### uploading referred data
-@login_required
+@login_required(login_url="login")
+@role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
 @transaction.atomic
 def upload_combined_table(request):
     """
-    Upload referred data (Referred_Data + AntibioticEntry) 
-    using user-defined field mappings from FieldMapping.
+    Import mapped Referred_Data and antibiotic results without allowing a file
+    to change ownership/workflow fields or records outside the user's scope.
     """
     form = WGSProjectForm()
     referred_form = ReferredUploadForm()
-
-    if request.method == "POST" and request.FILES.get("ReferredDataFile"):
-        try:
-            uploaded_file = request.FILES["ReferredDataFile"]
-            file_name = uploaded_file.name.lower()
-
-            # --- Load file ---
-            if file_name.endswith(".csv"):
-                file = TextIOWrapper(uploaded_file.file, encoding="utf-8-sig")
-                df = pd.read_csv(file)
-            elif file_name.endswith(".tsv"):
-                file = TextIOWrapper(uploaded_file.file, encoding="utf-8-sig")
-                df = pd.read_csv(file, sep="\t")
-            elif file_name.endswith((".xlsx", ".xls")):
-                df = pd.read_excel(uploaded_file)
-            else:
-                messages.error(request, "Unsupported file format. Please upload CSV, TSV, XLSX, or XLS.")
-                return render(request, "wgs_app/Add_wgs.html", {
-                    "referred_form": referred_form,
-                    "form": form,
-                })
-
-            # --- Apply user-defined mappings ---
-            user_mappings = dict(
-                FieldMapping.objects.filter(user=request.user)
-                .values_list("raw_field", "mapped_field")
-            )
-            if user_mappings:
-                df.rename(columns=user_mappings, inplace=True)
-                print(f"[UPLOAD] Applied {len(user_mappings)} user field mappings.")
-            else:
-                messages.warning(request, " No saved field mappings found. Using raw headers.")
-
-            # --- Normalize headers (fallback cleanup) ---
-            def normalize_header(header):
-                key = str(header).strip().lower().replace("_", " ").replace("-", " ")
-                return re.sub(r"\s+", " ", key).strip().title()
-
-            df.columns = [normalize_header(c) for c in df.columns]
-
-            # --- Prepare data ---
-            rows = df.to_dict("records")
-            site_codes = set(SiteData.objects.values_list("SiteCode", flat=True))
-            model_fields = [f.name for f in Referred_Data._meta.get_fields()]
-            known_abx = set(BreakpointsTable.objects.values_list("Whonet_Abx", flat=True))
-
-            created_ref, updated_ref, created_abx, updated_abx = 0, 0, 0, 0
-
-            # --- Helper Functions ---
-            def parse_mic_value(value_str):
-                """Extract operator and numeric MIC value (e.g. '<=0.5' → ('<=', 0.5))"""
-                if not value_str or pd.isna(value_str):
-                    return "", None
-                value_str = str(value_str).strip()
-                match = re.match(r"^([<>=≤≥]+)?\s*([\d.]+)$", value_str)
-                if match:
-                    return match.group(1) or "", float(match.group(2))
-                try:
-                    return "", float(value_str)
-                except ValueError:
-                    return "", None
-
-            def extract_site_code(accession_no):
-                """Extract 3-letter site code from accession number (if exists)."""
-                for code in site_codes:
-                    if re.search(rf"{code}", str(accession_no), re.IGNORECASE):
-                        return code
-                return ""
-
-            def parse_batch_info(batch_name):
-                """
-                Parse batch-related details from a batch name like:
-                '1.1 GMH_09122019_1.1_0001-0009'
-                """
-                if not batch_name or pd.isna(batch_name):
-                    return {"BatchNo": "", "TotalBatch": "", "RefNo": ""}
-                batch_name = str(batch_name)
-                batch_match = re.search(r"(\d+)\.(\d+)", batch_name)
-                range_match = re.search(r"_(\d{4}-\d{4})", batch_name)
-                return {
-                    "BatchNo": batch_match.group(1) if batch_match else "",
-                    "TotalBatch": batch_match.group(2) if batch_match else "",
-                    "RefNo": range_match.group(1) if range_match else "",
-                }
-
-            # --- Process each row ---
-            for row in rows:
-                cleaned_row = {k: ("" if pd.isna(v) else v) for k, v in row.items()}
-
-                accession = cleaned_row.get("AccessionNo") or cleaned_row.get("ID_Number")
-                if not accession:
-                    continue
-
-                # Extract site and batch info
-                site_code = extract_site_code(accession)
-                batch_name = cleaned_row.get("Batch_Name", "")
-                batch_info = parse_batch_info(batch_name)
-
-                cleaned_row.update({
-                    "Site_Code": site_code,
-                    "BatchNo": batch_info["BatchNo"],
-                    "Total_Batch": batch_info["TotalBatch"],
-                    "RefNo": batch_info["RefNo"],
-                })
-
-                # Keep only model fields
-                valid_fields = {k: v for k, v in cleaned_row.items() if k in model_fields}
-
-            for field_name, value in valid_fields.items():
-                if isinstance(value, str) and len(value) > 255:
-                    print(f"[WARNING] {accession} - Field '{field_name}' exceeds 255 chars ({len(value)} chars)")
-                # --- Create or update Referred_Data record ---
-                ref_obj, ref_created = Referred_Data.objects.update_or_create(
-                    AccessionNo=str(accession).strip(),
-                    defaults=valid_fields,
-                )
-                created_ref += int(ref_created)
-                updated_ref += int(not ref_created)
-
-                # --- Antibiotic Entries ---
-                for abx in known_abx:
-                    abx_val = str(cleaned_row.get(abx, "")).strip()
-                    abx_ris = str(cleaned_row.get(f"{abx}_RIS", "")).strip()
-                    abx_rt_val = str(cleaned_row.get(f"{abx}_RT", "")).strip()
-                    abx_rt_ris = str(cleaned_row.get(f"{abx}_RT_RIS", "")).strip()
-
-                    if not any([abx_val, abx_ris, abx_rt_val, abx_rt_ris]):
-                        continue
-
-                    mic_op, mic_val = parse_mic_value(abx_val)
-                    ret_op, ret_val = parse_mic_value(abx_rt_val)
-
-
-
-                    ab_entry, ab_created = AntibioticEntry.objects.update_or_create(
-                        ab_idNum_referred=ref_obj,
-                        ab_Abx_code=abx,
-                        defaults={
-                            "ab_MIC_operand": mic_op,
-                            "ab_MIC_value": mic_val,
-                            "ab_MIC_RIS": abx_ris,
-                            "ab_MIC_enRIS": abx_ris,
-                            "ab_Retest_MIC_operand": ret_op,
-                            "ab_Retest_MICValue": ret_val,
-                            "ab_Retest_MIC_RIS": abx_rt_ris,
-                            "ab_Retest_MIC_enRIS": abx_rt_ris,
-                        },
-                    )
-                    created_abx += int(ab_created)
-                    updated_abx += int(not ab_created)
-
-            # --- Success message ---
-            messages.success(
-                request,
-                f"Upload complete! "
-                f"{created_ref} new Referred_Data, {updated_ref} updated; "
-                f"{created_abx} new AntibioticEntry, {updated_abx} updated."
-            )
-            return redirect("show_data")
-
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            messages.error(request, f" Error processing file: {e}")
-
-    # --- Default render (GET request) ---
-    return render(request, "wgs_app/Add_wgs.html", {
+    context = {
         "referred_form": referred_form,
         "form": form,
         "bactscout_form": BactScoutUploadForm(),
@@ -9627,9 +9462,245 @@ def upload_combined_table(request):
         "checkm2_form": Checkm2UploadForm(),
         "assembly_form": AssemblyUploadForm(),
         "amrfinder_form": AmrUploadForm(),
-    })
+    }
 
+    if request.method != "POST":
+        return render(request, "wgs_app/Add_wgs.html", context)
 
+    uploaded_file = request.FILES.get("ReferredDataFile")
+    if uploaded_file is None:
+        messages.error(request, "Select a referred-data file to upload.")
+        return render(request, "wgs_app/Add_wgs.html", context)
+
+    # Bound both raw uploads and in-memory pandas processing.
+    MAX_BYTES = 10 * 1024 * 1024
+    MAX_ROWS = 10000
+    if uploaded_file.size > MAX_BYTES:
+        messages.error(request, "File exceeds the 10 MB upload limit.")
+        return render(request, "wgs_app/Add_wgs.html", context)
+
+    extension = os.path.splitext(uploaded_file.name.lower())[1]
+    if extension not in {".csv", ".tsv", ".xlsx", ".xls"}:
+        messages.error(request, "Unsupported file type. Use CSV, TSV, XLSX, or XLS.")
+        return render(request, "wgs_app/Add_wgs.html", context)
+
+    def normalized_key(value):
+        return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+    # Allow concrete editable non-relation fields only; never accept metadata,
+    # primary keys, workflow flags, or batch ownership from a spreadsheet.
+    protected = {
+        "id", "Batch_id", "Batch_Code", "Hide", "Copy_data",
+        "Date_of_Entry", "Date_Modified", "bat_seq",
+    }
+    editable_fields = {
+        field.name: field
+        for field in Referred_Data._meta.concrete_fields
+        if not field.primary_key and not field.is_relation
+        and not getattr(field, "auto_now", False)
+        and not getattr(field, "auto_now_add", False)
+        and field.name not in protected
+    }
+    field_keys = {normalized_key(name): name for name in editable_fields}
+    field_keys[normalized_key("ID_Number")] = "AccessionNo"
+    antibiotic_codes = {
+        str(code).strip().upper(): str(code).strip()
+        for code in BreakpointsTable.objects.values_list("Whonet_Abx", flat=True)
+        if code
+    }
+
+    try:
+        if extension == ".csv":
+            df = pd.read_csv(uploaded_file, encoding="utf-8-sig", dtype=str)
+        elif extension == ".tsv":
+            df = pd.read_csv(uploaded_file, sep="\t", encoding="utf-8-sig", dtype=str)
+        else:
+            df = pd.read_excel(uploaded_file, dtype=str)
+
+        if df.empty or len(df.index) > MAX_ROWS:
+            raise ValueError("Upload must contain between 1 and 10,000 data rows.")
+
+        mappings = dict(
+            FieldMapping.objects.filter(user=request.user)
+            .values_list("raw_field", "mapped_field")
+        )
+        df.rename(columns={key: value for key, value in mappings.items() if value}, inplace=True)
+
+        # Preserve WHONET antibiotic columns while canonicalizing model columns.
+        canonical_columns = {}
+        for column in df.columns:
+            canonical_columns[column] = field_keys.get(normalized_key(column), str(column).strip())
+        df.rename(columns=canonical_columns, inplace=True)
+
+        if df.columns.duplicated().any():
+            raise ValueError("Duplicate column names after field mapping.")
+
+        if "AccessionNo" not in df.columns:
+            raise ValueError("Missing AccessionNo or mapped ID_Number column.")
+
+        # Do not accept attempted changes to protected data through a mapping.
+        protected_keys = {normalized_key(name) for name in protected}
+        for column in df.columns:
+            if normalized_key(column) in protected_keys:
+                raise ValueError(f"Upload cannot modify protected field: {column}")
+
+        rows = df.to_dict("records")
+        site_codes = set(SiteData.objects.values_list("SiteCode", flat=True))
+        counters = dict(created_ref=0, updated_ref=0, created_abx=0, updated_abx=0)
+        skipped = []
+        seen_accessions = set()
+
+        def parse_mic_value(value):
+            text = str(value or "").strip()
+            match = re.fullmatch(r"([<>=≤≥]+)?\s*(\d+(?:\.\d+)?)", text)
+            if not match:
+                return "", None
+            return match.group(1) or "", float(match.group(2))
+
+        def extract_site_code(accession):
+            for code in site_codes:
+                if code and re.search(re.escape(str(code)), str(accession), re.IGNORECASE):
+                    return code
+            return ""
+
+        def parse_batch_info(batch_name):
+            name = str(batch_name or "")
+            part = re.search(r"(\d+)\.(\d+)", name)
+            reference = re.search(r"_(\d{4}-\d{4})", name)
+            return {
+                "BatchNo": part.group(1) if part else "",
+                "Total_batch": part.group(2) if part else "",
+                "RefNo": reference.group(1) if reference else "",
+            }
+
+        # Inner savepoint ensures an error caught below never commits earlier
+        # rows (the outer decorator alone would commit caught exceptions).
+        with transaction.atomic():
+            for row_number, raw_row in enumerate(rows, start=2):
+                row = {
+                    key: ("" if pd.isna(value) else str(value).strip())
+                    for key, value in raw_row.items()
+                }
+                accession = row.get("AccessionNo", "").strip()
+                if not accession:
+                    raise ValueError(f"Row {row_number}: missing accession number.")
+                if accession in seen_accessions:
+                    raise ValueError(f"Row {row_number}: duplicate accession in upload.")
+                seen_accessions.add(accession)
+
+                existing = (
+                    Referred_Data.objects.select_for_update()
+                    .filter(AccessionNo=accession)
+                    .first()
+                )
+
+                fields = {key: value for key, value in row.items() if key in editable_fields and key != "AccessionNo"}
+                if "SiteCode" not in fields and not existing:
+                    fields["SiteCode"] = extract_site_code(accession)
+                if "Batch_Name" in row:
+                    parsed = parse_batch_info(row["Batch_Name"])
+                    for key, value in parsed.items():
+                        if key in editable_fields and key not in fields:
+                            fields[key] = value
+
+                # Database field limits and type conversion must be validated
+                # before saving, not silently truncated.
+                for name, value in list(fields.items()):
+                    model_field = editable_fields[name]
+                    if value == "" and model_field.null:
+                        fields[name] = None
+                        continue
+                    if getattr(model_field, "max_length", None) and len(str(value)) > model_field.max_length:
+                        raise ValueError(f"Row {row_number}: {name} exceeds {model_field.max_length} characters.")
+                    # Validate values present in the import, without requiring
+                    # unrelated fields normally completed later by the encoder.
+                    fields[name] = model_field.clean(value, existing or Referred_Data())
+
+                # A protected row is skipped, not modified, after validating the
+                # uploaded values. Genuine invalid input still aborts the import.
+                skip_reason = None
+                if existing:
+                    if existing.Batch_id_id:
+                        if not can_manage_batch(request.user, existing.Batch_id):
+                            skip_reason = "not authorized for batch"
+                        else:
+                            from apps.verification.models import VerificationCase
+                            if VerificationCase.objects.filter(
+                                Q(final_batch_id=existing.Batch_id_id)
+                                | Q(final_accession__f_Batch_id_id=existing.Batch_id_id)
+                            ).exclude(status=VerificationCase.STATUS_WITHDRAWN).exists():
+                                skip_reason = "in verification"
+                    elif not get_user_roles(request.user).intersection({ROLE_ADMIN, ROLE_CHECKER}):
+                        skip_reason = "unbatched record requires Admin or Checker"
+                if skip_reason:
+                    skipped.append((accession, skip_reason))
+                    continue
+
+                if existing:
+                    for key, value in fields.items():
+                        setattr(existing, key, value)
+                    existing.save(update_fields=[*fields, "Date_Modified"])
+                    ref_obj = existing
+                    counters["updated_ref"] += 1
+                else:
+                    ref_obj = Referred_Data(AccessionNo=accession, **fields)
+                    ref_obj.save()
+                    counters["created_ref"] += 1
+
+                # Column names are case-sensitive for R/I/S suffixes but WHONET
+                # antibiotic identifiers are matched case-insensitively.
+                antibiotic_values = {key.upper(): value for key, value in row.items()}
+                for upper_code, code in antibiotic_codes.items():
+                    raw_value = antibiotic_values.get(upper_code, "")
+                    ris = antibiotic_values.get(f"{upper_code}_RIS", "")
+                    retest_value = antibiotic_values.get(f"{upper_code}_RT", "")
+                    retest_ris = antibiotic_values.get(f"{upper_code}_RT_RIS", "")
+                    if not any((raw_value, ris, retest_value, retest_ris)):
+                        continue
+                    mic_op, mic_val = parse_mic_value(raw_value)
+                    ret_op, ret_val = parse_mic_value(retest_value)
+                    _, created = AntibioticEntry.objects.update_or_create(
+                        ab_idNum_referred=ref_obj,
+                        ab_Abx_code=code,
+                        defaults={
+                            "ab_MIC_operand": mic_op,
+                            "ab_MIC_value": mic_val,
+                            "ab_MIC_RIS": ris,
+                            "ab_MIC_enRIS": ris,
+                            "ab_Retest_MIC_operand": ret_op,
+                            "ab_Retest_MICValue": ret_val,
+                            "ab_Retest_MIC_RIS": retest_ris,
+                            "ab_Retest_MIC_enRIS": retest_ris,
+                        },
+                    )
+                    counters["created_abx" if created else "updated_abx"] += 1
+
+        messages.success(
+            request,
+            f"Upload complete! {counters['created_ref']} new Referred_Data, "
+            f"{counters['updated_ref']} updated; {counters['created_abx']} new "
+            f"AntibioticEntry, {counters['updated_abx']} updated; "
+            f"{len(skipped)} protected records skipped."
+        )
+        if skipped:
+            from collections import Counter
+            reasons = Counter(reason for _, reason in skipped)
+            messages.warning(
+                request,
+                "Skipped: " + "; ".join(
+                    f"{count} {reason}" for reason, count in sorted(reasons.items())
+                ) + ". Examples: " + ", ".join(
+                    f"{accession} ({reason})" for accession, reason in skipped[:10]
+                ) + ("; additional skipped accessions not shown." if len(skipped) > 10 else ".")
+            )
+        return redirect("show_data")
+
+    except Exception:
+        # Avoid displaying database internals or patient data in error messages.
+        import logging
+        logging.getLogger(__name__).exception("Referred upload failed for user %s", request.user.pk)
+        messages.error(request, "Import rejected. No records were saved. Check the file format, permissions, and values.")
+        return render(request, "wgs_app/Add_wgs.html", context)
 
 
 ############ FIELD MAPPER TOOL ############

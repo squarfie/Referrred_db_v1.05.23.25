@@ -6895,6 +6895,56 @@ def reapply_final_breakpoints_for_batches(batch_ids, debug=False):
     return updated
 
 
+def _referred_bulk_upload_skip_reason(user, isolate, *, final=False):
+    """Protect existing Raw/Final accessions in mass uploads.
+
+    Unlike an interactive correction form, bulk imports are not scoped to an
+    approved correction field. Active review, sign-off and release are locked.
+    A withdrawn review and Raw returned-to-encoder stage can be edited.
+    Final encoding is editable while its case explicitly permits encoding.
+    """
+    from apps.verification.models import VerificationCase
+
+    batch = isolate.f_Batch_id if final else isolate.Batch_id
+    if batch is None and final:
+        raw = Referred_Data.objects.select_related("Batch_id").filter(
+            AccessionNo=isolate.f_AccessionNo
+        ).first()
+        batch = raw.Batch_id if raw else None
+
+    if batch is None:
+        # Same effective-role logic as other Django permission checks.
+        from apps.home.permissions import get_user_roles
+        if not get_user_roles(user).intersection({ROLE_ADMIN, ROLE_CHECKER}):
+            return "unbatched existing record"
+        return None
+
+    if not can_manage_batch(user, batch):
+        return "another user's batch"
+
+    cases = VerificationCase.objects.filter(
+        Q(final_batch_id=batch.pk)
+        | Q(final_accession__f_Batch_id_id=batch.pk)
+    ).distinct()
+    # All active cases must allow this action, not merely the newest one.
+    for case in cases:
+        if final:
+            allowed = {
+                VerificationCase.STATUS_DRAFT,
+                VerificationCase.STATUS_WITHDRAWN,
+                VerificationCase.STATUS_FOR_FINAL_ENCODING,
+            }
+        else:
+            allowed = {
+                VerificationCase.STATUS_DRAFT,
+                VerificationCase.STATUS_WITHDRAWN,
+                VerificationCase.STATUS_RETURNED_TO_ENCODER,
+            }
+        if case.status not in allowed:
+            return "verification or release lock"
+    return None
+
+
 ########## UPLOADING DEMOGS
 @login_required
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
@@ -7028,6 +7078,7 @@ def upload_referred_table(request):
             to_create = []
             to_update = []
             skipped = 0
+            protected_skips = defaultdict(int)
             touched_batch_ids = set()
 
             for normalized in normalized_rows:
@@ -7084,7 +7135,6 @@ def upload_referred_table(request):
                     ).first()
                     if batch_obj:
                         clean["f_Batch_id"] = batch_obj
-                        touched_batch_ids.add(batch_obj.id)
                         clean["f_Batch_Code"] = batch_obj.bat_Batch_Code
                         clean["f_Batch_Name"] = batch_obj.bat_Batch_Name
                         clean["f_RefNo"] = (
@@ -7103,13 +7153,59 @@ def upload_referred_table(request):
 
                 final_obj = existing.get(accession)
                 if final_obj:
+                    skip_reason = _referred_bulk_upload_skip_reason(
+                        request.user, final_obj, final=True
+                    )
+                    if skip_reason:
+                        skipped += 1
+                        protected_skips[skip_reason] += 1
+                        continue
                     if not overwrite:
                         skipped += 1
                         continue
+                    # Keep the original Final batch association and workflow
+                    # metadata; upload content cannot reparent reviewed results.
+                    for protected_name in (
+                        "f_Batch_id", "f_Batch_Code", "f_Batch_Name",
+                        "f_Copy_data", "f_bat_seq",
+                    ):
+                        clean.pop(protected_name, None)
                     for field_name, value in clean.items():
                         setattr(final_obj, field_name, value)
                     to_update.append(final_obj)
+                    if final_obj.f_Batch_id_id:
+                        touched_batch_ids.add(final_obj.f_Batch_id_id)
                 else:
+                    target_batch = clean.get("f_Batch_id")
+                    # New Final rows must respect any existing Raw record's
+                    # owning batch and review. A forged or missing batch code
+                    # must not bypass that permission check.
+                    raw_existing = Referred_Data.objects.select_related("Batch_id").filter(
+                        AccessionNo=accession
+                    ).first()
+                    if raw_existing is not None:
+                        reason = _referred_bulk_upload_skip_reason(
+                            request.user, raw_existing, final=False
+                        )
+                    elif target_batch is not None:
+                        from types import SimpleNamespace
+                        reason = _referred_bulk_upload_skip_reason(
+                            request.user,
+                            SimpleNamespace(Batch_id=target_batch),
+                            final=False,
+                        )
+                    else:
+                        from apps.home.permissions import get_user_roles
+                        reason = (
+                            None if get_user_roles(request.user).intersection({ROLE_ADMIN, ROLE_CHECKER})
+                            else "new unbatched Final record requires Admin or Checker"
+                        )
+                    if reason:
+                        skipped += 1
+                        protected_skips[reason] += 1
+                        continue
+                    if target_batch is not None:
+                        touched_batch_ids.add(target_batch.id)
                     to_create.append(
                         Final_Data(f_AccessionNo=accession, **clean)
                     )
@@ -7159,6 +7255,13 @@ def upload_referred_table(request):
                 f"{refreshed_tat} TAT record(s) refreshed."
             )
 
+            if protected_skips:
+                messages.warning(
+                    request,
+                    "Protected Final demographics skipped: " + "; ".join(
+                        f"{count} {reason}" for reason, count in sorted(protected_skips.items())
+                    )
+                )
             return redirect("show_final_data")
 
         # ================= FIELD LIST =================
@@ -7202,6 +7305,7 @@ def upload_referred_table(request):
         to_update = []
         uploaded_batch_codes = set()
         skipped = 0
+        protected_skips = defaultdict(int)
 
         def normalize_ref_no(value, accession):
             inferred = infer_ref_from_accession(accession)
@@ -7502,11 +7606,26 @@ def upload_referred_table(request):
 
             # ================= CREATE / UPDATE =================
             if accession in existing:
+                skip_reason = _referred_bulk_upload_skip_reason(
+                    request.user, existing[accession], final=False
+                )
+                if skip_reason:
+                    skipped += 1
+                    protected_skips[skip_reason] += 1
+                    continue
                 if not overwrite:
                     skipped += 1
                     continue
 
                 obj = existing[accession]
+                # An upload must not silently reassign an accession to another
+                # batch or overwrite its system-managed workflow identity.
+                for protected_name in (
+                    "Batch_id", "Batch_Code", "Batch_Name",
+                    "Copy_data", "Hide", "bat_seq",
+                    "Date_of_Entry", "Date_Modified",
+                ):
+                    clean.pop(protected_name, None)
 
                 for k, v in clean.items():
                     setattr(obj, k, v)
@@ -7515,7 +7634,22 @@ def upload_referred_table(request):
                 uploaded_batch_codes.add(batch_code)
 
             else:
-
+                # A new accession cannot be injected into another user's
+                # existing batch or one undergoing review.
+                target_batch = Batch_Table.objects.filter(
+                    bat_Batch_Code=batch_code
+                ).first()
+                if target_batch is not None:
+                    from types import SimpleNamespace
+                    reason = _referred_bulk_upload_skip_reason(
+                        request.user,
+                        SimpleNamespace(Batch_id=target_batch),
+                        final=False,
+                    )
+                    if reason:
+                        skipped += 1
+                        protected_skips[reason] += 1
+                        continue
                 to_create.append(
                     Referred_Data(**clean)
                 )
@@ -7538,8 +7672,10 @@ def upload_referred_table(request):
         created = len(to_create)
         updated = len(to_update)
 
-        # ================= GENERATE BATCH =================
-        created_batches = generate_batches_from_referred()
+        # Do not touch batch generation at all when every row was protected.
+        created_batches = (
+            generate_batches_from_referred() if created or updated else 0
+        )
         batch_ids = list(
             Batch_Table.objects
             .filter(bat_Batch_Code__in=uploaded_batch_codes)
@@ -7554,14 +7690,27 @@ def upload_referred_table(request):
             "Final data, emerging, concordance, and TAT were not refreshed."
         )
 
+        if protected_skips:
+            messages.warning(
+                request,
+                "Protected Raw demographics skipped: " + "; ".join(
+                    f"{count} {reason}" for reason, count in sorted(protected_skips.items())
+                )
+            )
         return redirect("show_batches")
 
-    except Exception as e:
-
-        import traceback
-        traceback.print_exc()
-
-        messages.error(request, f"Upload failed: {e}")
+    except Exception:
+        # The outer transaction.atomic would otherwise commit partial writes
+        # because this handler catches the exception.
+        transaction.set_rollback(True)
+        import logging
+        logging.getLogger(__name__).exception(
+            "Demographic upload failed for user %s", request.user.pk
+        )
+        messages.error(
+            request, "Upload rejected; no demographic records were saved. "
+            "Check the mapped fields and input data."
+        )
         return redirect("upload_wgs_view")
 
 
@@ -9031,6 +9180,7 @@ def upload_final_antibiotics(request):
     created = 0
     updated = 0
     skipped = 0
+    protected_skips = defaultdict(int)
     invalid_ris_values = 0
     affected_batch_ids = set()
     pending_entries = {}
@@ -9127,6 +9277,14 @@ def upload_final_antibiotics(request):
             if not isolate:
                 skipped += 1
                 print(f"[FINAL ABX DEBUG] Accession skipped: {accession} not found in Final_Data.")
+                continue
+
+            skip_reason = _referred_bulk_upload_skip_reason(
+                request.user, isolate, final=True
+            )
+            if skip_reason:
+                skipped += 1
+                protected_skips[skip_reason] += 1
                 continue
 
             matched_accessions += 1
@@ -9335,6 +9493,13 @@ def upload_final_antibiotics(request):
         f"{refreshed_tat} TAT record(s) refreshed."
     )
 
+    if protected_skips:
+        messages.warning(
+            request,
+            "Protected Final antibiotic accessions skipped: " + "; ".join(
+                f"{count} {reason}" for reason, count in sorted(protected_skips.items())
+            )
+        )
     return redirect("show_final_antibiotic")
 
 
@@ -9636,6 +9801,7 @@ def upload_raw_antibiotics(request):
     created = 0
     updated = 0
     skipped = 0
+    protected_skips = defaultdict(int)
     invalid_ris_values = 0
     affected_batch_ids = set()
     pending_entries = {}
@@ -9690,6 +9856,14 @@ def upload_raw_antibiotics(request):
 
             if not isolate:
                 skipped += 1
+                continue
+
+            skip_reason = _referred_bulk_upload_skip_reason(
+                request.user, isolate, final=False
+            )
+            if skip_reason:
+                skipped += 1
+                protected_skips[skip_reason] += 1
                 continue
 
             if isolate.Batch_id_id:
@@ -9846,6 +10020,13 @@ def upload_raw_antibiotics(request):
         "Final antibiotic data was not changed."
     )
 
+    if protected_skips:
+        messages.warning(
+            request,
+            "Protected Raw antibiotic accessions skipped: " + "; ".join(
+                f"{count} {reason}" for reason, count in sorted(protected_skips.items())
+            )
+        )
     return redirect("show_raw_antibiotic")
 
 
