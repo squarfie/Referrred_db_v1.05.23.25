@@ -9547,6 +9547,8 @@ def upload_combined_table(request):
         rows = df.to_dict("records")
         site_codes = set(SiteData.objects.values_list("SiteCode", flat=True))
         counters = dict(created_ref=0, updated_ref=0, created_abx=0, updated_abx=0)
+        skipped = []
+        seen_accessions = set()
 
         def parse_mic_value(value):
             text = str(value or "").strip()
@@ -9582,30 +9584,15 @@ def upload_combined_table(request):
                 accession = row.get("AccessionNo", "").strip()
                 if not accession:
                     raise ValueError(f"Row {row_number}: missing accession number.")
+                if accession in seen_accessions:
+                    raise ValueError(f"Row {row_number}: duplicate accession in upload.")
+                seen_accessions.add(accession)
 
                 existing = (
                     Referred_Data.objects.select_for_update()
                     .filter(AccessionNo=accession)
                     .first()
                 )
-                if existing:
-                    if existing.Batch_id_id:
-                        if not can_manage_batch(request.user, existing.Batch_id):
-                            raise ValueError(
-                                f"Row {row_number}: no permission to update accession {accession}."
-                            )
-                        from apps.verification.models import VerificationCase
-                        if VerificationCase.objects.filter(
-                            Q(final_batch_id=existing.Batch_id_id)
-                            | Q(final_accession__f_Batch_id_id=existing.Batch_id_id)
-                        ).exclude(status=VerificationCase.STATUS_WITHDRAWN).exists():
-                            raise ValueError(
-                                f"Row {row_number}: accession {accession} is in verification."
-                            )
-                    elif not get_user_roles(request.user).intersection({ROLE_ADMIN, ROLE_CHECKER}):
-                        raise ValueError(
-                            f"Row {row_number}: an unbatched existing accession requires Admin or Checker."
-                        )
 
                 fields = {key: value for key, value in row.items() if key in editable_fields and key != "AccessionNo"}
                 if "SiteCode" not in fields and not existing:
@@ -9628,6 +9615,26 @@ def upload_combined_table(request):
                     # Validate values present in the import, without requiring
                     # unrelated fields normally completed later by the encoder.
                     fields[name] = model_field.clean(value, existing or Referred_Data())
+
+                # A protected row is skipped, not modified, after validating the
+                # uploaded values. Genuine invalid input still aborts the import.
+                skip_reason = None
+                if existing:
+                    if existing.Batch_id_id:
+                        if not can_manage_batch(request.user, existing.Batch_id):
+                            skip_reason = "not authorized for batch"
+                        else:
+                            from apps.verification.models import VerificationCase
+                            if VerificationCase.objects.filter(
+                                Q(final_batch_id=existing.Batch_id_id)
+                                | Q(final_accession__f_Batch_id_id=existing.Batch_id_id)
+                            ).exclude(status=VerificationCase.STATUS_WITHDRAWN).exists():
+                                skip_reason = "in verification"
+                    elif not get_user_roles(request.user).intersection({ROLE_ADMIN, ROLE_CHECKER}):
+                        skip_reason = "unbatched record requires Admin or Checker"
+                if skip_reason:
+                    skipped.append((accession, skip_reason))
+                    continue
 
                 if existing:
                     for key, value in fields.items():
@@ -9672,8 +9679,20 @@ def upload_combined_table(request):
             request,
             f"Upload complete! {counters['created_ref']} new Referred_Data, "
             f"{counters['updated_ref']} updated; {counters['created_abx']} new "
-            f"AntibioticEntry, {counters['updated_abx']} updated."
+            f"AntibioticEntry, {counters['updated_abx']} updated; "
+            f"{len(skipped)} protected records skipped."
         )
+        if skipped:
+            from collections import Counter
+            reasons = Counter(reason for _, reason in skipped)
+            messages.warning(
+                request,
+                "Skipped: " + "; ".join(
+                    f"{count} {reason}" for reason, count in sorted(reasons.items())
+                ) + ". Examples: " + ", ".join(
+                    f"{accession} ({reason})" for accession, reason in skipped[:10]
+                ) + ("; additional skipped accessions not shown." if len(skipped) > 10 else ".")
+            )
         return redirect("show_data")
 
     except Exception:
