@@ -9622,19 +9622,21 @@ def upload_combined_table(request):
                     model_field = editable_fields[name]
                     if value == "" and model_field.null:
                         fields[name] = None
-                    elif getattr(model_field, "max_length", None) and len(str(value)) > model_field.max_length:
+                        continue
+                    if getattr(model_field, "max_length", None) and len(str(value)) > model_field.max_length:
                         raise ValueError(f"Row {row_number}: {name} exceeds {model_field.max_length} characters.")
+                    # Validate values present in the import, without requiring
+                    # unrelated fields normally completed later by the encoder.
+                    fields[name] = model_field.clean(value, existing or Referred_Data())
 
                 if existing:
                     for key, value in fields.items():
                         setattr(existing, key, value)
-                    existing.full_clean(exclude=["Batch_id"])
-                    existing.save()
+                    existing.save(update_fields=[*fields, "Date_Modified"])
                     ref_obj = existing
                     counters["updated_ref"] += 1
                 else:
                     ref_obj = Referred_Data(AccessionNo=accession, **fields)
-                    ref_obj.full_clean(exclude=["Batch_id"])
                     ref_obj.save()
                     counters["created_ref"] += 1
 
