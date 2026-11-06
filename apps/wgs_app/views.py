@@ -6913,10 +6913,9 @@ def _referred_bulk_upload_skip_reason(user, isolate, *, final=False):
         batch = raw.Batch_id if raw else None
 
     if batch is None:
-        # Encoders cannot claim or alter an unbatched existing record.
-        if not user.is_superuser and not user.groups.filter(
-            name__in=[ROLE_ADMIN, ROLE_CHECKER]
-        ).exists():
+        # Same effective-role logic as other Django permission checks.
+        from apps.home.permissions import get_user_roles
+        if not get_user_roles(user).intersection({ROLE_ADMIN, ROLE_CHECKER}):
             return "unbatched existing record"
         return None
 
@@ -7136,7 +7135,6 @@ def upload_referred_table(request):
                     ).first()
                     if batch_obj:
                         clean["f_Batch_id"] = batch_obj
-                        touched_batch_ids.add(batch_obj.id)
                         clean["f_Batch_Code"] = batch_obj.bat_Batch_Code
                         clean["f_Batch_Name"] = batch_obj.bat_Batch_Name
                         clean["f_RefNo"] = (
@@ -7165,10 +7163,33 @@ def upload_referred_table(request):
                     if not overwrite:
                         skipped += 1
                         continue
+                    # Keep the original Final batch association and workflow
+                    # metadata; upload content cannot reparent reviewed results.
+                    for protected_name in (
+                        "f_Batch_id", "f_Batch_Code", "f_Batch_Name",
+                        "f_Copy_data", "f_bat_seq",
+                    ):
+                        clean.pop(protected_name, None)
                     for field_name, value in clean.items():
                         setattr(final_obj, field_name, value)
                     to_update.append(final_obj)
+                    if final_obj.f_Batch_id_id:
+                        touched_batch_ids.add(final_obj.f_Batch_id_id)
                 else:
+                    target_batch = clean.get("f_Batch_id")
+                    if target_batch is not None:
+                        from types import SimpleNamespace
+                        # Validate a proposed new Final accession against the Raw
+                        # batch's ownership and review state too.
+                        raw_equivalent = SimpleNamespace(Batch_id=target_batch)
+                        reason = _referred_bulk_upload_skip_reason(
+                            request.user, raw_equivalent, final=False
+                        )
+                        if reason:
+                            skipped += 1
+                            protected_skips[reason] += 1
+                            continue
+                        touched_batch_ids.add(target_batch.id)
                     to_create.append(
                         Final_Data(f_AccessionNo=accession, **clean)
                     )
@@ -7581,6 +7602,14 @@ def upload_referred_table(request):
                     continue
 
                 obj = existing[accession]
+                # An upload must not silently reassign an accession to another
+                # batch or overwrite its system-managed workflow identity.
+                for protected_name in (
+                    "Batch_id", "Batch_Code", "Batch_Name",
+                    "Copy_data", "Hide", "bat_seq",
+                    "Date_of_Entry", "Date_Modified",
+                ):
+                    clean.pop(protected_name, None)
 
                 for k, v in clean.items():
                     setattr(obj, k, v)
@@ -7589,7 +7618,22 @@ def upload_referred_table(request):
                 uploaded_batch_codes.add(batch_code)
 
             else:
-
+                # A new accession cannot be injected into another user's
+                # existing batch or one undergoing review.
+                target_batch = Batch_Table.objects.filter(
+                    bat_Batch_Code=batch_code
+                ).first()
+                if target_batch is not None:
+                    from types import SimpleNamespace
+                    reason = _referred_bulk_upload_skip_reason(
+                        request.user,
+                        SimpleNamespace(Batch_id=target_batch),
+                        final=False,
+                    )
+                    if reason:
+                        skipped += 1
+                        protected_skips[reason] += 1
+                        continue
                 to_create.append(
                     Referred_Data(**clean)
                 )
