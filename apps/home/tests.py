@@ -14,6 +14,7 @@ from apps.home.models import AntibioticEntry, BreakpointsTable, Referred_Data
 from apps.home.views import export_Antibioticentry
 from apps.home_final.models import Final_AntibioticEntry, Final_Data
 from apps.home_final.views import export_final_antibiotic_entries
+from django.urls import reverse
 
 
 class DeleteBreakpointsByDateModifiedRangeTests(TestCase):
@@ -433,6 +434,137 @@ class DestructiveBatchActionsSecurityTests(TestCase):
         self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
         self.assertTrue(Referred_Data.objects.filter(pk=self.raw.pk).exists())
         self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
+
+
+    
+    def test_signed_batch_cannot_be_deleted_by_admin(self):
+        from django.contrib.auth.models import Group
+        from apps.verification.models import VerificationCase
+
+        admin = User.objects.create_user(
+            username="signed-batch-admin",
+            password="test-password",
+        )
+        admin.groups.add(
+            Group.objects.get_or_create(name="Admin")[0]
+        )
+
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_SIGNED_BY_HEAD,
+        )
+
+        self.client.force_login(admin)
+
+        actions = [
+            (reverse("clean_batch", args=[self.batch.pk]), {}),
+            (
+                self.batch_url,
+                {"confirmation": "DELETE BATCH"},
+            ),
+            (
+                reverse("delete_all_batches"),
+                {"confirmation": "DELETE ALL BATCHES"},
+            ),
+            (
+                reverse("delete_blank_batches"),
+                {"confirmation": "DELETE BLANK BATCHES"},
+            ),
+        ]
+
+        for url, payload in actions:
+            with self.subTest(url=url):
+                self.client.post(url, payload)
+                self._all_records_remain()
+
+    def test_released_batch_cannot_be_deleted_by_admin(self):
+        from django.contrib.auth.models import Group
+        from apps.verification.models import VerificationCase
+
+        admin = User.objects.create_user(
+            username="released-batch-admin",
+            password="test-password",
+        )
+        admin.groups.add(
+            Group.objects.get_or_create(name="Admin")[0]
+        )
+
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_RELEASED,
+        )
+
+        self.client.force_login(admin)
+
+        actions = [
+            (reverse("clean_batch", args=[self.batch.pk]), {}),
+            (
+                self.batch_url,
+                {"confirmation": "DELETE BATCH"},
+            ),
+            (
+                reverse("delete_all_batches"),
+                {"confirmation": "DELETE ALL BATCHES"},
+            ),
+        ]
+
+        for url, payload in actions:
+            with self.subTest(url=url):
+                self.client.post(url, payload)
+                self._all_records_remain()
+
+    def test_released_accession_cannot_be_deleted(self):
+        from django.contrib.auth.models import Group
+        from apps.verification.models import VerificationCase
+
+        admin = User.objects.create_user(
+            username="released-accession-admin",
+            password="test-password",
+        )
+        admin.groups.add(
+            Group.objects.get_or_create(name="Admin")[0]
+        )
+
+        VerificationCase.objects.create(
+            final_accession=self.final,
+            status=VerificationCase.STATUS_RELEASED,
+        )
+
+        self.client.force_login(admin)
+
+        actions = [
+            (
+                self.record_url,
+                {"confirmation": "DELETE RECORD"},
+            ),
+            (
+                reverse("delete_data", args=[self.raw.pk]),
+                {},
+            ),
+        ]
+
+        for url, payload in actions:
+            with self.subTest(url=url):
+                self.client.post(url, payload)
+                self._all_records_remain()
+
+    def test_signed_batch_cannot_undo_final_copy(self):
+        from apps.verification.models import VerificationCase
+
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_SIGNED_BY_HEAD,
+        )
+
+        self.client.force_login(self.owner)
+
+        self.client.post(
+            self.undo_url,
+            {"confirmation": "UNDO FINAL COPY"},
+        )
+
+        self._all_records_remain()
+
 
     def test_get_never_deletes_anything(self):
         self.client.force_login(self.owner)
