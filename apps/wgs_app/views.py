@@ -7681,12 +7681,18 @@ def upload_referred_table(request):
             )
         return redirect("show_batches")
 
-    except Exception as e:
-
-        import traceback
-        traceback.print_exc()
-
-        messages.error(request, f"Upload failed: {e}")
+    except Exception:
+        # The outer transaction.atomic would otherwise commit partial writes
+        # because this handler catches the exception.
+        transaction.set_rollback(True)
+        import logging
+        logging.getLogger(__name__).exception(
+            "Demographic upload failed for user %s", request.user.pk
+        )
+        messages.error(
+            request, "Upload rejected; no demographic records were saved. "
+            "Check the mapped fields and input data."
+        )
         return redirect("upload_wgs_view")
 
 
@@ -9469,6 +9475,13 @@ def upload_final_antibiotics(request):
         f"{refreshed_tat} TAT record(s) refreshed."
     )
 
+    if protected_skips:
+        messages.warning(
+            request,
+            "Protected Final antibiotic accessions skipped: " + "; ".join(
+                f"{count} {reason}" for reason, count in sorted(protected_skips.items())
+            )
+        )
     return redirect("show_final_antibiotic")
 
 
@@ -9989,6 +10002,13 @@ def upload_raw_antibiotics(request):
         "Final antibiotic data was not changed."
     )
 
+    if protected_skips:
+        messages.warning(
+            request,
+            "Protected Raw antibiotic accessions skipped: " + "; ".join(
+                f"{count} {reason}" for reason, count in sorted(protected_skips.items())
+            )
+        )
     return redirect("show_raw_antibiotic")
 
 
