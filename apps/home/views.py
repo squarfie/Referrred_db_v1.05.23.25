@@ -2245,46 +2245,130 @@ def clean_batch(request, batch_id):
 
 
 
+# @login_required(login_url="login")
+# @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
+# @require_POST
+# @transaction.atomic
+# def delete_batch(request, batch_id):
+#     """
+#     Deletes a batch and all related Referred_Data and Final_Data records.
+#     """
+
+#     if request.POST.get("confirmation") != "DELETE BATCH":
+#         messages.error(request, "Confirm batch deletion before proceeding.")
+#         return redirect("show_data")
+#     batch = get_object_or_404(Batch_Table, pk=batch_id)
+#     if not can_manage_batch(request.user, batch):
+#         messages.error(request, "You can only delete batches that you created.")
+#         return redirect("show_data")
+#     if _deletion_has_locked_batches([batch.pk]):
+#         messages.error(
+#             request,
+#             "Deletion blocked: this batch contains records under verification "
+#             "or records that have been signed or released."
+#         )
+#         return redirect("show_data")
+
+#     Referred_Data.objects.filter(
+#         Batch_Code=batch.bat_Batch_Code
+#     ).delete()
+
+#     Final_Data.objects.filter(
+#         f_Batch_Code=batch.bat_Batch_Code
+#     ).delete()
+
+#     batch.delete()
+
+#     messages.success(
+#         request,
+#         f"Batch '{batch.bat_Batch_Name}' and all related records have been deleted."
+#     )
+
+#     return redirect("show_batches")
+
+
+
+# new version matches by batch id
 @login_required(login_url="login")
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
 @require_POST
 @transaction.atomic
 def delete_batch(request, batch_id):
     """
-    Deletes a batch and all related Referred_Data and Final_Data records.
+    Delete an authorized, unprotected batch.
+
+    Raw and Final records are selected using their actual
+    foreign-key relationships, never matching text batch codes.
+
+    Verification-protected batches cannot be deleted,
+    including by Admins.
     """
 
-    if request.POST.get("confirmation") != "DELETE BATCH":
-        messages.error(request, "Confirm batch deletion before proceeding.")
-        return redirect("show_data")
-    batch = get_object_or_404(Batch_Table, pk=batch_id)
-    if not can_manage_batch(request.user, batch):
-        messages.error(request, "You can only delete batches that you created.")
-        return redirect("show_data")
-    if _deletion_has_locked_batches([batch.pk]):
+    if request.POST.get("confirmation", "").strip() != "DELETE BATCH":
         messages.error(
             request,
-            "Deletion blocked: this batch contains records under verification "
-            "or records that have been signed or released."
+            "Confirm batch deletion before proceeding."
         )
         return redirect("show_data")
 
-    Referred_Data.objects.filter(
-        Batch_Code=batch.bat_Batch_Code
-    ).delete()
+    # Lock the selected batch while checking and deleting it.
+    batch = get_object_or_404(
+        Batch_Table.objects.select_for_update(),
+        pk=batch_id,
+    )
 
-    Final_Data.objects.filter(
-        f_Batch_Code=batch.bat_Batch_Code
-    ).delete()
+    # Preserve existing Admin, Checker, and Encoder permissions.
+    if not can_manage_batch(request.user, batch):
+        messages.error(
+            request,
+            "You do not have permission to delete this batch."
+        )
+        return redirect("show_data")
 
+    # Protect active, signed, and released verification cases.
+    if _deletion_has_locked_batches([batch.pk]):
+        messages.error(
+            request,
+            "Deletion blocked: this batch contains records "
+            "under verification or records that have been "
+            "signed or released."
+        )
+        return redirect("show_data")
+
+    batch_name = batch.bat_Batch_Name
+
+    # Select records by the actual batch foreign key.
+    # Never use Batch_Code or f_Batch_Code as deletion filters.
+    raw_records = Referred_Data.objects.filter(
+        Batch_id_id=batch.pk
+    )
+
+    final_records = Final_Data.objects.filter(
+        f_Batch_id_id=batch.pk
+    )
+
+    raw_count = raw_records.count()
+    final_count = final_records.count()
+
+    # Delete related Raw and Final records in one transaction.
+    raw_records.delete()
+    final_records.delete()
+
+    # Delete the batch itself.
     batch.delete()
 
     messages.success(
         request,
-        f"Batch '{batch.bat_Batch_Name}' and all related records have been deleted."
+        f"Batch '{batch_name}' deleted successfully. "
+        f"Removed {raw_count} Raw Data record(s) and "
+        f"{final_count} Final Data record(s)."
     )
 
     return redirect("show_batches")
+
+
+
+
 
 
 
