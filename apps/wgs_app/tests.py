@@ -238,3 +238,124 @@ class FourUploadWorkflowSecurityTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.final.refresh_from_db()
         self.assertNotEqual(self.final.f_First_Name, "Changed")
+
+
+class AntibioticDeletionSecurityTests(TestCase):
+    """Direct HTTP deletion must respect parent accession permissions."""
+
+    def setUp(self):
+        from apps.home.models import AntibioticEntry
+        from apps.home_final.models import Final_AntibioticEntry
+
+        self.owner = User.objects.create_user("abx-delete-owner", password="test")
+        self.other = User.objects.create_user("abx-delete-other", password="test")
+        self.viewer = User.objects.create_user("abx-delete-viewer", password="test")
+        self.admin = User.objects.create_user("abx-delete-admin", password="test")
+        encoder_group, _ = Group.objects.get_or_create(name="DMU Encoder")
+        self.owner.groups.add(encoder_group)
+        self.other.groups.add(encoder_group)
+        self.admin.groups.add(Group.objects.get_or_create(name="Admin")[0])
+        self.batch = Batch_Table.objects.create(
+            bat_Batch_Code="ABX-DELETE", bat_Batch_Name="Antibiotic delete",
+            created_by=self.owner,
+        )
+        self.raw = Referred_Data.objects.create(
+            AccessionNo="ABX-DELETE-1", Batch_id=self.batch,
+            Batch_Code="ABX-DELETE",
+        )
+        self.final = Final_Data.objects.create(
+            f_AccessionNo="ABX-DELETE-1", f_Batch_id=self.batch,
+            f_Batch_Code="ABX-DELETE",
+        )
+        self.raw_entries = [
+            AntibioticEntry.objects.create(
+                ab_idNum_referred=self.raw, ab_Abx_code=code,
+            )
+            for code in ("AMP", "GEN")
+        ]
+        self.final_entries = [
+            Final_AntibioticEntry.objects.create(
+                ab_idNum_f_referred=self.final, ab_Abx_code=code,
+            )
+            for code in ("AMP", "GEN")
+        ]
+
+    def _attempt(self, *, final, user, method="post"):
+        from django.urls import reverse
+        name = "delete_final_antibiotic" if final else "delete_raw_antibiotic"
+        entry = self.final_entries[0] if final else self.raw_entries[0]
+        if user is None:
+            self.client.logout()
+        else:
+            self.client.force_login(user)
+        url = reverse(name, args=[entry.pk])
+        response = getattr(self.client, method)(url)
+        return response
+
+    def _assert_entry_count(self, *, final, count):
+        from apps.home.models import AntibioticEntry
+        from apps.home_final.models import Final_AntibioticEntry
+        qs = (
+            Final_AntibioticEntry.objects.filter(ab_idNum_f_referred=self.final)
+            if final else AntibioticEntry.objects.filter(ab_idNum_referred=self.raw)
+        )
+        self.assertEqual(qs.count(), count)
+
+    def test_anonymous_viewer_and_other_encoder_cannot_delete(self):
+        for final in (False, True):
+            for user in (None, self.viewer, self.other):
+                with self.subTest(final=final, user=getattr(user, "username", "anonymous")):
+                    response = self._attempt(final=final, user=user)
+                    self.assertIn(response.status_code, (302, 403))
+                    self._assert_entry_count(final=final, count=2)
+
+    def test_get_cannot_delete(self):
+        for final in (False, True):
+            with self.subTest(final=final):
+                response = self._attempt(final=final, user=self.owner, method="get")
+                self.assertEqual(response.status_code, 405)
+                self._assert_entry_count(final=final, count=2)
+
+    def test_active_verification_blocks_both(self):
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        for final in (False, True):
+            self._attempt(final=final, user=self.owner)
+            self._assert_entry_count(final=final, count=2)
+
+    def test_signed_and_released_block_even_admin(self):
+        for status in (VerificationCase.STATUS_SIGNED_BY_HEAD, VerificationCase.STATUS_RELEASED):
+            case = VerificationCase.objects.create(final_batch=self.batch, status=status)
+            for final in (False, True):
+                with self.subTest(status=status, final=final):
+                    self._attempt(final=final, user=self.admin)
+                    self._assert_entry_count(final=final, count=2)
+            case.delete()
+
+    def test_final_encoding_allows_final_but_not_raw(self):
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_FINAL_ENCODING,
+        )
+        self._attempt(final=False, user=self.owner)
+        self._assert_entry_count(final=False, count=2)
+        self._attempt(final=True, user=self.owner)
+        self._assert_entry_count(final=True, count=0)
+
+    def test_owner_can_delete_draft_results(self):
+        for final in (False, True):
+            with self.subTest(final=final):
+                self._attempt(final=final, user=self.owner)
+                self._assert_entry_count(final=final, count=0)
+
+    def test_unbatched_encoder_is_blocked(self):
+        self.raw.Batch_id = None
+        self.raw.save(update_fields=["Batch_id"])
+        self.final.f_Batch_id = None
+        self.final.save(update_fields=["f_Batch_id"])
+        for final in (False, True):
+            with self.subTest(final=final):
+                self._attempt(final=final, user=self.other)
+                self._assert_entry_count(final=final, count=2)
