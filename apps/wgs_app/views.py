@@ -7177,18 +7177,34 @@ def upload_referred_table(request):
                         touched_batch_ids.add(final_obj.f_Batch_id_id)
                 else:
                     target_batch = clean.get("f_Batch_id")
-                    if target_batch is not None:
-                        from types import SimpleNamespace
-                        # Validate a proposed new Final accession against the Raw
-                        # batch's ownership and review state too.
-                        raw_equivalent = SimpleNamespace(Batch_id=target_batch)
+                    # New Final rows must respect any existing Raw record's
+                    # owning batch and review. A forged or missing batch code
+                    # must not bypass that permission check.
+                    raw_existing = Referred_Data.objects.select_related("Batch_id").filter(
+                        AccessionNo=accession
+                    ).first()
+                    if raw_existing is not None:
                         reason = _referred_bulk_upload_skip_reason(
-                            request.user, raw_equivalent, final=False
+                            request.user, raw_existing, final=False
                         )
-                        if reason:
-                            skipped += 1
-                            protected_skips[reason] += 1
-                            continue
+                    elif target_batch is not None:
+                        from types import SimpleNamespace
+                        reason = _referred_bulk_upload_skip_reason(
+                            request.user,
+                            SimpleNamespace(Batch_id=target_batch),
+                            final=False,
+                        )
+                    else:
+                        from apps.home.permissions import get_user_roles
+                        reason = (
+                            None if get_user_roles(request.user).intersection({ROLE_ADMIN, ROLE_CHECKER})
+                            else "new unbatched Final record requires Admin or Checker"
+                        )
+                    if reason:
+                        skipped += 1
+                        protected_skips[reason] += 1
+                        continue
+                    if target_batch is not None:
                         touched_batch_ids.add(target_batch.id)
                     to_create.append(
                         Final_Data(f_AccessionNo=accession, **clean)
@@ -7656,8 +7672,10 @@ def upload_referred_table(request):
         created = len(to_create)
         updated = len(to_update)
 
-        # ================= GENERATE BATCH =================
-        created_batches = generate_batches_from_referred()
+        # Do not touch batch generation at all when every row was protected.
+        created_batches = (
+            generate_batches_from_referred() if created or updated else 0
+        )
         batch_ids = list(
             Batch_Table.objects
             .filter(bat_Batch_Code__in=uploaded_batch_codes)
