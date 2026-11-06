@@ -516,3 +516,117 @@ class DestructiveBatchActionsSecurityTests(TestCase):
                 csrf_client.post(url, {"confirmation": confirmation}).status_code, 403
             )
             self._all_records_remain()
+
+
+class ReferredUploadSecurityTests(TestCase):
+    """Upload authorization, data-integrity and multi-row regressions."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        from apps.home.models import Batch_Table
+        self.url = reverse("upload_combined_table")
+        self.encoder = User.objects.create_user("upload-encoder", password="test")
+        self.encoder.groups.add(Group.objects.get_or_create(name="DMU Encoder")[0])
+        self.other = User.objects.create_user("other-upload-encoder", password="test")
+        self.other.groups.add(Group.objects.get(name="DMU Encoder"))
+        self.viewer = User.objects.create_user("upload-viewer", password="test")
+        self.batch = Batch_Table.objects.create(
+            created_by=self.encoder, bat_Batch_Name="UP-B", bat_Batch_Code="UP-B"
+        )
+        self.owned = Referred_Data.objects.create(
+            Batch_id=self.batch, Batch_Code="UP-B",
+            AccessionNo="UP-EXIST", First_Name="Original"
+        )
+
+    def _upload(self, content, name="referred.csv", client=None):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return (client or self.client).post(
+            self.url, {
+                "ReferredDataFile": SimpleUploadedFile(
+                    name, content.encode("utf-8"), content_type="text/csv"
+                )
+            }
+        )
+
+    def test_anonymous_and_viewer_cannot_import(self):
+        self._upload("AccessionNo,First_Name\nNEW-1,Test\n")
+        self.assertFalse(Referred_Data.objects.filter(AccessionNo="NEW-1").exists())
+        self.client.force_login(self.viewer)
+        self._upload("AccessionNo,First_Name\nNEW-1,Test\n")
+        self.assertFalse(Referred_Data.objects.filter(AccessionNo="NEW-1").exists())
+
+    def test_multiple_rows_are_imported(self):
+        self.client.force_login(self.encoder)
+        self._upload("AccessionNo,First_Name\nNEW-A,Alice\nNEW-B,Bob\n")
+        self.assertEqual(
+            list(Referred_Data.objects.filter(
+                AccessionNo__in=["NEW-A", "NEW-B"]
+            ).order_by("AccessionNo").values_list("First_Name", flat=True)),
+            ["Alice", "Bob"],
+        )
+
+    def test_existing_owned_record_can_update(self):
+        self.client.force_login(self.encoder)
+        self._upload("AccessionNo,First_Name\nUP-EXIST,Updated\n")
+        self.owned.refresh_from_db()
+        self.assertEqual(self.owned.First_Name, "Updated")
+
+    def test_foreign_batch_update_rejected(self):
+        self.client.force_login(self.other)
+        self._upload("AccessionNo,First_Name\nUP-EXIST,Unauthorized\n")
+        self.owned.refresh_from_db()
+        self.assertEqual(self.owned.First_Name, "Original")
+
+    def test_failure_rolls_back_earlier_rows(self):
+        self.client.force_login(self.encoder)
+        self._upload(
+            "AccessionNo,First_Name\nNEW-OK,Earlier\nUP-EXIST," + "X" * 300 + "\n"
+        )
+        self.assertFalse(Referred_Data.objects.filter(AccessionNo="NEW-OK").exists())
+        self.owned.refresh_from_db()
+        self.assertEqual(self.owned.First_Name, "Original")
+
+    def test_protected_field_is_rejected(self):
+        self.client.force_login(self.encoder)
+        self._upload("AccessionNo,Copy_data\nUP-EXIST,True\n")
+        self.owned.refresh_from_db()
+        self.assertFalse(self.owned.Copy_data)
+
+    def test_unsupported_extension_is_rejected(self):
+        self.client.force_login(self.encoder)
+        self._upload("AccessionNo,First_Name\nNEW-X,Test\n", name="referred.exe")
+        self.assertFalse(Referred_Data.objects.filter(AccessionNo="NEW-X").exists())
+
+    def test_oversized_file_is_rejected(self):
+        self.client.force_login(self.encoder)
+        self._upload("AccessionNo,First_Name\nNEW-X," + "X" * (10 * 1024 * 1024) + "\n")
+        self.assertFalse(Referred_Data.objects.filter(AccessionNo="NEW-X").exists())
+
+    def test_active_verification_prevents_import_overwrite(self):
+        from apps.verification.models import VerificationCase
+        VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        )
+        self.client.force_login(self.encoder)
+        self._upload("AccessionNo,First_Name\nUP-EXIST,Unapproved\n")
+        self.owned.refresh_from_db()
+        self.assertEqual(self.owned.First_Name, "Original")
+
+    def test_csrf_required_for_post_upload(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import Client
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.encoder)
+        response = client.post(
+            self.url, {
+                "ReferredDataFile": SimpleUploadedFile(
+                    "raw.csv",
+                    b"AccessionNo,First_Name\nNEW-1,Test\n",
+                    content_type="text/csv",
+                )
+            }
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Referred_Data.objects.filter(AccessionNo="NEW-1").exists())
