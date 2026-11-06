@@ -325,14 +325,32 @@ class AntibioticDeletionSecurityTests(TestCase):
             self._attempt(final=final, user=self.owner)
             self._assert_entry_count(final=final, count=2)
 
-    def test_signed_and_released_block_even_admin(self):
+    def test_signed_and_released_block_non_admin(self):
         for status in (VerificationCase.STATUS_SIGNED_BY_HEAD, VerificationCase.STATUS_RELEASED):
             case = VerificationCase.objects.create(final_batch=self.batch, status=status)
             for final in (False, True):
                 with self.subTest(status=status, final=final):
-                    self._attempt(final=final, user=self.admin)
+                    self._attempt(final=final, user=self.owner)
                     self._assert_entry_count(final=final, count=2)
             case.delete()
+
+    def test_admin_can_delete_signed_or_released_results(self):
+        for final, status in (
+            (False, VerificationCase.STATUS_SIGNED_BY_HEAD),
+            (True, VerificationCase.STATUS_RELEASED),
+        ):
+            with self.subTest(final=final, status=status):
+                case = VerificationCase.objects.create(final_batch=self.batch, status=status)
+                self._attempt(final=final, user=self.admin)
+                self._assert_entry_count(final=final, count=0)
+                case.delete()
+                # Restore the deleted results for the other iteration.
+                if not final:
+                    from apps.home.models import AntibioticEntry
+                    self.raw_entries = [
+                        AntibioticEntry.objects.create(ab_idNum_referred=self.raw, ab_Abx_code=code)
+                        for code in ("AMP", "GEN")
+                    ]
 
     def test_final_encoding_allows_final_but_not_raw(self):
         VerificationCase.objects.create(
