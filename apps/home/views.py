@@ -6402,10 +6402,13 @@ def edit_sitecode(request, pk):
 
 
 @login_required(login_url="login")
+@role_required(ROLE_ADMIN, ROLE_CHECKER)
+@require_POST
 def delete_dropdown(request, id):
     site_items = get_object_or_404(SiteData, pk=id)
     site_items.delete()
     return redirect('site_view')
+
 
 @login_required(login_url="login")
 @role_required(ROLE_ADMIN)
