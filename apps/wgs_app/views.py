@@ -21,6 +21,7 @@ from apps.home.permissions import (
     ROLE_LAB_MANAGER,
     ROLE_VERIFIER,
     can_manage_batch,
+    get_user_roles,
     role_flags,
     role_required,
     verification_case_blocks_operational_outputs,
@@ -10214,50 +10215,70 @@ def show_raw_antibiotic(request):
 @login_required
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
 @require_POST
+@transaction.atomic
 def delete_final_antibiotic(request, pk):
-
-    target = get_object_or_404(Final_AntibioticEntry, pk=pk)
-    acc = target.ab_idNum_f_referred.f_AccessionNo
-
-    if request.method == "POST":
-        Final_AntibioticEntry.objects.filter(
-            ab_idNum_f_referred__f_AccessionNo=acc
-        ).delete()
-
-        messages.success(
+    """Delete accession antibiotics only when its Final record is editable."""
+    target = get_object_or_404(
+        Final_AntibioticEntry.objects.select_related(
+            "ab_idNum_f_referred", "ab_idNum_f_referred__f_Batch_id"
+        ), pk=pk
+    )
+    parent = target.ab_idNum_f_referred
+    # Admin overrides ownership and verification locks for explicit deletion.
+    # Other roles must satisfy the usual accession-level safeguards.
+    reason = None
+    if ROLE_ADMIN not in get_user_roles(request.user):
+        reason = _referred_bulk_upload_skip_reason(request.user, parent, final=True)
+    if reason:
+        messages.error(
             request,
-            f"All final antibiotic records for accession {acc} deleted successfully!"
+            f"Final antibiotic deletion blocked: {reason}."
         )
         return redirect("show_final_antibiotic")
 
-    messages.error(request, "Invalid request method.")
+    # Deleting all results for an accession is deliberate existing behavior.
+    Final_AntibioticEntry.objects.filter(
+        ab_idNum_f_referred=parent
+    ).delete()
+    messages.success(
+        request,
+        f"All final antibiotic records for accession {parent.f_AccessionNo} deleted successfully!"
+    )
     return redirect("show_final_antibiotic")
-
 
 
 @login_required
 @role_required(ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER)
 @require_POST
+@transaction.atomic
 def delete_raw_antibiotic(request, pk):
-
-    target = get_object_or_404(AntibioticEntry, pk=pk)
-    acc = target.ab_idNum_referred.AccessionNo
-
-    if request.method == "POST":
-        AntibioticEntry.objects.filter(
-            ab_idNum_referred__AccessionNo=acc
-        ).delete()
-
-        messages.success(
+    """Delete accession antibiotics only when its Raw record is editable."""
+    target = get_object_or_404(
+        AntibioticEntry.objects.select_related(
+            "ab_idNum_referred", "ab_idNum_referred__Batch_id"
+        ), pk=pk
+    )
+    parent = target.ab_idNum_referred
+    # Admin overrides ownership and verification locks for explicit deletion.
+    # Other roles must satisfy the usual accession-level safeguards.
+    reason = None
+    if ROLE_ADMIN not in get_user_roles(request.user):
+        reason = _referred_bulk_upload_skip_reason(request.user, parent)
+    if reason:
+        messages.error(
             request,
-            f"All antibiotic records for accession {acc} deleted successfully!"
+            f"Raw antibiotic deletion blocked: {reason}."
         )
         return redirect("show_raw_antibiotic")
 
-    messages.error(request, "Invalid request method.")
+    AntibioticEntry.objects.filter(
+        ab_idNum_referred=parent
+    ).delete()
+    messages.success(
+        request,
+        f"All antibiotic records for accession {parent.AccessionNo} deleted successfully!"
+    )
     return redirect("show_raw_antibiotic")
-
-
 
 
 
