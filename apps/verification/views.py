@@ -398,12 +398,16 @@ def _is_assigned_lab_manager(case, user):
 def _can_write_case_field_comments(case, roles, user):
     if ROLE_ADMIN in roles:
         return True
-    if ROLE_VERIFIER in roles and case.status in {
-        VerificationCase.STATUS_FOR_RAW_VERIFICATION,
-        VerificationCase.STATUS_FOR_VERIFICATION,
-        VerificationCase.STATUS_RETURNED_TO_VERIFIER,
-        VerificationCase.STATUS_RETURNED_TO_CHECKER,
-    }:
+    if (
+        ROLE_VERIFIER in roles
+        and case.status in {
+            VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+            VerificationCase.STATUS_FOR_VERIFICATION,
+            VerificationCase.STATUS_RETURNED_TO_VERIFIER,
+            VerificationCase.STATUS_RETURNED_TO_CHECKER,
+        }
+        and (not case.assigned_verifier_id or case.assigned_verifier_id == user.id)
+    ):
         return True
     if (
         ROLE_LAB_MANAGER in roles
@@ -837,16 +841,14 @@ def send_batch_to_verifier(request, batch_id):
         messages.error(request, "Only the Final Encoder can endorse Final Data for verification.")
         return redirect(next_url or _case_detail_url(case.id))
 
-    verifier_staff = None
+    # Raw and Final endorsements both require a named verifier.
+    verifier_staff = get_object_or_404(
+        _staff_for_role(ROLE_VERIFIER, ROLE_ADMIN),
+        pk=request.POST.get("verifier_staff"),
+    )
     if is_final_endorsement:
-        verifier_staff = get_object_or_404(
-            _staff_for_role(ROLE_VERIFIER, ROLE_ADMIN),
-            pk=request.POST.get("verifier_staff"),
-        )
         case.assigned_checker = request.user
-        case.assigned_verifier = verifier_staff.User_Account
-    else:
-        case.assigned_verifier = None
+    case.assigned_verifier = verifier_staff.User_Account
     case.status = (
         VerificationCase.STATUS_FOR_RAW_VERIFICATION
         if is_raw_endorsement
@@ -1529,6 +1531,11 @@ def verification_case_detail(request, case_id):
     can_submit_raw_review = bool(
         case.status == VerificationCase.STATUS_FOR_RAW_VERIFICATION
         and _can_submit_verifier_actions(case, roles)
+        and (
+            ROLE_ADMIN in roles
+            or not case.assigned_verifier_id
+            or case.assigned_verifier_id == request.user.id
+        )
     )
     can_route_final_review = _can_route_final_review(case, roles, request.user)
     can_route_lab_final_review = _can_route_lab_final_review(case, roles, request.user)
