@@ -868,12 +868,12 @@ def send_batch_to_verifier(request, batch_id):
         batch.bat_Status = next_raw_draft_status(batch.bat_Status)
         batch.save(update_fields=["bat_Status"])
 
-    if verifier_staff:
-        _sync_case_signatories(
-            case,
-            checker_staff=_staff_for_user(request.user),
-            verifier_staff=verifier_staff,
-        )
+    # Raw sender is the Encoder, not the Checker signatory.
+    _sync_case_signatories(
+        case,
+        checker_staff=_staff_for_user(request.user) if is_final_endorsement else None,
+        verifier_staff=verifier_staff,
+    )
 
     action = "created and sent" if created else "sent"
     messages.success(request, f"Verification case {action} for {batch.bat_Batch_Code or batch.bat_Batch_Name}.")
