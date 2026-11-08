@@ -802,6 +802,12 @@ def send_batch_to_verifier(request, batch_id):
         return redirect(next_url or "show_data")
     note = request.POST.get("note", "").strip()
 
+    # Validate the selected reviewer before creating or modifying the case.
+    verifier_staff = get_object_or_404(
+        _staff_for_role(ROLE_VERIFIER, ROLE_ADMIN),
+        pk=request.POST.get("verifier_staff"),
+    )
+
     case, created = VerificationCase.objects.get_or_create(
         final_batch=batch,
         final_accession=None,
@@ -841,11 +847,7 @@ def send_batch_to_verifier(request, batch_id):
         messages.error(request, "Only the Final Encoder can endorse Final Data for verification.")
         return redirect(next_url or _case_detail_url(case.id))
 
-    # Raw and Final endorsements both require a named verifier.
-    verifier_staff = get_object_or_404(
-        _staff_for_role(ROLE_VERIFIER, ROLE_ADMIN),
-        pk=request.POST.get("verifier_staff"),
-    )
+    # Both Raw and Final cases are assigned to the selected verifier.
     if is_final_endorsement:
         case.assigned_checker = request.user
     case.assigned_verifier = verifier_staff.User_Account
