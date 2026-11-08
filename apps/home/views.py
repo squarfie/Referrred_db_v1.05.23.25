@@ -3686,7 +3686,8 @@ def show_data(request):
                 and verification_case.status == verification_case.STATUS_FOR_RAW_VERIFICATION
             ),
             "can_send_raw": bool(
-                not fully_copied
+                batch_id
+                and not fully_copied
                 and (
                     not verification_case
                     or verification_case.status == verification_case.STATUS_RETURNED_TO_ENCODER
