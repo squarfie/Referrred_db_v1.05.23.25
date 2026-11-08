@@ -203,7 +203,7 @@ class RawEndorsementTests(TestCase):
         )
 
         other = User.objects.create_user("other_raw_verifier", password="test-pass")
-        other.groups.add(Group.objects.create(name=ROLE_VERIFIER))
+        other.groups.add(Group.objects.get(name=ROLE_VERIFIER))
         self.client.force_login(other)
         self.assertNotContains(self.client.get(reverse("verification_dashboard")), "RAW-001")
         self.assertEqual(
