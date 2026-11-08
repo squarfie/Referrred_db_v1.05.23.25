@@ -126,18 +126,36 @@ class RawEndorsementTests(TestCase):
             bat_Batch_Code="RAW-001",
             bat_Status="Encoding",
         )
+        self.verifier = User.objects.create_user(
+            "raw_assigned_verifier", password="test-pass",
+        )
+        self.verifier.groups.add(Group.objects.create(name=ROLE_VERIFIER))
+        self.verifier_staff = arsStaff_Details.objects.create(
+            User_Account=self.verifier,
+            Staff_Name="Assigned Raw Verifier",
+            Staff_Role=ROLE_VERIFIER,
+        )
         self.client.force_login(self.encoder)
 
-    def test_raw_encoder_endorses_without_selecting_a_verifier(self):
+    def test_raw_encoder_must_select_a_verifier(self):
         response = self.client.post(
             reverse("send_batch_to_verifier", args=[self.batch.pk]),
             {"next": reverse("show_data")},
         )
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(VerificationCase.objects.filter(final_batch=self.batch).exists())
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.bat_Status, "Encoding")
 
+    def test_raw_encoder_endorses_to_selected_verifier(self):
+        response = self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"next": reverse("show_data"), "verifier_staff": self.verifier_staff.pk},
+        )
         self.assertEqual(response.status_code, 302)
         case = VerificationCase.objects.get(final_batch=self.batch)
         self.assertEqual(case.status, VerificationCase.STATUS_FOR_RAW_VERIFICATION)
-        self.assertIsNone(case.assigned_verifier)
+        self.assertEqual(case.assigned_verifier, self.verifier)
         self.batch.refresh_from_db()
         self.assertEqual(self.batch.bat_Status, "First Draft")
 
@@ -152,32 +170,53 @@ class RawEndorsementTests(TestCase):
 
         self.assertContains(response, "Send Raw Batch")
         self.assertContains(response, 'id="sendRawVerificationModal"')
+        self.assertContains(response, 'name="verifier_staff"')
+        self.assertContains(response, "Assigned Raw Verifier")
         self.assertContains(response, 'class="batch-workflow-btn send-raw-verification-btn"')
         self.assertNotContains(response, "Endorse RAW-001 for verification?")
 
     def test_each_raw_reendorsement_advances_the_draft_label(self):
         url = reverse("send_batch_to_verifier", args=[self.batch.pk])
-        self.client.post(url)
+        self.client.post(url, {"verifier_staff": self.verifier_staff.pk})
         case = VerificationCase.objects.get(final_batch=self.batch)
 
         for expected in ("Second Draft", "Third Draft", "Third Draft"):
             case.status = VerificationCase.STATUS_RETURNED_TO_ENCODER
             case.save(update_fields=["status", "updated_at"])
-            self.client.post(url)
+            self.client.post(url, {"verifier_staff": self.verifier_staff.pk})
             self.batch.refresh_from_db()
             case.refresh_from_db()
             self.assertEqual(self.batch.bat_Status, expected)
             self.assertEqual(case.status, VerificationCase.STATUS_FOR_RAW_VERIFICATION)
 
-    def test_all_verifiers_can_see_an_unassigned_raw_endorsement(self):
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
-        verifier = User.objects.create_user("verifier", password="test-pass")
-        verifier.groups.add(Group.objects.create(name=ROLE_VERIFIER))
-        self.client.force_login(verifier)
+    def test_only_assigned_verifier_can_access_raw_endorsement(self):
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
+        case = VerificationCase.objects.get(final_batch=self.batch)
+        self.client.force_login(self.verifier)
+        self.assertContains(self.client.get(reverse("verification_dashboard")), "RAW-001")
+        self.assertEqual(
+            self.client.get(reverse("verification_case_detail", args=[case.pk])).status_code,
+            200,
+        )
 
-        response = self.client.get(reverse("verification_dashboard"))
-
-        self.assertContains(response, "RAW-001")
+        other = User.objects.create_user("other_raw_verifier", password="test-pass")
+        other.groups.add(Group.objects.get(name=ROLE_VERIFIER))
+        self.client.force_login(other)
+        self.assertNotContains(self.client.get(reverse("verification_dashboard")), "RAW-001")
+        self.assertEqual(
+            self.client.get(reverse("verification_case_detail", args=[case.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse("verification_case_detail", args=[case.pk]),
+                {"action": "send_final_encoding"},
+            ).status_code,
+            404,
+        )
 
     def test_partial_final_copy_keeps_raw_send_available_until_batch_is_complete(self):
         Referred_Data.objects.create(
@@ -242,7 +281,10 @@ class RawEndorsementTests(TestCase):
             Batch_Code="RAW-001",
             AccessionNo="RAW-LOCKED-COPY-1",
         )
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
 
         rows_response = self.client.get(
             reverse("raw_batch_rows"),
@@ -263,7 +305,10 @@ class RawEndorsementTests(TestCase):
             Batch_Code="RAW-001",
             AccessionNo="RAW-WITHDRAW-1",
         )
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
         case = VerificationCase.objects.get(final_batch=self.batch)
 
         table_response = self.client.get(reverse("show_data"), {"q": "RAW-001"})
@@ -304,15 +349,16 @@ class RawEndorsementTests(TestCase):
             ab_Disk_RIS="I",
             ab_Disk_enRIS="R",
         )
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
         case = VerificationCase.objects.get(final_batch=self.batch)
         Final_Data.objects.create(
             f_Batch_id=self.batch,
             f_AccessionNo="PARTIAL-FINAL-COPY",
         )
-        verifier = User.objects.create_user("raw_detail_verifier", password="test-pass")
-        verifier.groups.add(Group.objects.create(name=ROLE_VERIFIER))
-        self.client.force_login(verifier)
+        self.client.force_login(self.verifier)
 
         response = self.client.get(reverse("verification_case_detail", args=[case.pk]))
 
@@ -398,11 +444,12 @@ class RawEndorsementTests(TestCase):
             ab_Retest_DiskValue="12",
             ab_Retest_Disk_RIS="R",
         )
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
         case = VerificationCase.objects.get(final_batch=self.batch)
-        verifier = User.objects.create_user("enris_verifier", password="test-pass")
-        verifier.groups.add(Group.objects.create(name=ROLE_VERIFIER))
-        self.client.force_login(verifier)
+        self.client.force_login(self.verifier)
 
         response = self.client.get(reverse("verification_case_detail", args=[case.pk]))
 

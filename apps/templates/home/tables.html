@@ -1986,7 +1986,7 @@
 </div><!-- /page-wrapper -->
 
 
-<!-- ── Send Raw Batch to Verifiers Modal ── -->
+<!-- ── Send Raw Batch to Selected Verifier Modal ── -->
 <div class="modal fade" id="sendRawVerificationModal" tabindex="-1" role="dialog" aria-labelledby="sendRawVerificationModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
     <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none;">
@@ -2004,7 +2004,7 @@
         </div>
       </div>
       <div class="modal-body" style="text-align:left; background:#f8fbfd;">
-        <p class="text-muted small mb-3">Raw Data Encoder sends this batch for review. All verifiers will be able to see the endorsed records.</p>
+        <p class="text-muted small mb-3">Choose the Verifier responsible for reviewing this Raw batch.</p>
         <div class="workflow-batch-card">
           <div class="d-flex justify-content-between align-items-start" style="gap:0.75rem;">
             <div>
@@ -2013,9 +2013,15 @@
             </div>
             <span class="workflow-count-badge" id="sendRawVerificationBatchCount">0 raw</span>
           </div>
-          <form method="post" action="" class="workflow-send-form" id="sendRawVerificationForm" style="grid-template-columns:minmax(220px, 1fr) auto;">
+          <form method="post" action="" class="workflow-send-form" id="sendRawVerificationForm" style="grid-template-columns:minmax(220px, 1fr) minmax(220px, 1fr) auto;">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <select name="verifier_staff" class="form-control form-control-md" aria-label="Select Verifier" required>
+              <option value="">Select Verifier</option>
+              {% for staff in raw_verifier_staff %}
+              <option value="{{ staff.pk }}">{{ staff.display_name }}</option>
+              {% endfor %}
+            </select>
             <input type="text" name="note" class="form-control form-control-md" placeholder="Optional note">
             <button type="submit" class="btn btn-sm btn-success">
               <i class="fas fa-paper-plane mr-1"></i>Send

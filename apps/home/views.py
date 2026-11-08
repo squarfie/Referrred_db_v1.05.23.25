@@ -3720,6 +3720,16 @@ def show_data(request):
         "verification_status": verification_status,
         "verification_status_choices": _verification_status_choices(),
         "available_years": available_years,
+        "raw_verifier_staff": (
+            arsStaff_Details.objects
+            .filter(
+                staff_role_q(ROLE_VERIFIER, ROLE_ADMIN),
+                User_Account__isnull=False,
+            )
+            .select_related("User_Account")
+            .distinct()
+            .order_by("Staff_Name", "User_Account__username")
+        ),
     }
 
     return render(request, "home/tables.html", context)
