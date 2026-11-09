@@ -1435,6 +1435,7 @@
             <tr class="batch-accordion-row"
                 data-batch-target="raw-batch-{{ forloop.counter }}"
                 data-batch-id="{{ batch_group.batch_id }}"
+                data-site-code="{{ batch_group.site_code }}"
                 data-load-url="{% url 'raw_batch_rows' %}"
                 aria-expanded="false">
               <td colspan="11" class="batch-accordion-cell">
@@ -2148,6 +2149,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
                 const params = new URLSearchParams(window.location.search);
                 params.set("batch_id", this.getAttribute("data-batch-id") || "");
+                params.set("site_code", this.getAttribute("data-site-code") || "");
                 params.set("target", target);
 
                 try {

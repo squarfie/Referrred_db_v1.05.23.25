@@ -57,7 +57,7 @@ from django.http import JsonResponse, FileResponse
 #for importation 
 import pandas as pd
 from django.utils import timezone
-from django.db.models import Q, F, Case, When
+from django.db.models import Q, F, Case, When, Value, CharField
 from django.utils.timezone import now
 import logging
 
@@ -3565,7 +3565,14 @@ def show_data(request):
 
     batch_summaries = (
         isolates
-        .values("Batch_id")
+        .annotate(
+            unbatched_site_code=Case(
+                When(Batch_id__isnull=True, then=F("SiteCode")),
+                default=Value(""),
+                output_field=CharField(),
+            )
+        )
+        .values("Batch_id", "unbatched_site_code")
         .annotate(
             record_count=Count("id"),
             batch_code=Max("Batch_id__bat_Batch_Code"),
@@ -3740,6 +3747,7 @@ def show_data(request):
 @require_GET
 def raw_batch_rows(request):
     batch_id = request.GET.get("batch_id", "")
+    site_code = request.GET.get("site_code", "")
     batch_dom_id = request.GET.get("target", "")
     query = request.GET.get("q", "")
     year = request.GET.get("year")
@@ -3753,7 +3761,7 @@ def raw_batch_rows(request):
     if batch_id:
         records = records.filter(Batch_id_id=batch_id)
     else:
-        records = records.filter(Batch_id__isnull=True)
+        records = records.filter(Batch_id__isnull=True, SiteCode=site_code)
     records = (
         records
         .select_related("Batch_id", "Spec_Type")

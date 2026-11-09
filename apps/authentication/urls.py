@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 """Authentication routes, including verified email-link password resets."""
 
-from django.urls import path
+from django.urls import path, reverse_lazy
 from django.views.generic import RedirectView
 from django.contrib.auth import views as auth_views
 from .views import login_view, register_user, logout_view
@@ -16,7 +16,7 @@ urlpatterns = [
             template_name="accounts/forgot_password.html",
             email_template_name="accounts/password_reset_email.txt",
             subject_template_name="accounts/password_reset_subject.txt",
-            success_url="/password_reset_sent/",
+            success_url=reverse_lazy("password_reset_done"),
         ),
         name="forgot_password",
     ),
@@ -37,7 +37,7 @@ urlpatterns = [
         "reset_password/<uidb64>/<token>/",
         auth_views.PasswordResetConfirmView.as_view(
             template_name="accounts/reset_password.html",
-            success_url="/password_reset_complete/",
+            success_url=reverse_lazy("password_reset_complete"),
         ),
         name="password_reset_confirm",
     ),

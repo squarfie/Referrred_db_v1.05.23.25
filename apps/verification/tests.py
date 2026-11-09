@@ -198,17 +198,43 @@ class RawEndorsementTests(TestCase):
             Batch_id=None,
             Batch_Code="",
             AccessionNo="RAW-UNBATCHED-ROWS-1",
+            SiteCode="ZMC",
+        )
+        Referred_Data.objects.create(
+            Batch_id=None,
+            Batch_Code="",
+            AccessionNo="RAW-UNBATCHED-ROWS-2",
+            SiteCode="BRH",
         )
         self.client.force_login(admin)
 
         response = self.client.get(
             reverse("raw_batch_rows"),
-            {"batch_id": "", "target": "raw-unbatched", "q": "RAW-UNBATCHED-ROWS-1"},
+            {"batch_id": "", "site_code": "ZMC", "target": "raw-unbatched"},
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("RAW-UNBATCHED-ROWS-1", response.json()["html"])
+        self.assertNotIn("RAW-UNBATCHED-ROWS-2", response.json()["html"])
+
+    def test_unbatched_raw_groups_are_separated_by_site(self):
+        admin = User.objects.create_user("raw_unbatched_groups_admin", password="test-pass")
+        admin.groups.add(Group.objects.create(name=ROLE_ADMIN))
+        Referred_Data.objects.create(Batch_id=None, AccessionNo="RAW-ZMC-1", SiteCode="ZMC")
+        Referred_Data.objects.create(Batch_id=None, AccessionNo="RAW-ZMC-2", SiteCode="ZMC")
+        Referred_Data.objects.create(Batch_id=None, AccessionNo="RAW-BRH-1", SiteCode="BRH")
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("show_data"))
+
+        unbatched_groups = [group for group in response.context["page_groups"] if not group["batch_id"]]
+        self.assertCountEqual(
+            [(group["site_code"], group["count"]) for group in unbatched_groups],
+            [("ZMC", 2), ("BRH", 1)],
+        )
+        self.assertContains(response, 'data-site-code="ZMC"')
+        self.assertContains(response, 'data-site-code="BRH"')
 
     def test_each_raw_reendorsement_advances_the_draft_label(self):
         url = reverse("send_batch_to_verifier", args=[self.batch.pk])
