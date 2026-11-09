@@ -175,6 +175,41 @@ class RawEndorsementTests(TestCase):
         self.assertContains(response, 'class="batch-workflow-btn send-raw-verification-btn"')
         self.assertNotContains(response, "Endorse RAW-001 for verification?")
 
+    def test_unbatched_raw_record_does_not_offer_batch_endorsement(self):
+        admin = User.objects.create_user("raw_unbatched_admin", password="test-pass")
+        admin.groups.add(Group.objects.create(name=ROLE_ADMIN))
+        Referred_Data.objects.create(
+            Batch_id=None,
+            Batch_Code="",
+            AccessionNo="RAW-UNBATCHED-1",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("show_data"), {"q": "RAW-UNBATCHED-1"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Unbatched")
+        self.assertNotContains(response, "Endorse raw data for all verifiers")
+
+    def test_unbatched_raw_accordion_loads_its_records(self):
+        admin = User.objects.create_user("raw_unbatched_rows_admin", password="test-pass")
+        admin.groups.add(Group.objects.create(name=ROLE_ADMIN))
+        Referred_Data.objects.create(
+            Batch_id=None,
+            Batch_Code="",
+            AccessionNo="RAW-UNBATCHED-ROWS-1",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(
+            reverse("raw_batch_rows"),
+            {"batch_id": "", "target": "raw-unbatched", "q": "RAW-UNBATCHED-ROWS-1"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("RAW-UNBATCHED-ROWS-1", response.json()["html"])
+
     def test_each_raw_reendorsement_advances_the_draft_label(self):
         url = reverse("send_batch_to_verifier", args=[self.batch.pk])
         self.client.post(url, {"verifier_staff": self.verifier_staff.pk})

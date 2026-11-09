@@ -3686,7 +3686,8 @@ def show_data(request):
                 and verification_case.status == verification_case.STATUS_FOR_RAW_VERIFICATION
             ),
             "can_send_raw": bool(
-                not fully_copied
+                batch_id
+                and not fully_copied
                 and (
                     not verification_case
                     or verification_case.status == verification_case.STATUS_RETURNED_TO_ENCODER
@@ -3764,12 +3765,14 @@ def raw_batch_rows(request):
         .filter(f_AccessionNo__in=records.values_list("AccessionNo", flat=True))
         .values_list("f_AccessionNo", flat=True)
     )
-    raw_changed_final_ids = set(
-        Final_Data.objects
-        .filter(f_Batch_id_id=batch_id, raw_updated_after_copy=True)
-        .exclude(raw_updated_after_copy_raw_id__isnull=True)
-        .values_list("raw_updated_after_copy_raw_id", flat=True)
-    )
+    raw_changed_final_ids = set()
+    if batch_id:
+        raw_changed_final_ids = set(
+            Final_Data.objects
+            .filter(f_Batch_id_id=batch_id, raw_updated_after_copy=True)
+            .exclude(raw_updated_after_copy_raw_id__isnull=True)
+            .values_list("raw_updated_after_copy_raw_id", flat=True)
+        )
     records = _attach_raw_verification_flags(records)
     html = render_to_string(
         "home/partials/raw_batch_rows.html",
