@@ -100,7 +100,7 @@
                     <i class="fa fa-trash" aria-hidden="true"></i> &nbspDelete</a></td>
 
 
-                <td>{{wgs.Ref_Accession}}</td>
+                <td>{% if wgs.Ref_Accession %}{{ wgs.Ref_Accession }}{% elif wgs.original_accession %}{{ wgs.original_accession }} <span class="badge badge-warning" title="No matching Final Data accession">Unmatched</span>{% else %}<span class="text-muted">Unmatched</span>{% endif %}</td>
                 <td>{{wgs.WGS_BactScout_Acc}}</td>
                 <td >
                 <input type="checkbox" disabled {% if wgs.WGS_BactScoutSummary %}checked{% endif %} style="width: 15px; height: 15px; accent-color:rgb(16, 8, 131) ; margin: 2px;">
