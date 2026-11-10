@@ -1840,7 +1840,13 @@ def export_builtin_wgs_pipeline(request, pipeline_key):
 @login_required
 def show_wgs_projects(request):
     q = (request.GET.get("q") or "").strip()
-    projects = WGS_Project.objects.select_related("Ref_Accession").order_by("-id")
+    # The WGS Project Records page shows only projects currently linked
+    # to Final Data. Orphaned projects remain stored for reconciliation.
+    projects = (
+        WGS_Project.objects.filter(Ref_Accession__isnull=False)
+        .select_related("Ref_Accession")
+        .order_by("-id")
+    )
     total_records = projects.count()
     projects = apply_wgs_related_accession_search(projects, q, "Ref_Accession__f_AccessionNo")
     filtered_records = projects.count()
