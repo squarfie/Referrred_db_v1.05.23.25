@@ -829,6 +829,41 @@ class RawEditAfterCopyFlagTests(TestCase):
         self.assertEqual(changed, 0)
         self.assertFalse(LogEntry.objects.filter(object_id=str(self.raw.pk)).exists())
 
+    def test_unchanged_raw_save_does_not_flag_final_or_log_audit(self):
+        from django.contrib.admin.models import LogEntry
+        from django.forms.models import model_to_dict
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        response = self.client.post(
+            reverse("edit_data", args=[self.raw.pk]), model_to_dict(self.raw)
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.final.refresh_from_db()
+        self.assertFalse(self.final.raw_updated_after_copy)
+        self.assertFalse(
+            LogEntry.objects.filter(
+                object_id=str(self.raw.pk),
+                change_message__contains="raw_edit_after_final_copy",
+            ).exists()
+        )
+
+    def test_changed_raw_field_flags_final_once(self):
+        from django.forms.models import model_to_dict
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        payload = model_to_dict(self.raw)
+        payload["First_Name"] = "Updated"
+        self.assertEqual(
+            self.client.post(reverse("edit_data", args=[self.raw.pk]), payload).status_code,
+            302,
+        )
+        self.final.refresh_from_db()
+        self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertIn("First_Name", self.final.raw_updated_after_copy_fields)
+
     def test_edit_data_post_records_changed_fields_without_name_error(self):
         from django.forms.models import model_to_dict
 
