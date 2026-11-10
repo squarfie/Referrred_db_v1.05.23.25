@@ -341,6 +341,22 @@ class WGSReconciliationTests(TestCase):
             self.assertEqual(project.Ref_Accession_id, self.accession)
             self.assertEqual(project.sample_information_entries.count(), 1)
 
+    def test_wgs_project_listing_hides_unmatched_but_keeps_records(self):
+        from django.urls import reverse
+        from apps.wgs_app.models import WGS_Project
+        matched = WGS_Project.objects.create(Ref_Accession=self.final)
+        unmatched = WGS_Project.objects.create(
+            original_accession="26ARS_MISSING9999"
+        )
+        self.client.force_login(User.objects.create_user("wgs-list-viewer"))
+        response = self.client.get(reverse("show_wgs_projects"))
+        self.assertEqual(response.status_code, 200)
+        page_ids = {project.pk for project in response.context["page_obj"].object_list}
+        self.assertIn(matched.pk, page_ids)
+        self.assertNotIn(unmatched.pk, page_ids)
+        self.assertTrue(WGS_Project.objects.filter(pk=unmatched.pk).exists())
+        self.assertEqual(response.context["total_records"], 1)
+
     def test_custom_pipeline_file_accession_is_relinked(self):
         from apps.wgs_app.models import CustomWGSPipelineRecord
         from apps.wgs_app.reconciliation import reconcile_wgs_matches
