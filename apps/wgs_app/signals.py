@@ -1,6 +1,6 @@
 # apps/wgs_app/signals.py
 from django.apps import apps
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, pre_delete
 from django.dispatch import receiver
 from .models import *
 from apps.home_final.models import Final_Data
@@ -122,6 +122,24 @@ def sync_amrfinder_flag(sender, instance, **kwargs):
     if instance.amrfinder_project:
         update_summary_flag(instance.amrfinder_project, 'WGS_AmrfinderSummary')
 
+
+
+@receiver(post_save, sender=WGS_Project)
+def preserve_wgs_original_accession(sender, instance, **kwargs):
+    """Keep the accession independently of the Final Data foreign key."""
+    if instance.Ref_Accession_id and instance.original_accession != instance.Ref_Accession_id:
+        WGS_Project.objects.filter(pk=instance.pk).update(
+            original_accession=instance.Ref_Accession_id
+        )
+
+
+@receiver(pre_delete, sender=Final_Data)
+def preserve_wgs_project_accession_before_final_delete(sender, instance, **kwargs):
+    """Cover legacy projects whose original accession was never populated."""
+    WGS_Project.objects.filter(
+        Ref_Accession_id=instance.f_AccessionNo,
+        original_accession="",
+    ).update(original_accession=instance.f_AccessionNo)
 
 # Final accessions are the only laboratory reference for WGS matching.
 # Existing WGS results remain independent of the Final verification workflow.
