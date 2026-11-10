@@ -77,13 +77,11 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
     have a project, since a project may represent a distinct sequencing run.
     """
     index = _final_index(accession)
-    final_accessions = {
-        pk: final_accession
-        for entries in index.values()
-        for pk, final_accession in Final_Data.objects.filter(
-            pk__in=entries
+    final_accessions = dict(
+        Final_Data.objects.filter(
+            pk__in={pk for entries in index.values() for pk in entries}
         ).values_list("pk", "f_AccessionNo")
-    }
+    )
     target_keys = accession_keys(accession) if accession else None
 
     def eligible(value):
