@@ -5,10 +5,12 @@ matching target.
 
 ## Deletion behavior
 
-- Deleting Final Data still deletes its `WGS_Project` connectors
-  (`CASCADE`).
-- Built-in WGS result rows with a `SET_NULL` project reference remain
-  stored, including their own accession fields.
+- Deleting Final Data **preserves** its `WGS_Project` connectors
+  (`SET_NULL`). The Final foreign key is cleared while
+  `original_accession` remains available for future matching.
+- Built-in WGS result rows remain attached to their preserved
+  `WGS_Project`; if a connector is deleted separately, the results
+  themselves remain stored with a `SET_NULL` reference.
 - Custom pipeline records remain stored after their Final FK is cleared.
   Their match status becomes `unmatched`.
 - Deleting a WGS project does not delete the linked `SET_NULL` sequencing
@@ -19,7 +21,12 @@ matching target.
 ## Reconciliation
 
 For an individually created Final Data row, a post-save handler attempts to
-restore orphan matches. Django `bulk_create` bypasses post-save; after bulk
+restore links to existing orphaned WGS projects (without replacing their
+identities or sequencing-run associations), then to orphaned result rows.
+Migration `0024_wgs_project_original_accession` safely backfills the
+new accession field for projects that still have a Final reference when
+it runs. Already-orphaned projects with no preserved accession cannot be
+reliably backfilled automatically. Django `bulk_create` bypasses post-save; after bulk
 Final imports, run:
 
 ```powershell
@@ -49,7 +56,9 @@ schedule is enabled by this code change.
 
 - An accession must match **exactly one Final accession** after supported
   separator/case and filename-extension normalization.
-- Already-linked WGS data are not overwritten.
+- Already-linked WGS data are not overwritten. Existing unlinked
+  `WGS_Project` rows are matched using their persisted
+  `original_accession`, preserving distinct sequencing runs.
 - Built-in orphan records are relinked only where the accession is
   unambiguous and the project/run identity is not in conflict.
 - Multiple orphan rows for one pipeline/accession are left unchanged
