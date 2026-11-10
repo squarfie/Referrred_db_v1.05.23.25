@@ -85,7 +85,7 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
             counts["custom_matched"] += 1
             if not dry_run:
                 CustomWGSPipelineRecord.objects.filter(pk=record.pk).update(
-                    matched_final_data_id=final_pk,
+                    matched_final_data_id=final_accessions[final_pk],
                     match_status="matched",
                     match_source="final",
                 )
