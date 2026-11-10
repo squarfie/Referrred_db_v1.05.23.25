@@ -58,7 +58,7 @@ class WGS_Project(models.Model):
 
 
     def __str__(self):
-        return str(self.Ref_Accession) if self.Ref_Accession else ""
+        return str(self.Ref_Accession) if self.Ref_Accession else (self.original_accession or "")
 
 
 class CustomWGSPipeline(models.Model):
