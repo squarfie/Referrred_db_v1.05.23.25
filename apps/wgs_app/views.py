@@ -23,7 +23,6 @@ from apps.home.permissions import (
     can_manage_batch,
     role_flags,
     role_required,
-    verification_case_blocks_deletion,
     verification_case_blocks_operational_outputs,
 )
 
@@ -7719,37 +7718,6 @@ def upload_referred_table(request):
 ########## end of uploading view
 
 
-def _attach_wgs_deletion_flags(records, batch_id_attribute):
-    record_list = list(records)
-    batch_ids = {
-        getattr(record, batch_id_attribute)
-        for record in record_list
-        if getattr(record, batch_id_attribute)
-    }
-    cases_by_batch_id = {}
-    if batch_ids:
-        try:
-            from apps.verification.models import VerificationCase
-            cases_by_batch_id = {
-                case.final_batch_id: case
-                for case in VerificationCase.objects.filter(
-                    final_batch_id__in=batch_ids,
-                    final_accession__isnull=True,
-                ).exclude(status=VerificationCase.STATUS_WITHDRAWN)
-            }
-        except (LookupError, ProgrammingError, OperationalError):
-            pass
-
-    for record in record_list:
-        case = cases_by_batch_id.get(getattr(record, batch_id_attribute))
-        record.verification_deletion_blocked = verification_case_blocks_deletion(case)
-        record.verification_record_deletion_block_reason = (
-            "Released records cannot be deleted."
-            if case and case.status == case.STATUS_RELEASED
-            else "Accession deletion is disabled while this case is in verification. Withdraw it before deleting."
-        ) if record.verification_deletion_blocked else ""
-    return record_list
-
 @login_required
 def show_final_data(request):
     q = (request.GET.get("q") or "").strip()
@@ -7762,7 +7730,6 @@ def show_final_data(request):
     paginator = Paginator(finaldata_summaries, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    page_obj.object_list = _attach_wgs_deletion_flags(page_obj.object_list, "f_Batch_id_id")
 
     # Render the template with paginated data
     return render(
@@ -7789,7 +7756,6 @@ def show_referred_data(request):
     paginator = Paginator(rawdata_summaries, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    page_obj.object_list = _attach_wgs_deletion_flags(page_obj.object_list, "Batch_id_id")
 
     # Render the template with paginated data
     return render(
@@ -7816,26 +7782,6 @@ def delete_final_data(request, pk):
     if final_item.f_Batch_id and not can_manage_batch(request.user, final_item.f_Batch_id):
         messages.error(request, "You can only delete final records from batches that you created.")
         return redirect('show_final_data')
-    if final_item.f_Batch_id_id:
-        try:
-            from apps.verification.models import VerificationCase
-            verification_case = (
-                VerificationCase.objects
-                .filter(final_batch_id=final_item.f_Batch_id_id, final_accession__isnull=True)
-                .exclude(status=VerificationCase.STATUS_WITHDRAWN)
-                .first()
-            )
-        except (LookupError, ProgrammingError, OperationalError):
-            verification_case = None
-        if verification_case_blocks_deletion(verification_case):
-            messages.error(
-                request,
-                "Released records cannot be deleted."
-                if verification_case.status == VerificationCase.STATUS_RELEASED
-                else "Accession deletion is disabled while this case is in verification. Withdraw it before deleting."
-            )
-            return redirect('show_final_data')
-
     if request.method == "POST":
         accession = final_item.f_AccessionNo
         final_item.delete()   #  This triggers the signal
@@ -7862,26 +7808,6 @@ def delete_referred_data(request, pk):
     if referred_item.Batch_id and not can_manage_batch(request.user, referred_item.Batch_id):
         messages.error(request, "You can only delete referred records from batches that you created.")
         return redirect('show_referred_data')
-    if referred_item.Batch_id_id:
-        try:
-            from apps.verification.models import VerificationCase
-            verification_case = (
-                VerificationCase.objects
-                .filter(final_batch_id=referred_item.Batch_id_id, final_accession__isnull=True)
-                .exclude(status=VerificationCase.STATUS_WITHDRAWN)
-                .first()
-            )
-        except (LookupError, ProgrammingError, OperationalError):
-            verification_case = None
-        if verification_case_blocks_deletion(verification_case):
-            messages.error(
-                request,
-                "Released records cannot be deleted."
-                if verification_case.status == VerificationCase.STATUS_RELEASED
-                else "Accession deletion is disabled while this case is in verification. Withdraw it before deleting."
-            )
-            return redirect('show_referred_data')
-
     if request.method == "POST":
         accession = referred_item.AccessionNo
         referred_item.delete()   #  This triggers the signal
