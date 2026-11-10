@@ -784,6 +784,15 @@ class RawEditAfterCopyFlagTests(TestCase):
             f_Batch_Code="RAW-AUDIT", f_Site_Name="Reviewed Final Site"
         )
 
+    def _raw_post_payload(self):
+        from django.forms.models import model_to_dict
+
+        # Django's multipart test client cannot serialize None values.
+        return {
+            key: ("" if value is None else value)
+            for key, value in model_to_dict(self.raw).items()
+        }
+
     def test_raw_edit_flags_final_but_preserves_final_values_and_audits_editor(self):
         from django.contrib.admin.models import LogEntry
         from apps.home.views import _flag_final_copy_after_raw_edit
@@ -828,6 +837,70 @@ class RawEditAfterCopyFlagTests(TestCase):
         )
         self.assertEqual(changed, 0)
         self.assertFalse(LogEntry.objects.filter(object_id=str(self.raw.pk)).exists())
+
+    def test_unchanged_raw_save_does_not_flag_final_or_log_audit(self):
+        from django.contrib.admin.models import LogEntry
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        before = {
+            field.attname: getattr(self.raw, field.attname)
+            for field in Referred_Data._meta.concrete_fields
+            if not field.primary_key
+            and not getattr(field, "auto_now", False)
+            and not getattr(field, "auto_now_add", False)
+        }
+        response = self.client.post(
+            reverse("edit_data", args=[self.raw.pk]), self._raw_post_payload()
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.raw.refresh_from_db()
+        persisted_differences = {
+            field_name: (old_value, getattr(self.raw, field_name))
+            for field_name, old_value in before.items()
+            if old_value != getattr(self.raw, field_name)
+        }
+        self.final.refresh_from_db()
+        self.assertFalse(
+            self.final.raw_updated_after_copy,
+            f"Unexpected saved Raw field changes: {persisted_differences!r}; "
+            f"flagged fields: {self.final.raw_updated_after_copy_fields!r}",
+        )
+        self.assertFalse(
+            LogEntry.objects.filter(
+                object_id=str(self.raw.pk),
+                change_message__contains="raw_edit_after_final_copy",
+            ).exists()
+        )
+
+    def test_changed_raw_field_flags_final_once(self):
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        payload = self._raw_post_payload()
+        payload["First_Name"] = "Updated"
+        self.assertEqual(
+            self.client.post(reverse("edit_data", args=[self.raw.pk]), payload).status_code,
+            302,
+        )
+        self.final.refresh_from_db()
+        self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertIn("First_Name", self.final.raw_updated_after_copy_fields)
+
+    def test_edit_data_post_records_changed_fields_without_name_error(self):
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        form_data = self._raw_post_payload()
+        form_data["First_Name"] = "Updated"
+
+        response = self.client.post(reverse("edit_data", args=[self.raw.pk]), form_data)
+
+        self.assertEqual(response.status_code, 302)
+        self.final.refresh_from_db()
+        self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertIn("First_Name", self.final.raw_updated_after_copy_fields)
 
 
 class AdminVerificationStageSecurityTests(TestCase):
