@@ -4808,10 +4808,17 @@ def edit_data(request, id):
     raw_after = Referred_Data.objects.values(
         *(field.attname for field in raw_fields_to_compare)
     ).get(pk=isolates.pk)
-    changed_raw_fields = [
-        field.name for field in raw_fields_to_compare
-        if raw_before[field.attname] != raw_after[field.attname]
-    ]
+    changed_raw_fields = []
+    for field in raw_fields_to_compare:
+        before_value = raw_before[field.attname]
+        after_value = raw_after[field.attname]
+        # Forms store blank nullable text as "", whereas older database rows
+        # may contain NULL. This normalization is not a meaningful Raw edit.
+        if field.get_internal_type() in {"CharField", "TextField"}:
+            before_value = before_value or ""
+            after_value = after_value or ""
+        if before_value != after_value:
+            changed_raw_fields.append(field.name)
     antibiotics_changed = antibiotics_before != antibiotic_snapshot()
 
     if changed_raw_fields or antibiotics_changed:
