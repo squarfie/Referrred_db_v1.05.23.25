@@ -4407,6 +4407,8 @@ def edit_data(request, id):
         context.update(_raw_verification_comment_context(isolates))
         return render(request, "home/edit.html", context)
 
+    changed_raw_fields = list(form.changed_data)
+
     isolates = form.save(commit=False)
     for field_name, original_value in original_phenotypes.items():
         setattr(isolates, field_name, original_value)

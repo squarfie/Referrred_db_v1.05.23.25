@@ -829,6 +829,21 @@ class RawEditAfterCopyFlagTests(TestCase):
         self.assertEqual(changed, 0)
         self.assertFalse(LogEntry.objects.filter(object_id=str(self.raw.pk)).exists())
 
+    def test_edit_data_post_records_changed_fields_without_name_error(self):
+        from django.forms.models import model_to_dict
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        form_data = model_to_dict(self.raw)
+        form_data["First_Name"] = "Updated"
+
+        response = self.client.post(reverse("edit_data", args=[self.raw.pk]), form_data)
+
+        self.assertEqual(response.status_code, 302)
+        self.final.refresh_from_db()
+        self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertIn("First_Name", self.final.raw_updated_after_copy_fields)
+
 
 class AdminVerificationStageSecurityTests(TestCase):
     """An Admin can work across batches, but cannot skip workflow stages."""
