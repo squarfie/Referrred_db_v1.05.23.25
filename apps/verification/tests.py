@@ -966,15 +966,19 @@ class ReleasedDeletionProtectionTests(TestCase):
         self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
         self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
 
-    def test_released_final_record_cannot_be_deleted(self):
-        self.client.post(reverse("delete_final_data", args=[self.final.pk]))
+    def test_released_final_record_can_be_deleted_from_wgs_page(self):
+        response = self.client.post(reverse("delete_final_data", args=[self.final.pk]))
 
-        self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
-
-    def test_released_wgs_raw_record_cannot_be_deleted(self):
-        self.client.post(reverse("delete_referred_data", args=[self.raw.pk]))
-
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Final_Data.objects.filter(pk=self.final.pk).exists())
         self.assertTrue(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+
+    def test_released_raw_record_can_be_deleted_from_wgs_page(self):
+        response = self.client.post(reverse("delete_referred_data", args=[self.raw.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+        self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
 
     def test_released_raw_and_final_delete_controls_are_disabled(self):
         raw_response = self.client.get(
@@ -999,10 +1003,8 @@ class ReleasedDeletionProtectionTests(TestCase):
 
         wgs_raw_response = self.client.get(reverse("show_referred_data"), {"q": self.raw.AccessionNo})
         wgs_final_response = self.client.get(reverse("show_final_data"), {"q": self.final.f_AccessionNo})
-        self.assertContains(wgs_raw_response, "Released records cannot be deleted.")
-        self.assertNotContains(wgs_raw_response, reverse("delete_referred_data", args=[self.raw.pk]))
-        self.assertContains(wgs_final_response, "Released records cannot be deleted.")
-        self.assertNotContains(wgs_final_response, reverse("delete_final_data", args=[self.final.pk]))
+        self.assertContains(wgs_raw_response, reverse("delete_referred_data", args=[self.raw.pk]))
+        self.assertContains(wgs_final_response, reverse("delete_final_data", args=[self.final.pk]))
 
 
 class AdminVerificationStageSecurityTests(TestCase):
