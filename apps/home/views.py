@@ -4348,6 +4348,33 @@ def edit_data(request, id):
         context.update(_raw_verification_comment_context(isolates))
         return render(request, "home/edit.html", context)
 
+    # Snapshot persisted Raw and antibiotic fields before binding/saving the form.
+    # Ignore automatic timestamps so an unchanged save does not produce a false flag.
+    raw_fields_to_compare = [
+        field for field in Referred_Data._meta.concrete_fields
+        if not field.primary_key
+        and not getattr(field, "auto_now", False)
+        and not getattr(field, "auto_now_add", False)
+    ]
+    raw_before = {
+        field.attname: getattr(isolates, field.attname)
+        for field in raw_fields_to_compare
+    }
+    antibiotic_fields_to_compare = [
+        field.attname for field in AntibioticEntry._meta.concrete_fields
+        if not getattr(field, "auto_now", False)
+        and not getattr(field, "auto_now_add", False)
+    ]
+
+    def antibiotic_snapshot():
+        return list(
+            AntibioticEntry.objects.filter(ab_idNum_referred_id=isolates.pk)
+            .order_by("pk")
+            .values_list(*antibiotic_fields_to_compare)
+        )
+
+    antibiotics_before = antibiotic_snapshot()
+
     # save form first before processing antibiotics
     old_site_org = (isolates.Site_Org or "").strip()
     old_ars_org  = (isolates.ars_OrgCode or "").strip()
@@ -4406,8 +4433,6 @@ def edit_data(request, id):
         }
         context.update(_raw_verification_comment_context(isolates))
         return render(request, "home/edit.html", context)
-
-    changed_raw_fields = list(form.changed_data)
 
     isolates = form.save(commit=False)
     for field_name, original_value in original_phenotypes.items():
@@ -4779,16 +4804,30 @@ def edit_data(request, id):
         ])
 
     _handle_saved_raw_comment_action(request, isolates)
-    flagged_final_count = _flag_final_copy_after_raw_edit(
-        isolates, request.user, changed_raw_fields,
-        previous_accession_no=previous_accession_no,
-    )
-    if flagged_final_count:
-        messages.warning(
-            request,
-            "Raw data saved. The corresponding Final record is flagged for review; "
-            "Final results were not overwritten.",
+
+    raw_after = Referred_Data.objects.values(
+        *(field.attname for field in raw_fields_to_compare)
+    ).get(pk=isolates.pk)
+    changed_raw_fields = [
+        field.name for field in raw_fields_to_compare
+        if raw_before[field.attname] != raw_after[field.attname]
+    ]
+    antibiotics_changed = antibiotics_before != antibiotic_snapshot()
+
+    if changed_raw_fields or antibiotics_changed:
+        changed_fields = list(changed_raw_fields)
+        if antibiotics_changed:
+            changed_fields.append("Antibiotic results")
+        flagged_final_count = _flag_final_copy_after_raw_edit(
+            isolates, request.user, changed_fields,
+            previous_accession_no=previous_accession_no,
         )
+        if flagged_final_count:
+            messages.warning(
+                request,
+                "Raw data saved. The corresponding Final record is flagged for review; "
+                "Final results were not overwritten.",
+            )
     messages.success(request, "Data saved successfully.")
     next_after_save = (request.POST.get("next_after_save") or "").strip()
     if next_after_save and url_has_allowed_host_and_scheme(
