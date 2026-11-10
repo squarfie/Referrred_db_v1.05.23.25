@@ -166,6 +166,13 @@ def verification_case_blocks_operational_outputs(case):
     )
 
 
+def verification_case_blocks_deletion(case):
+    return bool(
+        case
+        and case.status not in VERIFICATION_OUTPUT_INACTIVE_STATUSES
+    )
+
+
 def verification_case_blocks_dmu_outputs(case):
     return verification_case_blocks_operational_outputs(case)
 

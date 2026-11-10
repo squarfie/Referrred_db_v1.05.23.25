@@ -1069,8 +1069,8 @@
                   <a href="{% url 'edit_final_data' isolate.pk %}" class="action-btn-icon edit" title="Edit record">
                     <i class="fa fa-pencil-alt"></i>
                   </a>
-                  {% if isolate.verification_pdf_blocked %}
-                  <span title="Accession deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
+                  {% if isolate.verification_deletion_blocked %}
+                  <span title="{{ isolate.verification_record_deletion_block_reason }}"
                         style="display:inline-flex;">
                     <button type="button"
                             class="action-btn-icon del disabled"

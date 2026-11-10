@@ -238,3 +238,201 @@ class FourUploadWorkflowSecurityTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.final.refresh_from_db()
         self.assertNotEqual(self.final.f_First_Name, "Changed")
+
+
+class WGSReconciliationTests(TestCase):
+    """Final accession links may disappear; WGS result rows must survive."""
+
+    def setUp(self):
+        from apps.wgs_app.models import CustomWGSPipeline
+        self.pipeline = CustomWGSPipeline.objects.create(
+            name="Reconciliation test pipeline",
+            slug="reconciliation-test-pipeline",
+        )
+        self.accession = "26ARS_ZMC0023"
+        self.final = Final_Data.objects.create(f_AccessionNo=self.accession)
+
+    def test_final_deletion_preserves_wgs_results_and_reimport_restores_links(self):
+        from apps.wgs_app.models import (
+            WGS_Project, SampleInformation, CustomWGSPipelineRecord,
+        )
+
+        project = WGS_Project.objects.create(
+            Ref_Accession=self.final,
+            WGS_SampleInfo_Acc=self.accession,
+            WGS_SampleInfoSummary=True,
+        )
+        sample = SampleInformation.objects.create(
+            sample_project=project,
+            sample_accession=self.accession,
+            sample_name="test-run-1",
+        )
+        record = CustomWGSPipelineRecord.objects.create(
+            pipeline=self.pipeline,
+            accession=self.accession,
+            matched_final_data=self.final,
+            match_status="matched",
+            match_source="final",
+            values_json={"result": "PASS"},
+        )
+        old_project_pk = project.pk
+        old_final_pk = self.final.pk
+        self.final.delete()
+
+        project.refresh_from_db()
+        self.assertEqual(project.pk, old_project_pk)
+        self.assertIsNone(project.Ref_Accession_id)
+        self.assertEqual(project.original_accession, self.accession)
+        sample.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual(sample.sample_project_id, old_project_pk)
+        self.assertIsNone(record.matched_final_data_id)
+        self.assertEqual(record.match_status, "unmatched")
+        self.assertEqual(record.values_json, {"result": "PASS"})
+
+        replacement = Final_Data.objects.create(f_AccessionNo=self.accession)
+        self.assertNotEqual(replacement.pk, old_final_pk)
+        sample.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual(record.matched_final_data_id, self.accession)
+        self.assertEqual(record.match_status, "matched")
+        self.assertEqual(record.values_json, {"result": "PASS"})
+        self.assertEqual(sample.sample_project_id, old_project_pk)
+        project.refresh_from_db()
+        self.assertEqual(project.Ref_Accession_id, self.accession)
+        self.assertEqual(WGS_Project.objects.filter(pk=old_project_pk).count(), 1)
+
+    def test_wgs_project_without_module_accessions_retains_original_accession(self):
+        from apps.wgs_app.models import WGS_Project
+        project = WGS_Project.objects.create(Ref_Accession=self.final)
+        project.refresh_from_db()
+        self.assertEqual(project.original_accession, self.accession)
+        project_id = project.pk
+        self.final.delete()
+        project.refresh_from_db()
+        self.assertIsNone(project.Ref_Accession_id)
+        self.assertEqual(project.original_accession, self.accession)
+        self.assertEqual(project.pk, project_id)
+        Final_Data.objects.create(f_AccessionNo=self.accession)
+        project.refresh_from_db()
+        self.assertEqual(project.Ref_Accession_id, self.accession)
+
+    def test_reconcile_multiple_projects_keeps_distinct_run_ids(self):
+        from apps.wgs_app.models import WGS_Project, SampleInformation
+        from apps.wgs_app.reconciliation import reconcile_wgs_matches
+        projects = []
+        for run in ("run-a", "run-b"):
+            project = WGS_Project.objects.create(
+                Ref_Accession=self.final,
+                WGS_SampleInfo_Acc=self.accession,
+            )
+            SampleInformation.objects.create(
+                sample_project=project,
+                sample_accession=self.accession,
+                sample_name=run,
+            )
+            projects.append(project.pk)
+        self.final.delete()
+        result = reconcile_wgs_matches()
+        self.assertEqual(result["projects_relinked"], 0)
+        Final_Data.objects.create(f_AccessionNo=self.accession)
+        for project_id in projects:
+            project = WGS_Project.objects.get(pk=project_id)
+            self.assertEqual(project.Ref_Accession_id, self.accession)
+            self.assertEqual(project.sample_information_entries.count(), 1)
+
+    def test_wgs_project_listing_hides_unmatched_but_keeps_records(self):
+        from django.urls import reverse
+        from apps.wgs_app.models import WGS_Project
+        matched = WGS_Project.objects.create(Ref_Accession=self.final)
+        unmatched = WGS_Project.objects.create(
+            original_accession="26ARS_MISSING9999"
+        )
+        self.client.force_login(User.objects.create_user("wgs-list-viewer"))
+        response = self.client.get(reverse("show_wgs_projects"))
+        self.assertEqual(response.status_code, 200)
+        page_ids = {project.pk for project in response.context["page_obj"].object_list}
+        self.assertIn(matched.pk, page_ids)
+        self.assertNotIn(unmatched.pk, page_ids)
+        self.assertTrue(WGS_Project.objects.filter(pk=unmatched.pk).exists())
+        self.assertEqual(response.context["total_records"], 1)
+
+    def test_custom_pipeline_file_accession_is_relinked(self):
+        from apps.wgs_app.models import CustomWGSPipelineRecord
+        from apps.wgs_app.reconciliation import reconcile_wgs_matches
+        row = CustomWGSPipelineRecord.objects.create(
+            pipeline=self.pipeline,
+            accession=self.accession + ".fna",
+            match_status="unmatched",
+        )
+        self.assertEqual(reconcile_wgs_matches(include_builtin=False, dry_run=True)["custom_matched"], 1)
+        row.refresh_from_db()
+        self.assertIsNone(row.matched_final_data_id)
+
+        result = reconcile_wgs_matches(include_builtin=False)
+        self.assertEqual(result["custom_matched"], 1)
+        row.refresh_from_db()
+        self.assertEqual(row.matched_final_data_id, self.accession)
+        self.assertEqual(row.match_status, "matched")
+        self.assertEqual(reconcile_wgs_matches(include_builtin=False)["custom_matched"], 0)
+
+    def test_orphaned_distinct_wgs_runs_are_not_merged(self):
+        from apps.wgs_app.models import SampleInformation, WGS_Project
+        from apps.wgs_app.reconciliation import reconcile_wgs_matches
+        for run in ("run-1", "run-2"):
+            SampleInformation.objects.create(
+                sample_accession=self.accession,
+                sample_name=run,
+            )
+        result = reconcile_wgs_matches()
+        self.assertEqual(result["builtin_relinked"], 0)
+        self.assertEqual(result["ambiguous_or_unmatched"], 2)
+        self.assertFalse(WGS_Project.objects.filter(Ref_Accession=self.final).exists())
+
+    def test_deleting_project_keeps_wgs_result_and_relinks_it(self):
+        from apps.wgs_app.models import WGS_Project, SampleInformation
+        from apps.wgs_app.reconciliation import reconcile_wgs_matches
+        project = WGS_Project.objects.create(
+            Ref_Accession=self.final,
+            WGS_SampleInfo_Acc=self.accession,
+        )
+        sample = SampleInformation.objects.create(
+            sample_project=project, sample_accession=self.accession,
+            sample_name="single-run",
+        )
+        project.delete()
+        sample.refresh_from_db()
+        self.assertIsNone(sample.sample_project_id)
+        result = reconcile_wgs_matches()
+        self.assertEqual(result["builtin_relinked"], 1)
+        sample.refresh_from_db()
+        self.assertEqual(sample.sample_project.Ref_Accession_id, self.accession)
+
+    def test_filename_alias_becomes_unmatched_on_final_deletion(self):
+        from apps.wgs_app.models import CustomWGSPipelineRecord
+        row = CustomWGSPipelineRecord.objects.create(
+            pipeline=self.pipeline,
+            accession=self.accession + ".fna",
+            matched_final_data=self.final,
+            match_status="matched",
+            match_source="final",
+        )
+        self.final.delete()
+        row.refresh_from_db()
+        self.assertIsNone(row.matched_final_data_id)
+        self.assertEqual(row.match_status, "unmatched")
+
+    def test_command_dry_run_preserves_unmatched_custom_record(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from apps.wgs_app.models import CustomWGSPipelineRecord
+        row = CustomWGSPipelineRecord.objects.create(
+            pipeline=self.pipeline,
+            accession=self.accession,
+            match_status="unmatched",
+        )
+        stream = StringIO()
+        call_command("reconcile_wgs_matches", "--dry-run", stdout=stream)
+        self.assertIn("custom_matched=1", stream.getvalue())
+        row.refresh_from_db()
+        self.assertIsNone(row.matched_final_data_id)

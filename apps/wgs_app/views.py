@@ -1840,7 +1840,13 @@ def export_builtin_wgs_pipeline(request, pipeline_key):
 @login_required
 def show_wgs_projects(request):
     q = (request.GET.get("q") or "").strip()
-    projects = WGS_Project.objects.select_related("Ref_Accession").order_by("-id")
+    # The WGS Project Records page shows only projects currently linked
+    # to Final Data. Orphaned projects remain stored for reconciliation.
+    projects = (
+        WGS_Project.objects.filter(Ref_Accession__isnull=False)
+        .select_related("Ref_Accession")
+        .order_by("-id")
+    )
     total_records = projects.count()
     projects = apply_wgs_related_accession_search(projects, q, "Ref_Accession__f_AccessionNo")
     filtered_records = projects.count()
@@ -7717,6 +7723,7 @@ def upload_referred_table(request):
 
 ########## end of uploading view
 
+
 @login_required
 def show_final_data(request):
     q = (request.GET.get("q") or "").strip()
@@ -7781,24 +7788,6 @@ def delete_final_data(request, pk):
     if final_item.f_Batch_id and not can_manage_batch(request.user, final_item.f_Batch_id):
         messages.error(request, "You can only delete final records from batches that you created.")
         return redirect('show_final_data')
-    if final_item.f_Batch_id_id:
-        try:
-            from apps.verification.models import VerificationCase
-            verification_case = (
-                VerificationCase.objects
-                .filter(final_batch_id=final_item.f_Batch_id_id, final_accession__isnull=True)
-                .exclude(status=VerificationCase.STATUS_WITHDRAWN)
-                .first()
-            )
-        except (LookupError, ProgrammingError, OperationalError):
-            verification_case = None
-        if verification_case_blocks_operational_outputs(verification_case):
-            messages.error(
-                request,
-                "Accession deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
-            )
-            return redirect('show_final_data')
-
     if request.method == "POST":
         accession = final_item.f_AccessionNo
         final_item.delete()   #  This triggers the signal
@@ -7825,7 +7814,6 @@ def delete_referred_data(request, pk):
     if referred_item.Batch_id and not can_manage_batch(request.user, referred_item.Batch_id):
         messages.error(request, "You can only delete referred records from batches that you created.")
         return redirect('show_referred_data')
-
     if request.method == "POST":
         accession = referred_item.AccessionNo
         referred_item.delete()   #  This triggers the signal

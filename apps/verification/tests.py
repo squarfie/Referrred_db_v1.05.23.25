@@ -902,6 +902,110 @@ class RawEditAfterCopyFlagTests(TestCase):
         self.assertTrue(self.final.raw_updated_after_copy)
         self.assertIn("First_Name", self.final.raw_updated_after_copy_fields)
 
+    def test_raw_review_flag_replaces_copied_check_with_warning_badge(self):
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        self.final.raw_updated_after_copy = True
+        self.final.raw_updated_after_copy_raw_id = self.raw.pk
+        self.final.save(update_fields=["raw_updated_after_copy", "raw_updated_after_copy_raw_id"])
+
+        response = self.client.get(
+            reverse("raw_batch_rows"),
+            {"batch_id": self.batch.pk, "target": "raw-review-test"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        html = response.json()["html"]
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('class="copied-badge exclamation"', html)
+        self.assertIn('class="fas fa-exclamation"', html)
+        self.assertNotIn('class="copied-badge yes"', html)
+        self.assertNotIn("badge-danger", html)
+
+
+class ReleasedDeletionProtectionTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user("released_delete_admin", password="test-pass")
+        self.admin.groups.add(Group.objects.get_or_create(name=ROLE_ADMIN)[0])
+        self.batch = Batch_Table.objects.create(
+            created_by=self.admin,
+            bat_Batch_Name="RELEASED-DELETE",
+            bat_Batch_Code="RELEASED-DELETE",
+        )
+        self.raw = Referred_Data.objects.create(
+            Batch_id=self.batch,
+            Batch_Code="RELEASED-DELETE",
+            AccessionNo="RELEASED-DELETE-1",
+        )
+        self.final = Final_Data.objects.create(
+            f_Batch_id=self.batch,
+            f_Batch_Code="RELEASED-DELETE",
+            f_AccessionNo="RELEASED-DELETE-1",
+        )
+        self.case = VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_RELEASED,
+        )
+        self.client.force_login(self.admin)
+
+    def test_released_raw_record_and_batch_cannot_be_deleted(self):
+        self.client.post(
+            reverse("delete_data", args=[self.raw.pk]),
+            {"confirmation": "DELETE RECORD"},
+        )
+        self.client.post(
+            reverse("delete_record_in_batch", args=[self.raw.pk]),
+            {"confirmation": "DELETE RECORD"},
+        )
+        self.client.post(
+            reverse("delete_batch", args=[self.batch.pk]),
+            {"confirmation": "DELETE BATCH"},
+        )
+
+        self.assertTrue(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+        self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_released_final_record_can_be_deleted_from_wgs_page(self):
+        response = self.client.post(reverse("delete_final_data", args=[self.final.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Final_Data.objects.filter(pk=self.final.pk).exists())
+        self.assertTrue(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+
+    def test_released_raw_record_can_be_deleted_from_wgs_page(self):
+        response = self.client.post(reverse("delete_referred_data", args=[self.raw.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+        self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
+
+    def test_released_raw_and_final_delete_controls_are_disabled(self):
+        raw_response = self.client.get(
+            reverse("raw_batch_rows"),
+            {"batch_id": self.batch.pk, "target": "released-raw"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        final_response = self.client.get(
+            reverse("final_batch_rows"),
+            {"batch_id": self.batch.pk, "target": "released-final"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        raw_html = raw_response.json()["html"]
+        final_html = final_response.json()["html"]
+        self.assertIn("Released records cannot be deleted.", raw_html)
+        self.assertNotIn(reverse("delete_data", args=[self.raw.pk]), raw_html)
+        self.assertIn("Released batches cannot be deleted.", raw_html)
+        self.assertNotIn(reverse("delete_batch", args=[self.batch.pk]), raw_html)
+        self.assertIn("Released records cannot be deleted.", final_html)
+        self.assertNotIn(reverse("delete_final_data", args=[self.final.pk]), final_html)
+
+        wgs_raw_response = self.client.get(reverse("show_referred_data"), {"q": self.raw.AccessionNo})
+        wgs_final_response = self.client.get(reverse("show_final_data"), {"q": self.final.f_AccessionNo})
+        self.assertContains(wgs_raw_response, reverse("delete_referred_data", args=[self.raw.pk]))
+        self.assertContains(wgs_final_response, reverse("delete_final_data", args=[self.final.pk]))
+
 
 class AdminVerificationStageSecurityTests(TestCase):
     """An Admin can work across batches, but cannot skip workflow stages."""
