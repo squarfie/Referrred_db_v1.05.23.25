@@ -135,7 +135,12 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
                     Ref_Accession_id=final_accessions[final_pk],
                     **{project_field: value},
                 ).values_list("pk", flat=True)[:2])
-                if len(projects) > 1:
+                if len(projects) > 1 or (
+                    projects and model.objects.filter(
+                        **{project_fk + "_id": projects[0]}
+                    ).exists()
+                ):
+                    # An already-populated connector can be a different run.
                     counts["ambiguous_or_unmatched"] += len(ids)
                     continue
                 counts["builtin_relinked"] += len(ids)
