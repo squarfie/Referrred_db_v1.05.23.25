@@ -784,6 +784,15 @@ class RawEditAfterCopyFlagTests(TestCase):
             f_Batch_Code="RAW-AUDIT", f_Site_Name="Reviewed Final Site"
         )
 
+    def _raw_post_payload(self):
+        from django.forms.models import model_to_dict
+
+        # Django's multipart test client cannot serialize None values.
+        return {
+            key: ("" if value is None else value)
+            for key, value in model_to_dict(self.raw).items()
+        }
+
     def test_raw_edit_flags_final_but_preserves_final_values_and_audits_editor(self):
         from django.contrib.admin.models import LogEntry
         from apps.home.views import _flag_final_copy_after_raw_edit
@@ -831,12 +840,11 @@ class RawEditAfterCopyFlagTests(TestCase):
 
     def test_unchanged_raw_save_does_not_flag_final_or_log_audit(self):
         from django.contrib.admin.models import LogEntry
-        from django.forms.models import model_to_dict
 
         self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
         self.client.force_login(self.encoder)
         response = self.client.post(
-            reverse("edit_data", args=[self.raw.pk]), model_to_dict(self.raw)
+            reverse("edit_data", args=[self.raw.pk]), self._raw_post_payload()
         )
 
         self.assertEqual(response.status_code, 302)
@@ -850,11 +858,10 @@ class RawEditAfterCopyFlagTests(TestCase):
         )
 
     def test_changed_raw_field_flags_final_once(self):
-        from django.forms.models import model_to_dict
 
         self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
         self.client.force_login(self.encoder)
-        payload = model_to_dict(self.raw)
+        payload = self._raw_post_payload()
         payload["First_Name"] = "Updated"
         self.assertEqual(
             self.client.post(reverse("edit_data", args=[self.raw.pk]), payload).status_code,
@@ -865,11 +872,10 @@ class RawEditAfterCopyFlagTests(TestCase):
         self.assertIn("First_Name", self.final.raw_updated_after_copy_fields)
 
     def test_edit_data_post_records_changed_fields_without_name_error(self):
-        from django.forms.models import model_to_dict
 
         self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
         self.client.force_login(self.encoder)
-        form_data = model_to_dict(self.raw)
+        form_data = self._raw_post_payload()
         form_data["First_Name"] = "Updated"
 
         response = self.client.post(reverse("edit_data", args=[self.raw.pk]), form_data)
