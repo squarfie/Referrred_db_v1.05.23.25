@@ -127,11 +127,23 @@ def sync_amrfinder_flag(sender, instance, **kwargs):
 # Existing WGS results remain independent of the Final verification workflow.
 @receiver(post_delete, sender=Final_Data)
 def mark_orphaned_custom_wgs_records_unmatched(sender, instance, **kwargs):
-    CustomWGSPipelineRecord.objects.filter(
-        matched_final_data__isnull=True,
-        match_status="matched",
-        accession__iexact=instance.f_AccessionNo,
-    ).update(match_status="unmatched", match_source="")
+    from .reconciliation import accession_keys
+    target_keys = accession_keys(instance.f_AccessionNo)
+    if not target_keys:
+        return
+    # Matching may use an uploaded filename (e.g. SAMPLE.fna) rather
+    # than the exact Final accession string.
+    orphan_ids = [
+        pk for pk, value in CustomWGSPipelineRecord.objects.filter(
+            matched_final_data__isnull=True,
+            match_status="matched",
+        ).values_list("pk", "accession").iterator()
+        if accession_keys(value) & target_keys
+    ]
+    if orphan_ids:
+        CustomWGSPipelineRecord.objects.filter(pk__in=orphan_ids).update(
+            match_status="unmatched", match_source=""
+        )
 
 
 @receiver(post_save, sender=Final_Data)
