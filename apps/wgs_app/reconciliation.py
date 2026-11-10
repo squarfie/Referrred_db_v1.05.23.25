@@ -6,7 +6,6 @@ their project FK becomes NULL (SET_NULL). Reconciliation restores only
 unambiguous matches; it never deletes or overwrites sequencing results.
 """
 from collections import defaultdict
-from pathlib import PurePath
 
 from django.db import transaction
 
@@ -69,6 +68,7 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
     have a project, since a project may represent a distinct sequencing run.
     """
     index = _final_index()
+    final_accessions = dict(Final_Data.objects.values_list("pk", "f_AccessionNo"))
     target_keys = accession_keys(accession) if accession else None
 
     def eligible(value):
@@ -97,8 +97,8 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
                 )
 
     if include_builtin:
-        # Group only orphan rows from the SAME pipeline and accession.
         # Do not merge distinct existing WGS_Project rows or sample runs.
+        # Multiple orphan rows per accession require manual run identification.
         for model, project_fk, accession_field, project_field, summary_field in BUILTIN_LINKS:
             orphans = model.objects.filter(**{project_fk + "__isnull": True})
             by_accession = defaultdict(list)
@@ -106,6 +106,12 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
                 if value and eligible(value):
                     by_accession[value].append(pk)
             for value, ids in by_accession.items():
+                # One accession can have multiple independent sequencing runs.
+                # Without a retained run identifier, combining orphan rows would
+                # silently destroy project/run separation; leave them unmatched.
+                if len(ids) != 1:
+                    counts["ambiguous_or_unmatched"] += len(ids)
+                    continue
                 final_pk = _unique_final(value, index)
                 if not final_pk:
                     counts["ambiguous_or_unmatched"] += len(ids)
@@ -113,9 +119,7 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
                 # A matching project from the same pipeline is safe to reuse
                 # only when exactly one such project exists.
                 projects = list(WGS_Project.objects.filter(
-                    Ref_Accession_id=Final_Data.objects.values_list(
-                        "f_AccessionNo", flat=True
-                    ).get(pk=final_pk),
+                    Ref_Accession_id=final_accessions[final_pk],
                     **{project_field: value},
                 ).values_list("pk", flat=True)[:2])
                 if len(projects) > 1:
@@ -128,9 +132,7 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
                         WGS_Project.objects.filter(pk=project_pk).update(**{summary_field: True})
                     else:
                         project = WGS_Project.objects.create(
-                            Ref_Accession_id=Final_Data.objects.values_list(
-                                "f_AccessionNo", flat=True
-                            ).get(pk=final_pk),
+                            Ref_Accession_id=final_accessions[final_pk],
                             **{project_field: value, summary_field: True},
                         )
                         project_pk = project.pk
