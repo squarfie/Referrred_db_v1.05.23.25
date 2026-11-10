@@ -329,6 +329,39 @@ class WGSReconciliationTests(TestCase):
         self.assertEqual(result["ambiguous_or_unmatched"], 2)
         self.assertFalse(WGS_Project.objects.filter(Ref_Accession=self.final).exists())
 
+    def test_deleting_project_keeps_wgs_result_and_relinks_it(self):
+        from apps.wgs_app.models import WGS_Project, SampleInformation
+        from apps.wgs_app.reconciliation import reconcile_wgs_matches
+        project = WGS_Project.objects.create(
+            Ref_Accession=self.final,
+            WGS_SampleInfo_Acc=self.accession,
+        )
+        sample = SampleInformation.objects.create(
+            sample_project=project, sample_accession=self.accession,
+            sample_name="single-run",
+        )
+        project.delete()
+        sample.refresh_from_db()
+        self.assertIsNone(sample.sample_project_id)
+        result = reconcile_wgs_matches()
+        self.assertEqual(result["builtin_relinked"], 1)
+        sample.refresh_from_db()
+        self.assertEqual(sample.sample_project.Ref_Accession_id, self.accession)
+
+    def test_filename_alias_becomes_unmatched_on_final_deletion(self):
+        from apps.wgs_app.models import CustomWGSPipelineRecord
+        row = CustomWGSPipelineRecord.objects.create(
+            pipeline=self.pipeline,
+            accession=self.accession + ".fna",
+            matched_final_data=self.final,
+            match_status="matched",
+            match_source="final",
+        )
+        self.final.delete()
+        row.refresh_from_db()
+        self.assertIsNone(row.matched_final_data_id)
+        self.assertEqual(row.match_status, "unmatched")
+
     def test_command_dry_run_preserves_unmatched_custom_record(self):
         from io import StringIO
         from django.core.management import call_command
