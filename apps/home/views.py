@@ -248,6 +248,7 @@ from apps.home.permissions import (
     get_user_roles,
     role_flags,
     role_required,
+    verification_case_blocks_deletion,
     verification_case_blocks_operational_outputs,
 
 )
@@ -1949,7 +1950,7 @@ def show_batches(request):
 
     batch = Batch_Table.objects.filter(bat_Batch_Code=batch_code).first()
     verification_case = _raw_verification_case_map([batch.pk]).get(batch.pk) if batch else None
-    verification_deletion_blocked = verification_case_blocks_operational_outputs(verification_case)
+    verification_deletion_blocked = verification_case_blocks_deletion(verification_case)
     verification_deletion_block_reason = (
         "Deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
         if verification_deletion_blocked
@@ -3431,6 +3432,21 @@ def _attach_raw_verification_flags(records):
             if record.verification_pdf_blocked
             else ""
         )
+        record.verification_deletion_blocked = verification_case_blocks_deletion(verification_case)
+        released = bool(
+            verification_case
+            and case_status == verification_case.STATUS_RELEASED
+        )
+        record.verification_record_deletion_block_reason = (
+            "Released records cannot be deleted."
+            if released
+            else "Accession deletion is disabled while this case is in verification. Withdraw it before deleting."
+        ) if record.verification_deletion_blocked else ""
+        record.verification_batch_deletion_block_reason = (
+            "Released batches cannot be deleted."
+            if released
+            else "Batch deletion is disabled while this case is in verification. Withdraw it before deleting."
+        ) if record.verification_deletion_blocked else ""
     return record_list
 
 

@@ -12,8 +12,8 @@
       {% else %}
       <button type="button" class="action-btn-icon edit disabled" title="Final encoding is locked at the current workflow stage" disabled><i class="fa fa-pencil-alt"></i></button>
       {% endif %}
-      {% if isolate.verification_pdf_blocked %}
-      <span title="Accession deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release." style="display:inline-flex;"><button type="button" class="action-btn-icon del disabled" disabled><i class="fa fa-trash"></i></button></span>
+      {% if isolate.verification_deletion_blocked %}
+      <span title="{{ isolate.verification_record_deletion_block_reason }}" style="display:inline-flex;"><button type="button" class="action-btn-icon del disabled" disabled><i class="fa fa-trash"></i></button></span>
       {% else %}
       <button type="button" class="action-btn-icon del delete-btn" data-toggle="modal" data-target="#deleteModal" data-url="{% url 'delete_final_data' isolate.pk %}" title="Delete record"><i class="fa fa-trash"></i></button>
       {% endif %}

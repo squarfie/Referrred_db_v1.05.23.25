@@ -112,13 +112,15 @@
           {% for raw in page_obj %}
           <tr>
             <td>
-              <a href="#" class="btn btn-sm btn-danger delete-btn" 
-                 data-toggle="modal" 
-                 data-target="#deleteModal" 
+              {% if raw.verification_deletion_blocked %}
+              <button type="button" class="btn btn-sm btn-danger" title="{{ raw.verification_record_deletion_block_reason }}" disabled><i class="fa fa-trash"></i></button>
+              {% else %}
+              <a href="#" class="btn btn-sm btn-danger delete-btn"
+                 data-toggle="modal"
+                 data-target="#deleteModal"
                  data-url="{% url 'delete_referred_data' raw.id %}"
-                 title="Delete record">
-                <i class="fa fa-trash"></i>
-              </a>
+                 title="Delete record"><i class="fa fa-trash"></i></a>
+              {% endif %}
             </td>
             <td>
               <span class="text-muted">{{ raw.Date_Modified|date:"M d, Y" }}</span>
