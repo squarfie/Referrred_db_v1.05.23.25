@@ -19,7 +19,7 @@ class DemogsData_upload(models.Model):
 class WGS_Project(models.Model):
     Ref_Accession = models.ForeignKey(
         'home_final.Final_Data',    # connects to Final_Data model
-        on_delete=models.CASCADE,   #DELETE WHEN FINAL REFERRED DATA ACCESSION IS DELETED
+        on_delete=models.SET_NULL,   #DELETE WHEN FINAL REFERRED DATA ACCESSION IS DELETED
         null=True,
         blank=True,
         related_name='project_entries',
