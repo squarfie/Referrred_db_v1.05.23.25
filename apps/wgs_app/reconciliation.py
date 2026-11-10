@@ -8,6 +8,7 @@ unambiguous matches; it never deletes or overwrites sequencing results.
 from collections import defaultdict
 
 from django.db import transaction
+from django.db.models import Q
 
 from apps.home_final.models import Final_Data
 from .models import (
@@ -44,10 +45,18 @@ def accession_keys(value):
     return {name.strip().upper().replace("-", "_") for name in names if name.strip()}
 
 
-def _final_index():
+def _final_index(accession=None):
     index = defaultdict(list)
-    for pk, accession in Final_Data.objects.values_list("pk", "f_AccessionNo"):
+    queryset = Final_Data.objects.values_list("pk", "f_AccessionNo")
+    if accession:
+        # A single-record save should not scan the entire Final table.
+        query = Q()
         for key in accession_keys(accession):
+            query |= Q(f_AccessionNo__iexact=key)
+            query |= Q(f_AccessionNo__iexact=key.replace("_", "-"))
+        queryset = queryset.filter(query)
+    for pk, final_accession in queryset.iterator():
+        for key in accession_keys(final_accession):
             index[key].append(pk)
     return index
 
@@ -67,8 +76,14 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
     post-save of individual Final_Data rows. Never relink rows that already
     have a project, since a project may represent a distinct sequencing run.
     """
-    index = _final_index()
-    final_accessions = dict(Final_Data.objects.values_list("pk", "f_AccessionNo"))
+    index = _final_index(accession)
+    final_accessions = {
+        pk: final_accession
+        for entries in index.values()
+        for pk, final_accession in Final_Data.objects.filter(
+            pk__in=entries
+        ).values_list("pk", "f_AccessionNo")
+    }
     target_keys = accession_keys(accession) if accession else None
 
     def eligible(value):
