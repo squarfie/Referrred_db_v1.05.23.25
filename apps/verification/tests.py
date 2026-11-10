@@ -843,13 +843,30 @@ class RawEditAfterCopyFlagTests(TestCase):
 
         self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
         self.client.force_login(self.encoder)
+        before = {
+            field.attname: getattr(self.raw, field.attname)
+            for field in Referred_Data._meta.concrete_fields
+            if not field.primary_key
+            and not getattr(field, "auto_now", False)
+            and not getattr(field, "auto_now_add", False)
+        }
         response = self.client.post(
             reverse("edit_data", args=[self.raw.pk]), self._raw_post_payload()
         )
 
         self.assertEqual(response.status_code, 302)
+        self.raw.refresh_from_db()
+        persisted_differences = {
+            field_name: (old_value, getattr(self.raw, field_name))
+            for field_name, old_value in before.items()
+            if old_value != getattr(self.raw, field_name)
+        }
         self.final.refresh_from_db()
-        self.assertFalse(self.final.raw_updated_after_copy)
+        self.assertFalse(
+            self.final.raw_updated_after_copy,
+            f"Unexpected saved Raw field changes: {persisted_differences!r}; "
+            f"flagged fields: {self.final.raw_updated_after_copy_fields!r}",
+        )
         self.assertFalse(
             LogEntry.objects.filter(
                 object_id=str(self.raw.pk),
