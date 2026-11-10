@@ -1,8 +1,8 @@
 """Conservative WGS accession reconciliation.
 
-WGS results remain independent from Final Data.  A Final Data deletion may
-remove WGS_Project (CASCADE), while result rows retain their accession and
-their project FK becomes NULL (SET_NULL). Reconciliation restores only
+WGS results remain independent from Final Data. Final deletion clears the
+WGS_Project reference (SET_NULL), while each project retains its original
+accession. Reconciliation restores only
 unambiguous matches; it never deletes or overwrites sequencing results.
 """
 from collections import defaultdict
@@ -87,8 +87,27 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
     def eligible(value):
         return bool(accession_keys(value) & target_keys) if target_keys else True
 
-    counts = {"custom_matched": 0, "custom_unmatched": 0,
-              "builtin_relinked": 0, "ambiguous_or_unmatched": 0}
+    counts = {"projects_relinked": 0, "custom_matched": 0,
+              "custom_unmatched": 0, "builtin_relinked": 0,
+              "ambiguous_or_unmatched": 0}
+
+    # Preserve existing project identities (and their separate sequencing
+    # runs) when Final Data is deleted and recreated. Never duplicate a
+    # project that already carries its original accession.
+    for project in WGS_Project.objects.filter(Ref_Accession__isnull=True).exclude(
+        original_accession=""
+    ).iterator():
+        if not eligible(project.original_accession):
+            continue
+        final_pk = _unique_final(project.original_accession, index)
+        if final_pk is None:
+            counts["ambiguous_or_unmatched"] += 1
+            continue
+        counts["projects_relinked"] += 1
+        if not dry_run:
+            WGS_Project.objects.filter(
+                pk=project.pk, Ref_Accession__isnull=True
+            ).update(Ref_Accession_id=final_accessions[final_pk])
     custom = CustomWGSPipelineRecord.objects.filter(matched_final_data__isnull=True)
     for record in custom.iterator():
         if not eligible(record.accession):
@@ -110,8 +129,8 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
                 )
 
     if include_builtin:
-        # Do not merge distinct existing WGS_Project rows or sample runs.
-        # Multiple orphan rows per accession require manual run identification.
+        # Older results orphaned before the SET_NULL migration can still
+        # need connector reconstruction. Never merge distinct runs.
         for model, project_fk, accession_field, project_field, summary_field in BUILTIN_LINKS:
             orphans = model.objects.filter(**{project_fk + "__isnull": True})
             by_accession = defaultdict(list)
@@ -151,6 +170,7 @@ def reconcile_wgs_matches(*, accession=None, include_builtin=True, dry_run=False
                     else:
                         project = WGS_Project.objects.create(
                             Ref_Accession_id=final_accessions[final_pk],
+                            original_accession=final_accessions[final_pk],
                             **{project_field: value, summary_field: True},
                         )
                         project_pk = project.pk
