@@ -3,6 +3,7 @@ from django.apps import apps
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from .models import *
+from apps.home_final.models import Final_Data
 
 
 
@@ -120,3 +121,27 @@ def sync_gambit_flag(sender, instance, **kwargs):
 def sync_amrfinder_flag(sender, instance, **kwargs):
     if instance.amrfinder_project:
         update_summary_flag(instance.amrfinder_project, 'WGS_AmrfinderSummary')
+
+
+# Final accessions are the only laboratory reference for WGS matching.
+# Existing WGS results remain independent of the Final verification workflow.
+@receiver(post_delete, sender=Final_Data)
+def mark_orphaned_custom_wgs_records_unmatched(sender, instance, **kwargs):
+    CustomWGSPipelineRecord.objects.filter(
+        matched_final_data__isnull=True,
+        match_status="matched",
+        accession__iexact=instance.f_AccessionNo,
+    ).update(match_status="unmatched", match_source="")
+
+
+@receiver(post_save, sender=Final_Data)
+def reconcile_wgs_after_final_reimport(sender, instance, created, **kwargs):
+    if not created:
+        return
+    # Bulk imports (bulk_create) bypass post_save; run reconcile_wgs_matches
+    # from the management command after those imports.
+    from apps.home_final.signals import signals_suspended_for_import
+    if signals_suspended_for_import():
+        return
+    from .reconciliation import reconcile_wgs_matches
+    reconcile_wgs_matches(accession=instance.f_AccessionNo)
