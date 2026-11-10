@@ -112,15 +112,11 @@
           {% for final in page_obj %}
           <tr>
             <td>
-              {% if final.verification_deletion_blocked %}
-              <button type="button" class="btn btn-sm btn-danger" title="{{ final.verification_record_deletion_block_reason }}" disabled><i class="fa fa-trash"></i></button>
-              {% else %}
               <a href="#" class="btn btn-sm btn-danger delete-btn"
                  data-toggle="modal"
                  data-target="#deleteModal"
                  data-url="{% url 'delete_final_data' final.id %}"
                  title="Delete record"><i class="fa fa-trash"></i></a>
-              {% endif %}
             </td>
             <td>
               <span class="text-muted">{{ final.f_Date_Modified|date:"M d, Y" }}</span>
