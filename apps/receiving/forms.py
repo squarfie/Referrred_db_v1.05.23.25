@@ -62,7 +62,6 @@ class LabReceiptForm(forms.Form):
         self.receipt = receipt
         super().__init__(*args, **kwargs)
         local_now = timezone.localtime(now or timezone.now())
-        self.initial.setdefault("lab_date_received", local_now.date())
         # A freshly endorsed batch may have seconds within the current minute.
         # Round up the suggested minute so the default never precedes endorsement.
         suggested = local_now.replace(second=0, microsecond=0)
