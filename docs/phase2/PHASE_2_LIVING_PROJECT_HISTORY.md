@@ -252,3 +252,11 @@ Next documentary gate: complete and approve the receipt-to-release/rejection flo
 - **Planned verification:** `python manage.py test apps.receiving`, `python manage.py check`, verify QR origin configuration and scan on a mobile browser, verify permission denial, successful acknowledgment, repeat scan and irreversible deletion on non-production data.
 - **Supersedes:** Any earlier proposal to prohibit permanent deletion altogether. Normal business-event history remains intact except for an explicitly permanently deleted receiving batch and its associated events.
 
+
+## 19. Receiving permanent-deletion modal (2026-11-12)
+
+- **Change request:** CR-003 — present administrator permanent-delete confirmation in a Bootstrap modal instead of opening a new page.
+- **Reason:** Match the existing batch deletion interface in `apps/templates/home/review_batches.html` and keep the user on the receiving detail page.
+- **Implementation:** Replace delete link with modal button, show tracking number/site/status, require `DELETE PERMANENTLY` text and CSRF-protected POST, preserve administrator authorization and permanent cascade removal of receiving-event records. GET requests to deletion endpoint now return HTTP 405.
+- **Implementation branch:** `phase2/receiving-delete-modal`.
+- **Status:** Implemented on feature branch; local test results and production deployment not confirmed. Review and validate prior to merge.
