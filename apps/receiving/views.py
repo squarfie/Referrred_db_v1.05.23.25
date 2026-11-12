@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -10,6 +11,8 @@ from .forms import LabReceiptForm, ReferralReceiptForm
 from .models import ReferralReceipt
 from .permissions import (
     can_confirm_lab_receipt,
+    can_permanently_delete_receipt,
+    admin_receiving_delete_required,
     can_manage_secretariat_receiving,
     lab_receiving_required,
     receiving_read_required,
@@ -107,6 +110,7 @@ def receiving_detail(request, receiving_id):
             "receipt": receipt,
             "events": events,
             "can_print_label": can_manage,
+            "can_permanently_delete": can_permanently_delete_receipt(request.user),
             "can_endorse": can_manage and receipt.status == ReferralReceipt.Status.RECEIVED,
             "can_confirm_lab": can_confirm
             and receipt.status == ReferralReceipt.Status.ENDORSED,
@@ -149,6 +153,12 @@ def receiving_endorse(request, receiving_id):
 @lab_receiving_required
 def receiving_lab_confirm(request, receiving_id):
     receipt = _receipt_or_404(receiving_id)
+    if receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
+        messages.info(request, "This batch has already been received by the laboratory.")
+        return redirect("receiving_detail", receiving_id=receiving_id)
+    if receipt.status != ReferralReceipt.Status.ENDORSED:
+        messages.warning(request, "This batch has not yet been endorsed to the laboratory.")
+        return redirect("receiving_detail", receiving_id=receiving_id)
     if request.method == "POST":
         form = LabReceiptForm(request.POST, receipt=receipt)
         if form.is_valid():
@@ -171,3 +181,23 @@ def receiving_lab_confirm(request, receiving_id):
         "receiving/lab_receipt_form.html",
         {"form": form, "receipt": receipt},
     )
+
+
+@login_required
+@admin_receiving_delete_required
+def receiving_delete_permanently(request, receiving_id):
+    """Administrators may irreversibly remove a mistakenly entered courier batch.
+
+    Existing ReceivingEvent rows cascade away; no deletion-history event is created.
+    This does not delete independent Raw/Final/Data or accessioning records.
+    """
+    receipt = _receipt_or_404(receiving_id)
+    if request.method == "POST":
+        if request.POST.get("confirmation", "").strip() != "DELETE PERMANENTLY":
+            messages.error(request, "Type DELETE PERMANENTLY to confirm.")
+        else:
+            with transaction.atomic():
+                receipt.delete()
+            messages.success(request, "Receiving batch permanently deleted.")
+            return redirect("receiving_dashboard")
+    return render(request, "receiving/confirm_permanent_delete.html", {"receipt": receipt})

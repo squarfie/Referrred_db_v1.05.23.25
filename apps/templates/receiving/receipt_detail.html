@@ -9,10 +9,12 @@
     <div class="mt-3 mt-md-0">
       {% if can_print_label %}<a class="btn btn-outline-primary" target="_blank" href="{% url 'receiving_label' receipt.receiving_id %}"><i class="fas fa-print mr-2"></i>Print batch label</a>{% endif %}
       {% if can_endorse %}<form class="d-inline" method="post" action="{% url 'receiving_endorse' receipt.receiving_id %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Endorse to laboratory</button></form>{% endif %}
-      {% if can_confirm_lab %}<a class="btn btn-primary" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}">Confirm laboratory receipt</a>{% endif %}
+      {% if can_confirm_lab and receipt.status == "endorsed" %}<a class="btn btn-primary" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}">Confirm laboratory receipt</a>{% endif %}
+      {% if can_permanently_delete %}<a class="btn btn-outline-danger" href="{% url 'receiving_delete_permanently' receipt.receiving_id %}">Delete permanently</a>{% endif %}
     </div>
   </div>
 
+  {% if receipt.status == 'endorsed' %}<div class="alert alert-info">Awaiting acknowledgment by the laboratory. Scan this batch QR code after signing in to confirm custody.</div>{% endif %}
   {% if receipt.status == 'lab_received' %}<div class="alert alert-success"><strong>Custody confirmed.</strong> The laboratory has received this batch. Sorting and acceptance or rejection are outside this phase.</div>{% endif %}
 
   <div class="row">
@@ -26,13 +28,13 @@
       </div></div></div>
 
       <div class="card shadow-sm mb-4"><div class="card-header"><h2 class="h4 mb-0">Custody record</h2></div><div class="card-body"><div class="row">
-        <div class="col-md-4 mb-3"><small class="text-muted d-block">Secretariat receipt</small><strong>{{ receipt.date_received|date:"M j, Y" }} {{ receipt.time_received|time:"g:i A" }}</strong><div>{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}</div></div>
-        <div class="col-md-4 mb-3"><small class="text-muted d-block">Endorsement</small>{% if receipt.endorsed_at %}<strong>{{ receipt.endorsed_at|date:"M j, Y g:i A" }}</strong><div>{{ receipt.endorsed_by.get_full_name|default:receipt.endorsed_by.username }}</div>{% else %}<span class="text-muted">Pending</span>{% endif %}</div>
-        <div class="col-md-4 mb-3"><small class="text-muted d-block">Laboratory receipt</small>{% if receipt.lab_date_received %}<strong>{{ receipt.lab_date_received|date:"M j, Y" }} {{ receipt.lab_time_received|time:"g:i A" }}</strong><div>{{ receipt.lab_received_by.get_full_name|default:receipt.lab_received_by.username }}</div>{% else %}<span class="text-muted">Pending</span>{% endif %}</div>
+        <div class="col-md-4 mb-3"><small class="text-muted d-block">Secretariat receipt</small><strong>{{ receipt.date_received|date:"M j, Y" }} {{ receipt.time_received|time:"g:i A" }}</strong><div>{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</div></div>
+        <div class="col-md-4 mb-3"><small class="text-muted d-block">Endorsement</small>{% if receipt.endorsed_at %}<strong>{{ receipt.endorsed_at|date:"M j, Y g:i A" }}</strong><div>{% if receipt.endorsed_by %}{{ receipt.endorsed_by.get_full_name|default:receipt.endorsed_by.username }}{% else %}—{% endif %}</div>{% else %}<span class="text-muted">Pending</span>{% endif %}</div>
+        <div class="col-md-4 mb-3"><small class="text-muted d-block">Laboratory receipt</small>{% if receipt.lab_date_received %}<strong>{{ receipt.lab_date_received|date:"M j, Y" }} {{ receipt.lab_time_received|time:"g:i A" }}</strong><div>{% if receipt.lab_received_by %}{{ receipt.lab_received_by.get_full_name|default:receipt.lab_received_by.username }}{% else %}—{% endif %}</div>{% else %}<span class="text-muted">Pending</span>{% endif %}</div>
       </div></div></div>
     </div>
     <div class="col-lg-4"><div class="card shadow-sm"><div class="card-header"><h2 class="h4 mb-0">Activity</h2></div><div class="card-body">
-      {% for event in events %}<div class="border-left border-primary pl-3 pb-4"><strong>{{ event.get_event_type_display }}</strong><div class="small text-muted">{{ event.occurred_at|date:"M j, Y g:i A" }}</div><div class="small">{{ event.performed_by.get_full_name|default:event.performed_by.username }}</div>{% if event.remarks %}<div class="small mt-1">{{ event.remarks }}</div>{% endif %}</div>{% empty %}<p class="text-muted mb-0">No events recorded.</p>{% endfor %}
+      {% for event in events %}<div class="border-left border-primary pl-3 pb-4"><strong>{{ event.get_event_type_display }}</strong><div class="small text-muted">{{ event.occurred_at|date:"M j, Y g:i A" }}</div><div class="small">{% if event.performed_by %}{{ event.performed_by.get_full_name|default:event.performed_by.username }}{% else %}—{% endif %}</div>{% if event.remarks %}<div class="small mt-1">{{ event.remarks }}</div>{% endif %}</div>{% empty %}<p class="text-muted mb-0">No events recorded.</p>{% endfor %}
     </div></div></div>
   </div>
 </div>

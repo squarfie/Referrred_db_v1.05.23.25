@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django import forms
 from django.utils import timezone
@@ -62,11 +62,13 @@ class LabReceiptForm(forms.Form):
         self.receipt = receipt
         super().__init__(*args, **kwargs)
         local_now = timezone.localtime(now or timezone.now())
-        self.initial.setdefault("lab_date_received", local_now.date())
-        self.initial.setdefault(
-            "lab_time_received",
-            local_now.time().replace(second=0, microsecond=0),
-        )
+        # A freshly endorsed batch may have seconds within the current minute.
+        # Round up the suggested minute so the default never precedes endorsement.
+        suggested = local_now.replace(second=0, microsecond=0)
+        if receipt.endorsed_at and suggested < timezone.localtime(receipt.endorsed_at):
+            suggested += timedelta(minutes=1)
+        self.initial.setdefault("lab_date_received", suggested.date())
+        self.initial.setdefault("lab_time_received", suggested.time())
 
     def clean(self):
         cleaned_data = super().clean()

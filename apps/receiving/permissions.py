@@ -23,6 +23,10 @@ def can_confirm_lab_receipt(user):
     return ROLE_LAB_ENCODER in get_user_roles(user)
 
 
+def can_permanently_delete_receipt(user):
+    return ROLE_ADMIN in get_user_roles(user)
+
+
 def _permission_required(checker):
     def decorator(view_func):
         @wraps(view_func)
@@ -40,3 +44,4 @@ def _permission_required(checker):
 receiving_read_required = _permission_required(can_read_receiving)
 secretariat_receiving_required = _permission_required(can_manage_secretariat_receiving)
 lab_receiving_required = _permission_required(can_confirm_lab_receipt)
+admin_receiving_delete_required = _permission_required(can_permanently_delete_receipt)
