@@ -185,6 +185,7 @@ def receiving_lab_confirm(request, receiving_id):
 
 @login_required
 @admin_receiving_delete_required
+@require_POST
 def receiving_delete_permanently(request, receiving_id):
     """Administrators may irreversibly remove a mistakenly entered courier batch.
 
@@ -192,12 +193,10 @@ def receiving_delete_permanently(request, receiving_id):
     This does not delete independent Raw/Final/Data or accessioning records.
     """
     receipt = _receipt_or_404(receiving_id)
-    if request.method == "POST":
-        if request.POST.get("confirmation", "").strip() != "DELETE PERMANENTLY":
-            messages.error(request, "Type DELETE PERMANENTLY to confirm.")
-        else:
-            with transaction.atomic():
-                receipt.delete()
-            messages.success(request, "Receiving batch permanently deleted.")
-            return redirect("receiving_dashboard")
-    return render(request, "receiving/confirm_permanent_delete.html", {"receipt": receipt})
+    if request.POST.get("confirmation", "").strip() != "DELETE PERMANENTLY":
+        messages.error(request, "Type DELETE PERMANENTLY to confirm.")
+        return redirect("receiving_detail", receiving_id=receiving_id)
+    with transaction.atomic():
+        receipt.delete()
+    messages.success(request, "Receiving batch permanently deleted.")
+    return redirect("receiving_dashboard")
