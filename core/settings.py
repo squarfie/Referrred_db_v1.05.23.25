@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'apps.wgs_app.apps.WgsAppConfig', 
     'apps.home_final.apps.HomeFinalConfig',
     'apps.verification.apps.VerificationConfig',
+    "apps.receiving.apps.ReceivingConfig",
 
     # "apps.wgs_app",
 ]
