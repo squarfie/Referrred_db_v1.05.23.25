@@ -1,39 +1,6 @@
 {% extends "layouts/base.html" %}
 
 {% block title %}Receiving {{ receipt.tracking_number }}
-{% if can_permanently_delete %}
-<!-- Same Bootstrap confirmation-modal pattern used by the existing batch review pages. -->
-<div class="modal fade" id="deleteReceivingBatchModal" tabindex="-1" role="dialog" aria-labelledby="deleteReceivingBatchModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" role="document">
-    <div class="modal-content" style="border-radius:12px; overflow:hidden;">
-      <form method="POST" action="{% url 'receiving_delete_permanently' receipt.receiving_id %}">
-        {% csrf_token %}
-        <div class="modal-header">
-          <h5 class="modal-title text-danger" id="deleteReceivingBatchModalLabel">
-            <i class="fas fa-exclamation-triangle mr-2"></i>Delete receiving batch permanently?
-          </h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        </div>
-        <div class="modal-body">
-          <p class="mb-3">This permanently removes the receiving batch and all its associated receiving-event history. <strong>This cannot be undone.</strong></p>
-          <div class="mb-3">
-            <div><strong>Tracking number:</strong> {{ receipt.tracking_number }}</div>
-            <div><strong>Site:</strong> {{ receipt.site.SiteCode }}</div>
-            <div><strong>Status:</strong> {{ receipt.get_status_display }}</div>
-          </div>
-          <label for="delete-receiving-confirmation">Type <strong>DELETE PERMANENTLY</strong> to confirm:</label>
-          <input class="form-control" type="text" id="delete-receiving-confirmation" name="confirmation" pattern="DELETE PERMANENTLY" title="Type DELETE PERMANENTLY exactly" autocomplete="off" required>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-danger"><i class="fas fa-trash-alt mr-1"></i>Delete permanently</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 {% endblock %}
 
 {% block content %}
@@ -72,4 +39,39 @@
     </div></div></div>
   </div>
 </div>
+
+{% if can_permanently_delete %}
+<!-- Same Bootstrap confirmation-modal pattern used by the existing batch review pages. -->
+<div class="modal fade" id="deleteReceivingBatchModal" tabindex="-1" role="dialog" aria-labelledby="deleteReceivingBatchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content" style="border-radius:12px; overflow:hidden;">
+      <form method="POST" action="{% url 'receiving_delete_permanently' receipt.receiving_id %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title text-danger" id="deleteReceivingBatchModalLabel">
+            <i class="fas fa-exclamation-triangle mr-2"></i>Delete receiving batch permanently?
+          </h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">This permanently removes the receiving batch and all its associated receiving-event history. <strong>This cannot be undone.</strong></p>
+          <div class="mb-3">
+            <div><strong>Tracking number:</strong> {{ receipt.tracking_number }}</div>
+            <div><strong>Site:</strong> {{ receipt.site.SiteCode }}</div>
+            <div><strong>Status:</strong> {{ receipt.get_status_display }}</div>
+          </div>
+          <label for="delete-receiving-confirmation">Type <strong>DELETE PERMANENTLY</strong> to confirm:</label>
+          <input class="form-control" type="text" id="delete-receiving-confirmation" name="confirmation" pattern="DELETE PERMANENTLY" title="Type DELETE PERMANENTLY exactly" autocomplete="off" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger"><i class="fas fa-trash-alt mr-1"></i>Delete permanently</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
 {% endblock %}
