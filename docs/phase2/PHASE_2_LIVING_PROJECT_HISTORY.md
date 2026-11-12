@@ -237,3 +237,18 @@ Duplicate the following fields for every proposed modification. Link related ent
 Future entries must identify exactly which numbered sections were amended, the controlling D-/CR-/IMP- IDs, and the date of review/approval. Do not replace this history with a single "last updated" date.
 
 Next documentary gate: complete and approve the receipt-to-release/rejection flow with Secretariat, AST and DMU owners before marking Sections 4-8 "Approved".
+
+
+## 18. QR-based laboratory acknowledgment and permanent receiving deletion (2026-11-12)
+
+**Decision / change request:** D-008 / CR-001 (QR handoff), D-009 / CR-002 (irreversible deletion). Requested and planned on 2026-11-12. Both are development decisions, not evidence of production deployment.
+
+- **Goal:** A laboratory encoder scans the Secretariat batch QR, signs in, returns to the scanned receipt, reviews it and explicitly confirms laboratory custody. A scan itself cannot change status or sign the user in.
+- **Proposed implementation:** Preserve a validated same-site `next` URL on login; give the laboratory a mobile-friendly confirmation page; show terminal acknowledged status without a repeat confirmation; correct the suggested receipt minute when a fresh endorsement contains seconds.
+- **Permanent deletion decision:** Allow an administrator to permanently delete a mistakenly entered Receiving batch, along with its `ReceivingEvent` records, without recording a separate deletion-history event. Require login, administrator permissions, explicit POST and typed `DELETE PERMANENTLY` confirmation. Secretariat-only and LAB Encoder users do not receive this action.
+- **Important limitation:** No in-application receiving-deletion event is retained. Infrastructure, hosting or database logs may still retain evidence; the application cannot promise the absence of such external logs. This deletion cannot be undone without a backup.
+- **Affected areas:** `apps.authentication`, `apps.receiving`, login and receiving templates; no new migrations.
+- **Implementation branch:** `phase2/qr-lab-acknowledgment`. Code changes have been committed to this branch on 2026-11-12. Tests included but results and production deployment are **not yet confirmed**.
+- **Planned verification:** `python manage.py test apps.receiving`, `python manage.py check`, verify QR origin configuration and scan on a mobile browser, verify permission denial, successful acknowledgment, repeat scan and irreversible deletion on non-production data.
+- **Supersedes:** Any earlier proposal to prohibit permanent deletion altogether. Normal business-event history remains intact except for an explicitly permanently deleted receiving batch and its associated events.
+
