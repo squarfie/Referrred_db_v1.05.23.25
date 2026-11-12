@@ -96,14 +96,30 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         self.assertEqual(self.client.post(url, {"confirmation": "DELETE PERMANENTLY"}).status_code, 302)
         self.assertTrue(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
         self.client.force_login(self.admin)
-        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.get(url).status_code, 405)
         self.assertTrue(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
 
     def test_deletion_requires_exact_confirmation_phrase(self):
         url = reverse("receiving_delete_permanently", kwargs={"receiving_id": self.receipt.receiving_id})
         self.client.force_login(self.admin)
-        self.assertEqual(self.client.post(url, {"confirmation": "DELETE"}).status_code, 200)
+        self.assertRedirects(self.client.post(url, {"confirmation": "DELETE"}), reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
         self.assertTrue(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
+
+    def test_receiving_detail_has_bootstrap_delete_modal_no_page_navigation(self):
+        url = reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
+        self.client.force_login(self.admin)
+        response = self.client.get(url)
+        self.assertContains(response, 'data-target="#deleteReceivingBatchModal"')
+        self.assertContains(response, 'id="deleteReceivingBatchModal"')
+        self.assertContains(response, 'name="confirmation"')
+        self.assertContains(response, 'DELETE PERMANENTLY')
+
+    def test_non_admin_cannot_see_permanent_delete_modal(self):
+        self.client.force_login(self.secretariat)
+        response = self.client.get(reverse(
+            "receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}
+        ))
+        self.assertNotContains(response, 'id="deleteReceivingBatchModal"')
 
     def test_admin_permanently_deletes_receipt_and_events(self):
         url = reverse("receiving_delete_permanently", kwargs={"receiving_id": self.receipt.receiving_id})
