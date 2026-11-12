@@ -114,6 +114,16 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         self.assertContains(response, 'name="confirmation"')
         self.assertContains(response, 'DELETE PERMANENTLY')
 
+    def test_delete_modal_is_in_html_body_not_title(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse(
+            "receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}
+        ))
+        html = response.content.decode()
+        self.assertEqual(html.count('id="deleteReceivingBatchModal"'), 1)
+        self.assertLess(html.lower().index("</head>"), html.index('id="deleteReceivingBatchModal"'))
+        self.assertLess(html.index('id="deleteReceivingBatchModal"'), html.lower().index("</body>"))
+
     def test_non_admin_cannot_see_permanent_delete_modal(self):
         self.client.force_login(self.secretariat)
         response = self.client.get(reverse(
