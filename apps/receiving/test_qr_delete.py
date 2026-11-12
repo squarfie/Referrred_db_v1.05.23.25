@@ -34,6 +34,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
             performed_by=self.secretariat,
         )
 
+    @override_settings(ACCOUNT_APPROVAL_REQUIRE_STAFF_LINK=False)
     def test_anonymous_qr_link_preserves_destination_through_login(self):
         detail = reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
         response = self.client.get(detail)
@@ -50,6 +51,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         })
         self.assertRedirects(response, detail)
 
+    @override_settings(ACCOUNT_APPROVAL_REQUIRE_STAFF_LINK=False)
     def test_login_rejects_external_next_redirect(self):
         login_url = reverse("login")
         response = self.client.post(login_url, {
