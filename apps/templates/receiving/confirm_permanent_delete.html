@@ -1,0 +1,34 @@
+{% extends "layouts/base.html" %}
+{% block title %}Delete receiving batch permanently{% endblock %}
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="card border-danger shadow-sm">
+        <div class="card-header"><h1 class="h3 mb-0 text-danger">Permanently delete receiving batch</h1></div>
+        <div class="card-body">
+          <div class="alert alert-danger">
+            This cannot be undone. The receiving record and its associated ReceivingEvent history
+            will be deleted. A deletion event will not be added to the receiving history.
+          </div>
+          <dl class="row">
+            <dt class="col-sm-4">Tracking number</dt><dd class="col-sm-8">{{ receipt.tracking_number }}</dd>
+            <dt class="col-sm-4">Referring site</dt><dd class="col-sm-8">{{ receipt.site.SiteCode }}</dd>
+            <dt class="col-sm-4">Current status</dt><dd class="col-sm-8">{{ receipt.get_status_display }}</dd>
+          </dl>
+          <form method="post">
+            {% csrf_token %}
+            <label for="confirm-permanent-delete">Type <strong>DELETE PERMANENTLY</strong> to confirm</label>
+            <input id="confirm-permanent-delete" class="form-control mb-3"
+                   name="confirmation" autocomplete="off" required>
+            <div class="d-flex flex-wrap justify-content-between" style="gap:12px">
+              <a href="{% url 'receiving_detail' receipt.receiving_id %}" class="btn btn-outline-secondary">Cancel</a>
+              <button type="submit" class="btn btn-danger">Delete permanently</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
