@@ -160,6 +160,10 @@ TIME_ZONE = "Asia/Manila"
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 20000
 PHONENUMBER_DEFAULT_REGION = 'PH'
 
+# Canonical public origin used by printable receiving QR labels. Configure this
+# in production so labels remain stable regardless of the host used to print.
+RECEIVING_QR_BASE_URL = config("RECEIVING_QR_BASE_URL", default="").rstrip("/")
+
 # # logout automatically after 15 minutes of inactivity
 # SESSION_COOKIE_AGE = 900
 # # Set SESSION_SAVE_EVERY_REQUEST to True to reset the session expiration time on every request

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Batch label {{ receipt.tracking_number }}</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:24px;color:#111}.label{width:360px;border:2px solid #111;padding:18px;text-align:center}.label img{width:220px;height:220px}.tracking{font-size:22px;font-weight:700;margin:8px 0}.meta{font-size:15px;margin:5px 0}.uuid{font-size:10px;overflow-wrap:anywhere;margin-top:10px}.screen-only{margin-bottom:16px}@media print{body{margin:0}.screen-only{display:none}.label{border:1px solid #111}}
+</style></head><body>
+<button class="screen-only" onclick="window.print()">Print</button>
+<div class="label">
+  <div><strong>SECRETARIAT BATCH</strong></div>
+  <img src="{% url 'receiving_qr' receipt.receiving_id %}" alt="QR code for receiving batch {{ receipt.tracking_number }}">
+  <div class="tracking">{{ receipt.tracking_number }}</div>
+  <div class="meta">Site: <strong>{{ receipt.site.SiteCode }}</strong></div>
+  <div class="meta">Received: <strong>{{ receipt.date_received|date:"N j, Y" }}</strong></div>
+  <div class="uuid">{{ receipt.receiving_id }}</div>
+</div>
+</body></html>

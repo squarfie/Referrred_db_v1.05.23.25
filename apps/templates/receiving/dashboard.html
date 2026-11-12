@@ -1,0 +1,90 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Receiving{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+      <p class="text-uppercase text-primary font-weight-bold small mb-1">Isolate custody</p>
+      <h1 class="h2 mb-1">Receiving</h1>
+      <p class="text-muted mb-0">Track courier batches from Secretariat receipt to laboratory custody.</p>
+    </div>
+    {% if can_manage_secretariat %}
+      <a class="btn btn-primary mt-3 mt-md-0" href="{% url 'receiving_create' %}">
+        <i class="fas fa-plus mr-2"></i>New receipt
+      </a>
+    {% endif %}
+  </div>
+
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-4"><div class="card-body">
+        <p class="text-uppercase text-muted small font-weight-bold mb-1">Received by Secretariat</p>
+        <div class="h2 mb-0">{{ received_count }}</div>
+      </div></div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-4"><div class="card-body">
+        <p class="text-uppercase text-muted small font-weight-bold mb-1">Endorsed to Laboratory</p>
+        <div class="h2 mb-0">{{ endorsed_count }}</div>
+      </div></div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-4"><div class="card-body">
+        <p class="text-uppercase text-muted small font-weight-bold mb-1">Received by Laboratory</p>
+        <div class="h2 mb-0">{{ lab_received_count }}</div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header border-0">
+      <form class="row align-items-end" method="get">
+        <div class="col-lg-7 mb-2">
+          <label class="form-control-label" for="receiving-search">Search</label>
+          <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Tracking number, site code, or site name">
+        </div>
+        <div class="col-lg-3 mb-2">
+          <label class="form-control-label" for="receiving-status">Status</label>
+          <select class="form-control" id="receiving-status" name="status">
+            <option value="">All statuses</option>
+            {% for value, label in status_choices %}
+              <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-lg-2 mb-2"><button class="btn btn-outline-primary btn-block" type="submit">Filter</button></div>
+      </form>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-items-center table-flush">
+        <thead class="thead-light"><tr>
+          <th>Tracking number</th><th>Site</th><th>Secretariat received</th><th>Receiver</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody>
+          {% for receipt in page_obj %}
+            <tr>
+              <td class="font-weight-bold">{{ receipt.tracking_number }}</td>
+              <td>{{ receipt.site.SiteCode }}<br><small class="text-muted">{{ receipt.site.SiteName }}</small></td>
+              <td>{{ receipt.date_received|date:"M j, Y" }} {{ receipt.time_received|time:"g:i A" }}</td>
+              <td>{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}</td>
+              <td><span class="badge badge-primary">{{ receipt.get_status_display }}</span></td>
+              <td class="text-right"><a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_detail' receipt.receiving_id %}">Open</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-5">No receiving records found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="card-footer d-flex justify-content-between">
+        {% if page_obj.has_previous %}<a href="?q={{ q|urlencode }}&status={{ status|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>{% else %}<span></span>{% endif %}
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a href="?q={{ q|urlencode }}&status={{ status|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>{% else %}<span></span>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

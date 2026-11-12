@@ -1,0 +1,19 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Confirm laboratory receipt{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4"><div class="row justify-content-center"><div class="col-lg-7">
+  <div class="card shadow-sm">
+    <div class="card-header"><h1 class="h3 mb-1">Confirm laboratory receipt</h1><p class="text-muted mb-0">{{ receipt.tracking_number }} · {{ receipt.site.SiteCode }}</p></div>
+    <div class="card-body">
+      <div class="alert alert-info">This confirms laboratory custody only. Sorting and acceptance or rejection happen later.</div>
+      <form method="post" novalidate>{% csrf_token %}
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}<div class="form-group"><label class="form-control-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</div>{% endfor %}
+        <div class="d-flex justify-content-between"><a class="btn btn-outline-secondary" href="{% url 'receiving_detail' receipt.receiving_id %}">Cancel</a><button class="btn btn-primary" type="submit">Confirm laboratory receipt</button></div>
+      </form>
+    </div>
+  </div>
+</div></div></div>
+{% endblock %}

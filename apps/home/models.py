@@ -638,6 +638,7 @@ class arsStaff_Details(models.Model):
         ('',''),
         ('DMU Encoder', 'DMU Encoder'),
         ('LAB Encoder', 'LAB Encoder'),
+        ('Secretariat', 'Secretariat'),
         ('Verifier','Verifier'),
         ('Checker', 'Checker'),
         ('Manager', 'Manager'),
