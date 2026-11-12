@@ -76,6 +76,7 @@ def receiving_dashboard(request):
             "endorsed_count": counts.get(ReferralReceipt.Status.ENDORSED, 0),
             "lab_received_count": counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0),
             "can_manage_secretariat": can_manage_secretariat_receiving(request.user),
+            "can_confirm_lab": can_confirm_lab_receipt(request.user),
         },
     )
 

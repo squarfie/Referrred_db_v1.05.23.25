@@ -69,6 +69,44 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         self.assertEqual(self.receipt.status, ReferralReceipt.Status.RECEIVED)
         self.assertEqual(self.receipt.events.count(), 1)
 
+    def test_manual_lab_confirmation_link_available_on_endorsed_batch(self):
+        self.receipt.status = ReferralReceipt.Status.ENDORSED
+        self.receipt.endorsed_at = timezone.make_aware(datetime(2026, 11, 12, 9, 0))
+        self.receipt.endorsed_by = self.secretariat
+        self.receipt.save()
+        self.client.force_login(self.lab)
+        target = reverse("receiving_lab_confirm", kwargs={"receiving_id": self.receipt.receiving_id})
+        dashboard = self.client.get(reverse("receiving_dashboard"))
+        self.assertContains(dashboard, 'Confirm receipt')
+        self.assertContains(dashboard, target)
+        detail = self.client.get(reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        self.assertContains(detail, 'Confirm laboratory receipt')
+        self.assertContains(detail, 'Scanning is optional.')
+        self.assertEqual(self.client.get(target).status_code, 200)
+
+    def test_manual_lab_confirmation_not_offered_before_endorsement(self):
+        self.client.force_login(self.lab)
+        dashboard = self.client.get(reverse("receiving_dashboard"))
+        self.assertNotContains(dashboard, 'Confirm receipt')
+        detail = self.client.get(reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        self.assertContains(detail, 'awaiting endorsement')
+        url = reverse("receiving_lab_confirm", kwargs={"receiving_id": self.receipt.receiving_id})
+        self.assertRedirects(self.client.get(url), reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        self.receipt.refresh_from_db()
+        self.assertEqual(self.receipt.status, ReferralReceipt.Status.RECEIVED)
+
+    def test_secretariat_cannot_use_manual_lab_confirmation(self):
+        self.receipt.status = ReferralReceipt.Status.ENDORSED
+        self.receipt.endorsed_at = timezone.make_aware(datetime(2026, 11, 12, 9, 0))
+        self.receipt.save()
+        self.client.force_login(self.secretariat)
+        dashboard = self.client.get(reverse("receiving_dashboard"))
+        self.assertNotContains(dashboard, 'Confirm receipt')
+        url = reverse("receiving_lab_confirm", kwargs={"receiving_id": self.receipt.receiving_id})
+        self.assertRedirects(self.client.get(url), reverse("home"))
+        self.receipt.refresh_from_db()
+        self.assertEqual(self.receipt.status, ReferralReceipt.Status.ENDORSED)
+
     def test_scanning_confirmed_batch_shows_read_only_detail(self):
         self.receipt.status = ReferralReceipt.Status.LAB_RECEIVED
         self.receipt.endorsed_at = timezone.make_aware(datetime(2026, 11, 12, 9, 0))
