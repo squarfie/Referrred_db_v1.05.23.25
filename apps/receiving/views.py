@@ -153,6 +153,12 @@ def receiving_endorse(request, receiving_id):
 @lab_receiving_required
 def receiving_lab_confirm(request, receiving_id):
     receipt = _receipt_or_404(receiving_id)
+    if receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
+        messages.info(request, "This batch has already been received by the laboratory.")
+        return redirect("receiving_detail", receiving_id=receiving_id)
+    if receipt.status != ReferralReceipt.Status.ENDORSED:
+        messages.warning(request, "This batch has not yet been endorsed to the laboratory.")
+        return redirect("receiving_detail", receiving_id=receiving_id)
     if request.method == "POST":
         form = LabReceiptForm(request.POST, receipt=receipt)
         if form.is_valid():
