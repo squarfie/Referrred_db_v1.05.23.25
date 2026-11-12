@@ -15,7 +15,7 @@
     </div>
   </div>
 
-  {% if receipt.status == 'endorsed' %}<div class="alert alert-info">Awaiting acknowledgment by the laboratory. Authorized LAB Encoder staff can click <strong>Confirm laboratory receipt</strong> above or open this record by scanning its QR label. Scanning is optional.</div>{% endif %}
+  {% if receipt.status == 'endorsed' %}<div class="alert alert-info">Awaiting acknowledgment by the laboratory. Authorized LAB Encoder staff can acknowledge this batch from its detail page or the Receiving dashboard. Scanning is optional.</div>{% endif %}
   {% if receipt.status == 'received' %}<div class="alert alert-warning">This batch is awaiting endorsement by the Secretariat. Laboratory confirmation becomes available after endorsement. {% if can_endorse %}Click <strong>Endorse to laboratory</strong> above to proceed.{% endif %}</div>{% endif %}
   {% if receipt.status == 'lab_received' %}<div class="alert alert-success"><strong>Custody confirmed.</strong> The laboratory has received this batch. Sorting and acceptance or rejection are outside this phase.</div>{% endif %}
 
