@@ -4,17 +4,121 @@ Copyright (c) 2019 - present AppSeed.us
 """
 
 from django.contrib.auth.models import User
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
-from django.test import RequestFactory, TestCase
+from django.contrib.staticfiles import finders
+from django.template.loader import get_template
+from django.template.loader import render_to_string
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from io import BytesIO
 from openpyxl import load_workbook
+from pathlib import Path
+import tinycss2
+from types import SimpleNamespace
 
 from apps.home.models import AntibioticEntry, BreakpointsTable, Referred_Data
 from apps.home.views import export_Antibioticentry
 from apps.home_final.models import Final_AntibioticEntry, Final_Data
 from apps.home_final.views import export_final_antibiotic_entries
 from django.urls import reverse
+
+
+class SharedTemplateSyntaxTests(SimpleTestCase):
+    def test_sidenav_template_compiles(self):
+        get_template("includes/sidenav.html")
+
+    def test_base_layout_exposes_accessible_sidebar_icon_rail_controls(self):
+        request = RequestFactory().get("/")
+        request.user = AnonymousUser()
+        request.resolver_match = SimpleNamespace(url_name="index")
+        user_access = SimpleNamespace(
+            is_review_only=True,
+            can_view_receiving=False,
+        )
+
+        rendered = render_to_string(
+            "layouts/base.html",
+            {"request": request, "user_access": user_access},
+            request=request,
+        )
+
+        self.assertIn('id="sidenavIconRailToggle"', rendered)
+        self.assertIn('type="button"', rendered)
+        self.assertIn('aria-controls="sidenav-main"', rendered)
+        self.assertIn('aria-expanded="true"', rendered)
+        self.assertIn('/static/assets/css/sidebar-icon-rail.css', rendered)
+        self.assertIn('/static/assets/js/sidebar-icon-rail.js', rendered)
+
+    def test_collapsed_icon_rail_resets_argon_offsets_and_centers_links(self):
+        stylesheet = Path(
+            finders.find("assets/css/sidebar-icon-rail.css")
+        ).read_text(encoding="utf-8")
+        declarations_by_selector = {}
+
+        def collect_rules(rules):
+            for rule in rules:
+                if rule.type == "at-rule" and rule.content is not None:
+                    collect_rules(
+                        tinycss2.parse_rule_list(
+                            rule.content,
+                            skip_comments=True,
+                            skip_whitespace=True,
+                        )
+                    )
+                elif rule.type == "qualified-rule":
+                    selector = tinycss2.serialize(rule.prelude).strip()
+                    declarations_by_selector[selector] = {
+                        declaration.name: tinycss2.serialize(
+                            declaration.value
+                        ).strip()
+                        for declaration in tinycss2.parse_declaration_list(
+                            rule.content,
+                            skip_comments=True,
+                            skip_whitespace=True,
+                        )
+                        if declaration.type == "declaration"
+                    }
+
+        collect_rules(
+            tinycss2.parse_stylesheet(
+                stylesheet,
+                skip_comments=True,
+                skip_whitespace=True,
+            )
+        )
+
+        nav_selector = (
+            "body.sidenav-icon-rail-collapsed "
+            "#sidenav-main .navbar-nav"
+        )
+        link_selector = (
+            "body.sidenav-icon-rail-collapsed "
+            "#sidenav-main .nav-link"
+        )
+        nav_declarations = declarations_by_selector.get(nav_selector)
+        if nav_declarations is None:
+            nav_declarations = next(
+                declarations
+                for selector, declarations in declarations_by_selector.items()
+                if nav_selector in [part.strip() for part in selector.split(",")]
+            )
+
+        self.assertEqual(
+            nav_declarations.get("margin-left"), "0"
+        )
+        self.assertEqual(
+            nav_declarations.get("margin-right"), "0"
+        )
+        self.assertEqual(
+            declarations_by_selector[link_selector].get("display"), "flex"
+        )
+        self.assertEqual(
+            declarations_by_selector[link_selector].get("align-items"), "center"
+        )
+        self.assertEqual(
+            declarations_by_selector[link_selector].get("justify-content"), "center"
+        )
 
 
 class DeleteBreakpointsByDateModifiedRangeTests(TestCase):

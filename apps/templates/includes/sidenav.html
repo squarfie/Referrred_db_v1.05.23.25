@@ -70,6 +70,18 @@
       <a class="navbar-brand" href="/" >
         <img src="/static/assets/img/theme/arsp_logo_v2026.1.png" class="navbar-brand-img" alt="ARSP">
       </a>
+      <button
+        type="button"
+        class="sidenav-icon-rail-toggle"
+        id="sidenavIconRailToggle"
+        aria-controls="sidenav-main"
+        aria-expanded="true"
+        aria-label="Collapse sidebar"
+        title="Collapse sidebar"
+      >
+        <i class="fas fa-chevron-left sidenav-icon-rail-collapse-icon" aria-hidden="true"></i>
+        <i class="fas fa-chevron-right sidenav-icon-rail-expand-icon" aria-hidden="true" hidden></i>
+      </button>
     </div>
     <div class="navbar-inner">
       <!-- Collapse -->
@@ -160,7 +172,6 @@
           </li>
           {% endif %}
 
-          {% if not user_access.can_view_receiving %}
           <li class="nav-item">
             <!-- <a class="nav-link" href="{% url 'batch_create_view' %}"> -->
               <a class="nav-link {% if current_url == 'batch_create_view' %}active{% endif %}"
@@ -187,8 +198,9 @@
                   <i class="fa fa-suitcase text-primary"></i>
                   <span class="nav-link-text">View Final Data</span>
               </a>
-            {% endif %}
+        
           </li>
+        
           <li class="nav-item">
 
             <a class="nav-link {% if current_url == 'view_wgs_overview' %}active{% endif %}"
@@ -197,7 +209,9 @@
                 <span class="nav-link-text">WGS Data</span>
             </a>
           </li>
-          {% if not user_access.can_view_receiving %}
+        
+
+        
           <li class="nav-item">
 
             <a class="nav-link {% if current_url == 'upload_wgs_view' %}active{% endif %}"
@@ -206,7 +220,7 @@
               <span class="nav-link-text">Upload Data</span>
           </a>
           </li>
-          {% endif %}
+      
           
           <li class="nav-item">
 
@@ -216,7 +230,8 @@
                 <span class="nav-link-text">Running TAT</span>
             </a>
           </li>
-          {% if not user_access.can_view_receiving %}
+
+         
           <li class="nav-item">
             <a class="nav-link {% if current_url == 'concordance_history' %}active{% endif %}"
             href="{% url 'concordance_history' %}">
@@ -224,7 +239,7 @@
               <span class="nav-link-text">Concordance</span>
           </a>
           </li>
-          {% endif %}
+       
 
           {% if user_access.can_view_verification %}
           <li class="nav-item">
@@ -234,8 +249,7 @@
               <span class="nav-link-text">Verification</span>
             </a>
           </li>
-          {% endif %}
-             
+
           {% endif %}
         </ul>
         {% if not user_access.is_review_only %}
@@ -260,7 +274,7 @@
                   <span class="nav-link-text">Age verifier</span>
               </a>
           </li>
- {% if not user_access.can_view_receiving %}
+
           <li class="nav-item">
 
             <a class="nav-link {% if current_url == 'field_mapper_tool' %}active{% endif %}"
@@ -273,6 +287,7 @@
 
           </ul>
           
+         
           <div>
             <hr class="my-3" />
           <h6 class="navbar-heading p-0 text-muted">
@@ -289,7 +304,9 @@
                 </li>
 
             </ul>
-            {% endif %}
+           
+
+{% endif %}
 {% endif %}
 {% endwith %}
       </div>

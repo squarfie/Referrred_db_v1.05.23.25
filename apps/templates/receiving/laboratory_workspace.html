@@ -14,7 +14,7 @@
   <div class="receiving-content">
     <div class="alert alert-info receiving-notice"><i class="fas fa-user-check"></i><div><strong>The LAB Encoder decides acceptance or rejection.</strong> The system validates the totals but does not classify isolates automatically.</div></div>
     
-  <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Receiving and Inventory of Referred Isolates</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
+  <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Step 1: Receiving and Inventory of Referred Isolates</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
     <div class="receiving-card-body">
       <form method="post" novalidate>
         {% csrf_token %}
@@ -85,7 +85,7 @@
 
         {% if can_edit %}
         <div class="receiving-form-actions">
-          <button class="btn btn-primary" type="submit"><i class="fas fa-save mr-1"></i>Save laboratory decision</button>
+          <button class="btn btn-primary" type="submit"><i class="fas fa-save mr-1"></i>Save inventory details</button>
         </div>
         {% endif %}
       </form>
@@ -93,7 +93,7 @@
       <div class="border-top mt-4 pt-4">
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
           <div>
-            <h3 class="h5 mb-1">Organism inventory</h3>
+            <h2 class="h5 mb-1">Step 2: Organism inventory</h2>
             <p class="text-muted small mb-0">Record organism counts for each saved accession range. These counts remain linked to the range for traceability.</p>
           </div>
         </div>
