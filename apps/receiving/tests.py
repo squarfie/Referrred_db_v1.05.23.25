@@ -806,6 +806,31 @@ class ReceivingViewTests(TestCase):
             {"pending": 1, "endorsed": 1, "received": 1, "all": 3},
         )
 
+    def test_legacy_status_filter_remains_supported(self):
+        matched = self.create_receipt("LEGACY-ENDORSED", ReferralReceipt.Status.ENDORSED)
+        self.create_receipt("LEGACY-RECEIVED", ReferralReceipt.Status.RECEIVED)
+        self.client.force_login(self.secretariat)
+
+        response = self.client.get(
+            self.route("receiving_dashboard"),
+            {"status": ReferralReceipt.Status.ENDORSED},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["page_obj"].object_list), [matched])
+        self.assertEqual(response.context["active_tab"], "endorsed")
+
+    def test_explicit_tab_takes_precedence_over_legacy_status(self):
+        matched = self.create_receipt("TAB-PENDING", ReferralReceipt.Status.RECEIVED)
+        self.create_receipt("TAB-ENDORSED", ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.secretariat)
+
+        response = self.client.get(
+            self.route("receiving_dashboard"),
+            {"tab": "pending", "status": ReferralReceipt.Status.ENDORSED},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["page_obj"].object_list), [matched])
+
     def test_invalid_tab_falls_back_to_pending(self):
         self.client.force_login(self.lab_encoder)
         response = self.client.get(self.route("receiving_dashboard"), {"tab": "not-a-tab"})
