@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="/static/assets/css/arsp.css" type="text/css">
 
   <link rel="stylesheet" href="/static/assets/css/header.css" type="text/css">
+  <link rel="stylesheet" href="/static/assets/css/sidebar-icon-rail.css" type="text/css">
 
   <title>{% block title %}REFERRED DATABASE{% endblock %}</title>
 
@@ -43,6 +44,21 @@
 </head>
 
 <body class="arsp-compact">
+
+  <script>
+    (function () {
+      try {
+        if (
+          window.matchMedia('(min-width: 1200px)').matches &&
+          window.localStorage.getItem('referred-sidenav-icon-rail') === 'collapsed'
+        ) {
+          document.body.classList.add('sidenav-icon-rail-collapsed');
+        }
+      } catch (error) {
+        // Storage can be unavailable in privacy-restricted browsers.
+      }
+    })();
+  </script>
 
   <!-- SIDE NAV -->
   {% include "includes/sidenav.html" %}
@@ -63,6 +79,7 @@
   <script src="/static/assets/js/modal-layer-fix.js"></script>
   <script src="/static/assets/js/stable-back-buttons.js"></script>
   <script src="/static/assets/js/multi-select-clear.js"></script>
+  <script src="/static/assets/js/sidebar-icon-rail.js"></script>
 
   {% block javascripts %}
       <script src="/static/assets/js/argon.js?v=1.2.0"></script>
