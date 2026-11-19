@@ -111,7 +111,7 @@
           {% if user_access.nav_can_view_reports %}
           <li class="nav-item"><a class="nav-link {% if current_url == 'tat_running_list' %}active{% endif %}" href="{% url 'tat_running_list' %}"><i class="fas fa-chart-line text-primary"></i><span class="nav-link-text">Running TAT</span></a></li>
           {% endif %}
-          {% if user_access.nav_can_view_reports and not user_access.is_secretariat %}
+          {% if user_access.nav_can_view_concordance %}
           <li class="nav-item"><a class="nav-link {% if current_url == 'concordance_history' %}active{% endif %}" href="{% url 'concordance_history' %}"><i class="fas fa-chart-bar text-primary"></i><span class="nav-link-text">Concordance</span></a></li>
           {% endif %}
           {% if user_access.nav_can_view_verification %}
