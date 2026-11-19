@@ -923,7 +923,8 @@ class ReferredUploadSecurityTests(TestCase):
         self.owned.refresh_from_db()
         self.assertEqual(self.owned.First_Name, "Collaborative")
         details = " ".join(str(message) for message in list(response.wsgi_request._messages))
-        self.assertNotIn("protected records skipped", details)
+        self.assertIn("0 protected records skipped", details)
+        self.assertNotIn("Skipped:", details)
 
     def test_mixed_import_skips_verified_batch_and_updates_unlocked_record(self):
         from apps.verification.models import VerificationCase
