@@ -426,7 +426,7 @@ $(document).ready(function () {
     if (IS_EDITING) return;
     const batch = $batchNum.val().trim();
     const total = $totalBatch.val().trim();
-    if (!/^\\d{1,4}$/.test(batch) || !/^\\d{1,4}$/.test(total)) {
+    if (!/^[0-9]{1,4}$/.test(batch) || !/^[0-9]{1,4}$/.test(total)) {
       $refNo.val('');
       return;
     }
