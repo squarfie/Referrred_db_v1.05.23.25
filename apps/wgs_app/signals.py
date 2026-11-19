@@ -1,8 +1,9 @@
 # apps/wgs_app/signals.py
 from django.apps import apps
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, pre_delete
 from django.dispatch import receiver
 from .models import *
+from apps.home_final.models import Final_Data
 
 
 
@@ -120,3 +121,57 @@ def sync_gambit_flag(sender, instance, **kwargs):
 def sync_amrfinder_flag(sender, instance, **kwargs):
     if instance.amrfinder_project:
         update_summary_flag(instance.amrfinder_project, 'WGS_AmrfinderSummary')
+
+
+
+@receiver(post_save, sender=WGS_Project)
+def preserve_wgs_original_accession(sender, instance, **kwargs):
+    """Keep the accession independently of the Final Data foreign key."""
+    if instance.Ref_Accession_id and instance.original_accession != instance.Ref_Accession_id:
+        WGS_Project.objects.filter(pk=instance.pk).update(
+            original_accession=instance.Ref_Accession_id
+        )
+
+
+@receiver(pre_delete, sender=Final_Data)
+def preserve_wgs_project_accession_before_final_delete(sender, instance, **kwargs):
+    """Cover legacy projects whose original accession was never populated."""
+    WGS_Project.objects.filter(
+        Ref_Accession_id=instance.f_AccessionNo,
+        original_accession="",
+    ).update(original_accession=instance.f_AccessionNo)
+
+# Final accessions are the only laboratory reference for WGS matching.
+# Existing WGS results remain independent of the Final verification workflow.
+@receiver(post_delete, sender=Final_Data)
+def mark_orphaned_custom_wgs_records_unmatched(sender, instance, **kwargs):
+    from .reconciliation import accession_keys
+    target_keys = accession_keys(instance.f_AccessionNo)
+    if not target_keys:
+        return
+    # Matching may use an uploaded filename (e.g. SAMPLE.fna) rather
+    # than the exact Final accession string.
+    orphan_ids = [
+        pk for pk, value in CustomWGSPipelineRecord.objects.filter(
+            matched_final_data__isnull=True,
+            match_status="matched",
+        ).values_list("pk", "accession").iterator()
+        if accession_keys(value) & target_keys
+    ]
+    if orphan_ids:
+        CustomWGSPipelineRecord.objects.filter(pk__in=orphan_ids).update(
+            match_status="unmatched", match_source=""
+        )
+
+
+@receiver(post_save, sender=Final_Data)
+def reconcile_wgs_after_final_reimport(sender, instance, created, **kwargs):
+    if not created:
+        return
+    # Bulk imports (bulk_create) bypass post_save; run reconcile_wgs_matches
+    # from the management command after those imports.
+    from apps.home_final.signals import signals_suspended_for_import
+    if signals_suspended_for_import():
+        return
+    from .reconciliation import reconcile_wgs_matches
+    reconcile_wgs_matches(accession=instance.f_AccessionNo)

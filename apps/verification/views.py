@@ -29,6 +29,7 @@ from apps.home.permissions import (
     get_user_roles,
     role_required,
 )
+from apps.home.templatetags.custom_filters import mic_format
 from apps.home_final.models import Final_AntibioticEntry, Final_Data
 from apps.home_final.utils import antibiotic_print_order, sort_abx_codes_by_antibiotic
 
@@ -397,12 +398,16 @@ def _is_assigned_lab_manager(case, user):
 def _can_write_case_field_comments(case, roles, user):
     if ROLE_ADMIN in roles:
         return True
-    if ROLE_VERIFIER in roles and case.status in {
-        VerificationCase.STATUS_FOR_RAW_VERIFICATION,
-        VerificationCase.STATUS_FOR_VERIFICATION,
-        VerificationCase.STATUS_RETURNED_TO_VERIFIER,
-        VerificationCase.STATUS_RETURNED_TO_CHECKER,
-    }:
+    if (
+        ROLE_VERIFIER in roles
+        and case.status in {
+            VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+            VerificationCase.STATUS_FOR_VERIFICATION,
+            VerificationCase.STATUS_RETURNED_TO_VERIFIER,
+            VerificationCase.STATUS_RETURNED_TO_CHECKER,
+        }
+        and (not case.assigned_verifier_id or case.assigned_verifier_id == user.id)
+    ):
         return True
     if (
         ROLE_LAB_MANAGER in roles
@@ -417,22 +422,24 @@ def _can_write_case_field_comments(case, roles, user):
 
 
 def _can_submit_verifier_actions(case, roles):
-    return ROLE_ADMIN in roles or (
-        ROLE_VERIFIER in roles
-        and case.status in {
-            VerificationCase.STATUS_FOR_RAW_VERIFICATION,
-            VerificationCase.STATUS_FOR_VERIFICATION,
-            VerificationCase.STATUS_RETURNED_TO_VERIFIER,
-            VerificationCase.STATUS_RETURNED_TO_CHECKER,
-        }
-    )
+    # Admins may act across batches, but cannot act outside review stages.
+    if case.status not in {
+        VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+        VerificationCase.STATUS_FOR_VERIFICATION,
+        VerificationCase.STATUS_RETURNED_TO_VERIFIER,
+        VerificationCase.STATUS_RETURNED_TO_CHECKER,
+    }:
+        return False
+    return bool(ROLE_ADMIN in roles or ROLE_VERIFIER in roles)
 
 
 def _can_submit_lab_manager_actions(case, roles, user):
-    return ROLE_ADMIN in roles or (
-        ROLE_LAB_MANAGER in roles
-        and case.status == VerificationCase.STATUS_FOR_LAB_MANAGER
-        and _is_assigned_lab_manager(case, user)
+    # No role, including Admin, may skip Lab Manager review.
+    if case.status != VerificationCase.STATUS_FOR_LAB_MANAGER:
+        return False
+    return bool(
+        ROLE_ADMIN in roles
+        or (ROLE_LAB_MANAGER in roles and _is_assigned_lab_manager(case, user))
     )
 
 
@@ -795,6 +802,12 @@ def send_batch_to_verifier(request, batch_id):
         return redirect(next_url or "show_data")
     note = request.POST.get("note", "").strip()
 
+    # Validate the selected reviewer before creating or modifying the case.
+    verifier_staff = get_object_or_404(
+        _staff_for_role(ROLE_VERIFIER, ROLE_ADMIN),
+        pk=request.POST.get("verifier_staff"),
+    )
+
     case, created = VerificationCase.objects.get_or_create(
         final_batch=batch,
         final_accession=None,
@@ -834,16 +847,10 @@ def send_batch_to_verifier(request, batch_id):
         messages.error(request, "Only the Final Encoder can endorse Final Data for verification.")
         return redirect(next_url or _case_detail_url(case.id))
 
-    verifier_staff = None
+    # Both Raw and Final cases are assigned to the selected verifier.
     if is_final_endorsement:
-        verifier_staff = get_object_or_404(
-            _staff_for_role(ROLE_VERIFIER, ROLE_ADMIN),
-            pk=request.POST.get("verifier_staff"),
-        )
         case.assigned_checker = request.user
-        case.assigned_verifier = verifier_staff.User_Account
-    else:
-        case.assigned_verifier = None
+    case.assigned_verifier = verifier_staff.User_Account
     case.status = (
         VerificationCase.STATUS_FOR_RAW_VERIFICATION
         if is_raw_endorsement
@@ -861,12 +868,12 @@ def send_batch_to_verifier(request, batch_id):
         batch.bat_Status = next_raw_draft_status(batch.bat_Status)
         batch.save(update_fields=["bat_Status"])
 
-    if verifier_staff:
-        _sync_case_signatories(
-            case,
-            checker_staff=_staff_for_user(request.user),
-            verifier_staff=verifier_staff,
-        )
+    # Raw sender is the Encoder, not the Checker signatory.
+    _sync_case_signatories(
+        case,
+        checker_staff=_staff_for_user(request.user) if is_final_endorsement else None,
+        verifier_staff=verifier_staff,
+    )
 
     action = "created and sent" if created else "sent"
     messages.success(request, f"Verification case {action} for {batch.bat_Batch_Code or batch.bat_Batch_Name}.")
@@ -912,7 +919,8 @@ def _review_rows_for_case(case, selected_accession_id=None):
             result_parts.append(f"{disk_value or '-'} {disk_ris or ''}".strip())
         if mic_value not in (None, "") or mic_operand or mic_ris:
             methods.append("MIC")
-            mic_display = f"{mic_operand or ''}{mic_value if mic_value not in (None, '') else '-'} {mic_ris or ''}".strip()
+            formatted_mic = mic_format(mic_value) if mic_value not in (None, "") else "-"
+            mic_display = f"{mic_operand or ''}{formatted_mic} {mic_ris or ''}".strip()
             result_parts.append(mic_display)
         return {
             "test_method": " / ".join(methods) or method_prefix,
@@ -990,18 +998,18 @@ def _review_rows_for_case(case, selected_accession_id=None):
             site_result = antibiotic_result(
                 "Site",
                 entry.ab_Disk_value,
-                entry.ab_Disk_RIS,
+                entry.ab_Disk_enRIS,
                 entry.ab_MIC_operand,
                 entry.ab_MIC_value,
-                entry.ab_MIC_RIS,
+                entry.ab_MIC_enRIS,
             )
             ars_result = antibiotic_result(
                 "Retest",
                 entry.ab_Retest_DiskValue,
-                entry.ab_Retest_Disk_RIS,
+                entry.ab_Retest_Disk_enRIS,
                 entry.ab_Retest_MIC_operand,
                 entry.ab_Retest_MICValue,
-                entry.ab_Retest_MIC_RIS,
+                entry.ab_Retest_MIC_enRIS,
             )
             has_site_result = bool(entry.ab_Antibiotic and site_result["encoded_result"] != "-")
             has_arsrl_result = bool(entry.ab_Retest_Antibiotic and ars_result["encoded_result"] != "-")
@@ -1380,6 +1388,15 @@ def verification_case_detail(request, case_id):
             roles = get_user_roles(request.user)
             is_assigned_head = case.assigned_head_id and case.assigned_head_id == request.user.id
             can_release_case = bool(ROLE_ADMIN in roles or ROLE_CHECKER in roles)
+            # Final-review actions must never be used during Raw review, Draft,
+            # signed/released review, or any unrelated workflow stage.
+            if action in {"approve", "return_checker", "send_lab_manager"} and case.status not in {
+                VerificationCase.STATUS_FOR_FINAL_VERIFICATION,
+                VerificationCase.STATUS_RETURNED_TO_VERIFIER,
+                VerificationCase.STATUS_RETURNED_TO_CHECKER,
+            }:
+                messages.error(request, "This action is only available during Final Verification review.")
+                return redirect("verification_case_detail", case_id=case.id)
             if action in {"approve", "return_checker", "send_lab_manager"} and not _can_submit_verifier_actions(case, roles):
                 messages.error(request, "Verifier actions are available only while the case is on the verifier side.")
                 return redirect("verification_case_detail", case_id=case.id)
@@ -1516,6 +1533,11 @@ def verification_case_detail(request, case_id):
     can_submit_raw_review = bool(
         case.status == VerificationCase.STATUS_FOR_RAW_VERIFICATION
         and _can_submit_verifier_actions(case, roles)
+        and (
+            ROLE_ADMIN in roles
+            or not case.assigned_verifier_id
+            or case.assigned_verifier_id == request.user.id
+        )
     )
     can_route_final_review = _can_route_final_review(case, roles, request.user)
     can_route_lab_final_review = _can_route_lab_final_review(case, roles, request.user)

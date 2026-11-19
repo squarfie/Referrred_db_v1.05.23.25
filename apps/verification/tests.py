@@ -126,18 +126,36 @@ class RawEndorsementTests(TestCase):
             bat_Batch_Code="RAW-001",
             bat_Status="Encoding",
         )
+        self.verifier = User.objects.create_user(
+            "raw_assigned_verifier", password="test-pass",
+        )
+        self.verifier.groups.add(Group.objects.create(name=ROLE_VERIFIER))
+        self.verifier_staff = arsStaff_Details.objects.create(
+            User_Account=self.verifier,
+            Staff_Name="Assigned Raw Verifier",
+            Staff_Role=ROLE_VERIFIER,
+        )
         self.client.force_login(self.encoder)
 
-    def test_raw_encoder_endorses_without_selecting_a_verifier(self):
+    def test_raw_encoder_must_select_a_verifier(self):
         response = self.client.post(
             reverse("send_batch_to_verifier", args=[self.batch.pk]),
             {"next": reverse("show_data")},
         )
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(VerificationCase.objects.filter(final_batch=self.batch).exists())
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.bat_Status, "Encoding")
 
+    def test_raw_encoder_endorses_to_selected_verifier(self):
+        response = self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"next": reverse("show_data"), "verifier_staff": self.verifier_staff.pk},
+        )
         self.assertEqual(response.status_code, 302)
         case = VerificationCase.objects.get(final_batch=self.batch)
         self.assertEqual(case.status, VerificationCase.STATUS_FOR_RAW_VERIFICATION)
-        self.assertIsNone(case.assigned_verifier)
+        self.assertEqual(case.assigned_verifier, self.verifier)
         self.batch.refresh_from_db()
         self.assertEqual(self.batch.bat_Status, "First Draft")
 
@@ -152,32 +170,114 @@ class RawEndorsementTests(TestCase):
 
         self.assertContains(response, "Send Raw Batch")
         self.assertContains(response, 'id="sendRawVerificationModal"')
+        self.assertContains(response, 'name="verifier_staff"')
+        self.assertContains(response, "Assigned Raw Verifier")
         self.assertContains(response, 'class="batch-workflow-btn send-raw-verification-btn"')
         self.assertNotContains(response, "Endorse RAW-001 for verification?")
 
+    def test_unbatched_raw_record_does_not_offer_batch_endorsement(self):
+        admin = User.objects.create_user("raw_unbatched_admin", password="test-pass")
+        admin.groups.add(Group.objects.create(name=ROLE_ADMIN))
+        Referred_Data.objects.create(
+            Batch_id=None,
+            Batch_Code="",
+            AccessionNo="RAW-UNBATCHED-1",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("show_data"), {"q": "RAW-UNBATCHED-1"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Unbatched")
+        self.assertNotContains(response, "Endorse raw data for all verifiers")
+
+    def test_unbatched_raw_accordion_loads_its_records(self):
+        admin = User.objects.create_user("raw_unbatched_rows_admin", password="test-pass")
+        admin.groups.add(Group.objects.create(name=ROLE_ADMIN))
+        Referred_Data.objects.create(
+            Batch_id=None,
+            Batch_Code="",
+            AccessionNo="RAW-UNBATCHED-ROWS-1",
+            SiteCode="ZMC",
+        )
+        Referred_Data.objects.create(
+            Batch_id=None,
+            Batch_Code="",
+            AccessionNo="RAW-UNBATCHED-ROWS-2",
+            SiteCode="BRH",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(
+            reverse("raw_batch_rows"),
+            {"batch_id": "", "site_code": "ZMC", "target": "raw-unbatched"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("RAW-UNBATCHED-ROWS-1", response.json()["html"])
+        self.assertNotIn("RAW-UNBATCHED-ROWS-2", response.json()["html"])
+
+    def test_unbatched_raw_groups_are_separated_by_site(self):
+        admin = User.objects.create_user("raw_unbatched_groups_admin", password="test-pass")
+        admin.groups.add(Group.objects.create(name=ROLE_ADMIN))
+        Referred_Data.objects.create(Batch_id=None, AccessionNo="RAW-ZMC-1", SiteCode="ZMC")
+        Referred_Data.objects.create(Batch_id=None, AccessionNo="RAW-ZMC-2", SiteCode="ZMC")
+        Referred_Data.objects.create(Batch_id=None, AccessionNo="RAW-BRH-1", SiteCode="BRH")
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("show_data"))
+
+        unbatched_groups = [group for group in response.context["page_groups"] if not group["batch_id"]]
+        self.assertCountEqual(
+            [(group["site_code"], group["count"]) for group in unbatched_groups],
+            [("ZMC", 2), ("BRH", 1)],
+        )
+        self.assertContains(response, 'data-site-code="ZMC"')
+        self.assertContains(response, 'data-site-code="BRH"')
+
     def test_each_raw_reendorsement_advances_the_draft_label(self):
         url = reverse("send_batch_to_verifier", args=[self.batch.pk])
-        self.client.post(url)
+        self.client.post(url, {"verifier_staff": self.verifier_staff.pk})
         case = VerificationCase.objects.get(final_batch=self.batch)
 
         for expected in ("Second Draft", "Third Draft", "Third Draft"):
             case.status = VerificationCase.STATUS_RETURNED_TO_ENCODER
             case.save(update_fields=["status", "updated_at"])
-            self.client.post(url)
+            self.client.post(url, {"verifier_staff": self.verifier_staff.pk})
             self.batch.refresh_from_db()
             case.refresh_from_db()
             self.assertEqual(self.batch.bat_Status, expected)
             self.assertEqual(case.status, VerificationCase.STATUS_FOR_RAW_VERIFICATION)
 
-    def test_all_verifiers_can_see_an_unassigned_raw_endorsement(self):
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
-        verifier = User.objects.create_user("verifier", password="test-pass")
-        verifier.groups.add(Group.objects.create(name=ROLE_VERIFIER))
-        self.client.force_login(verifier)
+    def test_only_assigned_verifier_can_access_raw_endorsement(self):
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
+        case = VerificationCase.objects.get(final_batch=self.batch)
+        self.client.force_login(self.verifier)
+        self.assertContains(self.client.get(reverse("verification_dashboard")), "RAW-001")
+        self.assertEqual(
+            self.client.get(reverse("verification_case_detail", args=[case.pk])).status_code,
+            200,
+        )
 
-        response = self.client.get(reverse("verification_dashboard"))
-
-        self.assertContains(response, "RAW-001")
+        other = User.objects.create_user("other_raw_verifier", password="test-pass")
+        other.groups.add(Group.objects.get(name=ROLE_VERIFIER))
+        self.client.force_login(other)
+        self.assertNotContains(self.client.get(reverse("verification_dashboard")), "RAW-001")
+        self.assertEqual(
+            self.client.get(reverse("verification_case_detail", args=[case.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse("verification_case_detail", args=[case.pk]),
+                {"action": "send_final_encoding"},
+            ).status_code,
+            404,
+        )
 
     def test_partial_final_copy_keeps_raw_send_available_until_batch_is_complete(self):
         Referred_Data.objects.create(
@@ -242,7 +342,10 @@ class RawEndorsementTests(TestCase):
             Batch_Code="RAW-001",
             AccessionNo="RAW-LOCKED-COPY-1",
         )
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
 
         rows_response = self.client.get(
             reverse("raw_batch_rows"),
@@ -263,7 +366,10 @@ class RawEndorsementTests(TestCase):
             Batch_Code="RAW-001",
             AccessionNo="RAW-WITHDRAW-1",
         )
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
         case = VerificationCase.objects.get(final_batch=self.batch)
 
         table_response = self.client.get(reverse("show_data"), {"q": "RAW-001"})
@@ -301,17 +407,19 @@ class RawEndorsementTests(TestCase):
             ab_Antibiotic="Ampicillin",
             ab_Abx_code="AMP",
             ab_Disk_value="10",
-            ab_Disk_RIS="R",
+            ab_Disk_RIS="I",
+            ab_Disk_enRIS="R",
         )
-        self.client.post(reverse("send_batch_to_verifier", args=[self.batch.pk]))
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
         case = VerificationCase.objects.get(final_batch=self.batch)
         Final_Data.objects.create(
             f_Batch_id=self.batch,
             f_AccessionNo="PARTIAL-FINAL-COPY",
         )
-        verifier = User.objects.create_user("raw_detail_verifier", password="test-pass")
-        verifier.groups.add(Group.objects.create(name=ROLE_VERIFIER))
-        self.client.force_login(verifier)
+        self.client.force_login(self.verifier)
 
         response = self.client.get(reverse("verification_case_detail", args=[case.pk]))
 
@@ -367,6 +475,60 @@ class RawEndorsementTests(TestCase):
         comment.refresh_from_db()
         self.assertTrue(comment.is_resolved)
         self.assertEqual(comment.resolution_status, VerificationComment.RESOLUTION_HANDLED)
+
+    def test_raw_verification_displays_retest_disk_and_mic_enris_in_arsrl_result(self):
+        raw = Referred_Data.objects.create(
+            Batch_id=self.batch,
+            Batch_Code="RAW-001",
+            AccessionNo="RAW-ENRIS-1",
+        )
+        AntibioticEntry.objects.create(
+            ab_idNum_referred=raw,
+            ab_Antibiotic="Tetracycline",
+            ab_Abx_code="TCY_NM",
+            ab_MIC_value="0.125",
+            ab_MIC_enRIS="S",
+            ab_Retest_Antibiotic="Tetracycline",
+            ab_Retest_Abx_code="TCY_ND30",
+            ab_Retest_DiskValue="16",
+            ab_Retest_Disk_RIS="I",
+            ab_Retest_Disk_enRIS="S",
+            ab_Retest_MIC_operand=">=",
+            ab_Retest_MICValue="4",
+            ab_Retest_MIC_RIS="S",
+            ab_Retest_MIC_enRIS="R",
+        )
+        AntibioticEntry.objects.create(
+            ab_idNum_referred=raw,
+            ab_Retest_Antibiotic="Gentamicin",
+            ab_Retest_Abx_code="GEN_ND10",
+            ab_Retest_DiskValue="12",
+            ab_Retest_Disk_RIS="R",
+        )
+        self.client.post(
+            reverse("send_batch_to_verifier", args=[self.batch.pk]),
+            {"verifier_staff": self.verifier_staff.pk},
+        )
+        case = VerificationCase.objects.get(final_batch=self.batch)
+        self.client.force_login(self.verifier)
+
+        response = self.client.get(reverse("verification_case_detail", args=[case.pk]))
+
+        antibiotic_rows = {
+            row["antibiotic_name"]: row
+            for row in response.context["review_rows"][0]["antibiotic_rows"]
+        }
+        self.assertEqual(antibiotic_rows["Tetracycline"]["site_result"], "0.125 S")
+        self.assertEqual(antibiotic_rows["Tetracycline"]["arsrl_result"], "16 S | >=4 R")
+        self.assertEqual(antibiotic_rows["Gentamicin"]["arsrl_result"], "12")
+        self.assertContains(response, 'class="interpretation-badge interpretation-s"')
+        self.assertContains(response, 'class="interpretation-badge interpretation-r"')
+        self.assertContains(
+            response,
+            '<div class="field-value"></div><div class="antibiotic-code"></div>'
+            '<div class="antibiotic-result"></div>',
+            html=True,
+        )
 
     def test_raw_table_keeps_showing_current_status_after_copy_to_final(self):
         raw = Referred_Data.objects.create(
@@ -622,6 +784,15 @@ class RawEditAfterCopyFlagTests(TestCase):
             f_Batch_Code="RAW-AUDIT", f_Site_Name="Reviewed Final Site"
         )
 
+    def _raw_post_payload(self):
+        from django.forms.models import model_to_dict
+
+        # Django's multipart test client cannot serialize None values.
+        return {
+            key: ("" if value is None else value)
+            for key, value in model_to_dict(self.raw).items()
+        }
+
     def test_raw_edit_flags_final_but_preserves_final_values_and_audits_editor(self):
         from django.contrib.admin.models import LogEntry
         from apps.home.views import _flag_final_copy_after_raw_edit
@@ -666,3 +837,241 @@ class RawEditAfterCopyFlagTests(TestCase):
         )
         self.assertEqual(changed, 0)
         self.assertFalse(LogEntry.objects.filter(object_id=str(self.raw.pk)).exists())
+
+    def test_unchanged_raw_save_does_not_flag_final_or_log_audit(self):
+        from django.contrib.admin.models import LogEntry
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        before = {
+            field.attname: getattr(self.raw, field.attname)
+            for field in Referred_Data._meta.concrete_fields
+            if not field.primary_key
+            and not getattr(field, "auto_now", False)
+            and not getattr(field, "auto_now_add", False)
+        }
+        response = self.client.post(
+            reverse("edit_data", args=[self.raw.pk]), self._raw_post_payload()
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.raw.refresh_from_db()
+        persisted_differences = {
+            field_name: (old_value, getattr(self.raw, field_name))
+            for field_name, old_value in before.items()
+            if old_value != getattr(self.raw, field_name)
+        }
+        self.final.refresh_from_db()
+        self.assertFalse(
+            self.final.raw_updated_after_copy,
+            f"Unexpected saved Raw field changes: {persisted_differences!r}; "
+            f"flagged fields: {self.final.raw_updated_after_copy_fields!r}",
+        )
+        self.assertFalse(
+            LogEntry.objects.filter(
+                object_id=str(self.raw.pk),
+                change_message__contains="raw_edit_after_final_copy",
+            ).exists()
+        )
+
+    def test_changed_raw_field_flags_final_once(self):
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        payload = self._raw_post_payload()
+        payload["First_Name"] = "Updated"
+        self.assertEqual(
+            self.client.post(reverse("edit_data", args=[self.raw.pk]), payload).status_code,
+            302,
+        )
+        self.final.refresh_from_db()
+        self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertIn("First_Name", self.final.raw_updated_after_copy_fields)
+
+    def test_edit_data_post_records_changed_fields_without_name_error(self):
+
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        form_data = self._raw_post_payload()
+        form_data["First_Name"] = "Updated"
+
+        response = self.client.post(reverse("edit_data", args=[self.raw.pk]), form_data)
+
+        self.assertEqual(response.status_code, 302)
+        self.final.refresh_from_db()
+        self.assertTrue(self.final.raw_updated_after_copy)
+        self.assertIn("First_Name", self.final.raw_updated_after_copy_fields)
+
+    def test_raw_review_flag_replaces_copied_check_with_warning_badge(self):
+        self.encoder.groups.add(Group.objects.get_or_create(name=ROLE_ENCODER)[0])
+        self.client.force_login(self.encoder)
+        self.final.raw_updated_after_copy = True
+        self.final.raw_updated_after_copy_raw_id = self.raw.pk
+        self.final.save(update_fields=["raw_updated_after_copy", "raw_updated_after_copy_raw_id"])
+
+        response = self.client.get(
+            reverse("raw_batch_rows"),
+            {"batch_id": self.batch.pk, "target": "raw-review-test"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        html = response.json()["html"]
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('class="copied-badge exclamation"', html)
+        self.assertIn('class="fas fa-exclamation"', html)
+        self.assertNotIn('class="copied-badge yes"', html)
+        self.assertNotIn("badge-danger", html)
+
+
+class ReleasedDeletionProtectionTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user("released_delete_admin", password="test-pass")
+        self.admin.groups.add(Group.objects.get_or_create(name=ROLE_ADMIN)[0])
+        self.batch = Batch_Table.objects.create(
+            created_by=self.admin,
+            bat_Batch_Name="RELEASED-DELETE",
+            bat_Batch_Code="RELEASED-DELETE",
+        )
+        self.raw = Referred_Data.objects.create(
+            Batch_id=self.batch,
+            Batch_Code="RELEASED-DELETE",
+            AccessionNo="RELEASED-DELETE-1",
+        )
+        self.final = Final_Data.objects.create(
+            f_Batch_id=self.batch,
+            f_Batch_Code="RELEASED-DELETE",
+            f_AccessionNo="RELEASED-DELETE-1",
+        )
+        self.case = VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_RELEASED,
+        )
+        self.client.force_login(self.admin)
+
+    def test_released_raw_record_and_batch_cannot_be_deleted(self):
+        self.client.post(
+            reverse("delete_data", args=[self.raw.pk]),
+            {"confirmation": "DELETE RECORD"},
+        )
+        self.client.post(
+            reverse("delete_record_in_batch", args=[self.raw.pk]),
+            {"confirmation": "DELETE RECORD"},
+        )
+        self.client.post(
+            reverse("delete_batch", args=[self.batch.pk]),
+            {"confirmation": "DELETE BATCH"},
+        )
+
+        self.assertTrue(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+        self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
+        self.assertTrue(Batch_Table.objects.filter(pk=self.batch.pk).exists())
+
+    def test_released_final_record_can_be_deleted_from_wgs_page(self):
+        response = self.client.post(reverse("delete_final_data", args=[self.final.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Final_Data.objects.filter(pk=self.final.pk).exists())
+        self.assertTrue(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+
+    def test_released_raw_record_can_be_deleted_from_wgs_page(self):
+        response = self.client.post(reverse("delete_referred_data", args=[self.raw.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Referred_Data.objects.filter(pk=self.raw.pk).exists())
+        self.assertTrue(Final_Data.objects.filter(pk=self.final.pk).exists())
+
+    def test_released_raw_and_final_delete_controls_are_disabled(self):
+        raw_response = self.client.get(
+            reverse("raw_batch_rows"),
+            {"batch_id": self.batch.pk, "target": "released-raw"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        final_response = self.client.get(
+            reverse("final_batch_rows"),
+            {"batch_id": self.batch.pk, "target": "released-final"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        raw_html = raw_response.json()["html"]
+        final_html = final_response.json()["html"]
+        self.assertIn("Released records cannot be deleted.", raw_html)
+        self.assertNotIn(reverse("delete_data", args=[self.raw.pk]), raw_html)
+        self.assertIn("Released batches cannot be deleted.", raw_html)
+        self.assertNotIn(reverse("delete_batch", args=[self.batch.pk]), raw_html)
+        self.assertIn("Released records cannot be deleted.", final_html)
+        self.assertNotIn(reverse("delete_final_data", args=[self.final.pk]), final_html)
+
+        wgs_raw_response = self.client.get(reverse("show_referred_data"), {"q": self.raw.AccessionNo})
+        wgs_final_response = self.client.get(reverse("show_final_data"), {"q": self.final.f_AccessionNo})
+        self.assertContains(wgs_raw_response, reverse("delete_referred_data", args=[self.raw.pk]))
+        self.assertContains(wgs_final_response, reverse("delete_final_data", args=[self.final.pk]))
+
+
+class AdminVerificationStageSecurityTests(TestCase):
+    """An Admin can work across batches, but cannot skip workflow stages."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="workflow-stage-admin", password="test-password",
+        )
+        self.admin.groups.add(Group.objects.get_or_create(name=ROLE_ADMIN)[0])
+        self.batch = Batch_Table.objects.create(
+            created_by=self.admin,
+            bat_Batch_Name="SECURITY-STAGE",
+            bat_Batch_Code="SECURITY-STAGE",
+        )
+        self.case = VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_DRAFT,
+        )
+        self.url = reverse("verification_case_detail", args=[self.case.pk])
+        self.client.force_login(self.admin)
+
+    def test_admin_cannot_perform_verifier_actions_from_draft(self):
+        for action in ("approve", "return_checker", "send_lab_manager"):
+            with self.subTest(action=action):
+                response = self.client.post(self.url, {"action": action})
+                self.assertEqual(response.status_code, 302)
+                self.case.refresh_from_db()
+                self.assertEqual(self.case.status, VerificationCase.STATUS_DRAFT)
+
+    def test_admin_cannot_perform_lab_actions_from_draft(self):
+        for action in ("lab_approve", "lab_disapprove",
+                       "lab_return_verifier", "send_head"):
+            with self.subTest(action=action):
+                response = self.client.post(self.url, {"action": action})
+                self.assertEqual(response.status_code, 302)
+                self.case.refresh_from_db()
+                self.assertEqual(self.case.status, VerificationCase.STATUS_DRAFT)
+
+    def test_admin_cannot_use_final_review_action_in_raw_verification(self):
+        self.case.status = VerificationCase.STATUS_FOR_RAW_VERIFICATION
+        self.case.save(update_fields=["status"])
+        for action in ("approve", "return_checker", "send_lab_manager"):
+            with self.subTest(action=action):
+                response = self.client.post(self.url, {"action": action})
+                self.assertEqual(response.status_code, 302)
+                self.case.refresh_from_db()
+                self.assertEqual(
+                    self.case.status, VerificationCase.STATUS_FOR_RAW_VERIFICATION,
+                )
+
+    def test_admin_can_approve_at_correct_verifier_stage(self):
+        self.case.status = VerificationCase.STATUS_FOR_FINAL_VERIFICATION
+        self.case.save(update_fields=["status"])
+        response = self.client.post(self.url, {"action": "approve"})
+        self.assertEqual(response.status_code, 302)
+        self.case.refresh_from_db()
+        self.assertEqual(
+            self.case.status, VerificationCase.STATUS_APPROVED_BY_VERIFIER,
+        )
+
+    def test_admin_can_approve_at_correct_lab_manager_stage(self):
+        self.case.status = VerificationCase.STATUS_FOR_LAB_MANAGER
+        self.case.save(update_fields=["status"])
+        response = self.client.post(self.url, {"action": "lab_approve"})
+        self.assertEqual(response.status_code, 302)
+        self.case.refresh_from_db()
+        self.assertEqual(
+            self.case.status, VerificationCase.STATUS_APPROVED_BY_LAB_MANAGER,
+        )

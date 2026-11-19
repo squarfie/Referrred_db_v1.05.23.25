@@ -112,13 +112,11 @@
           {% for raw in page_obj %}
           <tr>
             <td>
-              <a href="#" class="btn btn-sm btn-danger delete-btn" 
-                 data-toggle="modal" 
-                 data-target="#deleteModal" 
+              <a href="#" class="btn btn-sm btn-danger delete-btn"
+                 data-toggle="modal"
+                 data-target="#deleteModal"
                  data-url="{% url 'delete_referred_data' raw.id %}"
-                 title="Delete record">
-                <i class="fa fa-trash"></i>
-              </a>
+                 title="Delete record"><i class="fa fa-trash"></i></a>
             </td>
             <td>
               <span class="text-muted">{{ raw.Date_Modified|date:"M d, Y" }}</span>

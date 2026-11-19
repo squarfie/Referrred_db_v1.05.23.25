@@ -1,5 +1,5 @@
 ﻿{% extends "layouts/base.html" %}
-{% load static %}
+{% load static custom_filters %}
 
 {% block title %}Verification Case{% endblock title %}
 
@@ -129,6 +129,11 @@
   .antibiotic-name { color: var(--verify-text); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; line-height: 1.2; }
   .antibiotic-code { color: #24466f; font-family: monospace; font-size: 0.7rem; font-weight: 700; }
   .antibiotic-result { color: #102f4a; font-weight: 700; font-size: 0.74rem; }
+  .interpretation-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; min-height: 18px; margin-left: 2px; padding: 1px 5px; border: 1px solid transparent; border-radius: 999px; font-size: 0.64rem; font-weight: 900; line-height: 1; vertical-align: middle; }
+  .interpretation-s { color: #146c43; background: #dff5e8; border-color: #9bd8b7; }
+  .interpretation-i { color: #8a5200; background: #fff0c7; border-color: #e8c46b; }
+  .interpretation-r { color: #a12828; background: #fde2e2; border-color: #e9a3a3; }
+  .interpretation-sdd { color: #5b3e96; background: #eee7fb; border-color: #c7b5e9; }
   .antibiogram-row select { height: 27px; padding-top: 0.15rem; padding-bottom: 0.15rem; font-size: 0.72rem; }
   .antibiogram-row input { height: 27px; padding: 0.25rem 0.45rem; font-size: 0.72rem; line-height: 1.2; }
   .antibiogram-row textarea { height: 27px; min-height: 27px; resize: vertical; padding: 0.25rem 0.45rem; font-size: 0.72rem; line-height: 1.2; }
@@ -457,7 +462,7 @@
                 {% endfor %}
               </ol>
               {% else %}
-              {{ field.value|default:"-" }}
+              {{ field.value|default:"" }}
               {% endif %}
             </div>
             <div class="saved-comments">{% for comment in field.comments %}<div class="saved-comment"><div class="saved-comment-top"><strong>{{ comment.get_decision_display }}</strong><span class="d-inline-flex align-items-center" style="gap:6px;"><span class="status-pill">{{ comment.get_resolution_status_display }}</span>{% if can_delete_case_comments and can_write_field_comments %}<button type="submit" class="saved-comment-delete" title="Delete saved comment" formaction="{% url 'delete_verification_comment' case.id comment.id %}" formmethod="post" onclick="return confirm('Delete this saved comment?');"><i class="fas fa-trash"></i></button>{% endif %}</span></div><div>{{ comment.comment }}</div><div class="text-muted">{{ comment.created_by|default:"Unknown" }}{% if comment.created_at %} | {{ comment.created_at|date:"M d, Y h:i A" }}{% endif %}</div></div>{% empty %}<span class="empty-comment">No saved comments</span>{% endfor %}</div>
@@ -479,7 +484,7 @@
           {% for field in item.antibiotic_rows %}
           <form method="post" class="antibiogram-row">
             {% csrf_token %}<input type="hidden" name="action" value="comment">{% if item.is_raw %}<input type="hidden" name="raw_accession_id" value="{{ item.accession_id }}">{% else %}<input type="hidden" name="final_accession_id" value="{{ item.accession_id }}">{% endif %}<input type="hidden" name="field_name" value="{{ field.name }}"><input type="hidden" name="field_label" value="{{ field.label }}"><input type="hidden" name="field_value_snapshot" value="{{ field.value }}">
-            <div class="antibiotic-name">{{ field.antibiotic_name|default:"-" }}</div><div class="field-value">{{ field.site_test_method|default:"-" }}</div><div class="antibiotic-code">{{ field.site_whonet_code|default:"-" }}</div><div class="antibiotic-result">{{ field.site_result|default:"-" }}</div><div class="field-value">{{ field.arsrl_test_method|default:"-" }}</div><div class="antibiotic-code">{{ field.arsrl_whonet_code|default:"-" }}</div><div class="antibiotic-result">{{ field.arsrl_result|default:"-" }}</div>
+            <div class="antibiotic-name">{{ field.antibiotic_name|default:"-" }}</div><div class="field-value">{{ field.site_test_method|blank_if_dash }}</div><div class="antibiotic-code">{{ field.site_whonet_code|blank_if_dash }}</div><div class="antibiotic-result">{{ field.site_result|highlight_interpretations }}</div><div class="field-value">{{ field.arsrl_test_method|blank_if_dash }}</div><div class="antibiotic-code">{{ field.arsrl_whonet_code|blank_if_dash }}</div><div class="antibiotic-result">{{ field.arsrl_result|highlight_interpretations }}</div>
             {% if can_write_field_comments %}
             <select name="decision" class="form-control form-control-sm">{% for value, label in comment_decisions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
             <div class="saved-comments">{% for comment in field.comments %}<div class="saved-comment"><div class="saved-comment-top"><strong>{{ comment.get_decision_display }}</strong><span class="d-inline-flex align-items-center" style="gap:6px;"><span class="status-pill">{{ comment.get_resolution_status_display }}</span>{% if can_delete_case_comments and can_write_field_comments %}<button type="submit" class="saved-comment-delete" title="Delete saved comment" formaction="{% url 'delete_verification_comment' case.id comment.id %}" formmethod="post" onclick="return confirm('Delete this saved comment?');"><i class="fas fa-trash"></i></button>{% endif %}</span></div><div>{{ comment.comment }}</div><div class="text-muted">{{ comment.created_by|default:"Unknown" }}{% if comment.created_at %} | {{ comment.created_at|date:"M d, Y h:i A" }}{% endif %}</div></div>{% empty %}<span class="empty-comment">No saved comments</span>{% endfor %}</div>

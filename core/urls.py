@@ -12,6 +12,7 @@ urlpatterns = [
     path("wgs/", include("apps.wgs_app.urls")),
     path("final/", include("apps.home_final.urls")),
     path("verification/", include("apps.verification.urls")),
+    path("receiving/", include("apps.receiving.urls")),
     path("", include("apps.home.urls")),             # UI Kits Html files
   
 ]

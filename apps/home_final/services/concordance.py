@@ -710,6 +710,8 @@ def build_id_stats(isolates, options_data=None):
         "mixed_count": 0,
         "nonviable_count": 0,
         "discordant_rows": [],
+        "mixed_rows": [],
+        "nonviable_rows": [],
     }
 
     rule_matcher = _build_rule_matcher(options_data)
@@ -723,6 +725,25 @@ def build_id_stats(isolates, options_data=None):
         stats["mixed_count"] += result["mixed"]
         stats["nonviable_count"] += result["nonviable"]
         stats["different_org"] += result["different_org"]
+
+        if result["nonviable"]:
+            ars_identification = resolve_ars_concordance_identification(isolate)
+            stats["nonviable_rows"].append({
+                "refno": isolate.f_RefNo,
+                "bat_seq": isolate.f_bat_seq if isolate.f_bat_seq is not None else "",
+                "site_org": isolate.f_Site_OrgName,
+                "ars_org": ars_identification,
+            })
+
+        if result["mixed"]:
+            ars_identification = resolve_ars_concordance_identification(isolate)
+            stats["mixed_rows"].append({
+                "refno": isolate.f_RefNo,
+                "bat_seq": isolate.f_bat_seq if isolate.f_bat_seq is not None else "",
+                "site_org": isolate.f_Site_OrgName,
+                "ars_org": ars_identification,
+            })
+
 
         if result["different_org"]:
             ars_identification = resolve_ars_concordance_identification(isolate)

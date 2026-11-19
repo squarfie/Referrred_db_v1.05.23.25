@@ -691,6 +691,12 @@
       color: #ccc;
     }
 
+    .copied-badge.exclamation {
+      background: rgba(245, 158, 11, 0.16);
+      border: 1px solid rgba(217, 119, 6, 0.45);
+      color: #d97706;
+    }
+
     /* ── Info cells ── */
     .info-cell {
       min-width: 170px;
@@ -1435,6 +1441,7 @@
             <tr class="batch-accordion-row"
                 data-batch-target="raw-batch-{{ forloop.counter }}"
                 data-batch-id="{{ batch_group.batch_id }}"
+                data-site-code="{{ batch_group.site_code }}"
                 data-load-url="{% url 'raw_batch_rows' %}"
                 aria-expanded="false">
               <td colspan="11" class="batch-accordion-cell">
@@ -1529,8 +1536,8 @@
                     <a href="{% url 'edit_data' isolate.id %}" class="action-btn-icon edit" title="Edit record">
                       <i class="fa fa-pencil-alt"></i>
                     </a>
-                    {% if isolate.verification_pdf_blocked %}
-                    <span title="Accession deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
+                    {% if isolate.verification_deletion_blocked %}
+                    <span title="{{ isolate.verification_record_deletion_block_reason }}"
                           style="display:inline-flex;">
                       <button type="button"
                               class="action-btn-icon del disabled"
@@ -1799,8 +1806,8 @@
                     </td>
 
               <td style="text-align:center;">
-                {% if isolate.Batch_id_id and isolate.verification_pdf_blocked %}
-                  <span title="Batch deletion is disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
+                {% if isolate.Batch_id_id and isolate.verification_deletion_blocked %}
+                  <span title="{{ isolate.verification_batch_deletion_block_reason }}"
                             style="display:inline-flex;">
                         <button type="button"
                                 class="action-btn-icon delete disabled"
@@ -1986,7 +1993,7 @@
 </div><!-- /page-wrapper -->
 
 
-<!-- ── Send Raw Batch to Verifiers Modal ── -->
+<!-- ── Send Raw Batch to Selected Verifier Modal ── -->
 <div class="modal fade" id="sendRawVerificationModal" tabindex="-1" role="dialog" aria-labelledby="sendRawVerificationModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
     <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none;">
@@ -2004,7 +2011,7 @@
         </div>
       </div>
       <div class="modal-body" style="text-align:left; background:#f8fbfd;">
-        <p class="text-muted small mb-3">Raw Data Encoder sends this batch for review. All verifiers will be able to see the endorsed records.</p>
+        <p class="text-muted small mb-3">Choose the Verifier responsible for reviewing this Raw batch.</p>
         <div class="workflow-batch-card">
           <div class="d-flex justify-content-between align-items-start" style="gap:0.75rem;">
             <div>
@@ -2013,9 +2020,15 @@
             </div>
             <span class="workflow-count-badge" id="sendRawVerificationBatchCount">0 raw</span>
           </div>
-          <form method="post" action="" class="workflow-send-form" id="sendRawVerificationForm" style="grid-template-columns:minmax(220px, 1fr) auto;">
+          <form method="post" action="" class="workflow-send-form" id="sendRawVerificationForm" style="grid-template-columns:minmax(220px, 1fr) minmax(220px, 1fr) auto;">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <select name="verifier_staff" class="form-control form-control-md" aria-label="Select Verifier" required>
+              <option value="">Select Verifier</option>
+              {% for staff in raw_verifier_staff %}
+              <option value="{{ staff.pk }}">{{ staff.display_name }}</option>
+              {% endfor %}
+            </select>
             <input type="text" name="note" class="form-control form-control-md" placeholder="Optional note">
             <button type="submit" class="btn btn-sm btn-success">
               <i class="fas fa-paper-plane mr-1"></i>Send
@@ -2053,12 +2066,22 @@
         <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">
           <i class="fa fa-times mr-1"></i>Cancel
         </button>
-        <form id="deleteForm" method="POST" action="">
+        <!-- <form id="deleteForm" method="POST" action="">
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-danger">
                 <i class="fa fa-trash mr-1"></i>Delete
             </button>
-        </form>
+        </form> -->
+        
+      <form id="deleteForm" method="POST" action="">
+          {% csrf_token %}
+          <input type="hidden" name="confirmation" value="DELETE RECORD">
+
+          <button type="submit" class="btn btn-sm btn-danger">
+              <i class="fa fa-trash mr-1"></i>Delete
+          </button>
+      </form>
+
 
       </div>
     </div>
@@ -2132,6 +2155,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
                 const params = new URLSearchParams(window.location.search);
                 params.set("batch_id", this.getAttribute("data-batch-id") || "");
+                params.set("site_code", this.getAttribute("data-site-code") || "");
                 params.set("target", target);
 
                 try {

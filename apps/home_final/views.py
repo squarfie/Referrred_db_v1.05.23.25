@@ -94,6 +94,7 @@ from apps.home.permissions import (
     get_user_roles,
     role_required,
     role_flags,
+    verification_case_blocks_deletion,
     verification_case_blocks_operational_outputs,
 )
 from apps.wgs_app.models import *
@@ -760,6 +761,8 @@ def _attach_final_verification_comment_flags(records):
         record.verification_pending_comment_preview = comment_previews.get(record.id, "")
         record.verification_pdf_blocked = False
         record.verification_pdf_block_reason = ""
+        record.verification_deletion_blocked = False
+        record.verification_record_deletion_block_reason = ""
         record.workflow_final_editable = False
 
     correction_batch_ids = {
@@ -791,6 +794,13 @@ def _attach_final_verification_comment_flags(records):
                 if verification_case_blocks_operational_outputs(case):
                     record.verification_pdf_blocked = True
                     record.verification_pdf_block_reason = "Printing disabled while this case is in verification. Withdraw it or wait until Head marks it Ready for Release."
+                record.verification_deletion_blocked = verification_case_blocks_deletion(case)
+                if record.verification_deletion_blocked:
+                    record.verification_record_deletion_block_reason = (
+                        "Released records cannot be deleted."
+                        if case.status == case.STATUS_RELEASED
+                        else "Accession deletion is disabled while this case is in verification. Withdraw it before deleting."
+                    )
         except (LookupError, ProgrammingError, OperationalError):
             pass
     return record_list
@@ -4576,19 +4586,52 @@ def edit_concordance_setting(request, pk):
     return redirect("/settings/?tab=concordance_settings")
 
 
+# @login_required(login_url="login")
+# @require_POST
+# @transaction.atomic
+# @role_required(ROLE_ADMIN, ROLE_CHECKER)
+# def delete_concordance_setting(request, pk):
+#     rule = get_object_or_404(
+#         ConcordanceOptions,
+#         pk=pk,
+#         report__isnull=True,
+#     )
+#     rule.delete()
+#     ConcordanceOptions.objects.filter(report__isnull=False).delete()
+#     messages.success(request, "Concordance rule deleted successfully.")
+#     return redirect("/settings/?tab=concordance_settings")
+
+
+
 @login_required(login_url="login")
+@require_POST
 @transaction.atomic
 @role_required(ROLE_ADMIN, ROLE_CHECKER)
 def delete_concordance_setting(request, pk):
+    """
+    Delete only the selected global concordance rule.
+
+    Existing report-specific options and concordance
+    reports must remain untouched.
+    """
+
     rule = get_object_or_404(
         ConcordanceOptions,
         pk=pk,
         report__isnull=True,
     )
+
     rule.delete()
-    ConcordanceOptions.objects.filter(report__isnull=False).delete()
-    messages.success(request, "Concordance rule deleted successfully.")
+
+    messages.success(
+        request,
+        "Concordance rule deleted successfully. "
+        "Existing concordance reports were preserved."
+    )
+
     return redirect("/settings/?tab=concordance_settings")
+
+
 
 
 @login_required(login_url="login")
@@ -5411,6 +5454,23 @@ def _build_batch_concordance_context(report):
         "total_isolates": isolates.count(),
         "mixed_count": id_stats["mixed_count"],
         "nonviable_count": id_stats["nonviable_count"],
+
+        "mixed_rows": sorted(
+            id_stats["mixed_rows"],
+            key=lambda row: (
+                _numeric_sort_value(row.get("bat_seq")),
+                str(row.get("site_org") or "").lower(),
+            ),
+        ),
+
+        "nonviable_rows": sorted(
+            id_stats["nonviable_rows"],
+            key=lambda row: (
+                _numeric_sort_value(row.get("bat_seq")),
+                str(row.get("site_org") or "").lower(),
+            ),
+        ),
+
         "viable_pure": id_stats["viable_pure"],
         "genus_match": id_stats["genus_match"],
         "species_match": id_stats["species_match"],

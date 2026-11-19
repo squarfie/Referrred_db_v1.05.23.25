@@ -23,7 +23,7 @@ ALLOWED_HOSTS = [
     config('SERVER', default=''),  # Use SERVER from .env if exists
     'localhost',
     '127.0.0.1',
-    '10.10.103.54',
+    '10.10.103.52',
     'mariseru.pythonanywhere.com',  # Your PythonAnywhere domain
 ]
 # Application definition
@@ -42,8 +42,8 @@ INSTALLED_APPS = [
     'apps.wgs_app.apps.WgsAppConfig', 
     'apps.home_final.apps.HomeFinalConfig',
     'apps.verification.apps.VerificationConfig',
+    "apps.receiving.apps.ReceivingConfig",
 
-    # "apps.wgs_app",
 ]
 
 MIDDLEWARE = [
@@ -158,6 +158,10 @@ TIME_ZONE = "Asia/Manila"
 # Allow more form fields for large antibiotic datasets
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 20000
 PHONENUMBER_DEFAULT_REGION = 'PH'
+
+# Canonical public origin used by printable receiving QR labels. Configure this
+# in production so labels remain stable regardless of the host used to print.
+RECEIVING_QR_BASE_URL = config("RECEIVING_QR_BASE_URL", default="").rstrip("/")
 
 # # logout automatically after 15 minutes of inactivity
 # SESSION_COOKIE_AGE = 900

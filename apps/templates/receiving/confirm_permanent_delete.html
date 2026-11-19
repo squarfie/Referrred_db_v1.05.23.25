@@ -1,0 +1,16 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Delete receiving batch permanently{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></span><div><p class="receiving-eyebrow">Administrator action</p><h1>Delete receiving batch permanently</h1><p class="receiving-hero-subtitle">{{ receipt.tracking_number }} · unendorsed mistaken entry</p></div></div></header>
+  <div class="receiving-content"><div class="receiving-form-wrap"><section class="receiving-surface receiving-form-card">
+    <div class="receiving-card-header"><h2 class="text-danger">Irreversible deletion</h2><p>Available only before the batch has been endorsed.</p></div>
+    <div class="receiving-card-body"><div class="alert alert-danger receiving-notice"><i class="fas fa-exclamation-circle" aria-hidden="true"></i><div>This removes the receiving record and its ReceivingEvent history. <strong>This cannot be undone.</strong></div></div>
+      <div class="receiving-info-grid mb-4"><div><span class="receiving-info-label">Tracking number</span><span class="receiving-info-value">{{ receipt.tracking_number }}</span></div><div><span class="receiving-info-label">Referring site</span><span class="receiving-info-value">{{ receipt.site.SiteCode }}</span></div></div>
+      <form method="post">{% csrf_token %}<label for="confirm-permanent-delete">Type <strong>DELETE PERMANENTLY</strong> to confirm</label><input id="confirm-permanent-delete" class="form-control mb-3" name="confirmation" autocomplete="off" required><div class="receiving-form-actions"><a href="{% url 'receiving_detail' receipt.receiving_id %}" class="btn btn-outline-secondary">Cancel</a><button type="submit" class="btn btn-danger">Delete permanently</button></div></form>
+    </div>
+  </section></div></div>
+</main>
+{% endblock %}

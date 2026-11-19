@@ -84,6 +84,15 @@
               <span class="nav-link-text">Dashboard</span>
             </a>
           </li>
+          {% if user_access.can_view_receiving %}
+          <li class="nav-item">
+            <a class="nav-link {% if current_url == 'receiving_dashboard' or current_url == 'receiving_create' or current_url == 'receiving_detail' or current_url == 'receiving_lab_confirm' %}active{% endif %}"
+              href="{% url 'receiving_dashboard' %}">
+              <i class="fas fa-box-open text-primary"></i>
+              <span class="nav-link-text">Receiving</span>
+            </a>
+          </li>
+          {% endif %}
           <li class="nav-item">
             <a class="nav-link {% if current_url == 'verification_dashboard' or current_url == 'verification_case_detail' %}active{% endif %}"
               href="{% url 'verification_dashboard' %}">
@@ -141,6 +150,15 @@
               <span class="nav-link-text">Dashboard</span>
             </a>
           </li>
+          {% if user_access.can_view_receiving %}
+          <li class="nav-item">
+            <a class="nav-link {% if current_url == 'receiving_dashboard' or current_url == 'receiving_create' or current_url == 'receiving_detail' or current_url == 'receiving_lab_confirm' %}active{% endif %}"
+              href="{% url 'receiving_dashboard' %}">
+              <i class="fas fa-box-open text-primary"></i>
+              <span class="nav-link-text">Receiving</span>
+            </a>
+          </li>
+          {% endif %}
           <!-- <li class="nav-item">
             <a class="nav-link {% if 'icons' in segment %} active {% endif %}" href="/icons.html">
               <i class="ni ni-planet text-orange"></i>
