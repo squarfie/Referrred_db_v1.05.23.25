@@ -5454,6 +5454,23 @@ def _build_batch_concordance_context(report):
         "total_isolates": isolates.count(),
         "mixed_count": id_stats["mixed_count"],
         "nonviable_count": id_stats["nonviable_count"],
+
+        "mixed_rows": sorted(
+            id_stats["mixed_rows"],
+            key=lambda row: (
+                _numeric_sort_value(row.get("bat_seq")),
+                str(row.get("site_org") or "").lower(),
+            ),
+        ),
+
+        "nonviable_rows": sorted(
+            id_stats["nonviable_rows"],
+            key=lambda row: (
+                _numeric_sort_value(row.get("bat_seq")),
+                str(row.get("site_org") or "").lower(),
+            ),
+        ),
+
         "viable_pure": id_stats["viable_pure"],
         "genus_match": id_stats["genus_match"],
         "species_match": id_stats["species_match"],
