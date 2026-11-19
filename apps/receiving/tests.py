@@ -1,4 +1,6 @@
+from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Group, User
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
 from importlib import import_module
@@ -10,6 +12,7 @@ from uuid import UUID
 
 from apps.home.models import SiteData
 from apps.receiving.forms import ReferralReceiptForm
+from apps.receiving.admin import ReferralReceiptAdmin
 from apps.receiving.models import ReceivingEvent, ReferralReceipt
 from django.test import RequestFactory, override_settings
 from django.urls import NoReverseMatch, reverse
@@ -191,12 +194,46 @@ class ReceivingFormTests(TestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
 
+    def test_receipt_form_rejects_future_secretariat_timestamp(self):
+        now = timezone.make_aware(datetime(2026, 11, 12, 10, 0))
+        form = ReferralReceiptForm(
+            data=self.receipt_data(date_received="2026-11-12", time_received="10:01"),
+            now=now,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("time_received", form.errors)
+
+    def test_lab_form_rejects_future_laboratory_timestamp(self):
+        endorsed_at = timezone.make_aware(datetime(2026, 11, 12, 9, 30))
+        receipt = ReferralReceipt(
+            tracking_number="LAB-FUTURE",
+            site=self.site,
+            date_sent=date(2026, 11, 11),
+            date_received=date(2026, 11, 12),
+            time_received=time(9, 0),
+            status=ReferralReceipt.Status.ENDORSED,
+            endorsed_at=endorsed_at,
+        )
+        form = self.receiving_forms().LabReceiptForm(
+            data={"lab_date_received": "2026-11-12", "lab_time_received": "10:01"},
+            receipt=receipt,
+            now=timezone.make_aware(datetime(2026, 11, 12, 10, 0)),
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("lab_time_received", form.errors)
+
 
 class ReceivingServiceTests(TestCase):
     def setUp(self):
         self.site = SiteData.objects.create(SiteCode="RMC", SiteName="Regional Medical Center")
         self.secretariat = User.objects.create_user("service_secretariat", password="test-pass")
         self.lab_encoder = User.objects.create_user("service_lab", password="test-pass")
+        secretariat_group, _ = Group.objects.get_or_create(name=home_permissions.ROLE_SECRETARIAT)
+        lab_group, _ = Group.objects.get_or_create(name=home_permissions.ROLE_LAB_ENCODER)
+        self.secretariat.groups.add(secretariat_group)
+        self.lab_encoder.groups.add(lab_group)
 
     def services(self):
         try:
@@ -280,13 +317,17 @@ class ReceivingServiceTests(TestCase):
 
     def test_endorsement_rejects_invalid_starting_state(self):
         services = self.services()
-        receipt = self.create_receipt(status=ReferralReceipt.Status.LAB_RECEIVED)
+        receipt = self.create_receipt(
+            status=ReferralReceipt.Status.ENDORSED,
+            endorsed_at=timezone.make_aware(datetime(2026, 11, 12, 9, 30)),
+            endorsed_by=self.secretariat,
+        )
 
         with self.assertRaises(services.InvalidReceivingTransition):
             services.endorse_receipt(receipt_id=receipt.pk, user=self.secretariat)
 
         receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.LAB_RECEIVED)
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
         self.assertFalse(receipt.events.exists())
 
     def test_lab_confirmation_sets_submitted_time_user_status_and_one_event(self):
@@ -360,6 +401,101 @@ class ReceivingServiceTests(TestCase):
             ).count(),
             1,
         )
+
+    def test_direct_service_calls_reject_unrelated_role(self):
+        services = self.services()
+        unrelated = User.objects.create_user("service_unrelated", password="test-pass")
+        receipt = self.create_receipt()
+
+        with self.assertRaises(services.ReceivingPermissionDenied):
+            services.create_receipt(form=self.valid_receipt_form("DENIED-CREATE"), user=unrelated)
+        with self.assertRaises(services.ReceivingPermissionDenied):
+            services.endorse_receipt(receipt_id=receipt.pk, user=unrelated)
+
+        self.assertFalse(ReferralReceipt.objects.filter(tracking_number="DENIED-CREATE").exists())
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+
+    def test_direct_lab_service_rejects_future_timestamp(self):
+        services = self.services()
+        endorsed_at = timezone.make_aware(datetime(2026, 11, 12, 9, 30))
+        receipt = self.create_receipt(
+            status=ReferralReceipt.Status.ENDORSED,
+            endorsed_at=endorsed_at,
+            endorsed_by=self.secretariat,
+        )
+
+        with patch(
+            "apps.receiving.services.timezone.now",
+            return_value=timezone.make_aware(datetime(2026, 11, 12, 10, 0)),
+        ):
+            with self.assertRaises(services.InvalidReceivingTransition):
+                services.confirm_lab_receipt(
+                    receipt_id=receipt.pk,
+                    user=self.lab_encoder,
+                    lab_date_received=date(2026, 11, 12),
+                    lab_time_received=time(10, 1),
+                )
+
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+        self.assertFalse(
+            receipt.events.filter(event_type=ReceivingEvent.EventType.LAB_RECEIVED).exists()
+        )
+
+
+class ReceivingHardeningTests(TestCase):
+    def setUp(self):
+        self.site = SiteData.objects.create(SiteCode="HRD", SiteName="Hardening Test Site")
+
+    def receipt_values(self, **overrides):
+        values = {
+            "tracking_number": "HARDEN-001",
+            "site": self.site,
+            "date_sent": date(2026, 11, 10),
+            "date_received": date(2026, 11, 12),
+            "time_received": time(8, 0),
+            "status": ReferralReceipt.Status.RECEIVED,
+        }
+        values.update(overrides)
+        return values
+
+    def test_receipt_admin_is_read_only_for_workflow_records(self):
+        model_admin = ReferralReceiptAdmin(ReferralReceipt, AdminSite())
+        request = RequestFactory().get("/admin/receiving/referralreceipt/")
+
+        readonly = set(model_admin.get_readonly_fields(request))
+
+        self.assertEqual(
+            readonly,
+            {field.name for field in ReferralReceipt._meta.fields},
+        )
+        self.assertFalse(model_admin.has_add_permission(request))
+        self.assertFalse(model_admin.has_delete_permission(request))
+
+    def test_database_rejects_endorsed_status_without_endorsement_timestamp(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ReferralReceipt.objects.create(
+                    **self.receipt_values(status=ReferralReceipt.Status.ENDORSED)
+                )
+
+    def test_database_rejects_duplicate_canonical_transition_event(self):
+        receipt = ReferralReceipt.objects.create(**self.receipt_values())
+        occurred_at = timezone.make_aware(datetime(2026, 11, 12, 8, 0))
+        ReceivingEvent.objects.create(
+            receipt=receipt,
+            event_type=ReceivingEvent.EventType.RECEIVED,
+            occurred_at=occurred_at,
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ReceivingEvent.objects.create(
+                    receipt=receipt,
+                    event_type=ReceivingEvent.EventType.RECEIVED,
+                    occurred_at=occurred_at,
+                )
 
 
 class ReceivingQrTests(TestCase):
@@ -685,6 +821,27 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, "Endorsed to Laboratory")
         self.assertContains(response, "Received by Laboratory")
         self.assertContains(response, 'href="/receiving/"', html=False)
+        self.assertContains(response, "/static/assets/css/receiving.css")
+        self.assertContains(response, 'class="receiving-page"')
+        self.assertContains(response, "receiving-hero")
+        self.assertContains(response, "receiving-surface")
+        self.assertContains(response, "Courier batch receiving records")
+
+    def test_receiving_forms_share_responsive_page_shell(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+
+        self.client.force_login(self.secretariat)
+        create_response = self.client.get(self.route("receiving_create"))
+        self.client.force_login(self.lab_encoder)
+        lab_response = self.client.get(
+            self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id)
+        )
+
+        for response in (create_response, lab_response):
+            self.assertContains(response, "/static/assets/css/receiving.css")
+            self.assertContains(response, 'class="receiving-page"')
+            self.assertContains(response, "receiving-hero")
+            self.assertContains(response, "receiving-form-card")
 
     def test_secretariat_sees_print_and_valid_endorsement_action(self):
         receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
@@ -791,3 +948,5 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, "Nov. 12, 2026")
         self.assertContains(response, str(receipt.receiving_id))
         self.assertNotContains(response, "Patient")
+        self.assertContains(response, "/static/assets/css/receiving.css")
+        self.assertContains(response, 'class="receiving-label-page"')

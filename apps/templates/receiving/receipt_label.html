@@ -1,15 +1,7 @@
+{% load static %}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Batch label {{ receipt.tracking_number }}</title>
-<style>
-  body{font-family:Arial,sans-serif;margin:24px;color:#111}.label{width:360px;border:2px solid #111;padding:18px;text-align:center}.label img{width:220px;height:220px}.tracking{font-size:22px;font-weight:700;margin:8px 0}.meta{font-size:15px;margin:5px 0}.uuid{font-size:10px;overflow-wrap:anywhere;margin-top:10px}.screen-only{margin-bottom:16px}@media print{body{margin:0}.screen-only{display:none}.label{border:1px solid #111}}
-</style></head><body>
-<button class="screen-only" onclick="window.print()">Print</button>
-<div class="label">
-  <div><strong>SECRETARIAT BATCH</strong></div>
-  <img src="{% url 'receiving_qr' receipt.receiving_id %}" alt="QR code for receiving batch {{ receipt.tracking_number }}">
-  <div class="tracking">{{ receipt.tracking_number }}</div>
-  <div class="meta">Site: <strong>{{ receipt.site.SiteCode }}</strong></div>
-  <div class="meta">Received: <strong>{{ receipt.date_received|date:"N j, Y" }}</strong></div>
-  <div class="uuid">{{ receipt.receiving_id }}</div>
-</div>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Batch label {{ receipt.tracking_number }}</title><link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}"></head>
+<body class="receiving-label-page">
+  <div class="receiving-label-toolbar screen-only"><button type="button" class="btn btn-primary" onclick="window.print()">Print batch label</button></div>
+  <main class="receiving-label"><div class="receiving-label-mark">Secretariat batch</div><img src="{% url 'receiving_qr' receipt.receiving_id %}" alt="QR code for receiving batch {{ receipt.tracking_number }}"><div class="receiving-label-tracking">{{ receipt.tracking_number }}</div><div class="receiving-label-meta">Site: <strong>{{ receipt.site.SiteCode }}</strong></div><div class="receiving-label-meta">Received: <strong>{{ receipt.date_received|date:"N j, Y" }}</strong></div><div class="receiving-label-uuid">{{ receipt.receiving_id }}</div></main>
 </body></html>

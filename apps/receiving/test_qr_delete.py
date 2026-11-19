@@ -176,3 +176,22 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         self.assertRedirects(response, reverse("receiving_dashboard"))
         self.assertFalse(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
         self.assertFalse(ReceivingEvent.objects.filter(receipt_id=self.receipt.pk).exists())
+
+    def test_admin_cannot_permanently_delete_endorsed_custody_record(self):
+        self.receipt.status = ReferralReceipt.Status.ENDORSED
+        self.receipt.endorsed_at = timezone.make_aware(datetime(2026, 11, 12, 9, 30))
+        self.receipt.endorsed_by = self.secretariat
+        self.receipt.save(update_fields=("status", "endorsed_at", "endorsed_by", "updated_at"))
+        url = reverse(
+            "receiving_delete_permanently",
+            kwargs={"receiving_id": self.receipt.receiving_id},
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(url, {"confirmation": "DELETE PERMANENTLY"})
+
+        self.assertRedirects(
+            response,
+            reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}),
+        )
+        self.assertTrue(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())

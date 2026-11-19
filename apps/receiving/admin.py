@@ -15,7 +15,14 @@ class ReferralReceiptAdmin(admin.ModelAdmin):
     )
     list_filter = ("status", "date_received", "site")
     search_fields = ("tracking_number", "receiving_id", "site__SiteCode", "site__SiteName")
-    readonly_fields = ("receiving_id", "created_at", "updated_at")
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ReceivingEvent)

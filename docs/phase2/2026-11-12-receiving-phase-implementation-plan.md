@@ -10,7 +10,7 @@
 
 **Spec:** `docs/phase2/2026-11-12-receiving-phase-design.md`
 
-**Execution status (paused 2026-11-12):** Tasks 1–4 are implemented and their focused suites pass. Resume at Task 5 (migration, system, full-suite, and browser verification). Detailed RED/GREEN evidence and rulings are recorded in `.superpowers/sdd/2026-11-12-receiving-phase-implementation-plan/progress.md`.
+**Execution status (reconciled 2026-11-19):** Tasks 1–4 were implemented and the receiving work was merged through PRs #19-#22 on 2026-11-12. Local automated verification has since been repeated; the original browser/mobile scan and production-deployment gates remain open. Audit hardening and the Receiving UI refactor are tracked by CR-005/IMP-002 in the living project history and by `docs/superpowers/plans/2026-11-19-receiving-hardening-and-ui.md`.
 
 ## Global Constraints
 

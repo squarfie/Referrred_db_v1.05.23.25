@@ -29,6 +29,7 @@ class ReferralReceiptForm(forms.ModelForm):
     def __init__(self, *args, now=None, **kwargs):
         super().__init__(*args, **kwargs)
         local_now = timezone.localtime(now or timezone.now())
+        self.local_now = local_now
         self.initial.setdefault("date_received", local_now.date())
         self.initial.setdefault("time_received", local_now.time().replace(second=0, microsecond=0))
         self.fields["site"].queryset = self.fields["site"].queryset.order_by("SiteCode", "SiteName")
@@ -45,6 +46,17 @@ class ReferralReceiptForm(forms.ModelForm):
                 "date_sent",
                 "Date sent by courier cannot be later than the Secretariat received date.",
             )
+        received_time = cleaned_data.get("time_received")
+        if date_received and received_time:
+            received_at = timezone.make_aware(
+                datetime.combine(date_received, received_time),
+                timezone.get_current_timezone(),
+            )
+            if received_at > self.local_now:
+                self.add_error(
+                    "time_received",
+                    "Secretariat receipt cannot be later than the current time.",
+                )
         return cleaned_data
 
 
@@ -62,6 +74,7 @@ class LabReceiptForm(forms.Form):
         self.receipt = receipt
         super().__init__(*args, **kwargs)
         local_now = timezone.localtime(now or timezone.now())
+        self.local_now = local_now
         # A freshly endorsed batch may have seconds within the current minute.
         # Round up the suggested minute so the default never precedes endorsement.
         suggested = local_now.replace(second=0, microsecond=0)
@@ -85,5 +98,10 @@ class LabReceiptForm(forms.Form):
             self.add_error(
                 "lab_time_received",
                 "Laboratory receipt cannot be earlier than endorsement.",
+            )
+        if received_at > self.local_now:
+            self.add_error(
+                "lab_time_received",
+                "Laboratory receipt cannot be later than the current time.",
             )
         return cleaned_data

@@ -3,6 +3,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 
@@ -150,9 +151,43 @@ class ReferralReceipt(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Referral Receipt"
         verbose_name_plural = "Referral Receipts"
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    Q(
+                        status="received",
+                        endorsed_at__isnull=True,
+                        lab_date_received__isnull=True,
+                        lab_time_received__isnull=True,
+                    )
+                    | Q(
+                        status="endorsed",
+                        endorsed_at__isnull=False,
+                        lab_date_received__isnull=True,
+                        lab_time_received__isnull=True,
+                    )
+                    | Q(
+                        status="lab_received",
+                        endorsed_at__isnull=False,
+                        lab_date_received__isnull=False,
+                        lab_time_received__isnull=False,
+                    )
+                ),
+                name="receiving_valid_custody_state",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.tracking_number} - {self.site}"
+
+    @property
+    def can_permanently_delete(self):
+        return (
+            self.status == self.Status.RECEIVED
+            and self.endorsed_at is None
+            and self.lab_date_received is None
+            and self.lab_time_received is None
+        )
 
 
 class ReceivingEvent(models.Model):
@@ -204,6 +239,13 @@ class ReceivingEvent(models.Model):
     class Meta:
         db_table = "receiving_events"
         ordering = ["-recorded_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("receipt", "event_type"),
+                condition=Q(event_type__in=("received", "endorsed", "lab_received")),
+                name="receiving_one_canonical_event",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.receipt.tracking_number} - {self.get_event_type_display()}"

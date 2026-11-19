@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -23,6 +22,7 @@ from .services import (
     InvalidReceivingTransition,
     confirm_lab_receipt,
     create_receipt,
+    delete_receipt_permanently,
     endorse_receipt,
 )
 
@@ -111,7 +111,8 @@ def receiving_detail(request, receiving_id):
             "receipt": receipt,
             "events": events,
             "can_print_label": can_manage,
-            "can_permanently_delete": can_permanently_delete_receipt(request.user),
+            "can_permanently_delete": can_permanently_delete_receipt(request.user)
+            and receipt.can_permanently_delete,
             "can_endorse": can_manage and receipt.status == ReferralReceipt.Status.RECEIVED,
             "can_confirm_lab": can_confirm
             and receipt.status == ReferralReceipt.Status.ENDORSED,
@@ -197,7 +198,10 @@ def receiving_delete_permanently(request, receiving_id):
     if request.POST.get("confirmation", "").strip() != "DELETE PERMANENTLY":
         messages.error(request, "Type DELETE PERMANENTLY to confirm.")
         return redirect("receiving_detail", receiving_id=receiving_id)
-    with transaction.atomic():
-        receipt.delete()
+    try:
+        delete_receipt_permanently(receipt_id=receipt.pk, user=request.user)
+    except InvalidReceivingTransition as exc:
+        messages.warning(request, str(exc))
+        return redirect("receiving_detail", receiving_id=receiving_id)
     messages.success(request, "Receiving batch permanently deleted.")
     return redirect("receiving_dashboard")

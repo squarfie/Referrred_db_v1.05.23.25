@@ -23,7 +23,7 @@ ALLOWED_HOSTS = [
     config('SERVER', default=''),  # Use SERVER from .env if exists
     'localhost',
     '127.0.0.1',
-    '10.10.103.54',
+    '10.10.103.52',
     'mariseru.pythonanywhere.com',  # Your PythonAnywhere domain
 ]
 # Application definition

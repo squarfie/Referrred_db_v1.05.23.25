@@ -25,7 +25,7 @@ The batch may contain multiple isolates. Individual isolate sorting, accession-n
 - Generating the future per-accession QR label (for example, `26ARS_BGH001`).
 - Replacing or changing the Secretariat batch QR after accessioning.
 - Designing the final accession-sticker layout.
-- Deleting receiving records.
+- Deleting receiving records in the original delivery. This non-goal was superseded by D-009/CR-002 for administrator-only mistaken-entry deletion and narrowed by D-011 to unendorsed `received` records.
 - Public or unauthenticated QR access.
 
 ## Anti-goals
@@ -90,7 +90,7 @@ Authenticated users with `Secretariat`, `LAB Encoder`, or `Admin` roles can open
 
 ### Corrections and deletion
 
-This first delivery does not expose general edit or delete actions. The existing `CORRECTED` event type remains available for a later controlled-correction workflow. Administrative database correction remains outside the receiving UI until correction authorization and field-level rules are designed.
+General editing remains unavailable. The existing `CORRECTED` event type remains reserved for a later controlled-correction workflow. D-009 introduced administrator-only permanent deletion for mistakenly entered records; D-011 restricts that irreversible action to records still in `received` state with no endorsement or laboratory-receipt timestamp. Endorsed custody records cannot be deleted through the Receiving UI or service. Administrative database correction remains outside the receiving UI until correction authorization and field-level rules are designed.
 
 ## QR and Labels
 
@@ -147,6 +147,9 @@ Sorting may also identify isolates that must be rejected. Rejection status, reas
 - Normalize tracking-number whitespace in the form but do not force global uniqueness because courier tracking-number reuse/entry correction policy has not been established.
 - Add model-level helper properties only for display/state queries; keep role checks in permissions and multi-row workflow transitions in a receiving service module.
 - Transition services use `transaction.atomic()` and `select_for_update()` so two submissions cannot create duplicate state changes or events.
+- Transition services enforce their role boundary in addition to view decorators; Django admin exposes Receiving records as read-only.
+- Database constraints require status/timestamp completeness and allow only one canonical received, endorsed and laboratory-received event per receipt. Repeat `CORRECTED` events remain possible for a future correction workflow.
+- Submitted Secretariat and laboratory custody timestamps cannot be later than the current server-local time.
 - Event `occurred_at` reflects the actual workflow time: the submitted Secretariat receipt date/time for the initial event, server endorsement time for endorsement, and submitted laboratory receipt date/time for laboratory receipt.
 - Server `recorded_at` preserves when each event was entered.
 
@@ -160,6 +163,7 @@ Sorting may also identify isolates that must be rejected. Rejection status, reas
 - `apps/receiving/services.py` owns atomic creation and transitions.
 - `apps/receiving/views.py` stays focused on HTTP behavior.
 - All templates live below `apps/templates/receiving/`.
+- Receiving pages share `assets/css/receiving.css` and reuse `assets/img/theme/micros_2.png`, the established laboratory microscopy background used by the data pages.
 
 ## Error Handling and Security
 

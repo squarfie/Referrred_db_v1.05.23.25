@@ -1,11 +1,11 @@
 <!-- Source: Phase_2_Referral_Laboratory_Management_Living_Project_History_v0.2.docx -->
-<!-- Repository representation of the complete v0.2 living history document. -->
+<!-- Repository representation of the living history through document v0.3. -->
 
 # Phase 2: End-to-End Referral Laboratory Management
 
 Referred Database Expansion — Secretariat, Laboratory AST, DMU and Rejection Management
 
-DOCUMENT STATUS: Living project history + requirements discovery | Document v0.2 | Updated: 11 Nov 2026 | Proposed software milestone: Version 2.0
+DOCUMENT STATUS: Living project history + requirements discovery | Document v0.3 | Updated: 19 Nov 2026 | Proposed software milestone: Version 2.0
 
 ## 1. Naming and versioning decision
 
@@ -191,6 +191,10 @@ Initial entries are reconstructed only from the documented project discussion on
 | D-003 \| 2026-11-11 | Preserve rejected referrals as traceable cases rather than treating them as deleted isolates. | Proposed design requirement; confirm rejection SOP, authority and retention rules. |
 | D-004 \| 2026-11-11 | Maintain one continuous history of decisions, goals, plan dates, code changes, validation and actual rollout. | Documentation rule agreed for this draft; incorporated into document v0.2. |
 | D-005 \| 2026-11-11 | Update itemized specifications when the complete cross-unit process is finalized, keeping prior versions traceable. | Documentation rule; full workflow remains provisional pending unit review. |
+| D-008 \| 2026-11-12 | Use the permanent Secretariat receipt QR as an authenticated route into explicit LAB Encoder custody acknowledgment; scanning alone does not mutate state. | Implemented and merged in PR #19; browser/mobile scan validation and production deployment remain unconfirmed. |
+| D-009 \| 2026-11-12 | Permit administrator-only permanent deletion for a mistakenly entered receiving batch after exact typed confirmation. | Implemented in PRs #19-#21. Narrowed by D-011 on 2026-11-19 to unendorsed `received` records only. |
+| D-010 \| 2026-11-12 | Allow LAB Encoder staff to open laboratory acknowledgment from the dashboard/detail page without requiring a QR scan. | Implemented and merged in PR #22. QR scanning remains an optional navigation method, not an authorization mechanism. |
+| D-011 \| 2026-11-19 | Harden custody integrity and align Receiving pages with the established ARSP visual system and microscopy background. | Implemented locally; validation evidence is recorded in IMP-002. Merge, browser acceptance, migration application outside test databases and production deployment remain pending. |
 
 ## 15. Goals, milestones and implementation register
 
@@ -198,7 +202,7 @@ The dates below are intentionally unassigned. Record a planned start/target only
 
 | ID / Goal | Planned start → target | Actual implementation / evidence / state |
 | --- | --- | --- |
-| P2.1 — Map intake, accession and receipt rules; Secretariat receiving | TBD → TBD | Not started / awaiting approved workflow and accession policy. |
+| P2.1 — Map intake, accession and receipt rules; Secretariat receiving | 2026-11-12 → TBD | Receiving-to-laboratory-custody subset implemented and merged through PR #22; isolate sorting/accession policy remains outside this subset and still requires workflow-owner approval. Local hardening/UI work continued on 2026-11-19; production deployment and operational validation are not established. |
 | P2.2 — Rejection, resubmission and communications | TBD → TBD | Not started / dependent on rejection SOP and responsible roles. |
 | P2.3 — Laboratory AST, QC, review and authorization | TBD → TBD | Not started / dependent on laboratory SOP and standard/version rules. |
 | P2.4 — Laboratory-to-DMU transfer, end-to-end traceability | TBD → TBD | Not started / dependent on handoff and verification agreement. |
@@ -233,6 +237,7 @@ Duplicate the following fields for every proposed modification. Link related ent
 | --- | --- | --- |
 | DOC-001 \| v0.1 \| 2026-11-11 | Initial Phase 2 scope: Secretariat, Laboratory AST, DMU, rejection workflow, architecture, roadmap and open decisions. | Concept draft; no software implementation. |
 | DOC-002 \| v0.2 \| 2026-11-11 | Added decision/change/implementation registries, dated baseline, goal tracker, approval rules and explicit requirement for future subject-level updates. | Living planning draft; no software implementation. |
+| DOC-003 \| v0.3 \| 2026-11-19 | Reconciled Sections 14-15 and 18-21 with merged receiving PRs #19-#22; recorded manual acknowledgment, audit hardening, UI refactor, migration 0002, local tests, outstanding browser/deployment evidence and superseded deletion scope. | Living implementation history; not evidence of production deployment or SOP validation. |
 
 Future entries must identify exactly which numbered sections were amended, the controlling D-/CR-/IMP- IDs, and the date of review/approval. Do not replace this history with a single "last updated" date.
 
@@ -260,3 +265,45 @@ Next documentary gate: complete and approve the receipt-to-release/rejection flo
 - **Implementation:** Replace delete link with modal button, show tracking number/site/status, require `DELETE PERMANENTLY` text and CSRF-protected POST, preserve administrator authorization and permanent cascade removal of receiving-event records. GET requests to deletion endpoint now return HTTP 405.
 - **Implementation branch:** `phase2/receiving-delete-modal`.
 - **Status:** Implemented on feature branch; local test results and production deployment not confirmed. Review and validate prior to merge.
+
+Historical status note: PR #20 was subsequently merged to `main` on 2026-11-12. The modal-placement defect was corrected in PR #21 and also merged on 2026-11-12. Production deployment remains unconfirmed.
+
+## 20. Receiving implementation reconciliation (2026-11-19)
+
+### 20.1 Change and implementation records
+
+| ID / date | Scope and rationale | Evidence / current state |
+| --- | --- | --- |
+| CR-004 \| 2026-11-12 | Allow authorized LAB Encoder staff to acknowledge endorsed batches from the Receiving dashboard or detail page when QR scanning is unavailable or unnecessary. | Implemented by commits `bef1ff2`, `ad780b3`, `07433f8`, `f121387`, and `bb844e8`; merged in PR #22 (`97157f7`). No schema migration. |
+| IMP-001 \| 2026-11-12 | Secretariat courier-batch receipt, permanent UUID/QR label, endorsement, laboratory custody confirmation, role boundaries, event history, permanent-delete modal and manual acknowledgment. | Base implementation commits `5412e08` and `bb1e02f`; follow-up work merged through PRs #19-#22. Merge evidence is not production-deployment evidence. |
+| CR-005 \| 2026-11-19 | Prevent workflow bypass and inconsistent custody records, restrict irreversible deletion to unendorsed mistaken entries, reject future custody timestamps, and improve all Receiving layouts using the existing ARSP microscopy background. | Requested by project owner on 2026-11-19; implemented locally under IMP-002. |
+| IMP-002 \| 2026-11-19 | Service-level authorization, database custody/event constraints, read-only Receiving admin, safe-deletion state guard, future-time validation, responsive shared Receiving stylesheet and page refactor. | Local implementation includes receiving migration `0002_receivingevent_receiving_one_canonical_event_and_more.py`. Merge, non-test migration application, browser acceptance and production deployment remain pending. |
+
+### 20.2 Corrected implementation state
+
+- The receiving subset is implemented through laboratory custody confirmation; it is no longer accurate to describe all of P2.1 as “Not started.”
+- This subset does **not** establish isolate sorting, acceptance/rejection, official accession assignment, accession labels, or downstream AST ownership. Those remain future workflow decisions.
+- QR scanning and dashboard/detail navigation reach the same authenticated acknowledgment form. Neither navigation method signs in the user or mutates custody state automatically.
+- D-009 remains the controlling decision for irreversible mistaken-entry deletion, but D-011 narrows eligibility to records still in `received` state with no endorsement or laboratory-receipt timestamp. Endorsed custody history cannot be permanently deleted through the Receiving UI/service.
+- The original Receiving design’s deletion non-goal and “no delete UI” statement are historical and superseded only to the extent documented by D-009 and D-011.
+
+### 20.3 Verification evidence and limits
+
+| Date / environment | Verification | Result / interpretation |
+| --- | --- | --- |
+| 2026-11-19 \| local PostgreSQL test database | Pre-change receiving suite: `python manage.py test apps.receiving -v 2` | 54 tests passed before CR-005 implementation. |
+| 2026-11-19 \| local PostgreSQL test database | CR-005 focused hardening tests | 34 tests passed after RED/GREEN implementation, including permissions, timestamps, database constraints, admin behavior and deletion-state protection. |
+| 2026-11-19 \| local PostgreSQL test database | Receiving template tests | 9 tests passed after the shared stylesheet and layout refactor. |
+| 2026-11-19 \| local environment | `python manage.py check` and migration model check | Django check reported no issues before CR-005; final verification is recorded after the complete change set. |
+| 2026-11-19 \| local PostgreSQL test database | Pre-change full suite: `python manage.py test -v 1` | 200 tests ran; two password-reset text assertions failed (`test_expired_link_is_rejected`, `test_valid_link_resets_once_and_reuse_fails`). Receiving tests passed. These failures are not evidence of a Receiving regression. |
+
+No browser/mobile QR scan, printed-label acceptance, production database migration, training, SOP validation or production deployment is established by these local results.
+
+## 21. Receiving risk register additions (2026-11-19)
+
+| ID | Risk / impact | Disposition / next gate |
+| --- | --- | --- |
+| R-001 | Permanent deletion could previously erase an endorsed or laboratory-received custody history. | Mitigated locally by D-011/IMP-002: only unendorsed `received` records are eligible. Validate with workflow owners before deployment. |
+| R-002 | Django admin could edit workflow-owned status/users/timestamps without appending events. | Mitigated locally by making `ReferralReceiptAdmin` read-only and disabling admin add/delete. Controlled corrections remain a future design requirement. |
+| R-003 | Existing receiving rows could violate new migration 0002 constraints. | Before applying outside a test database, run a read-only preflight for inconsistent status/timestamp combinations and duplicate canonical events; resolve exceptions through an approved correction record. Do not silently rewrite custody history. |
+| R-004 | Improved responsive layouts and QR label have automated rendering assertions but no browser, mobile camera or printer acceptance evidence. | Perform Secretariat and LAB Encoder smoke tests at desktop/mobile widths, scan a printed QR against the configured canonical origin, and approve the physical label before production rollout. |
