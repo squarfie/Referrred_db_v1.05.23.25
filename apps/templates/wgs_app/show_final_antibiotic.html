@@ -22,8 +22,9 @@
           <a class="btn btn-sm btn-neutral" href="{% url 'upload_wgs_view' %}">
             <i class="ni ni-cloud-upload-96 mr-1"></i>Upload Data
           </a>
-          <form method="POST" action="{% url 'delete_all_final_antibiotic' %}" class="d-inline" onsubmit="return confirm('WARNING: This will delete ALL Final Antibiotic records. Are you absolutely sure?')">
+          <form method="POST" action="{% url 'delete_all_final_antibiotic' %}" class="d-inline" onsubmit="const phrase = prompt('Type DELETE ALL FINAL ANTIBIOTICS to confirm deletion of all final antibiotic records:'); if (phrase === null) return false; this.elements.confirmation.value = phrase; return true;">
             {% csrf_token %}
+            <input type="hidden" name="confirmation" value="">
             <button type="submit" class="btn btn-sm btn-danger">
               <i class="fa fa-trash mr-1"></i>Delete All
             </button>
@@ -88,8 +89,9 @@
 
         <!-- DELETE BY DATE -->
         <div class="col-md-6">
-          <form method="POST" action="{% url 'delete_finalantibiotic_by_date' %}" class="form-inline justify-content-md-end">
+          <form method="POST" action="{% url 'delete_finalantibiotic_by_date' %}" onsubmit="const phrase = prompt('Type DELETE ALL FINAL ANTIBIOTICS to confirm deleting final entries for the selected date:'); if (phrase === null) return false; this.elements.confirmation.value = phrase; return true;" class="form-inline justify-content-md-end">
             {% csrf_token %}
+            <input type="hidden" name="confirmation" value="">
             <label class="mr-2 mb-0"><strong>Delete by Date:</strong></label>
             <input type="date" name="upload_date" class="form-control form-control-sm mr-2" required>
             <button type="submit" class="btn btn-sm btn-warning"><i class="fa fa-trash mr-1"></i>Delete</button>
