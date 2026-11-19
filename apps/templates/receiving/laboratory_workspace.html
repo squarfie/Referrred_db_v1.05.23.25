@@ -1,0 +1,139 @@
+{% extends "layouts/base.html" %}{% load static %}
+{% block title %}Laboratory receiving{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span>
+    <div><p class="receiving-eyebrow">Independent laboratory worksheet</p><h1>{{ receipt.tracking_number }}</h1>
+    <p class="receiving-hero-subtitle">{{ receipt.site.SiteCode }} · custody received {{ receipt.lab_date_received|date:"M j, Y" }}</p>
+  </div>
+</div>
+<div class="receiving-hero-actions">
+  <a class="btn btn-outline-light" href="{% url 'receiving_detail' receipt.receiving_id %}">Custody record</a>
+  <a class="btn btn-info" href="{% url 'laboratory_receiving_register' %}">Monthly register</a></div></header>
+  <div class="receiving-content">
+    <div class="alert alert-info receiving-notice"><i class="fas fa-user-check"></i><div><strong>The LAB Encoder decides acceptance or rejection.</strong> The system validates the totals but does not classify isolates automatically.</div></div>
+    
+  <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Receiving and Inventory of Referred Isolates</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
+    <div class="receiving-card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="row">
+          <!-- Field: specimen_condition -->
+          <div class="col-md-4 mb-3">
+            <label for="{{ form.specimen_condition.id_for_label }}">Condition on receipt</label>
+            {{ form.specimen_condition }}
+            {% for error in form.specimen_condition.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <!-- Field: discrepancies -->
+          <div class="col-md-4 mb-3">
+            <label for="{{ form.discrepancies.id_for_label }}">Discrepancies</label>
+            {{ form.discrepancies }}
+            {% for error in form.discrepancies.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <!-- Field: remarks -->
+          <div class="col-md-4 mb-3">
+            <label for="{{ form.remarks.id_for_label }}">Laboratory remarks</label>
+            {{ form.remarks }}
+            {% for error in form.remarks.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <div class="row">
+          <!-- Field: total_isolates_received -->
+          <div class="col-md-2 mb-3">
+            <label for="{{ form.total_isolates_received.id_for_label }}">Total # of isolates received</label>
+            {{ form.total_isolates_received }}
+            {% for error in form.total_isolates_received.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <!-- Field: isolates_rejected -->
+          <div class="col-md-2 mb-3">
+            <label for="{{ form.isolates_rejected.id_for_label }}">No of Isolates Rejected</label>
+            {{ form.isolates_rejected }}
+            {% for error in form.isolates_rejected.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <!-- Field: isolates_accepted -->
+          <div class="col-md-2 mb-3">
+            <label for="{{ form.isolates_accepted.id_for_label }}">No of Isolates Accepted</label>
+            {{ form.isolates_accepted }}
+            {% for error in form.isolates_accepted.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <!-- Field: date_accepted -->
+          <div class="col-md-3 mb-3">
+            <label for="{{ form.date_accepted.id_for_label }}">DR</label>
+            {{ form.date_accepted }}
+            {% for error in form.date_accepted.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <!-- Field: total_isolates_processed -->
+          <div class="col-md-3 mb-3">
+            <label for="{{ form.total_isolates_processed.id_for_label }}">Total # of isolates</label>
+            {{ form.total_isolates_processed }}
+            {% for error in form.total_isolates_processed.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+        </div>
+
+        {% if can_edit %}
+        <div class="receiving-form-actions">
+          <button class="btn btn-primary" type="submit"><i class="fas fa-save mr-1"></i>Save laboratory decision</button>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </section>
+    
+  <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Accession ranges and generated batches</h2><p>Saving a range does not create a batch. Use Create Batch only after reviewing it.</p></div><div class="receiving-card-body">
+      {% if can_edit %}
+      <form method="post" action="{% url 'laboratory_accession_add' receipt.receiving_id %}" class="row align-items-end mb-4">
+        {% csrf_token %}
+
+        <!-- Field: date_referred -->
+        <div class="col-md mb-3">
+          <label for="{{ accession_form.date_referred.id_for_label }}">Date referred</label>
+          {{ accession_form.date_referred }}
+        </div>
+
+        <!-- Field: start_number -->
+        <div class="col-md mb-3">
+          <label for="{{ accession_form.start_number.id_for_label }}">Accession start number</label>
+          {{ accession_form.start_number }}
+        </div>
+
+        <!-- Field: end_number -->
+        <div class="col-md mb-3">
+          <label for="{{ accession_form.end_number.id_for_label }}">Accession end number</label>
+          {{ accession_form.end_number }}
+        </div>
+
+        <!-- Field: batch_number -->
+        <div class="col-md mb-3">
+          <label for="{{ accession_form.batch_number.id_for_label }}">Batch number</label>
+          {{ accession_form.batch_number }}
+        </div>
+
+        <!-- Field: total_batches -->
+        <div class="col-md mb-3">
+          <label for="{{ accession_form.total_batches.id_for_label }}">Total batches</label>
+          {{ accession_form.total_batches }}
+        </div>
+
+        <div class="col-md-auto mb-3">
+          <button class="btn btn-outline-primary" type="submit">Save range</button>
+        </div>
+      </form>
+      {% endif %}
+      <div class="table-responsive"><table class="table table-sm receiving-table"><thead><tr><th>Date referred</th><th>Range</th><th>Batch</th><th>Isolates</th><th>Organism inventory</th><th>Status</th><th></th></tr></thead><tbody>{% for item in ranges %}<tr><td>{{ item.date_referred|date:"M j, Y" }}</td><td><strong>{{ item.reference_range }}</strong></td><td>{{ item.batch_number }}/{{ item.total_batches }}</td><td>{{ item.isolate_count }}</td><td>{% for count in item.organism_counts.all %}<span class="badge badge-info mr-1">{{ count.organism_code }} {{ count.count }}</span>{% empty %}<span class="text-muted">Not entered</span>{% endfor %}{% if can_edit %}<form class="form-inline mt-2" method="post" action="{% url 'laboratory_organism_add' item.pk %}">{% csrf_token %}{{ organism_form.organism_code }}{{ organism_form.count }}<button class="btn btn-sm btn-outline-info" type="submit">Add</button></form>{% endif %}</td><td>{% if item.batch %}<span class="badge badge-success">Generated</span><div class="small">{{ item.batch.bat_Batch_Code }}</div>{% else %}<span class="badge badge-warning">Pending</span>{% endif %}</td><td>{% if can_edit and not item.batch %}<form method="post" action="{% url 'laboratory_batch_create' item.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success" type="submit">Create Batch</button></form>{% elif item.batch %}<a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="7" class="text-center text-muted">No accession ranges yet.</td></tr>{% endfor %}</tbody></table></div>
+    </div></section>
+  </div>
+</main>
+{% endblock content %}

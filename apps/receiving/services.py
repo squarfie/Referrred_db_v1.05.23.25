@@ -3,7 +3,7 @@ from datetime import datetime
 from django.db import transaction
 from django.utils import timezone
 
-from .models import ReceivingEvent, ReferralReceipt
+from .models import LaboratoryReceiving, ReceivingEvent, ReferralReceipt
 from .permissions import (
     can_confirm_lab_receipt,
     can_manage_secretariat_receiving,
@@ -135,6 +135,10 @@ def confirm_lab_receipt(
         event_type=ReceivingEvent.EventType.LAB_RECEIVED,
         performed_by=user,
         occurred_at=received_at,
+    )
+    LaboratoryReceiving.objects.get_or_create(
+        receipt=receipt,
+        defaults={"recorded_by": user},
     )
     return receipt
 

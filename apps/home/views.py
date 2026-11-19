@@ -42,6 +42,13 @@ from .forms import *
 from apps.wgs_app.forms import *
 from apps.home_final.forms import *
 from apps.home_final.services import concordance as concordance_service
+from apps.home.services.batch_creation import (
+    AccessionConflict,
+    BatchAlreadyExists,
+    InvalidBatchRange,
+    create_referred_batch,
+    parse_batch_ref_range,
+)
 from django.contrib import messages
 # imports for generating pdf
 from django.template.loader import get_template
@@ -1349,6 +1356,51 @@ def batch_create_view(request):
         form = BatchTable_form(request.POST)
         if form.is_valid():
             instance = form.save(commit=False)
+
+            try:
+                start_ref, end_ref, _ = parse_batch_ref_range(instance.bat_RefNo)
+                result = create_referred_batch(
+                    site_code=instance.bat_SiteCode,
+                    referral_date=instance.bat_Referral_Date,
+                    start_number=start_ref,
+                    end_number=end_ref,
+                    batch_number=instance.bat_BatchNo,
+                    total_batches=instance.bat_Total_batch,
+                    created_by=request.user,
+                    site_name=instance.bat_Site_NameGen,
+                    personnel={
+                        field: getattr(instance, field, "")
+                        for field in (
+                            "bat_Encoder", "bat_Enc_Lic", "bat_Checker", "bat_Chec_Lic",
+                            "bat_Verifier", "bat_Ver_Lic", "bat_LabManager", "bat_Lab_Lic",
+                            "bat_Head", "bat_Head_Lic",
+                        )
+                    },
+                )
+            except (ValueError, InvalidBatchRange) as exc:
+                messages.error(request, str(exc))
+                return render(request, "home/Batchname_form.html", {"form": form, "editing": False})
+            except BatchAlreadyExists as exc:
+                messages.error(
+                    request,
+                    f"Batch '{exc.batch.bat_Batch_Name}' already exists. Batch creation will not overwrite existing data.",
+                )
+                return render(request, "home/Batchname_form.html", {"form": form, "editing": False})
+            except AccessionConflict as exc:
+                labels = [row.get("AccessionNo") or row.get("f_AccessionNo") for row in exc.conflicts[:5]]
+                messages.error(
+                    request,
+                    "Cannot create batch because accession(s) already exist: " + ", ".join(filter(None, labels)),
+                )
+                return render(request, "home/Batchname_form.html", {"form": form, "editing": False})
+
+            if result.recovered_orphan:
+                messages.warning(request, "Recovered an empty orphan batch shell.")
+            messages.success(
+                request,
+                f"Batch '{result.batch.bat_Batch_Name}' saved with {result.isolate_count} isolates.",
+            )
+            return redirect(f"{reverse('show_batches')}?batch_code={result.batch.bat_Batch_Code}")
 
             # extract values
             site_code = (instance.bat_SiteCode or "").strip()

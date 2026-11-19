@@ -1,5 +1,6 @@
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Group, User
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
@@ -10,10 +11,16 @@ from io import BytesIO
 from types import SimpleNamespace
 from uuid import UUID
 
-from apps.home.models import SiteData
+from apps.home.models import Batch_Table, Referred_Data, SiteData, TATform
 from apps.receiving.forms import ReferralReceiptForm
 from apps.receiving.admin import ReferralReceiptAdmin
-from apps.receiving.models import ReceivingEvent, ReferralReceipt
+from apps.receiving.models import (
+    LaboratoryAccession,
+    LaboratoryOrganismCount,
+    LaboratoryReceiving,
+    ReceivingEvent,
+    ReferralReceipt,
+)
 from django.test import RequestFactory, override_settings
 from django.urls import NoReverseMatch, reverse
 from PIL import Image
@@ -950,3 +957,317 @@ class ReceivingTemplateTests(TestCase):
         self.assertNotContains(response, "Patient")
         self.assertContains(response, "/static/assets/css/receiving.css")
         self.assertContains(response, 'class="receiving-label-page"')
+
+
+class LaboratoryReceivingModelTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="lab-model", password="test-pass")
+        self.site = SiteData.objects.create(SiteCode="RI", SiteName="Referral Institute")
+        self.receipt = ReferralReceipt.objects.create(
+            tracking_number="LAB-MODEL-001",
+            site=self.site,
+            date_sent=date(2026, 11, 18),
+            date_received=date(2026, 11, 18),
+            time_received=time(8, 0),
+            received_by=self.user,
+            endorsed_at=timezone.make_aware(datetime(2026, 11, 18, 9, 0)),
+            endorsed_by=self.user,
+            lab_date_received=date(2026, 11, 19),
+            lab_time_received=time(8, 30),
+            lab_received_by=self.user,
+            status=ReferralReceipt.Status.LAB_RECEIVED,
+        )
+
+    def laboratory_receiving(self, **overrides):
+        values = {
+            "receipt": self.receipt,
+            "specimen_condition": "Intact and properly labeled",
+            "total_isolates_received": 5,
+            "isolates_rejected": 1,
+            "isolates_accepted": 4,
+            "date_accepted": date(2026, 11, 19),
+            "total_isolates_processed": 4,
+            "recorded_by": self.user,
+        }
+        values.update(overrides)
+        return LaboratoryReceiving(**values)
+
+    def test_lab_encoder_decision_totals_must_balance_when_saved(self):
+        record = self.laboratory_receiving(isolates_rejected=0)
+
+        with self.assertRaises(ValidationError) as caught:
+            record.full_clean()
+
+        self.assertIn("isolates_accepted", caught.exception.message_dict)
+
+    def test_zero_value_custody_placeholder_is_valid(self):
+        record = self.laboratory_receiving(
+            total_isolates_received=0,
+            isolates_rejected=0,
+            isolates_accepted=0,
+            total_isolates_processed=0,
+            date_accepted=None,
+        )
+
+        record.full_clean()
+        record.save()
+
+        self.assertEqual(record.receipt, self.receipt)
+
+    def test_processed_count_cannot_exceed_accepted_count(self):
+        record = self.laboratory_receiving(total_isolates_processed=5)
+
+        with self.assertRaises(ValidationError) as caught:
+            record.full_clean()
+
+        self.assertIn("total_isolates_processed", caught.exception.message_dict)
+
+    def test_accession_range_has_padded_reference_and_accessions(self):
+        record = self.laboratory_receiving(isolates_rejected=0, isolates_accepted=5)
+        record.full_clean()
+        record.save()
+        accession = LaboratoryAccession(
+            laboratory_receiving=record,
+            date_referred=date(2026, 11, 19),
+            start_number=90,
+            end_number=94,
+            batch_number=1,
+            total_batches=1,
+            assigned_by=self.user,
+        )
+
+        accession.full_clean()
+
+        self.assertEqual(accession.reference_range, "0090-0094")
+        self.assertEqual(accession.isolate_count, 5)
+        self.assertEqual(accession.accession_numbers[0], "26ARS_RI0090")
+        self.assertEqual(accession.accession_numbers[-1], "26ARS_RI0094")
+
+    def test_accession_ranges_cannot_overlap_within_receipt(self):
+        record = self.laboratory_receiving(isolates_rejected=0, isolates_accepted=5)
+        record.full_clean()
+        record.save()
+        LaboratoryAccession.objects.create(
+            laboratory_receiving=record,
+            date_referred=date(2026, 11, 19),
+            start_number=90,
+            end_number=92,
+            batch_number=1,
+            total_batches=2,
+            assigned_by=self.user,
+        )
+        overlapping = LaboratoryAccession(
+            laboratory_receiving=record,
+            date_referred=date(2026, 11, 19),
+            start_number=92,
+            end_number=94,
+            batch_number=2,
+            total_batches=2,
+            assigned_by=self.user,
+        )
+
+        with self.assertRaises(ValidationError) as caught:
+            overlapping.full_clean()
+
+        self.assertIn("start_number", caught.exception.message_dict)
+
+    def test_organism_count_uses_register_group_and_cannot_exceed_range(self):
+        record = self.laboratory_receiving(
+            total_isolates_received=2,
+            isolates_rejected=0,
+            isolates_accepted=2,
+            total_isolates_processed=2,
+        )
+        record.full_clean()
+        record.save()
+        accession = LaboratoryAccession.objects.create(
+            laboratory_receiving=record,
+            date_referred=date(2026, 11, 19),
+            start_number=90,
+            end_number=91,
+            batch_number=1,
+            total_batches=1,
+            assigned_by=self.user,
+        )
+        first = LaboratoryOrganismCount(
+            accession_range=accession,
+            organism_code=LaboratoryOrganismCount.OrganismCode.NGO,
+            count=1,
+        )
+        first.full_clean()
+        first.save()
+        too_many = LaboratoryOrganismCount(
+            accession_range=accession,
+            organism_code=LaboratoryOrganismCount.OrganismCode.SPN,
+            count=2,
+        )
+
+        with self.assertRaises(ValidationError):
+            too_many.full_clean()
+
+        self.assertEqual(first.organism_group, "fastidious")
+
+
+class SharedBatchCreationServiceTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="batch-service", password="test-pass")
+        SiteData.objects.create(SiteCode="RI", SiteName="Referral Institute")
+
+    def test_creates_standard_batch_raw_accessions_and_tat(self):
+        from apps.home.services.batch_creation import create_referred_batch
+
+        result = create_referred_batch(
+            site_code="RI",
+            referral_date=date(2026, 11, 19),
+            start_number=90,
+            end_number=94,
+            batch_number=1,
+            total_batches=1,
+            created_by=self.user,
+            site_name="Referral Institute",
+        )
+
+        self.assertEqual(result.batch.bat_Batch_Code, "RI_11192026_1.1_0090-0094")
+        self.assertEqual(result.batch.bat_RefNo, "0090-0094")
+        self.assertEqual(result.accession_numbers[0], "26ARS_RI0090")
+        self.assertEqual(result.accession_numbers[-1], "26ARS_RI0094")
+        self.assertEqual(Referred_Data.objects.filter(Batch_id=result.batch).count(), 5)
+        self.assertEqual(TATform.objects.get(tat_Batch_Isolates=result.batch).tat_Num_Isolate, 5)
+
+    def test_refuses_to_overwrite_an_existing_populated_batch(self):
+        from apps.home.services.batch_creation import BatchAlreadyExists, create_referred_batch
+
+        first = create_referred_batch(
+            site_code="RI",
+            referral_date=date(2026, 11, 19),
+            start_number=90,
+            end_number=94,
+            batch_number=1,
+            total_batches=1,
+            created_by=self.user,
+        )
+
+        with self.assertRaises(BatchAlreadyExists) as caught:
+            create_referred_batch(
+                site_code="RI",
+                referral_date=date(2026, 11, 19),
+                start_number=90,
+                end_number=94,
+                batch_number=1,
+                total_batches=1,
+                created_by=self.user,
+            )
+
+        self.assertEqual(caught.exception.batch.pk, first.batch.pk)
+        self.assertEqual(Batch_Table.objects.count(), 1)
+
+    def test_existing_create_batch_page_uses_same_existing_batch_table(self):
+        group, _ = Group.objects.get_or_create(name=home_permissions.ROLE_ENCODER)
+        self.user.groups.add(group)
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("batch_create_view"), {
+            "bat_SiteCode": "RI",
+            "bat_Site_NameGen": "Referral Institute",
+            "bat_Referral_Date": "2026-11-19",
+            "bat_BatchNo": "90",
+            "bat_Total_batch": "94",
+            "bat_RefNo": "ignored-by-form",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        batch = Batch_Table.objects.get()
+        self.assertEqual(batch.bat_Batch_Code, "RI_11192026_90.94_0090-0094")
+        self.assertEqual(Referred_Data.objects.filter(Batch_id=batch).count(), 5)
+
+
+class LaboratoryReceivingWorkspaceTests(TestCase):
+    def setUp(self):
+        self.lab_user = User.objects.create_user(username="lab-workspace", password="test-pass")
+        group, _ = Group.objects.get_or_create(name=home_permissions.ROLE_LAB_ENCODER)
+        self.lab_user.groups.add(group)
+        self.site = SiteData.objects.create(SiteCode="RI", SiteName="Referral Institute")
+        self.receipt = ReferralReceipt.objects.create(
+            tracking_number="LAB-WORK-001", site=self.site,
+            date_sent=date(2026, 11, 18), date_received=date(2026, 11, 18),
+            time_received=time(8), received_by=self.lab_user,
+            endorsed_at=timezone.make_aware(datetime(2026, 11, 18, 9)), endorsed_by=self.lab_user,
+            lab_date_received=date(2026, 11, 19), lab_time_received=time(8, 30),
+            lab_received_by=self.lab_user, status=ReferralReceipt.Status.LAB_RECEIVED,
+        )
+        self.lab_record = LaboratoryReceiving.objects.create(
+            receipt=self.receipt, recorded_by=self.lab_user
+        )
+        self.client.force_login(self.lab_user)
+
+    def test_lab_encoder_manually_saves_accepted_and_rejected_totals(self):
+        response = self.client.post(
+            reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}),
+            {
+                "specimen_condition": "Intact", "discrepancies": "", "remarks": "",
+                "total_isolates_received": 5, "isolates_rejected": 1,
+                "isolates_accepted": 4, "date_accepted": "2026-11-19",
+                "total_isolates_processed": 4,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}),
+        )
+        self.lab_record.refresh_from_db()
+        self.assertEqual(self.lab_record.isolates_rejected, 1)
+        self.assertEqual(self.lab_record.isolates_accepted, 4)
+        self.assertFalse(hasattr(self.lab_record, "is_finalized"))
+        self.assertNotContains(response, "Finalize the accepted/rejected decision", status_code=302)
+
+    def test_lab_encoder_sees_prominent_workspace_action_on_custody_record(self):
+        response = self.client.get(
+            reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
+        )
+
+        self.assertContains(response, "Update Lab Receiving")
+        self.assertContains(
+            response,
+            reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}),
+        )
+
+    def test_saved_range_creates_batch_in_existing_batch_table(self):
+        self.lab_record.total_isolates_received = 5
+        self.lab_record.isolates_accepted = 5
+        self.lab_record.total_isolates_processed = 5
+        self.lab_record.date_accepted = date(2026, 11, 19)
+        self.lab_record.save()
+        add_response = self.client.post(
+            reverse("laboratory_accession_add", kwargs={"receiving_id": self.receipt.receiving_id}),
+            {"date_referred": "2026-11-19", "start_number": 90, "end_number": 94,
+             "batch_number": 1, "total_batches": 1},
+        )
+        self.assertEqual(add_response.status_code, 302)
+        accession = LaboratoryAccession.objects.get(laboratory_receiving=self.lab_record)
+
+        response = self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
+
+        self.assertEqual(response.status_code, 302)
+        accession.refresh_from_db()
+        self.assertIsNotNone(accession.batch_id)
+        self.assertEqual(accession.batch.bat_Batch_Code, "RI_11192026_1.1_0090-0094")
+        self.assertEqual(Referred_Data.objects.filter(Batch_id=accession.batch).count(), 5)
+
+    def test_monthly_register_and_pdf_are_available(self):
+        html = self.client.get(reverse("laboratory_receiving_register"), {"month": 11, "year": 2026})
+        pdf = self.client.get(reverse("laboratory_receiving_register_pdf"), {"month": 11, "year": 2026})
+
+        self.assertEqual(html.status_code, 200)
+        self.assertContains(html, "Receiving and Inventory of Referred Isolates")
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+
+    def test_workspace_does_not_render_finalize_control(self):
+        response = self.client.get(
+            reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id})
+        )
+
+        self.assertNotContains(response, "Finalize the accepted/rejected decision")
+        self.assertNotContains(response, 'name="is_finalized"')

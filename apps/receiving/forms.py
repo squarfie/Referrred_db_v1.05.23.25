@@ -3,7 +3,12 @@ from datetime import datetime, timedelta
 from django import forms
 from django.utils import timezone
 
-from .models import ReferralReceipt
+from .models import (
+    LaboratoryAccession,
+    LaboratoryOrganismCount,
+    LaboratoryReceiving,
+    ReferralReceipt,
+)
 
 
 class ReferralReceiptForm(forms.ModelForm):
@@ -105,3 +110,56 @@ class LabReceiptForm(forms.Form):
                 "Laboratory receipt cannot be later than the current time.",
             )
         return cleaned_data
+
+
+class LaboratoryReceivingForm(forms.ModelForm):
+    class Meta:
+        model = LaboratoryReceiving
+        fields = (
+            "specimen_condition", "discrepancies", "remarks",
+            "total_isolates_received", "isolates_rejected", "isolates_accepted",
+            "date_accepted", "total_isolates_processed",
+        )
+        labels = {
+            "specimen_condition": "Condition on receipt",
+            "isolates_rejected": "Rejected - LAB decision",
+            "isolates_accepted": "Accepted - LAB decision",
+        }
+        widgets = {
+            "specimen_condition": forms.TextInput(attrs={"class": "form-control"}),
+            "discrepancies": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "remarks": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "total_isolates_received": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "isolates_rejected": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "isolates_accepted": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "date_accepted": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "total_isolates_processed": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+        }
+
+
+class LaboratoryAccessionForm(forms.ModelForm):
+    class Meta:
+        model = LaboratoryAccession
+        fields = ("date_referred", "start_number", "end_number", "batch_number", "total_batches")
+        widgets = {
+            "date_referred": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "start_number": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 9999}),
+            "end_number": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 9999}),
+            "batch_number": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+            "total_batches": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+        }
+
+
+class LaboratoryOrganismCountForm(forms.ModelForm):
+    class Meta:
+        model = LaboratoryOrganismCount
+        fields = ("organism_code", "count")
+        widgets = {
+            "organism_code": forms.Select(attrs={"class": "form-control"}),
+            "count": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+        }
+
+
+class LaboratoryRegisterFilterForm(forms.Form):
+    month = forms.IntegerField(min_value=1, max_value=12, widget=forms.NumberInput(attrs={"class": "form-control"}))
+    year = forms.IntegerField(min_value=2000, max_value=2100, widget=forms.NumberInput(attrs={"class": "form-control"}))

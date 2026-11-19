@@ -1,0 +1,34 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Laboratory receiving register{% endblock %}
+{% block stylesheets %}
+<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">
+<style>.register-table{font-size:.68rem;white-space:nowrap}.register-table th,.register-table td{padding:.3rem;text-align:center;vertical-align:middle}.register-wrap{overflow:auto}.register-table thead th{background:#d9eef2;color:#123d55}</style>
+{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero">
+    <div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-file-alt"></i></span><div>
+      <p class="receiving-eyebrow">Monthly laboratory register</p><h1>Receiving and Inventory of Referred Isolates</h1>
+      <p class="receiving-hero-subtitle">Generated from finalized laboratory receiving and batch records.</p></div></div>
+    <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'receiving_dashboard' %}">Receiving</a>
+      <a class="btn btn-info" target="_blank" href="{% url 'laboratory_receiving_register_pdf' %}?month={{ month }}&year={{ year }}"><i class="fas fa-file-pdf mr-1"></i>Print PDF</a></div>
+  </header>
+  <div class="receiving-content">
+    <section class="receiving-surface mb-4"><div class="receiving-card-body"><form class="form-row align-items-end" method="get">{% for field in form %}<div class="col-md-2"><label>{{ field.label }}</label>{{ field }}</div>{% endfor %}<div class="col-md-auto"><button class="btn btn-primary" type="submit">Load register</button></div></form></div></section>
+    <section class="receiving-surface">
+      <div class="receiving-card-header"><h2>{{ month|stringformat:"02d" }}/{{ year }}</h2><p>Accepted and rejected values are the LAB Encoder's saved decisions.</p></div>
+      <div class="register-wrap"><table class="table table-bordered register-table mb-0">
+        <thead>
+          <tr><th colspan="9"></th><th colspan="4">Fastidious</th><th colspan="3">Enterobacterales</th><th colspan="4">Other Gram-negative</th><th colspan="3">Non-fermenters</th><th colspan="4">Gram-positive</th><th></th></tr>
+          <tr><th>Date RCVD</th><th>RI</th><th>Received</th><th>Rejected</th><th>Accepted</th><th>DR</th><th>Batch</th><th>#</th><th>Accession / Stock</th>{% for code,short,label in register_columns %}<th title="{{ label }}">{{ short }}</th>{% endfor %}<th>Staff</th></tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}<tr><td>{% if row.first %}{{ row.record.receipt.lab_date_received|date:"d M" }}{% endif %}</td><td>{% if row.first %}{{ row.record.receipt.site.SiteCode }}{% endif %}</td><td>{% if row.first %}{{ row.record.total_isolates_received }}{% endif %}</td><td>{% if row.first %}{{ row.record.isolates_rejected }}{% endif %}</td><td>{% if row.first %}{{ row.record.isolates_accepted }}{% endif %}</td><td>{% if row.accession %}{{ row.accession.date_referred|date:"d M" }}{% endif %}</td><td>{% if row.accession %}{{ row.accession.batch_number }}/{{ row.accession.total_batches }}{% endif %}</td><td>{% if row.accession %}{{ row.accession.isolate_count }}{% endif %}</td><td>{% if row.accession %}{{ row.accession.reference_range }}{% endif %}</td>{% for code,count in row.organisms.items %}<td>{% if count %}{{ count }}{% endif %}</td>{% endfor %}<td>{% if row.first %}{{ row.record.receipt.lab_received_by.get_full_name|default:row.record.receipt.lab_received_by.username }}{% endif %}</td></tr>{% empty %}<tr><td colspan="28" class="text-muted py-4">No laboratory receiving records for this month.</td></tr>{% endfor %}
+          <tr class="font-weight-bold"><td>TOTAL</td><td></td><td>{{ totals.received }}</td><td>{{ totals.rejected }}</td><td>{{ totals.accepted }}</td><td></td><td></td><td>{{ totals.batch }}</td><td></td>{% for code,count in organism_totals.items %}<td>{% if count %}{{ count }}{% endif %}</td>{% endfor %}<td></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+{% endblock content %}

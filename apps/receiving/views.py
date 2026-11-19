@@ -1,13 +1,35 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .forms import LabReceiptForm, ReferralReceiptForm
-from .models import ReferralReceipt
+from apps.home.services.batch_creation import (
+    AccessionConflict,
+    BatchAlreadyExists,
+    BatchCreationError,
+    create_referred_batch,
+)
+
+from .forms import (
+    LabReceiptForm,
+    LaboratoryAccessionForm,
+    LaboratoryOrganismCountForm,
+    LaboratoryReceivingForm,
+    LaboratoryRegisterFilterForm,
+    ReferralReceiptForm,
+)
+from .models import (
+    LaboratoryAccession,
+    LaboratoryOrganismCount,
+    LaboratoryReceiving,
+    ReceivingEvent,
+    ReferralReceipt,
+)
 from .permissions import (
     can_confirm_lab_receipt,
     can_permanently_delete_receipt,
@@ -18,6 +40,7 @@ from .permissions import (
     secretariat_receiving_required,
 )
 from .qr import build_receipt_detail_url, render_qr_png
+from .reports import REGISTER_COLUMNS, build_register_rows, render_register_pdf
 from .services import (
     InvalidReceivingTransition,
     confirm_lab_receipt,
@@ -81,6 +104,188 @@ def receiving_dashboard(request):
     )
 
 
+def _laboratory_record(receipt):
+    if receipt.status != ReferralReceipt.Status.LAB_RECEIVED:
+        return None
+    return LaboratoryReceiving.objects.filter(receipt=receipt).first()
+
+
+@login_required
+@receiving_read_required
+def laboratory_receiving_workspace(request, receiving_id):
+    receipt = _receipt_or_404(receiving_id)
+    record = _laboratory_record(receipt)
+    if record is None:
+        messages.warning(request, "Confirm laboratory custody before recording acceptance decisions.")
+        return redirect("receiving_detail", receiving_id=receiving_id)
+    can_edit = can_confirm_lab_receipt(request.user)
+    if request.method == "POST":
+        if not can_edit:
+            messages.error(request, "Only a LAB Encoder may update laboratory decisions.")
+            return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
+        form = LaboratoryReceivingForm(request.POST, instance=record)
+        if form.is_valid():
+            updated = form.save(commit=False)
+            updated.recorded_by = request.user
+            updated.save()
+            messages.success(request, "Laboratory acceptance and rejection decision saved.")
+            return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
+    else:
+        form = LaboratoryReceivingForm(instance=record)
+    ranges = record.accession_ranges.select_related("batch").prefetch_related("organism_counts")
+    return render(request, "receiving/laboratory_workspace.html", {
+        "receipt": receipt, "record": record, "form": form,
+        "accession_form": LaboratoryAccessionForm(initial={"date_referred": record.date_accepted or receipt.lab_date_received}),
+        "organism_form": LaboratoryOrganismCountForm(),
+        "ranges": ranges, "can_edit": can_edit,
+    })
+
+
+@login_required
+@lab_receiving_required
+@require_POST
+@transaction.atomic
+def laboratory_accession_add(request, receiving_id):
+    receipt = _receipt_or_404(receiving_id)
+    record = LaboratoryReceiving.objects.select_for_update().filter(receipt=receipt).first()
+    if record is None:
+        messages.error(request, "Laboratory custody has not been confirmed.")
+        return redirect("receiving_detail", receiving_id=receiving_id)
+    if record.isolates_accepted <= 0:
+        messages.error(request, "Save a laboratory decision with accepted isolates before assigning accessions.")
+        return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
+    form = LaboratoryAccessionForm(request.POST)
+    if form.is_valid():
+        accession = form.save(commit=False)
+        accession.laboratory_receiving = record
+        accession.assigned_by = request.user
+        try:
+            accession.full_clean()
+        except Exception as exc:
+            messages.error(request, "; ".join(getattr(exc, "messages", [str(exc)])))
+        else:
+            with transaction.atomic():
+                accession.save()
+                ReceivingEvent.objects.create(
+                    receipt=receipt,
+                    event_type=ReceivingEvent.EventType.ACCESSION_ASSIGNED,
+                    performed_by=request.user,
+                    remarks=f"Assigned {accession.reference_range} for batch {accession.batch_number}/{accession.total_batches}.",
+                )
+            messages.success(request, f"Accession range {accession.reference_range} saved. Create Batch is a separate action.")
+    else:
+        messages.error(request, "Please correct the accession range details.")
+    return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
+
+
+@login_required
+@lab_receiving_required
+@require_POST
+@transaction.atomic
+def laboratory_organism_add(request, accession_id):
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_for_update().select_related("laboratory_receiving__receipt"), pk=accession_id
+    )
+    form = LaboratoryOrganismCountForm(request.POST)
+    if form.is_valid():
+        item = form.save(commit=False)
+        item.accession_range = accession
+        try:
+            item.full_clean()
+            item.save()
+        except Exception as exc:
+            messages.error(request, "; ".join(getattr(exc, "messages", [str(exc)])))
+        else:
+            messages.success(request, "Organism inventory count saved.")
+    else:
+        messages.error(request, "Please correct the organism count.")
+    return redirect("laboratory_receiving_workspace", receiving_id=accession.laboratory_receiving.receipt.receiving_id)
+
+
+@login_required
+@lab_receiving_required
+@require_POST
+def laboratory_batch_create(request, accession_id):
+    with transaction.atomic():
+        accession = get_object_or_404(
+            LaboratoryAccession.objects.select_for_update().select_related(
+                "laboratory_receiving__receipt__site"
+            ), pk=accession_id,
+        )
+        receipt = accession.laboratory_receiving.receipt
+        if accession.batch_id:
+            messages.info(request, "This accession range already has a generated batch.")
+            return redirect("laboratory_receiving_workspace", receiving_id=receipt.receiving_id)
+        try:
+            result = create_referred_batch(
+                site_code=receipt.site.SiteCode,
+                site_name=receipt.site.SiteName,
+                referral_date=accession.date_referred,
+                start_number=accession.start_number,
+                end_number=accession.end_number,
+                batch_number=accession.batch_number,
+                total_batches=accession.total_batches,
+                created_by=request.user,
+            )
+        except BatchAlreadyExists as exc:
+            messages.error(request, f"Batch {exc.batch.bat_Batch_Code} already exists and was not overwritten.")
+        except AccessionConflict as exc:
+            labels = [row.get("AccessionNo") or row.get("f_AccessionNo") for row in exc.conflicts[:5]]
+            messages.error(request, "Accession conflict: " + ", ".join(filter(None, labels)))
+        except BatchCreationError as exc:
+            messages.error(request, str(exc))
+        else:
+            accession.batch = result.batch
+            accession.batch_created_at = timezone.now()
+            accession.save(update_fields=("batch", "batch_created_at"))
+            ReceivingEvent.objects.create(
+                receipt=receipt,
+                event_type=ReceivingEvent.EventType.BATCH_CREATED,
+                performed_by=request.user,
+                remarks=f"Created {result.batch.bat_Batch_Code} with {result.isolate_count} isolate(s).",
+            )
+            messages.success(request, f"Batch {result.batch.bat_Batch_Code} created in the existing Batch Table.")
+    return redirect("laboratory_receiving_workspace", receiving_id=receipt.receiving_id)
+
+
+def _register_context(request):
+    local_today = timezone.localdate()
+    form = LaboratoryRegisterFilterForm(request.GET or {"month": local_today.month, "year": local_today.year})
+    month, year = local_today.month, local_today.year
+    if form.is_valid():
+        month, year = form.cleaned_data["month"], form.cleaned_data["year"]
+    records = LaboratoryReceiving.objects.filter(
+        total_isolates_received__gt=0,
+        receipt__lab_date_received__month=month,
+        receipt__lab_date_received__year=year,
+    ).select_related("receipt__site", "receipt__lab_received_by").prefetch_related(
+        "accession_ranges__batch", "accession_ranges__organism_counts"
+    )
+    rows, totals, organism_totals = build_register_rows(records)
+    return form, month, year, records, rows, totals, organism_totals
+
+
+@login_required
+@receiving_read_required
+def laboratory_receiving_register(request):
+    form, month, year, _records, rows, totals, organism_totals = _register_context(request)
+    return render(request, "receiving/laboratory_register.html", {
+        "form": form, "month": month, "year": year, "rows": rows,
+        "totals": totals, "organism_totals": organism_totals,
+        "organism_choices": LaboratoryOrganismCount.OrganismCode.choices,
+        "register_columns": REGISTER_COLUMNS,
+    })
+
+
+@login_required
+@receiving_read_required
+def laboratory_receiving_register_pdf(request):
+    _form, month, year, records, _rows, _totals, _organism_totals = _register_context(request)
+    response = HttpResponse(render_register_pdf(records, month, year), content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="receiving-register-{year}-{month:02d}.pdf"'
+    return response
+
+
 @login_required
 @secretariat_receiving_required
 def receiving_create(request):
@@ -116,6 +321,8 @@ def receiving_detail(request, receiving_id):
             "can_endorse": can_manage and receipt.status == ReferralReceipt.Status.RECEIVED,
             "can_confirm_lab": can_confirm
             and receipt.status == ReferralReceipt.Status.ENDORSED,
+            "can_work_lab": can_confirm
+            and receipt.status == ReferralReceipt.Status.LAB_RECEIVED,
         },
     )
 
@@ -174,7 +381,7 @@ def receiving_lab_confirm(request, receiving_id):
             except InvalidReceivingTransition as exc:
                 messages.warning(request, str(exc))
             else:
-                messages.success(request, "Laboratory receipt confirmed. Custody recorded.")
+                messages.success(request, "Laboratory receipt confirmed. Open the laboratory worksheet to record the manual acceptance decision.")
             return redirect("receiving_detail", receiving_id=receiving_id)
     else:
         form = LabReceiptForm(receipt=receipt)

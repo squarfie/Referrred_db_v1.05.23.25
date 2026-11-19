@@ -2,8 +2,10 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 
@@ -201,6 +203,8 @@ class ReceivingEvent(models.Model):
         RECEIVED = "received", "Received by Secretariat"
         ENDORSED = "endorsed", "Endorsed to Laboratory"
         LAB_RECEIVED = "lab_received", "Received by Laboratory"
+        ACCESSION_ASSIGNED = "accession_assigned", "Accession Range Assigned"
+        BATCH_CREATED = "batch_created", "Laboratory Batch Created"
         CORRECTED = "corrected", "Information Corrected"
 
     receipt = models.ForeignKey(
@@ -252,3 +256,240 @@ class ReceivingEvent(models.Model):
 
 
 
+class LaboratoryReceiving(models.Model):
+    """Laboratory sorting decision for one Secretariat courier receipt."""
+
+    receipt = models.OneToOneField(
+        ReferralReceipt,
+        on_delete=models.PROTECT,
+        related_name="laboratory_receiving",
+    )
+    specimen_condition = models.CharField(max_length=255, blank=True, default="")
+    discrepancies = models.TextField(blank=True, default="")
+    remarks = models.TextField(blank=True, default="")
+    total_isolates_received = models.PositiveIntegerField(default=0)
+    isolates_rejected = models.PositiveIntegerField(default=0)
+    isolates_accepted = models.PositiveIntegerField(default=0)
+    date_accepted = models.DateField(null=True, blank=True)
+    total_isolates_processed = models.PositiveIntegerField(default=0)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="laboratory_receiving_records",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "laboratory_receiving"
+        ordering = ("-receipt__lab_date_received", "-id")
+        constraints = [
+            models.CheckConstraint(
+                check=Q(isolates_accepted__lte=F("total_isolates_received")),
+                name="lab_receiving_accepted_lte_received",
+            ),
+            models.CheckConstraint(
+                check=Q(isolates_rejected__lte=F("total_isolates_received")),
+                name="lab_receiving_rejected_lte_received",
+            ),
+            models.CheckConstraint(
+                check=Q(total_isolates_processed__lte=F("isolates_accepted")),
+                name="lab_receiving_processed_lte_accepted",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        decided = self.isolates_accepted + self.isolates_rejected
+        if decided > self.total_isolates_received:
+            errors["isolates_accepted"] = "Accepted and rejected totals cannot exceed total received."
+        if decided != self.total_isolates_received:
+            errors["isolates_accepted"] = "Accepted and rejected totals must equal total received before saving."
+        if self.total_isolates_processed > self.isolates_accepted:
+            errors["total_isolates_processed"] = "Processed isolates cannot exceed accepted isolates."
+        if self.pk:
+            assigned_total = sum(
+                item.end_number - item.start_number + 1
+                for item in self.accession_ranges.all()
+            )
+            if assigned_total > self.isolates_accepted:
+                errors["isolates_accepted"] = "Accepted isolates cannot be lower than already assigned accession ranges."
+        if self.isolates_accepted and not self.date_accepted:
+            errors["date_accepted"] = "Date accepted is required when isolates are accepted."
+        if self.date_accepted:
+            if self.receipt_id and self.receipt.lab_date_received and self.date_accepted < self.receipt.lab_date_received:
+                errors["date_accepted"] = "Date accepted cannot be earlier than laboratory receipt."
+            if self.date_accepted > timezone.localdate():
+                errors["date_accepted"] = "Date accepted cannot be in the future."
+        if errors:
+            raise ValidationError(errors)
+
+    @property
+    def site(self):
+        return self.receipt.site
+
+    def __str__(self):
+        return f"Laboratory receiving - {self.receipt.tracking_number}"
+
+
+class LaboratoryAccession(models.Model):
+    laboratory_receiving = models.ForeignKey(
+        LaboratoryReceiving,
+        on_delete=models.PROTECT,
+        related_name="accession_ranges",
+    )
+    date_referred = models.DateField()
+    start_number = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(9999)]
+    )
+    end_number = models.PositiveIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(9999)]
+    )
+    batch_number = models.PositiveIntegerField(default=1)
+    total_batches = models.PositiveIntegerField(default=1)
+    batch = models.OneToOneField(
+        "home.Batch_Table",
+        on_delete=models.PROTECT,
+        related_name="laboratory_accession",
+        null=True,
+        blank=True,
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="laboratory_accession_ranges",
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    batch_created_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "laboratory_accession_ranges"
+        ordering = ("date_referred", "batch_number", "start_number")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("laboratory_receiving", "start_number", "end_number"),
+                name="lab_accession_unique_range",
+            ),
+            models.CheckConstraint(
+                check=Q(start_number__lte=F("end_number")),
+                name="lab_accession_ordered_range",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.start_number and self.end_number and self.start_number > self.end_number:
+            errors["start_number"] = "Start number cannot be greater than end number."
+        if self.batch_number > self.total_batches:
+            errors["batch_number"] = "Batch number cannot exceed total batches."
+        if self.laboratory_receiving_id and self.start_number and self.end_number:
+            overlapping = type(self).objects.filter(
+                laboratory_receiving_id=self.laboratory_receiving_id,
+                start_number__lte=self.end_number,
+                end_number__gte=self.start_number,
+            )
+            if self.pk:
+                overlapping = overlapping.exclude(pk=self.pk)
+            if overlapping.exists():
+                errors["start_number"] = "This range overlaps another range for the same receipt."
+            other_total = sum(
+                item.end_number - item.start_number + 1
+                for item in type(self).objects.filter(
+                    laboratory_receiving_id=self.laboratory_receiving_id
+                ).exclude(pk=self.pk)
+            )
+            if other_total + self.isolate_count > self.laboratory_receiving.isolates_accepted:
+                errors["end_number"] = "Saved accession ranges cannot exceed the accepted isolate total."
+        if errors:
+            raise ValidationError(errors)
+
+    @property
+    def reference_range(self):
+        return f"{self.start_number:04d}-{self.end_number:04d}"
+
+    @property
+    def isolate_count(self):
+        return self.end_number - self.start_number + 1
+
+    @property
+    def accession_numbers(self):
+        year = self.date_referred.strftime("%y")
+        site_code = self.laboratory_receiving.receipt.site.SiteCode.strip()
+        return [
+            f"{year}ARS_{site_code}{number:04d}"
+            for number in range(self.start_number, self.end_number + 1)
+        ]
+
+    def __str__(self):
+        return f"{self.laboratory_receiving.receipt.site.SiteCode} {self.reference_range}"
+
+
+class LaboratoryOrganismCount(models.Model):
+    class OrganismCode(models.TextChoices):
+        HA = "HA", "Haemophilus"
+        NGO = "NGO", "Neisseria gonorrhoeae"
+        SPN = "SPN", "Streptococcus pneumoniae"
+        FAST_OTHER = "FAST_OTHER", "Other fastidious"
+        ECO = "ECO", "Escherichia coli"
+        KLE = "KLE", "Klebsiella"
+        ENTERO_OTHER = "ENTERO_OTHER", "Other Enterobacterales"
+        SAL = "SAL", "Salmonella"
+        SHI = "SHI", "Shigella"
+        VIB = "VIB", "Vibrio"
+        GNR_OTHER = "GNR_OTHER", "Other Gram-negative"
+        PAE = "PAE", "Pseudomonas aeruginosa"
+        ACI = "ACI", "Acinetobacter"
+        NFO_OTHER = "NFO_OTHER", "Other non-fermenting"
+        SAU = "SAU", "Staphylococcus aureus"
+        ENT = "ENT", "Enterococcus"
+        STR = "STR", "Streptococcus"
+        GP_OTHER = "GP_OTHER", "Other Gram-positive"
+
+    GROUPS = {
+        "HA": "fastidious", "NGO": "fastidious", "SPN": "fastidious", "FAST_OTHER": "fastidious",
+        "ECO": "enterobacterales", "KLE": "enterobacterales", "ENTERO_OTHER": "enterobacterales",
+        "SAL": "gram_negative", "SHI": "gram_negative", "VIB": "gram_negative", "GNR_OTHER": "gram_negative",
+        "PAE": "non_fermenting", "ACI": "non_fermenting", "NFO_OTHER": "non_fermenting",
+        "SAU": "gram_positive", "ENT": "gram_positive", "STR": "gram_positive", "GP_OTHER": "gram_positive",
+    }
+
+    accession_range = models.ForeignKey(
+        LaboratoryAccession,
+        on_delete=models.PROTECT,
+        related_name="organism_counts",
+    )
+    organism_code = models.CharField(max_length=20, choices=OrganismCode.choices)
+    count = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+
+    class Meta:
+        db_table = "laboratory_organism_counts"
+        ordering = ("accession_range", "organism_code")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("accession_range", "organism_code"),
+                name="lab_organism_unique_per_range",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self.accession_range_id or not self.count:
+            return
+        existing = type(self).objects.filter(accession_range_id=self.accession_range_id)
+        if self.pk:
+            existing = existing.exclude(pk=self.pk)
+        if sum(existing.values_list("count", flat=True)) + self.count > self.accession_range.isolate_count:
+            raise ValidationError({"count": "Organism counts cannot exceed the accession-range isolate count."})
+
+    @property
+    def organism_group(self):
+        return self.GROUPS[self.organism_code]
+
+    def __str__(self):
+        return f"{self.get_organism_code_display()}: {self.count}"

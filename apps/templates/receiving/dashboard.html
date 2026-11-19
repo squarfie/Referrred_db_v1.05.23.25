@@ -6,7 +6,7 @@
 <main class="receiving-page">
   <header class="receiving-hero">
     <div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span><div><p class="receiving-eyebrow">Isolate custody</p><h1>Receiving</h1><p class="receiving-hero-subtitle">Track courier batches from Secretariat receipt to laboratory custody.</p></div></div>
-    <div class="receiving-hero-actions">{% if can_manage_secretariat %}<a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>{% endif %}</div>
+    <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'laboratory_receiving_register' %}"><i class="fas fa-file-alt mr-2"></i>Monthly register</a>{% if can_manage_secretariat %}<a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>{% endif %}</div>
   </header>
   <div class="receiving-content">
     <section class="receiving-stat-grid" aria-label="Receiving status summary">
@@ -31,7 +31,7 @@
           <td data-label="Secretariat received">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
           <td data-label="Received by">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</td>
           <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{{ receipt.get_status_display }}</span></td>
-          <td class="receiving-actions text-right">{% if can_confirm_lab and receipt.status == 'endorsed' %}<a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm receipt</a>{% endif %}<a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Open</a></td>
+          <td class="receiving-actions text-right">{% if can_confirm_lab and receipt.status == 'endorsed' %}<a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm receipt</a>{% elif can_confirm_lab and receipt.status == 'lab_received' %}<a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Update / Create Batch</a>{% endif %}<a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Open</a></td>
         </tr>{% empty %}<tr><td colspan="6" class="receiving-empty"><i class="fas fa-box-open" aria-hidden="true"></i>No receiving records match the current filters.</td></tr>{% endfor %}</tbody>
       </table></div>
       {% if page_obj.paginator.num_pages > 1 %}<nav class="receiving-pagination" aria-label="Receiving records pages">{% if page_obj.has_previous %}<a href="?q={{ q|urlencode }}&status={{ status|urlencode }}&page={{ page_obj.previous_page_number }}">&larr; Previous</a>{% else %}<span></span>{% endif %}<span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a href="?q={{ q|urlencode }}&status={{ status|urlencode }}&page={{ page_obj.next_page_number }}">Next &rarr;</a>{% else %}<span></span>{% endif %}</nav>{% endif %}

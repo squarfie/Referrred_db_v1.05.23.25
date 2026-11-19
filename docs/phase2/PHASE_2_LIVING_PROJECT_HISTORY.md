@@ -238,6 +238,7 @@ Duplicate the following fields for every proposed modification. Link related ent
 | DOC-001 \| v0.1 \| 2026-11-11 | Initial Phase 2 scope: Secretariat, Laboratory AST, DMU, rejection workflow, architecture, roadmap and open decisions. | Concept draft; no software implementation. |
 | DOC-002 \| v0.2 \| 2026-11-11 | Added decision/change/implementation registries, dated baseline, goal tracker, approval rules and explicit requirement for future subject-level updates. | Living planning draft; no software implementation. |
 | DOC-003 \| v0.3 \| 2026-11-19 | Reconciled Sections 14-15 and 18-21 with merged receiving PRs #19-#22; recorded manual acknowledgment, audit hardening, UI refactor, migration 0002, local tests, outstanding browser/deployment evidence and superseded deletion scope. | Living implementation history; not evidence of production deployment or SOP validation. |
+| DOC-004 \| v0.4 \| 2026-11-19 | Added Section 22 for independent Laboratory Receiving, shared batch creation, manual acceptance/rejection, accession ranges, organism inventory and the monthly printable register. | Implemented locally; migration/application, browser acceptance, merge and production deployment remain pending. |
 
 Future entries must identify exactly which numbered sections were amended, the controlling D-/CR-/IMP- IDs, and the date of review/approval. Do not replace this history with a single "last updated" date.
 
@@ -283,6 +284,7 @@ Historical status note: PR #20 was subsequently merged to `main` on 2026-11-12. 
 
 - The receiving subset is implemented through laboratory custody confirmation; it is no longer accurate to describe all of P2.1 as “Not started.”
 - This subset does **not** establish isolate sorting, acceptance/rejection, official accession assignment, accession labels, or downstream AST ownership. Those remain future workflow decisions.
+- Historical correction (2026-11-19): Section 22 locally implements LAB Encoder-managed acceptance/rejection totals, accession ranges and batch generation. Operational/SOP approval and production rollout are still not established.
 - QR scanning and dashboard/detail navigation reach the same authenticated acknowledgment form. Neither navigation method signs in the user or mutates custody state automatically.
 - D-009 remains the controlling decision for irreversible mistaken-entry deletion, but D-011 narrows eligibility to records still in `received` state with no endorsement or laboratory-receipt timestamp. Endorsed custody history cannot be permanently deleted through the Receiving UI/service.
 - The original Receiving design’s deletion non-goal and “no delete UI” statement are historical and superseded only to the extent documented by D-009 and D-011.
@@ -307,3 +309,41 @@ No browser/mobile QR scan, printed-label acceptance, production database migrati
 | R-002 | Django admin could edit workflow-owned status/users/timestamps without appending events. | Mitigated locally by making `ReferralReceiptAdmin` read-only and disabling admin add/delete. Controlled corrections remain a future design requirement. |
 | R-003 | Existing receiving rows could violate new migration 0002 constraints. | Before applying outside a test database, run a read-only preflight for inconsistent status/timestamp combinations and duplicate canonical events; resolve exceptions through an approved correction record. Do not silently rewrite custody history. |
 | R-004 | Improved responsive layouts and QR label have automated rendering assertions but no browser, mobile camera or printer acceptance evidence. | Perform Secretariat and LAB Encoder smoke tests at desktop/mobile widths, scan a printed QR against the configured canonical origin, and approve the physical label before production rollout. |
+
+## 22. Independent Laboratory Receiving and shared batch creation (2026-11-19)
+
+### 22.1 Controlling decisions and scope
+
+| ID / date | Decision / change | Current state |
+| --- | --- | --- |
+| D-012 / CR-006 \| 2026-11-19 | The LAB Encoder, not the application, manually records received, rejected and accepted isolate totals. The totals must balance on Save; no separate finalize action is used. | Implemented locally in the independent Laboratory Receiving worksheet. |
+| D-013 / CR-007 \| 2026-11-19 | Existing Create Batch and Laboratory Receiving must write to the same existing `Batch_Table`, `Referred_Data` and `TATform` structures through one shared transactional service. | Implemented locally in `apps/home/services/batch_creation.py`; no second batch table was introduced. |
+| D-014 / CR-008 \| 2026-11-19 | Generate a monthly Receiving and Inventory of Referred Isolates form based on the supplied paper register, with grouped organism columns and totals. | HTML preview and A4-landscape PDF implemented locally. |
+
+### 22.2 Implementation record
+
+- `LaboratoryReceiving` is a protected one-to-one extension of the canonical `ReferralReceipt`; custody dates, site and personnel remain owned by the receipt.
+- LAB Encoder users can update condition, discrepancy/remarks and received/rejected/accepted/processed counts through one Save action. The system validates but never chooses accepted versus rejected.
+- `LaboratoryAccession` supports multiple 1-9999 ranges per receipt, prevents overlaps and over-assignment, and links each generated range to one existing `Batch_Table` row.
+- `LaboratoryOrganismCount` stores repeatable, grouped organism inventory counts per accession range for the monthly register.
+- Saving receipt decisions, saving an accession range and creating a batch are separate actions. A failed batch operation does not erase custody or the pending range.
+- The shared service normalizes four-digit ranges, locks the referring-site row for concurrent creation, refuses populated/existing batches and conflicting Raw/Final accessions, creates or safely recovers only an empty orphan shell, synchronizes Raw accessions and creates/updates TAT.
+- LAB-origin batches retain the LAB Encoder as `created_by` for audit. DMU Encoder users may manage batches linked to a laboratory accession, providing the intended handoff without granting LAB Encoder access to the ordinary DMU Create Batch page.
+- The receipt page and Receiving list show a prominent LAB Encoder action: **Update Lab Receiving & Create Batch**.
+- Migration `0003_laboratory_receiving_register.py` creates the new tables and backfills a blank laboratory worksheet for existing `lab_received` receipts without changing custody timestamps or events.
+
+### 22.3 Local verification evidence
+
+| Verification | Result |
+| --- | --- |
+| Laboratory model tests | 6 passed: manual decision arithmetic, zero-value custody placeholders, range formatting/overlap and organism limits. |
+| Shared batch and entry-point integration tests | 3 passed: service creation/conflict protection and existing Create Batch generated `RI_11192026_90.94_0090-0094` through the shared service. |
+| Laboratory workspace/register tests | 4 passed: editable LAB decisions, prominent role-aware action, range-to-existing-batch creation, HTML/PDF register. |
+| Migration/system checks | `makemigrations --check --dry-run` reported no changes; `manage.py check` reported no issues. |
+| PDF visual check | The A4-landscape register rendered successfully to PNG; grouped organism headings, all columns, totals and legend were inside the page with no overlap or clipping. |
+| Full Receiving regression | 77 tests passed after removing the separate finalize state and retaining the established custody-detail redirect and prominent LAB Encoder workspace action. |
+| Full project regression | 241 tests ran; only the two established password-reset text assertions failed (`test_expired_link_is_rejected`, `test_valid_link_resets_once_and_reuse_fails`). The complete Receiving suite passed. |
+
+### 22.4 Deployment limits
+
+This section records local implementation only. Migration 0003 has not been applied to a non-test database in this record. No merge/commit, production deployment, live browser acceptance, staff training or SOP approval is claimed. Before deployment, run the receiving preflight, back up the database, apply migrations in staging, exercise LAB Encoder and DMU handoff accounts, review the populated monthly form with the workflow owner and record rollback evidence.
