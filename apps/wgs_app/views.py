@@ -10270,95 +10270,86 @@ def delete_raw_antibiotic(request, pk):
 
 
 
+# A deliberate, server-validated confirmation is required for mass deletion.
+# Client-side dialogs alone are not an authorization or safety boundary.
+_BULK_ANTIBIOTIC_CONFIRMATIONS = {
+    "raw": "DELETE ALL RAW ANTIBIOTICS",
+    "final": "DELETE ALL FINAL ANTIBIOTICS",
+}
+
+
+def _bulk_antibiotic_confirmed(request, kind):
+    return request.POST.get("confirmation", "").strip() == _BULK_ANTIBIOTIC_CONFIRMATIONS[kind]
+
+
 @login_required
-@role_required(ROLE_ADMIN, ROLE_CHECKER)
+@role_required(ROLE_ADMIN)
 @require_POST
+@transaction.atomic
 def delete_all_final_antibiotic(request):
-    Final_AntibioticEntry.objects.all().delete()
-    messages.success(request, "Final antibiotic entries have been deleted successfully.")
-    return redirect('show_final_antibiotic')  # Redirect to the table view
-
-
-
-
-@login_required
-@role_required(ROLE_ADMIN, ROLE_CHECKER)
-@require_POST
-def delete_all_raw_antibiotic(request):
-    AntibioticEntry.objects.all().delete()
-    messages.success(request, "Raw antibiotic entries have been deleted successfully.")
-    return redirect('show_raw_antibiotic')  # Redirect to the table view
-
-
-
-
-
-#### updated version
-@login_required
-@role_required(ROLE_ADMIN, ROLE_CHECKER)
-@require_POST
-def delete_finalantibiotic_by_date(request):
-
-    if request.method == "POST":
-        upload_date_str = request.POST.get("upload_date")
-
-        if not upload_date_str:
-            messages.error(request, "Please select an upload date to delete.")
-            return redirect("show_final_antibiotic")
-
-        upload_date = parse_date(upload_date_str)
-
-        if not upload_date:
-            messages.error(request, f"Invalid date format: {upload_date_str}")
-            return redirect("show_final_antibiotic")
-
-        deleted_count, _ = Final_AntibioticEntry.objects.filter(
-            ab_Date_uploaded_fd=upload_date
-        ).delete()
-
-        messages.success(
-            request,
-            f"Deleted {deleted_count} Final Antibiotic entries uploaded on {upload_date}."
-        )
+    if not _bulk_antibiotic_confirmed(request, "final"):
+        messages.error(request, "Deletion cancelled: confirmation phrase did not match.")
         return redirect("show_final_antibiotic")
-
-    messages.error(request, "Invalid request method.")
+    count = Final_AntibioticEntry.objects.count()
+    Final_AntibioticEntry.objects.all().delete()
+    messages.success(request, f"Deleted {count} Final antibiotic entries.")
     return redirect("show_final_antibiotic")
 
 
-
 @login_required
-@role_required(ROLE_ADMIN, ROLE_CHECKER)
+@role_required(ROLE_ADMIN)
 @require_POST
-def delete_rawantibiotic_by_date(request):
-
-    if request.method == "POST":
-        upload_date_str = request.POST.get("upload_date")
-
-        if not upload_date_str:
-            messages.error(request, "Please select an upload date to delete.")
-            return redirect("show_raw_antibiotic")
-
-        upload_date = parse_date(upload_date_str)
-
-        if not upload_date:
-            messages.error(request, f"Invalid date format: {upload_date_str}")
-            return redirect("show_raw_antibiotic")
-
-        deleted_count, _ = AntibioticEntry.objects.filter(
-            ab_Date_uploaded_rd=upload_date
-        ).delete()
-
-        messages.success(
-            request,
-            f"Deleted {deleted_count} Antibiotic entries uploaded on {upload_date}."
-        )
+@transaction.atomic
+def delete_all_raw_antibiotic(request):
+    if not _bulk_antibiotic_confirmed(request, "raw"):
+        messages.error(request, "Deletion cancelled: confirmation phrase did not match.")
         return redirect("show_raw_antibiotic")
-
-    messages.error(request, "Invalid request method.")
+    count = AntibioticEntry.objects.count()
+    AntibioticEntry.objects.all().delete()
+    messages.success(request, f"Deleted {count} Raw antibiotic entries.")
     return redirect("show_raw_antibiotic")
 
 
+@login_required
+@role_required(ROLE_ADMIN)
+@require_POST
+@transaction.atomic
+def delete_finalantibiotic_by_date(request):
+    if not _bulk_antibiotic_confirmed(request, "final"):
+        messages.error(request, "Deletion cancelled: confirmation phrase did not match.")
+        return redirect("show_final_antibiotic")
+
+    upload_date = parse_date(request.POST.get("upload_date", ""))
+    if upload_date is None:
+        messages.error(request, "Please provide a valid upload date.")
+        return redirect("show_final_antibiotic")
+
+    queryset = Final_AntibioticEntry.objects.filter(ab_Date_uploaded_fd=upload_date)
+    count = queryset.count()
+    queryset.delete()
+    messages.success(request, f"Deleted {count} Final antibiotic entries uploaded on {upload_date}.")
+    return redirect("show_final_antibiotic")
+
+
+@login_required
+@role_required(ROLE_ADMIN)
+@require_POST
+@transaction.atomic
+def delete_rawantibiotic_by_date(request):
+    if not _bulk_antibiotic_confirmed(request, "raw"):
+        messages.error(request, "Deletion cancelled: confirmation phrase did not match.")
+        return redirect("show_raw_antibiotic")
+
+    upload_date = parse_date(request.POST.get("upload_date", ""))
+    if upload_date is None:
+        messages.error(request, "Please provide a valid upload date.")
+        return redirect("show_raw_antibiotic")
+
+    queryset = AntibioticEntry.objects.filter(ab_Date_uploaded_rd=upload_date)
+    count = queryset.count()
+    queryset.delete()
+    messages.success(request, f"Deleted {count} Raw antibiotic entries uploaded on {upload_date}.")
+    return redirect("show_raw_antibiotic")
 
 
 @login_required(login_url="login")
