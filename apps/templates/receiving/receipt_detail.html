@@ -5,7 +5,7 @@
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
-    <div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box"></i></span><div><p class="receiving-eyebrow">Custody record</p><h1>{{ receipt.tracking_number }}</h1><p class="receiving-hero-subtitle receiving-uuid">Receipt UUID {{ receipt.receiving_id }}</p></div></div>
+    <div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box"></i></span><div><p class="receiving-eyebrow">Document Tracking</p><h1>{{ receipt.tracking_number }}</h1><p class="receiving-hero-subtitle receiving-uuid">Receipt UUID {{ receipt.receiving_id }}</p></div></div>
     <div class="receiving-hero-actions">
       <a class="btn btn-outline-light" href="{% url 'receiving_dashboard' %}"><i class="fas fa-arrow-left mr-1"></i>Receiving</a>
       {% if can_print_label %}<a class="btn btn-outline-light" target="_blank" rel="noopener" href="{% url 'receiving_label' receipt.receiving_id %}"><i class="fas fa-print mr-1"></i>Print batch label</a>{% endif %}

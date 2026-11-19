@@ -6,7 +6,7 @@
 <main class="receiving-page">
   <header class="receiving-hero">
     <div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span><div><p class="receiving-eyebrow">Isolate custody</p><h1>Receiving</h1><p class="receiving-hero-subtitle">Track courier batches from Secretariat receipt to laboratory custody.</p></div></div>
-    <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'laboratory_receiving_register' %}"><i class="fas fa-file-alt mr-2"></i>Monthly register</a>{% if can_manage_secretariat %}<a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>{% endif %}</div>
+    <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'laboratory_receiving_register' %}"><i class="fas fa-file-alt mr-2"></i>Monthly Inventory</a>{% if can_manage_secretariat %}<a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>{% endif %}</div>
   </header>
   <div class="receiving-content">
     <section class="receiving-stat-grid" aria-label="Receiving status summary">
