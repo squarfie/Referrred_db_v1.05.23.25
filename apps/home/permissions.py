@@ -203,13 +203,9 @@ def can_manage_batch(user, batch):
     if roles & {ROLE_ADMIN, ROLE_CHECKER}:
         return True
     if ROLE_ENCODER in roles:
-        return bool(
-            batch
-            and (
-                batch.created_by_id == user.id
-                or hasattr(batch, "laboratory_accession")
-            )
-        )
+        # Legacy management permission remains ownership-scoped.
+        # Collaborative Raw edit privileges are checked separately.
+        return bool(batch and batch.created_by_id == user.id)
     return False
 
 
