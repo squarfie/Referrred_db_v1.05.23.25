@@ -44,7 +44,6 @@ INSTALLED_APPS = [
     'apps.verification.apps.VerificationConfig',
     "apps.receiving.apps.ReceivingConfig",
 
-    # "apps.wgs_app",
 ]
 
 MIDDLEWARE = [
