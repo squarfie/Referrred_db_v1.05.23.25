@@ -89,226 +89,51 @@
         <!-- Nav items -->
          {% with current_url=request.resolver_match.url_name %}
         <ul class="navbar-nav">
-          {% if user_access.is_review_only %}
-          <li class="nav-item">
-            <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
-              <i class="ni ni-album-2 text-primary"></i>
-              <span class="nav-link-text">Dashboard</span>
-            </a>
-          </li>
+          <li class="nav-item"><a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/"><i class="ni ni-album-2 text-primary"></i><span class="nav-link-text">Dashboard</span></a></li>
           {% if user_access.can_view_receiving %}
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'receiving_dashboard' or current_url == 'receiving_create' or current_url == 'receiving_detail' or current_url == 'receiving_lab_confirm' or current_url == 'laboratory_receiving_workspace' or current_url == 'laboratory_receiving_register' %}active{% endif %}"
-              href="{% url 'receiving_dashboard' %}">
-              <i class="fas fa-box-open text-primary"></i>
-              <span class="nav-link-text">Receiving</span>
-            </a>
-          </li>
+          <li class="nav-item"><a class="nav-link {% if current_url == 'receiving_dashboard' or current_url == 'receiving_create' or current_url == 'receiving_detail' or current_url == 'receiving_lab_confirm' or current_url == 'laboratory_receiving_workspace' or current_url == 'laboratory_receiving_register' %}active{% endif %}" href="{% url 'receiving_dashboard' %}"><i class="fas fa-box-open text-primary"></i><span class="nav-link-text">Receiving</span></a></li>
           {% endif %}
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'verification_dashboard' or current_url == 'verification_case_detail' %}active{% endif %}"
-              href="{% url 'verification_dashboard' %}">
-              <i class="fas fa-clipboard-check text-primary"></i>
-              <span class="nav-link-text">Verification</span>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'view_wgs_overview' %}active{% endif %}"
-              href="{% url 'view_wgs_overview' %}">
-                <i class="ni ni-atom text-primary"></i>
-                <span class="nav-link-text">WGS Data</span>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'tat_running_list' %}active{% endif %}"
-              href="{% url 'tat_running_list' %}">
-                <i class="fas fa-chart-line text-primary"></i>
-                <span class="nav-link-text">Running TAT</span>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'concordance_history' %}active{% endif %}"
-              href="{% url 'concordance_history' %}">
-              <i class="fas fa-chart-bar text-primary"></i>
-              <span class="nav-link-text">Concordance</span>
-            </a>
-          </li>
-          <hr class="my-3">
-          <h6 class="navbar-heading p-0 text-muted">
-            <span class="docs-normal">Utilities</span>
-          </h6>
-          <li class="nav-item">
-            <a class="nav-link"
-              id="ageVerifierNav"
-              href="#"
-              data-toggle="modal"
-              data-target="#ageModal">
-                <i class="ni ni-calendar-grid-58 text-success"></i>
-                <span class="nav-link-text">Age verifier</span>
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'field_mapper_tool' %}active{% endif %}"
-              href="{% url 'field_mapper_tool' %}">
-                <i class="ni ni-compass-04 text-success"></i>
-                <span class="nav-link-text">Field Mapping Tool</span>
-            </a>
-          </li>
-          {% else %}
-          <li class="nav-item">
-            <!-- <a class="nav-link {% if 'index' in segment %} active {% endif %}" href="/"> -->
-              <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
-              <i class="ni ni-album-2 text-primary"></i>
-              <span class="nav-link-text">Dashboard</span>
-            </a>
-          </li>
-          {% if user_access.can_view_receiving %}
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'receiving_dashboard' or current_url == 'receiving_create' or current_url == 'receiving_detail' or current_url == 'receiving_lab_confirm' %}active{% endif %}"
-              href="{% url 'receiving_dashboard' %}">
-              <i class="fas fa-box-open text-primary"></i>
-              <span class="nav-link-text">Receiving</span>
-            </a>
-          </li>
+          {% if user_access.nav_can_add_batch %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'batch_create_view' %}active{% endif %}" href="{% url 'batch_create_view' %}"><i class="fa fa-plus text-primary"></i><span class="nav-link-text">Add Batch</span></a></li>
           {% endif %}
-
-          <li class="nav-item">
-            <!-- <a class="nav-link" href="{% url 'batch_create_view' %}"> -->
-              <a class="nav-link {% if current_url == 'batch_create_view' %}active{% endif %}"
-            href="{% url 'batch_create_view' %}">
-              <i class="fa fa-plus text-primary"></i>
-              <span class="nav-link-text">Add Batch</span>
-            </a>
-
-          </li>
-          <li class="nav-item">
-
-            <a class="nav-link {% if current_url == 'show_data' %}active{% endif %}"
-                href="{% url 'show_data' %}">
-                  <i class="ni ni-bullet-list-67 text-primary"></i>
-                  <span class="nav-link-text">View Raw Data</span>
-              </a>
-
-
-          </li>
-          <li class="nav-item">
-
-              <a class="nav-link {% if current_url == 'show_final_table' %}active{% endif %}"
-                href="{% url 'show_final_table' %}">
-                  <i class="fa fa-suitcase text-primary"></i>
-                  <span class="nav-link-text">View Final Data</span>
-              </a>
-        
-          </li>
-        
-          <li class="nav-item">
-
-            <a class="nav-link {% if current_url == 'view_wgs_overview' %}active{% endif %}"
-              href="{% url 'view_wgs_overview' %}">
-                <i class="ni ni-atom text-primary"></i>
-                <span class="nav-link-text">WGS Data</span>
-            </a>
-          </li>
-        
-
-        
-          <li class="nav-item">
-
-            <a class="nav-link {% if current_url == 'upload_wgs_view' %}active{% endif %}"
-            href="{% url 'upload_wgs_view' %}">
-              <i class="fa fa-paperclip text-primary"></i>
-              <span class="nav-link-text">Upload Data</span>
-          </a>
-          </li>
-      
-          
-          <li class="nav-item">
-
-            <a class="nav-link {% if current_url == 'tat_running_list' %}active{% endif %}"
-              href="{% url 'tat_running_list' %}">
-                <i class="fas fa-chart-line text-primary"></i>
-                <span class="nav-link-text">Running TAT</span>
-            </a>
-          </li>
-
-         
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'concordance_history' %}active{% endif %}"
-            href="{% url 'concordance_history' %}">
-              <i class="fas fa-chart-bar text-primary"></i>
-              <span class="nav-link-text">Concordance</span>
-          </a>
-          </li>
-       
-
-          {% if user_access.can_view_verification %}
-          <li class="nav-item">
-            <a class="nav-link {% if current_url == 'verification_dashboard' or current_url == 'verification_case_detail' %}active{% endif %}"
-              href="{% url 'verification_dashboard' %}">
-              <i class="fas fa-clipboard-check text-primary"></i>
-              <span class="nav-link-text">Verification</span>
-            </a>
-          </li>
-
+          {% if user_access.nav_can_view_raw %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'show_data' %}active{% endif %}" href="{% url 'show_data' %}"><i class="ni ni-bullet-list-67 text-primary"></i><span class="nav-link-text">View Raw Data</span></a></li>
+          {% endif %}
+          {% if user_access.nav_can_view_final %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'show_final_table' %}active{% endif %}" href="{% url 'show_final_table' %}"><i class="fa fa-suitcase text-primary"></i><span class="nav-link-text">View Final Data</span></a></li>
+          {% endif %}
+          {% if user_access.nav_can_view_wgs %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'view_wgs_overview' %}active{% endif %}" href="{% url 'view_wgs_overview' %}"><i class="ni ni-atom text-primary"></i><span class="nav-link-text">WGS Data</span></a></li>
+          {% endif %}
+          {% if user_access.nav_can_upload_wgs %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'upload_wgs_view' %}active{% endif %}" href="{% url 'upload_wgs_view' %}"><i class="fa fa-paperclip text-primary"></i><span class="nav-link-text">Upload Data</span></a></li>
+          {% endif %}
+          {% if user_access.nav_can_view_reports %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'tat_running_list' %}active{% endif %}" href="{% url 'tat_running_list' %}"><i class="fas fa-chart-line text-primary"></i><span class="nav-link-text">Running TAT</span></a></li>
+          {% endif %}
+          {% if user_access.nav_can_view_reports and not user_access.is_secretariat %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'concordance_history' %}active{% endif %}" href="{% url 'concordance_history' %}"><i class="fas fa-chart-bar text-primary"></i><span class="nav-link-text">Concordance</span></a></li>
+          {% endif %}
+          {% if user_access.nav_can_view_verification %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'verification_dashboard' or current_url == 'verification_case_detail' %}active{% endif %}" href="{% url 'verification_dashboard' %}"><i class="fas fa-clipboard-check text-primary"></i><span class="nav-link-text">Verification</span></a></li>
           {% endif %}
         </ul>
-        {% if not user_access.is_review_only %}
-        <!-- Divider -->
         <hr class="my-3">
-        <!-- Heading -->
-        <h6 class="navbar-heading p-0 text-muted">
-          <span class="docs-normal">Utilities</span>
-        </h6>
-        <!-- Navigation -->
-         
+        <h6 class="navbar-heading p-0 text-muted"><span class="docs-normal">Utilities</span></h6>
         <ul class="navbar-nav mb-md-3">
-
-          <li class="nav-item">
-
-              <a class="nav-link"
-                id="ageVerifierNav"
-                href="#"
-                data-toggle="modal"
-                data-target="#ageModal">
-                  <i class="ni ni-calendar-grid-58 text-success"></i>
-                  <span class="nav-link-text">Age verifier</span>
-              </a>
-          </li>
-
-          <li class="nav-item">
-
-            <a class="nav-link {% if current_url == 'field_mapper_tool' %}active{% endif %}"
-              href="{% url 'field_mapper_tool' %}">
-                <i class="ni ni-compass-04 text-success"></i>
-                <span class="nav-link-text">Field Mapping Tool</span>
-            </a>
-          </li>
-
-
-          </ul>
-          
-         
-          <div>
-            <hr class="my-3" />
-          <h6 class="navbar-heading p-0 text-muted">
-          <span class="docs-normal">Settings</span>
-        </h6>
-           </div>
-            <ul class="navbar-nav mb-md-3">
-                <li class="nav-item">
-                    <a class="nav-link {% if current_url == 'settings_page' %}active{% endif %}"
-                  href="{% url 'settings_page' %}">
-                    <i class="fa fa-cogs text-info"></i>
-                    <span class="nav-link-text">Settings</span>
-                </a>
-                </li>
-
-            </ul>
-           
-
-{% endif %}
-{% endif %}
-{% endwith %}
+          <li class="nav-item"><a class="nav-link" id="ageVerifierNav" href="#" data-toggle="modal" data-target="#ageModal"><i class="ni ni-calendar-grid-58 text-success"></i><span class="nav-link-text">Age verifier</span></a></li>
+          {% if user_access.nav_can_view_field_mapper %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'field_mapper_tool' %}active{% endif %}" href="{% url 'field_mapper_tool' %}"><i class="ni ni-compass-04 text-success"></i><span class="nav-link-text">Field Mapping Tool</span></a></li>
+          {% endif %}
+        </ul>
+        {% if user_access.nav_can_view_settings %}
+        <hr class="my-3">
+        <h6 class="navbar-heading p-0 text-muted"><span class="docs-normal">Settings</span></h6>
+        <ul class="navbar-nav mb-md-3">
+          <li class="nav-item"><a class="nav-link {% if current_url == 'settings_page' %}active{% endif %}" href="{% url 'settings_page' %}"><i class="fa fa-cogs text-info"></i><span class="nav-link-text">Settings</span></a></li>
+        </ul>
+        {% endif %}
+        {% endwith %}
       </div>
     </div>
   </div>
