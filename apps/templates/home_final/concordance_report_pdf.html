@@ -186,7 +186,6 @@
   <tr><td class="summary-label" style="width: 62%;">3.4 Critical Deviations</td><td class="summary-target" style="width: 13%;">&lt;= 5%</td><td class="summary-number" style="width: 12%;">{{ critical_deviation }}</td><td class="summary-percent" style="width: 13%;">{{ critical_deviation_rate }}%</td></tr>
   <tr><td class="summary-label" style="width: 62%;">3.5 Total Deviations</td><td class="summary-target" style="width: 13%;">&lt;= 8%</td><td class="summary-number" style="width: 12%;">{{ total_deviation }}</td><td class="summary-percent" style="width: 13%;">{{ total_deviation_rate }}%</td></tr>
 </table>
-<br>
 <div class="formula">
   <p>% Referred Isolates = # of Isolates (Referred or Missed Referred) / Total # of Referable Isolates</p>
   <p>Concordance on Organism ID = # of Concordant ID (Genus or Species Level) / # of viable and pure isolates</p>
@@ -195,8 +194,43 @@
   <p>AST pairs analyzed are those AST results interpretations derived by using identical methodology by both site and reference laboratory.</p>
 </div>
 <br>
+<p class="title">Table 2. Mixed Culture</p>
+<table>
+  <tr>
+    <th style="width: 16%;">Ref No.</th>
+    <th style="width: 42%;">SITE IDENTIFICATION</th>
+    <th style="width: 42%;">ARSRL IDENTIFICATION</th>
+  </tr>
+  {% for row in mixed_rows %}
+  <tr>
+    <td class="center"> {{ row.bat_seq }}</td>
+    <td>{{ row.site_org|pdf_wrap_blank }}</td>
+    <td>{{ row.ars_org|pdf_wrap_blank  }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="3" class="center">No mixed culture records.</td></tr>
+  {% endfor %}
+</table>
 <br>
-<p class="title">Table 2. Discordant Identification</p>
+<p class="title">Table 3. Non-viable Identification</p>
+<table>
+  <tr>
+    <th style="width: 16%;">Ref No.</th>
+    <th style="width: 42%;">SITE IDENTIFICATION</th>
+    <th style="width: 42%;">ARSRL IDENTIFICATION</th>
+  </tr>
+  {% for row in nonviable_rows %}
+  <tr>
+    <td class="center"> {{ row.bat_seq }}</td>
+    <td>{{ row.site_org|pdf_wrap_blank }}</td>
+    <td>{{ row.ars_org|pdf_wrap_blank  }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="3" class="center">No non-viable records.</td></tr>
+  {% endfor %}
+</table>
+<br>
+<p class="title">Table 4. Discordant Identification</p>
 <table>
   <tr>
     <th style="width: 16%;">Ref No.</th>
@@ -213,8 +247,8 @@
   <tr><td colspan="3" class="center">No discordant identification records.</td></tr>
   {% endfor %}
 </table>
-<div class="page-break"></div>
-<p class="title">Table 3. AST Results with Deviations</p>
+<br>
+<p class="title">Table 5. AST Results with Deviations</p>
 <table>
   <tr>
     <th style="width: 10%;">Ref No.</th>
