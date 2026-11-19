@@ -89,8 +89,19 @@ def receiving_dashboard(request):
             ("all", "All Records", None),
         ]
 
-    selected_tab = (request.GET.get("tab") or "pending").strip()
-    tab_status = dict((key, value) for key, _label, value in tab_definitions)
+    tab_status = {key: value for key, _label, value in tab_definitions}
+    explicit_tab = (request.GET.get("tab") or "").strip()
+    legacy_status = (request.GET.get("status") or "").strip()
+    valid_statuses = {value for value, _label in ReferralReceipt.Status.choices}
+
+    # Keep old ?status=... links working. Explicit ?tab=... takes precedence.
+    # A legacy status without a corresponding role tab uses All Records.
+    selected_tab = explicit_tab or "pending"
+    if not explicit_tab and legacy_status in valid_statuses:
+        selected_tab = next(
+            (key for key, _label, value in tab_definitions if value == legacy_status),
+            "all",
+        )
     if selected_tab not in tab_status:
         selected_tab = "pending"
 
@@ -114,7 +125,9 @@ def receiving_dashboard(request):
         for key, label, tab_filter in tab_definitions
     ]
     selected_status = tab_status[selected_tab]
-    if selected_status is not None:
+    if not explicit_tab and legacy_status in valid_statuses:
+        receipts = receipts.filter(status=legacy_status)
+    elif selected_status is not None:
         receipts = receipts.filter(status=selected_status)
 
     page_obj = Paginator(receipts.order_by("-created_at", "-pk"), 25).get_page(request.GET.get("page"))
