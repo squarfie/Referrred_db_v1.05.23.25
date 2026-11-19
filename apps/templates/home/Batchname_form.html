@@ -418,6 +418,28 @@ $(document).ready(function () {
     });
   }
 
+  if (!IS_EDITING) {
+    $refNo.prop('readonly', true).attr('placeholder', 'Auto-generated (0001-0001)');
+  }
+
+  function generateReferenceNo() {
+    if (IS_EDITING) return;
+    const batch = $batchNum.val().trim();
+    const total = $totalBatch.val().trim();
+    if (!/^[0-9]{1,4}$/.test(batch) || !/^[0-9]{1,4}$/.test(total)) {
+      $refNo.val('');
+      return;
+    }
+    const start = Number(batch);
+    const end = Number(total);
+    if (start < 1 || end < start || end > 9999) {
+      $refNo.val('');
+      return;
+    }
+    $refNo.val(String(start).padStart(4, '0') + '-' + String(end).padStart(4, '0'));
+  }
+
+
   function debounce(fn, delay) {
     let timer;
     return function () { clearTimeout(timer); timer = setTimeout(fn, delay); };
@@ -449,8 +471,12 @@ $(document).ready(function () {
 
   $refNo.on('input change', debouncedGenerateBatchName);
   $refDate.on('input change', debouncedGenerateBatchName);
-  $batchNum.on('input change', debouncedGenerateBatchName);
-  $totalBatch.on('input change', debouncedGenerateBatchName);
+  function updateGeneratedFields() {
+    generateReferenceNo();
+    generateBatchName();
+  }
+  $batchNum.on('input change', updateGeneratedFields);
+  $totalBatch.on('input change', updateGeneratedFields);
 
   function bindStaffField(staffSelector, licenseSelector, licenseKey) {
     $(staffSelector).on('change', function () {
@@ -471,11 +497,15 @@ $(document).ready(function () {
   bindStaffField('#id_bat_LabManager', '#id_bat_Lab_Lic',  'bat_Lab_Lic');
   bindStaffField('#id_bat_Head',       '#id_bat_Head_Lic', 'bat_Head_Lic');
 
+  updateGeneratedFields();
   $siteCode.trigger('change');
   ['#id_bat_Encoder','#id_bat_Checker','#id_bat_Verifier','#id_bat_LabManager','#id_bat_Head']
     .forEach(s => $(s).trigger('change'));
 
-  window.refresh = function () { document.getElementById('accession-form').reset(); };
+  window.refresh = function () {
+    document.getElementById('accession-form').reset();
+    updateGeneratedFields();
+  };
 });
 </script>
 {% endblock javascripts %}
