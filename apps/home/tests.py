@@ -867,11 +867,11 @@ class ReferredUploadSecurityTests(TestCase):
         self.owned.refresh_from_db()
         self.assertEqual(self.owned.First_Name, "Updated")
 
-    def test_foreign_batch_update_rejected(self):
+    def test_other_encoder_can_update_unlocked_raw_batch(self):
         self.client.force_login(self.other)
-        self._upload("AccessionNo,First_Name\nUP-EXIST,Unauthorized\n")
+        self._upload("AccessionNo,First_Name\nUP-EXIST,Collaborative\n")
         self.owned.refresh_from_db()
-        self.assertEqual(self.owned.First_Name, "Original")
+        self.assertEqual(self.owned.First_Name, "Collaborative")
 
     def test_failure_rolls_back_earlier_rows(self):
         self.client.force_login(self.encoder)
@@ -909,22 +909,22 @@ class ReferredUploadSecurityTests(TestCase):
         self.owned.refresh_from_db()
         self.assertEqual(self.owned.First_Name, "Original")
 
-    def test_mixed_import_skips_foreign_batch_but_imports_eligible_rows(self):
+    def test_mixed_import_updates_new_and_other_encoders_unlocked_raw_records(self):
         self.client.force_login(self.other)
         response = self._upload(
             "AccessionNo,First_Name\n"
             "NEW-MIX,Alice\n"
-            "UP-EXIST,ShouldNotChange\n"
+            "UP-EXIST,Collaborative\n"
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             Referred_Data.objects.get(AccessionNo="NEW-MIX").First_Name, "Alice"
         )
         self.owned.refresh_from_db()
-        self.assertEqual(self.owned.First_Name, "Original")
+        self.assertEqual(self.owned.First_Name, "Collaborative")
         details = " ".join(str(message) for message in list(response.wsgi_request._messages))
-        self.assertIn("1 protected records skipped", details)
-        self.assertIn("UP-EXIST", details)
+        self.assertIn("0 protected records skipped", details)
+        self.assertNotIn("Skipped:", details)
 
     def test_mixed_import_skips_verified_batch_and_updates_unlocked_record(self):
         from apps.verification.models import VerificationCase

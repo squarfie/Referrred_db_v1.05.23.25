@@ -157,7 +157,7 @@ def role_flags(user):
         "can_manage_staff": ROLE_ADMIN in roles,
         "can_add_staff": bool(roles & {ROLE_ADMIN, ROLE_CHECKER}),
         "can_edit_staff_roles": ROLE_ADMIN in roles,
-        "can_view_all": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
+        "can_view_all": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
         "can_view_wgs": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_VERIFIER, ROLE_LAB_MANAGER, ROLE_LAB_ENCODER}) or bool(user and user.is_authenticated),
         "can_view_receiving": bool(roles & {ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_LAB_ENCODER}),
     }
@@ -182,18 +182,30 @@ def verification_case_blocks_dmu_outputs(case):
     return verification_case_blocks_operational_outputs(case)
 
 
+
+def can_view_batch(user, batch=None):
+    """Read-only batch visibility for operational roles."""
+    return bool(get_user_roles(user) & {
+        ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_VERIFIER, ROLE_LAB_MANAGER
+    })
+
+
+def can_edit_raw_batch(user, batch=None):
+    """Collaborative Raw encoding; workflow locks are checked by the caller.
+
+    Do not use this for deletion, Final data writes, or settings changes.
+    """
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER})
+
+
 def can_manage_batch(user, batch):
     roles = get_user_roles(user)
     if roles & {ROLE_ADMIN, ROLE_CHECKER}:
         return True
     if ROLE_ENCODER in roles:
-        return bool(
-            batch
-            and (
-                batch.created_by_id == user.id
-                or hasattr(batch, "laboratory_accession")
-            )
-        )
+        # Legacy management permission remains ownership-scoped.
+        # Collaborative Raw edit privileges are checked separately.
+        return bool(batch and batch.created_by_id == user.id)
     return False
 
 

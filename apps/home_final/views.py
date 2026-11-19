@@ -591,10 +591,8 @@ def _apply_clear_phenotype_posts(isolate, post_data):
 
 
 def _final_records_base_queryset(request):
-    records = Final_Data.objects.all()
-    if get_user_role(request.user) == ROLE_ENCODER:
-        records = records.filter(f_Batch_id__created_by=request.user)
-    return records
+    # Viewing Final data is distinct from Final modification permissions.
+    return Final_Data.objects.all()
 
 
 def _apply_final_table_filters(records, query="", year=None):

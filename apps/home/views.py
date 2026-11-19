@@ -251,6 +251,7 @@ from apps.home.permissions import (
     ROLE_LAB_MANAGER,
     ROLE_VERIFIER,
     can_manage_batch,
+    can_edit_raw_batch,
     get_user_role,
     get_user_roles,
     role_flags,
@@ -3247,10 +3248,8 @@ def raw_data(request, id):
 
 
 def _raw_records_base_queryset(request):
-    records = Referred_Data.objects.all()
-    if get_user_role(request.user) == ROLE_ENCODER:
-        records = records.filter(Batch_id__created_by=request.user)
-    return records
+    # Role authorization applies at the views; all DMU Encoders can read all Raw batches.
+    return Referred_Data.objects.all()
 
 
 def _apply_raw_table_filters(records, query="", year=None):
@@ -4352,8 +4351,8 @@ def edit_data(request, id):
     isolates = get_object_or_404(Referred_Data, pk=id)
     # Keep the original accession before ModelForm validation mutates the instance.
     previous_accession_no = isolates.AccessionNo
-    if isolates.Batch_id and not can_manage_batch(request.user, isolates.Batch_id):
-        messages.error(request, "You can only update records from batches that you created.")
+    if isolates.Batch_id and not can_edit_raw_batch(request.user, isolates.Batch_id):
+        messages.error(request, "You do not have permission to edit Raw data.")
         return redirect("show_data")
     if isolates.Batch_id:
         from apps.verification.workflow import open_correction_comments, raw_encoding_is_editable
@@ -10022,8 +10021,8 @@ def upload_combined_table(request):
                 skip_reason = None
                 if existing:
                     if existing.Batch_id_id:
-                        if not can_manage_batch(request.user, existing.Batch_id):
-                            skip_reason = "not authorized for batch"
+                        if not can_edit_raw_batch(request.user, existing.Batch_id):
+                            skip_reason = "not authorized for Raw editing"
                         else:
                             from apps.verification.models import VerificationCase
                             if VerificationCase.objects.filter(

@@ -40,11 +40,8 @@ class FourUploadWorkflowSecurityTests(TestCase):
             _referred_bulk_upload_skip_reason(self.encoder, self.final, final=True)
         )
 
-    def test_other_encoder_cannot_update_raw_or_final(self):
-        self.assertEqual(
-            _referred_bulk_upload_skip_reason(self.other, self.raw),
-            "another user's batch",
-        )
+    def test_other_encoder_can_update_raw_but_not_final(self):
+        self.assertIsNone(_referred_bulk_upload_skip_reason(self.other, self.raw))
         self.assertEqual(
             _referred_bulk_upload_skip_reason(self.other, self.final, final=True),
             "another user's batch",

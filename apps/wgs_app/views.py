@@ -21,6 +21,7 @@ from apps.home.permissions import (
     ROLE_LAB_MANAGER,
     ROLE_VERIFIER,
     can_manage_batch,
+    can_edit_raw_batch,
     get_user_roles,
     role_flags,
     role_required,
@@ -6926,8 +6927,13 @@ def _referred_bulk_upload_skip_reason(user, isolate, *, final=False):
             return "unbatched existing record"
         return None
 
-    if not can_manage_batch(user, batch):
-        return "another user's batch"
+    if final:
+        # Final uploads preserve existing batch-management restrictions.
+        if not can_manage_batch(user, batch):
+            return "another user's batch"
+    elif not can_edit_raw_batch(user, batch):
+        # Raw encoding is collaborative, regardless of batch creator.
+        return "not authorized for Raw editing"
 
     cases = VerificationCase.objects.filter(
         Q(final_batch_id=batch.pk)
@@ -10247,6 +10253,10 @@ def delete_raw_antibiotic(request, pk):
         ), pk=pk
     )
     parent = target.ab_idNum_referred
+    # Raw upload/edit access does not grant deletion of another user's batch.
+    if ROLE_ADMIN not in get_user_roles(request.user) and not can_manage_batch(request.user, parent.Batch_id):
+        messages.error(request, "Raw antibiotic deletion blocked: insufficient batch deletion permission.")
+        return redirect("show_raw_antibiotic")
     # Admin overrides ownership and verification locks for explicit deletion.
     # Other roles must satisfy the usual accession-level safeguards.
     reason = None
