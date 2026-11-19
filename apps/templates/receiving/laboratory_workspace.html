@@ -89,6 +89,62 @@
         </div>
         {% endif %}
       </form>
+
+      <div class="border-top mt-4 pt-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+          <div>
+            <h3 class="h5 mb-1">Organism inventory</h3>
+            <p class="text-muted small mb-0">Record organism counts for each saved accession range. These counts remain linked to the range for traceability.</p>
+          </div>
+        </div>
+        {% if ranges %}
+        <div class="table-responsive">
+          <table class="table table-sm receiving-table">
+            <thead>
+              <tr>
+                <th scope="col">Accession range</th>
+                <th scope="col">Isolates</th>
+                <th scope="col">Recorded organisms</th>
+                {% if can_edit %}<th scope="col">Add organism count</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in ranges %}
+              <tr>
+                <td><strong>{{ item.reference_range }}</strong></td>
+                <td>{{ item.isolate_count }}</td>
+                <td>
+                  {% for count in item.organism_counts.all %}
+                    <span class="badge badge-info mr-1 mb-1">{{ count.organism_code }} {{ count.count }}</span>
+                  {% empty %}
+                    <span class="text-muted">Not entered</span>
+                  {% endfor %}
+                </td>
+                {% if can_edit %}
+                <td>
+                  <form class="form-inline" method="post" action="{% url 'laboratory_organism_add' item.pk %}">
+                    {% csrf_token %}
+                    <label class="sr-only" for="organism-code-{{ item.pk }}">Organism for {{ item.reference_range }}</label>
+                    <select class="form-control form-control-sm mr-2 mb-1" id="organism-code-{{ item.pk }}" name="organism_code" required>
+                      {% for value, label in organism_form.fields.organism_code.choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    <label class="sr-only" for="organism-count-{{ item.pk }}">Quantity for {{ item.reference_range }}</label>
+                    <input class="form-control form-control-sm mr-2 mb-1" id="organism-count-{{ item.pk }}" type="number" name="count" min="1" step="1" required placeholder="Qty" style="width: 90px;">
+                    <button class="btn btn-sm btn-outline-info mb-1" type="submit">Add</button>
+                  </form>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <p class="text-muted small mt-3 mb-0">No accession ranges saved yet. Save the laboratory decision, then add a range below to record its organism inventory here.</p>
+        {% endif %}
+      </div>
     </div>
   </section>
     
@@ -132,7 +188,52 @@
         </div>
       </form>
       {% endif %}
-      <div class="table-responsive"><table class="table table-sm receiving-table"><thead><tr><th>Date referred</th><th>Range</th><th>Batch</th><th>Isolates</th><th>Organism inventory</th><th>Status</th><th></th></tr></thead><tbody>{% for item in ranges %}<tr><td>{{ item.date_referred|date:"M j, Y" }}</td><td><strong>{{ item.reference_range }}</strong></td><td>{{ item.batch_number }}/{{ item.total_batches }}</td><td>{{ item.isolate_count }}</td><td>{% for count in item.organism_counts.all %}<span class="badge badge-info mr-1">{{ count.organism_code }} {{ count.count }}</span>{% empty %}<span class="text-muted">Not entered</span>{% endfor %}{% if can_edit %}<form class="form-inline mt-2" method="post" action="{% url 'laboratory_organism_add' item.pk %}">{% csrf_token %}{{ organism_form.organism_code }}{{ organism_form.count }}<button class="btn btn-sm btn-outline-info" type="submit">Add</button></form>{% endif %}</td><td>{% if item.batch %}<span class="badge badge-success">Generated</span><div class="small">{{ item.batch.bat_Batch_Code }}</div>{% else %}<span class="badge badge-warning">Pending</span>{% endif %}</td><td>{% if can_edit and not item.batch %}<form method="post" action="{% url 'laboratory_batch_create' item.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success" type="submit">Create Batch</button></form>{% elif item.batch %}<a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="7" class="text-center text-muted">No accession ranges yet.</td></tr>{% endfor %}</tbody></table></div>
+      <div class="table-responsive">
+        <table class="table table-sm receiving-table">
+          <thead>
+            <tr>
+              <th scope="col">Date referred</th>
+              <th scope="col">Accession range</th>
+              <th scope="col">Batch number</th>
+              <th scope="col">Total batches</th>
+              <th scope="col">Isolates</th>
+              <th scope="col">Status</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in ranges %}
+            <tr>
+              <td>{{ item.date_referred|date:"M j, Y" }}</td>
+              <td><strong>{{ item.reference_range }}</strong></td>
+              <td>{{ item.batch_number }}</td>
+              <td>{{ item.total_batches }}</td>
+              <td>{{ item.isolate_count }}</td>
+              <td>
+                {% if item.batch %}
+                  <span class="badge badge-success">Generated</span>
+                  <div class="small">{{ item.batch.bat_Batch_Code }}</div>
+                {% else %}
+                  <span class="badge badge-warning">Pending</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if can_edit and not item.batch %}
+                  <form method="post" action="{% url 'laboratory_batch_create' item.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-success" type="submit">Create Batch</button>
+                  </form>
+                {% elif item.batch %}
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+              <tr><td colspan="7" class="text-center text-muted">No accession ranges yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div></section>
   </div>
 </main>
