@@ -50,6 +50,16 @@ class BatchReferenceNumberTests(TestCase):
         form = self._form("1", "10000")
         self.assertFalse(form.is_valid())
 
+    def test_requires_batch_number(self):
+        form = self._form("", "2")
+        self.assertFalse(form.is_valid())
+        self.assertIn("bat_BatchNo", form.errors)
+
+    def test_requires_total_batch(self):
+        form = self._form("1", "")
+        self.assertFalse(form.is_valid())
+        self.assertIn("bat_Total_batch", form.errors)
+
     def test_rejects_non_integer_values(self):
         form = self._form("1.5", "2")
         self.assertFalse(form.is_valid())
