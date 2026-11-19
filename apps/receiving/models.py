@@ -249,3 +249,6 @@ class ReceivingEvent(models.Model):
 
     def __str__(self):
         return f"{self.receipt.tracking_number} - {self.get_event_type_display()}"
+
+
+
