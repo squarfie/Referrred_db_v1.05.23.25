@@ -427,6 +427,8 @@ class BatchTable_form(forms.ModelForm):
             self.fields['bat_Head'].queryset = staff_with_role(ROLE_LAB_MANAGER)
             self.fields['bat_SiteCode'].queryset = SiteData.objects.all() # Always load the latest Site Code instances
             # Reference No is derived from Batch No / Total Batch, not user-entered.
+            self.fields['bat_BatchNo'].required = True
+            self.fields['bat_Total_batch'].required = True
             self.fields['bat_RefNo'].required = False
             self.fields['bat_RefNo'].widget.attrs['readonly'] = True
             self.fields['bat_RefNo'].widget.attrs['placeholder'] = 'Auto-generated (0001-0001)'
