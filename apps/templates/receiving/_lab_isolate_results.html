@@ -1,0 +1,5 @@
+<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Recorded / tested</th><th>Organism</th><th>Instrument</th><th>Cassette/slot</th><th>Source</th><th>Entered by</th></tr></thead><tbody>
+{% for result in isolate.identifications.all %}
+<tr><td>{{ result.recorded_at|date:"M j, Y g:i A" }}<br><span class="text-muted small">Tested: {{ result.tested_at|date:"M j, Y g:i A"|default:"Not recorded" }}</span></td><td>{% if result.whonet_organism_code %}<strong>{{ result.whonet_organism_code }}</strong> <span class="text-muted small">&mdash;</span> {% endif %}{{ result.organism_reported }}</td><td>{{ result.instrument|default:"&mdash;" }}</td><td>{{ result.cassette_reference|default:"&mdash;" }}</td><td>{{ result.get_source_display }}</td><td>{{ result.recorded_by|default:"&mdash;" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">No instrument results recorded yet.</td></tr>{% endfor %}
+</tbody></table></div>

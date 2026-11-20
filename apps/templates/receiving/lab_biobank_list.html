@@ -4,25 +4,28 @@
 {% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
-<header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-archive"></i></span><div><p class="receiving-eyebrow">Laboratory staff</p><h1>Biobank Inventory</h1><p class="receiving-hero-subtitle">Accession-level preservation, storage, and specimen tracking.</p></div></div>
-<div class="receiving-hero-actions"><a href="{% url 'laboratory_worklist' %}" class="btn btn-outline-light">ID Testing Worklist</a></div></header>
+<header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-archive"></i></span><div><p class="receiving-eyebrow">Laboratory staff</p><h1>Biobank Inventory</h1><p class="receiving-hero-subtitle">Batch-based inventory with accession-level preservation, storage, and specimen tracking.</p></div></div>
+<div class="receiving-hero-actions">{% if user_access.is_admin or user_access.is_lab_encoder %}<a href="{% url 'laboratory_processing_worklist' %}" class="btn btn-outline-light">Revival &amp; Processing</a>{% endif %}{% if user_access.is_admin or user_access.is_lab_staff %}<a href="{% url 'laboratory_worklist' %}" class="btn btn-outline-light">Identification Testing</a>{% endif %}</div></header>
 <div class="receiving-content">
 <section class="receiving-surface">
 <div class="receiving-card-header"><h2>Isolate storage ledger</h2><p>Storage is available after identification review and lyophilization. Stickers require an approved organism, WHONET code, and harvest date.</p></div>
 <div class="receiving-card-body">
 <form method="get" class="form-row align-items-end mb-3"><div class="col-md-6 mb-2"><label for="bank-q">Search accession</label><input id="bank-q" name="q" value="{{ query }}" class="form-control" placeholder="Accession number"></div><div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Search</button></div></form>
-<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession</th><th>Approved organism</th><th>Preservation method</th><th>Harvested</th><th>Location</th><th>Box</th><th>Position</th><th>Action</th></tr></thead><tbody>
-{% for isolate in isolates %}
+<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession</th><th>Status</th><th>Approved organism</th><th>Preservation method</th><th>Harvested</th><th>Location</th><th>Box</th><th>Position</th><th>Action</th></tr></thead><tbody>
+{% regroup isolates by accession_range as inventory_batches %}
+{% for inventory_batch in inventory_batches %}
+<tr><th colspan="9" scope="rowgroup">Batch {{ inventory_batch.grouper.batch_number }} / {{ inventory_batch.grouper.total_batches }} · {{ inventory_batch.grouper.reference_range }} · {{ inventory_batch.grouper.laboratory_receiving.receipt.site.SiteCode }} <a href="{% url 'laboratory_batch_detail' inventory_batch.grouper.pk %}?area=biobank" class="btn btn-sm btn-outline-primary">Open Batch</a></th></tr>
+{% for isolate in inventory_batch.list %}
 <tr>
-<td>{{ isolate.accession_number }}</td><td>{{ isolate.final_organism|default:"Pending review" }}</td>
+<td>{{ isolate.accession_number }}</td><td>{% if isolate.status == "biobanked" %}Stored{% elif isolate.status == "ready_for_biobank" %}Ready for storage{% else %}{{ isolate.get_status_display }}{% endif %}</td><td>{{ isolate.final_organism|default:"Pending review" }}</td>
 <td>{{ isolate.biobank.preservation_method|default:"—" }}</td>
 <td>{{ isolate.biobank.date_harvested|date:"M j, Y"|default:"—" }}</td>
-<td>{{ isolate.biobank.storage_location|default:"—" }}</td>
-<td>{{ isolate.biobank.storage_box|default:"—" }}</td>
+<td>{{ isolate.biobank.storage_location|default:isolate.biobank.lyo_location|default:isolate.biobank.supplementary_location|default:"—" }}</td>
+<td>{% if isolate.biobank.storage_box %}{{ isolate.biobank.storage_box }}{% elif isolate.biobank.lyo_box_name or isolate.biobank.lyo_box_number %}{{ isolate.biobank.lyo_box_name }} {{ isolate.biobank.lyo_box_number }}{% elif isolate.biobank.supplementary_box_name or isolate.biobank.supplementary_box_number %}{{ isolate.biobank.supplementary_box_name }} {{ isolate.biobank.supplementary_box_number }}{% else %}—{% endif %}</td>
 <td>{{ isolate.biobank.box_position|default:isolate.biobank.lyo_position|default:isolate.biobank.supplementary_position|default:"—" }}</td>
-<td><a href="{% url 'laboratory_isolate_detail' isolate.pk %}" class="btn btn-sm btn-primary">{% if can_bank %}Update{% else %}View{% endif %}</a>
+<td><a href="{% url 'laboratory_isolate_detail' isolate.pk %}?area=biobank#biobank" class="btn btn-sm btn-primary">{% if can_bank %}Update{% else %}View{% endif %}</a>
 {% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a target="_blank" href="{% url 'laboratory_biobank_label' isolate.pk %}" class="btn btn-sm btn-outline-info">Sticker</a>{% endif %}</td>
-</tr>{% empty %}<tr><td colspan="8" class="text-muted text-center">No isolate records found.</td></tr>{% endfor %}
+</tr>{% endfor %}{% empty %}<tr><td colspan="9" class="text-muted text-center">No isolate records found.</td></tr>{% endfor %}
 </tbody></table></div><p class="small text-muted">Showing up to 250 matching records.</p>
 </div></section></div></main>
 {% endblock content %}

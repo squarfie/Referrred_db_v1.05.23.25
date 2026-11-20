@@ -9,7 +9,7 @@
   </div>
 </div>
 <div class="receiving-hero-actions">
-  <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-1"></i>Laboratory Receiving</a>
+  <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-1"></i>Receiving &amp; Accessioning</a>
   <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}">Laboratory Record</a>
   <a class="btn btn-info" href="{% url 'laboratory_receiving_register' %}">Monthly Inventory</a></div></header>
   <div class="receiving-content">
@@ -150,7 +150,7 @@
               <td data-label="Actions" class="receiving-actions">
                 {% if item.isolate_records.exists %}
                   <span class="badge badge-info">ID testing / cassette return / revival</span>
-                  <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_worklist' %}">ID Worklist</a>
+                  <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_batch_detail' item.pk %}?area=processing">Open Batch</a>
                 {% elif can_edit and not item.batch %}
                 <form id="accession-edit-{{ item.pk }}" method="post" action="{% url 'laboratory_accession_edit' item.pk %}">{% csrf_token %}</form>
                 <button type="submit" form="accession-edit-{{ item.pk }}" class="btn btn-sm btn-outline-primary mb-1">Save edits</button>
@@ -235,36 +235,8 @@
   </section>
 
   <section class="receiving-surface receiving-form-card mb-4" id="revival">
-    <div class="receiving-card-header"><h2>Step 4: Main Laboratory ID handoff, cassette return and revival</h2>
-      <p>Endorse accessions for Main Laboratory identification first. After Main Lab forwards the ID results and cassette reference, Laboratory Receiving can queue, start and complete revival. Failed or non-viable isolates block batch advancement pending reconciliation.</p></div>
-    <div class="receiving-card-body">
-      <div class="table-responsive"><table class="table receiving-table">
-        <thead><tr><th>Batch / range</th><th>Isolate records</th><th>Workflow stages</th><th>Actions</th></tr></thead>
-        <tbody>
-        {% for row in workflow_rows %}
-          <tr><td><strong>{{ row.accession.reference_range }}</strong><div class="small text-muted">Batch {{ row.accession.batch_number }} / {{ row.accession.total_batches }}</div></td>
-          <td>{{ row.count }} / {{ row.expected }}</td>
-          <td>{% for status, total in row.stages.items %}<div>{{ status|cut:"_"|title }}: {{ total }}</div>{% empty %}<span class="text-muted">Not queued</span>{% endfor %}</td>
-          <td class="receiving-actions">
-          {% if row.can_handoff %}
-            <form method="post" action="{% url 'laboratory_endorse_id' row.accession.pk %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-info">Endorse to Main Lab for ID</button></form>
-          {% endif %}
-          {% if row.can_queue %}
-            <form method="post" action="{% url 'laboratory_batch_transition' row.accession.pk 'queue' %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-info">Queue revival after cassette return</button></form>
-          {% endif %}
-          {% if row.can_start %}
-            <form method="post" action="{% url 'laboratory_batch_transition' row.accession.pk 'start' %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-primary">Start revival</button></form>
-          {% endif %}
-          {% if row.can_complete %}
-            <form method="post" action="{% url 'laboratory_batch_transition' row.accession.pk 'complete' %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Complete revival</button></form>
-          {% endif %}
-
-          <a class="btn btn-sm btn-outline-info" href="{% url 'laboratory_worklist' %}">Isolate worklist</a>
-          <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="{% url 'laboratory_batch_labels' row.accession.pk %}">Print batch stickers</a>
-          </td></tr>
-        {% empty %}<tr><td colspan="4" class="text-muted">Accession ranges must be created before revival.</td></tr>{% endfor %}
-        </tbody></table></div>
-    </div>
+    <div class="receiving-card-header"><h2>Step 4: Revival &amp; Processing</h2><p>After Main Laboratory returns ID results and cassettes, continue in the batch processing queue. Each accession shows its current stage and next action.</p></div>
+    <div class="receiving-card-body"><a class="btn btn-primary" href="{% url 'laboratory_processing_worklist' %}">Open Revival &amp; Processing</a></div>
   </section>
   <section class="receiving-surface receiving-form-card mb-4" id="batch-generation">
     <div class="receiving-card-header">

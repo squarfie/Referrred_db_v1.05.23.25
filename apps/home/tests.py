@@ -1137,9 +1137,10 @@ class GroupedSidebarNavigationTests(TestCase):
         self.assertIn("Biobank Inventory", markup)
         self.assertNotIn("WGS Upload", markup)
         self.assertNotIn("Secretariat Receiving", markup)
-        # Laboratory Staff now has worksheet read access after custody confirmation.
-        self.assertIn("Laboratory Receiving</span>", markup)
-        self.assertIn('href="/receiving/laboratory-receiving/"', markup)
+        # Reading a receiving worksheet remains authorized, but staff navigation focuses on ID.
+        self.assertIn("Identification Testing", markup)
+        self.assertNotIn("Receiving &amp; Accessioning", markup)
+        self.assertNotIn("Revival &amp; Processing", markup)
 
     def test_secretariat_receiving_is_standalone(self):
         markup = self._render_sidebar("Secretariat", "secretariat_receiving_dashboard")
@@ -1150,7 +1151,7 @@ class GroupedSidebarNavigationTests(TestCase):
 
     def test_lab_encoder_gets_laboratory_receiving_and_wgs_data(self):
         markup = self._render_sidebar("LAB Encoder", "laboratory_receiving_dashboard")
-        self.assertIn("Laboratory Receiving", markup)
+        self.assertIn("Receiving &amp; Accessioning", markup)
         self.assertIn('href="/receiving/laboratory-receiving/"', markup)
         self.assertIn("WGS Data", markup)
         self.assertIn("Running TAT", markup)

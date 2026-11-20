@@ -64,7 +64,7 @@ class ReceivingPermissionTests(TestCase):
         self.client.force_login(user)
         response = self.client.get(reverse("laboratory_receiving_dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Laboratory Receiving")
+        self.assertContains(response, "Receiving &amp; Accessioning")
         self.assertContains(response, "Pending Lab Receipt")
         self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=pending")
         self.assertNotContains(response, "Pending Endorsement")
@@ -1538,66 +1538,18 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         Organism_List.objects.create(Whonet_Org_Code="ECO", Organism="Escherichia coli")
         self.client.force_login(self.lab_user)
 
-    def test_main_lab_return_tab_shows_only_returned_isolates_and_audit(self):
-        accession = self.create_pending_accession()
-        pending = LaboratoryIsolate.objects.create(
-            accession_range=accession,
-            accession_number=accession.accession_numbers[0],
-            status=LaboratoryIsolate.Status.ID_PENDING,
-        )
-        returned = LaboratoryIsolate.objects.create(
-            accession_range=accession,
-            accession_number=accession.accession_numbers[1],
-            status=LaboratoryIsolate.Status.ID_RETURNED,
-            returned_at=timezone.now(),
-            returned_by=self.lab_user,
-        )
-        url = reverse("laboratory_receiving_dashboard")
-        response = self.client.get(url + "?tab=returned")
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context["show_main_lab_returns"])
-        self.assertEqual(response.context["page_obj"].paginator.count, 1)
-        self.assertContains(response, "Returned from Main Lab")
-        self.assertContains(response, returned.accession_number)
-        self.assertNotContains(response, pending.accession_number)
-        self.assertContains(response, self.receipt.tracking_number)
-        self.assertContains(response, self.lab_user.username)
-        self.assertContains(response, reverse("laboratory_isolate_detail", kwargs={"isolate_id": returned.pk}))
-        self.assertContains(response, reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}))
-
-    def test_main_lab_return_remains_visible_after_revival(self):
-        accession = self.create_pending_accession()
-        isolate = LaboratoryIsolate.objects.create(
-            accession_range=accession,
-            accession_number=accession.accession_numbers[0],
-            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS,
-            returned_at=timezone.now(),
-            returned_by=self.lab_user,
-        )
+    def test_main_lab_return_bookmark_moves_to_processing_history(self):
         response = self.client.get(reverse("laboratory_receiving_dashboard") + "?tab=returned")
-        self.assertContains(response, isolate.accession_number)
-        self.assertContains(response, "Revival in progress")
+        self.assertRedirects(response, reverse("laboratory_processing_worklist") + "?history=1&q=", fetch_redirect_response=False)
 
-    def test_main_lab_return_search_by_accession_and_not_courier_receipts(self):
-        accession = self.create_pending_accession()
-        isolate = LaboratoryIsolate.objects.create(
-            accession_range=accession,
-            accession_number=accession.accession_numbers[0],
-            status=LaboratoryIsolate.Status.ID_RETURNED,
-            returned_at=timezone.now(),
-            returned_by=self.lab_user,
-        )
-        url = reverse("laboratory_receiving_dashboard")
-        response = self.client.get(url + "?tab=returned&q=" + isolate.accession_number)
+    def test_main_lab_return_search_is_preserved_in_processing_redirect(self):
+        response = self.client.get(reverse("laboratory_receiving_dashboard") + "?tab=returned&q=26ARS_RI0001")
+        self.assertRedirects(response, reverse("laboratory_processing_worklist") + "?history=1&q=26ARS_RI0001", fetch_redirect_response=False)
+
+    def test_receiving_queue_does_not_duplicate_processing_history(self):
+        response = self.client.get(reverse("laboratory_receiving_dashboard") + "?tab=received")
+        self.assertNotContains(response, "Returned from Main Lab")
         self.assertEqual(response.context["page_obj"].paginator.count, 1)
-        self.assertContains(response, isolate.accession_number)
-        missed = self.client.get(url + "?tab=returned&q=NOT-A-REAL-ACCESSION")
-        self.assertEqual(missed.context["page_obj"].paginator.count, 0)
-        self.assertContains(missed, "No Main Laboratory ID returns recorded yet.")
-        # The existing courier tab remains unchanged.
-        courier = self.client.get(url + "?tab=received")
-        self.assertFalse(courier.context["show_main_lab_returns"])
-        self.assertEqual(courier.context["page_obj"].paginator.count, 1)
 
     def test_main_lab_return_tab_not_shown_to_secretariat(self):
         secretariat = User.objects.create_user(username="returns-secretariat", password="test-pass")
@@ -1700,7 +1652,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 1: Receiving and acceptance summary",
             "Step 2: Accessioning",
             "Step 3: Organism inventory",
-            "Step 4: Main Laboratory ID handoff, cassette return and revival",
+            "Step 4: Revival &amp; Processing",
             "Step 5: Batch generation",
         ]
         positions = [text.index(label) for label in labels]
@@ -1917,7 +1869,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             cassette_reference="CASSETTE-1", recorded_by=self.lab_user,
         )
         url = reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk})
-        self.assertContains(self.client.get(url), "Queue this isolate for revival")
+        self.assertContains(self.client.get(url), "Record revival outcome")
         for action, target in (
             ("queue", LaboratoryIsolate.Status.REVIVAL_QUEUED),
             ("start", LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS),
