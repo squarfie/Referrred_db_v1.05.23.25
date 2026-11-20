@@ -493,3 +493,97 @@ class LaboratoryOrganismCount(models.Model):
 
     def __str__(self):
         return f"{self.get_organism_code_display()}: {self.count}"
+
+
+class LaboratoryIsolate(models.Model):
+    """One accepted isolate; accessions are assigned by Laboratory Receiving."""
+    class Status(models.TextChoices):
+        PENDING = "pending", "Awaiting ID laboratory"
+        TESTING = "testing", "ID testing"
+        RETURNED = "returned", "Results returned"
+        REVIEWED = "reviewed", "ID reviewed"
+
+    accession_range = models.ForeignKey(
+        LaboratoryAccession, on_delete=models.PROTECT, related_name="isolate_records"
+    )
+    accession_number = models.CharField(max_length=80, unique=True, db_index=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    endorsed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="isolates_endorsed_for_id",
+    )
+    endorsed_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="isolates_acknowledged_for_id",
+    )
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="isolates_id_reviewed",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    final_organism = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "laboratory_isolates"
+        ordering = ("accession_number",)
+
+    def __str__(self):
+        return self.accession_number
+
+
+class LaboratoryIdentification(models.Model):
+    """An instrument or manually transcribed ID result, including retests."""
+    class Source(models.TextChoices):
+        MANUAL = "manual", "Manual transcription"
+        CSV = "csv", "CSV upload"
+        XLSX = "xlsx", "Excel upload"
+
+    isolate = models.ForeignKey(
+        LaboratoryIsolate, on_delete=models.PROTECT, related_name="identifications"
+    )
+    organism_reported = models.CharField(max_length=255)
+    instrument = models.CharField(max_length=100, blank=True, default="")
+    cassette_reference = models.CharField(max_length=100, blank=True, default="")
+    tested_at = models.DateTimeField(null=True, blank=True)
+    source = models.CharField(max_length=10, choices=Source.choices, default=Source.MANUAL)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="laboratory_id_entries",
+    )
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "laboratory_identifications"
+        ordering = ("-recorded_at", "-id")
+
+    def __str__(self):
+        return f"{self.isolate.accession_number}: {self.organism_reported}"
+
+
+class LaboratoryBiobank(models.Model):
+    """Storage information may be recorded before an identification is reviewed."""
+    isolate = models.OneToOneField(
+        LaboratoryIsolate, on_delete=models.PROTECT, related_name="biobank"
+    )
+    date_harvested = models.DateField(null=True, blank=True)
+    preservation_method = models.CharField(max_length=100, blank=True, default="")
+    container = models.CharField(max_length=100, blank=True, default="")
+    storage_location = models.CharField(max_length=150, blank=True, default="")
+    storage_box = models.CharField(max_length=100, blank=True, default="")
+    box_position = models.CharField(max_length=30, blank=True, default="")
+    remarks = models.TextField(blank=True, default="")
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="laboratory_biobank_entries",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "laboratory_biobank"
+
+    def __str__(self):
+        return self.isolate.accession_number
