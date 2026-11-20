@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -177,12 +178,23 @@ def laboratory_receiving_workspace(request, receiving_id):
             return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
     else:
         form = LaboratoryReceivingForm(instance=record)
-    ranges = record.accession_ranges.select_related("batch").prefetch_related("organism_counts")
+    ranges = list(record.accession_ranges.select_related("batch").prefetch_related("organism_counts"))
+    organism_rows = []
+    for accession in ranges:
+        values = {count.organism_code: count.count for count in accession.organism_counts.all()}
+        organism_rows.append({
+            "accession": accession,
+            "cells": [
+                {"code": code, "short": short, "label": label, "count": values.get(code, 0)}
+                for code, short, label in REGISTER_COLUMNS
+            ],
+            "total": sum(values.values()),
+        })
     return render(request, "receiving/laboratory_workspace.html", {
         "receipt": receipt, "record": record, "form": form,
         "accession_form": LaboratoryAccessionForm(initial={"date_referred": record.date_accepted or receipt.lab_date_received}),
         "organism_form": LaboratoryOrganismCountForm(),
-        "ranges": ranges, "can_edit": can_edit,
+        "ranges": ranges, "organism_rows": organism_rows, "can_edit": can_edit,
     })
 
 
@@ -221,6 +233,140 @@ def laboratory_accession_add(request, receiving_id):
     else:
         messages.error(request, "Please correct the accession range details.")
     return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
+
+
+@login_required
+@lab_receiving_required
+@require_POST
+@transaction.atomic
+def laboratory_accession_edit(request, accession_id):
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_for_update().select_related(
+            "laboratory_receiving__receipt"
+        ),
+        pk=accession_id,
+    )
+    destination = redirect(
+        "laboratory_receiving_workspace",
+        receiving_id=accession.laboratory_receiving.receipt.receiving_id,
+    )
+    if accession.batch_id:
+        messages.error(request, "Generated batches cannot be edited here. Contact an administrator for a reviewed correction.")
+        return destination
+    form = LaboratoryAccessionForm(request.POST, instance=accession)
+    if not form.is_valid():
+        messages.error(request, "Please correct the accession details.")
+        return destination
+
+    previous_size = accession.isolate_count
+    previous_range = accession.reference_range
+    changed = form.save(commit=False)
+    recorded_total = sum(
+        changed.organism_counts.values_list("count", flat=True)
+    )
+    if recorded_total > changed.isolate_count:
+        messages.error(request, "The new range is smaller than its recorded organism counts.")
+        return destination
+    try:
+        changed.full_clean()
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return destination
+    changed.assigned_by = request.user
+    changed.save()
+    ReceivingEvent.objects.create(
+        receipt=changed.laboratory_receiving.receipt,
+        event_type=ReceivingEvent.EventType.CORRECTED,
+        performed_by=request.user,
+        remarks=f"Updated accession range {previous_range} to {changed.reference_range} (previous isolate count: {previous_size}).",
+    )
+    messages.success(request, f"Accession range {changed.reference_range} updated.")
+    return destination
+
+
+@login_required
+@lab_receiving_required
+@require_POST
+@transaction.atomic
+def laboratory_accession_delete(request, accession_id):
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_for_update().select_related(
+            "laboratory_receiving__receipt"
+        ), pk=accession_id,
+    )
+    destination = redirect(
+        "laboratory_receiving_workspace",
+        receiving_id=accession.laboratory_receiving.receipt.receiving_id,
+    )
+    if accession.batch_id:
+        messages.error(request, "This accession range has generated a batch and cannot be deleted here.")
+        return destination
+    if request.POST.get("confirmation") != "DELETE":
+        messages.error(request, "Confirmation is required to delete the accession range.")
+        return destination
+    label = accession.reference_range
+    receipt = accession.laboratory_receiving.receipt
+    # These rows are exclusively attached to the ungenerated range.
+    accession.organism_counts.all().delete()
+    accession.delete()
+    ReceivingEvent.objects.create(
+        receipt=receipt,
+        event_type=ReceivingEvent.EventType.CORRECTED,
+        performed_by=request.user,
+        remarks=f"Deleted ungenerated accession range {label}.",
+    )
+    messages.success(request, f"Accession range {label} deleted.")
+    return destination
+
+
+@login_required
+@lab_receiving_required
+@require_POST
+@transaction.atomic
+def laboratory_organism_matrix_save(request, accession_id):
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_for_update().select_related(
+            "laboratory_receiving__receipt"
+        ), pk=accession_id,
+    )
+    destination = redirect(
+        "laboratory_receiving_workspace",
+        receiving_id=accession.laboratory_receiving.receipt.receiving_id,
+    )
+    counts = {}
+    for code, _short, _label in REGISTER_COLUMNS:
+        raw = (request.POST.get(f"organism_{code}") or "").strip()
+        if not raw:
+            counts[code] = 0
+        elif not raw.isascii() or not raw.isdecimal():
+            messages.error(request, f"{code}: please enter a non-negative whole number.")
+            return destination
+        else:
+            counts[code] = int(raw)
+    if sum(counts.values()) > accession.isolate_count:
+        messages.error(request, "The total organism count cannot exceed the accession-range isolate count.")
+        return destination
+
+    # Validate all requested counts before applying any updates.
+    for code, value in counts.items():
+        if value:
+            LaboratoryOrganismCount(
+                accession_range=accession, organism_code=code, count=value
+            ).full_clean(exclude=["organism_code"])
+
+    existing = {
+        item.organism_code: item
+        for item in LaboratoryOrganismCount.objects.select_for_update().filter(accession_range=accession)
+    }
+    # Avoid partial row updates by validating first and using a single transaction.
+    for item in existing.values():
+        item.delete()
+    LaboratoryOrganismCount.objects.bulk_create([
+        LaboratoryOrganismCount(accession_range=accession, organism_code=code, count=value)
+        for code, value in counts.items() if value
+    ])
+    messages.success(request, f"Organism counts for {accession.reference_range} saved.")
+    return destination
 
 
 @login_required
