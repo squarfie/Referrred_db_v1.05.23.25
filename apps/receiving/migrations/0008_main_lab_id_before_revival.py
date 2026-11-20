@@ -13,7 +13,9 @@ def reconcile_pre_id_revival_queues(apps, schema_editor):
         status="revival_queued",
         returned_at__isnull=True,
         acknowledged_at__isnull=True,
-    )
+        revival_started_at__isnull=True,
+        revival_completed_at__isnull=True,
+    ).exclude(identifications__isnull=False)
     for isolate in qs.iterator():
         Isolate.objects.using(alias).filter(pk=isolate.pk).update(
             status="id_pending",
