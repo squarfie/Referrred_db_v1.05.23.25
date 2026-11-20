@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}{% load static %}
 {% block title %}Laboratory receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-matrix">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-conflict-preview">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span>
@@ -236,7 +236,7 @@
         <table class="table receiving-table">
           <thead><tr><th>Date referred</th><th>Accession range</th><th>Batch no.</th><th>Total batches</th><th>Isolates</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
-            {% for item in ranges %}
+            {% for row in batch_rows %}{% with item=row.accession %}
             <tr>
               <td data-label="Date referred">{{ item.date_referred|date:"M j, Y" }}</td>
               <td data-label="Accession range"><strong>{{ item.reference_range }}</strong></td>
@@ -250,14 +250,32 @@
               </td>
               <td data-label="Actions" class="receiving-actions">
                 {% if can_edit and not item.batch %}
-                <form method="post" action="{% url 'laboratory_batch_create' item.pk %}">
-                  {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Create Batch</button>
-                </form>
+                <div class="receiving-batch-action">
+                  {% if row.preview.blocked %}
+                    <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Create Batch</button>
+                    <span class="receiving-batch-warning" tabindex="0" role="img"
+                          aria-label="Batch creation blocked; review the conflict details" title="{{ row.preview.message }}">
+                      <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                      <span class="receiving-batch-warning-tooltip" role="tooltip">
+                        <strong>Cannot create this batch</strong>
+                        {% for warning in row.preview.warnings %}
+                          <span>{{ warning }}</span>
+                        {% endfor %}
+                        <small>Correct the accession or resolve the existing records first.</small>
+                      </span>
+                    </span>
+                  {% else %}
+                    <form method="post" action="{% url 'laboratory_batch_create' item.pk %}">
+                      {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Create Batch</button>
+                    </form>
+                  {% endif %}
+                </div>
                 {% elif item.batch %}
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>
                 {% endif %}
               </td>
             </tr>
+            {% endwith %}
             {% empty %}<tr><td colspan="7" class="text-center text-muted">No accession ranges have been saved yet.</td></tr>{% endfor %}
           </tbody>
         </table>

@@ -224,3 +224,13 @@
   .receiving-accession-edit-table td::before {display:none;}
   .receiving-accession-edit-table td.receiving-actions {display:table-cell;}
 }
+
+
+/* Read-only batch creation conflict preview. Focusable for keyboard users. */
+.receiving-batch-action {display:inline-flex;align-items:center;gap:.5rem;}
+.receiving-batch-warning {position:relative;display:inline-flex;align-items:center;justify-content:center;color:#c33c36;font-size:1.12rem;cursor:help;outline-offset:3px;}
+.receiving-batch-warning-tooltip {position:absolute;bottom:calc(100% + 9px);right:0;z-index:30;display:none;width:min(330px,70vw);padding:.75rem .9rem;border-radius:7px;background:#23374b;color:#fff;text-align:left;white-space:normal;line-height:1.45;font-size:.75rem;font-weight:400;box-shadow:0 8px 24px rgba(0,0,0,.22);pointer-events:none;}
+.receiving-batch-warning-tooltip strong {display:block;margin-bottom:.35rem;font-weight:800;}
+.receiving-batch-warning-tooltip>span {display:block;margin:.25rem 0;overflow-wrap:anywhere;}
+.receiving-batch-warning-tooltip small {display:block;margin-top:.55rem;color:#b9dfe9;}
+.receiving-batch-warning:hover .receiving-batch-warning-tooltip,.receiving-batch-warning:focus .receiving-batch-warning-tooltip,.receiving-batch-warning:focus-within .receiving-batch-warning-tooltip {display:block;}

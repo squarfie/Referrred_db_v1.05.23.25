@@ -1459,6 +1459,70 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertTrue(LaboratoryAccession.objects.filter(pk=accession.pk).exists())
         self.assertFalse(accession.organism_counts.exists())
 
+    def test_batch_conflict_preview_disables_creation_before_post(self):
+        accession = self.create_pending_accession()
+        # An accession already assigned to another batch must be detected
+        # without attempting to create another batch.
+        Referred_Data.objects.create(
+            AccessionNo="26ARS_RI0001",
+            Batch_Code="ANOTHER_BATCH",
+        )
+        response = self.client.get(reverse(
+            "laboratory_receiving_workspace",
+            kwargs={"receiving_id": self.receipt.receiving_id},
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cannot create this batch")
+        self.assertContains(response, "26ARS_RI0001")
+        self.assertContains(response, 'aria-disabled="true"')
+
+    def test_batch_creation_rejects_raw_record_with_code_but_null_batch_id(self):
+        accession = self.create_pending_accession()
+        Referred_Data.objects.create(
+            AccessionNo="26ARS_RI0001",
+            Batch_Code="OTHER_EXISTING_BATCH",
+            Batch_id=None,
+        )
+        response = self.client.post(
+            reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk})
+        )
+        self.assertEqual(response.status_code, 302)
+        accession.refresh_from_db()
+        self.assertIsNone(accession.batch_id)
+        self.assertEqual(
+            Referred_Data.objects.get(AccessionNo="26ARS_RI0001").Batch_Code,
+            "OTHER_EXISTING_BATCH",
+        )
+
+    def test_batch_conflict_preview_keeps_button_enabled_without_conflicts(self):
+        self.create_pending_accession()
+        response = self.client.get(reverse(
+            "laboratory_receiving_workspace",
+            kwargs={"receiving_id": self.receipt.receiving_id},
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Cannot create this batch")
+        self.assertContains(response, ">Create Batch</button>")
+
+    def test_batch_conflict_preview_detects_existing_batch_code(self):
+        accession = self.create_pending_accession()
+        Batch_Table.objects.create(
+            bat_Batch_Code="RI_11192026_1.1_0001-0005",
+            bat_Batch_Name="existing",
+        )
+        # An unreferenced empty batch is recoverable by create_referred_batch,
+        # so an actual Raw record must exist to make the code unavailable.
+        existing = Batch_Table.objects.get(bat_Batch_Code="RI_11192026_1.1_0001-0005")
+        Referred_Data.objects.create(
+            AccessionNo="26ARS_RI9999", Batch_id=existing, Batch_Code=existing.bat_Batch_Code,
+        )
+        response = self.client.get(reverse(
+            "laboratory_receiving_workspace",
+            kwargs={"receiving_id": self.receipt.receiving_id},
+        ))
+        self.assertContains(response, "Batch code already exists")
+        self.assertContains(response, 'aria-disabled="true"')
+
     def test_workspace_does_not_render_finalize_control(self):
         response = self.client.get(
             reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id})
