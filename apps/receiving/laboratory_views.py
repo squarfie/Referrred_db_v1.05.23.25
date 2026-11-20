@@ -199,12 +199,34 @@ def laboratory_biobank_save(request, isolate_id):
     if date_harvested and date_harvested > timezone.localdate():
         messages.error(request, "Harvested date cannot be in the future.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
-    limits = {"preservation_method": 100, "container": 100, "storage_location": 150,
-              "storage_box": 100, "box_position": 30}
+    limits = {
+        "whonet_code": 30, "lyo_box_name": 100, "lyo_box_number": 50,
+        "lyo_position": 50, "refrigerator_number": 50, "lyo_location": 100,
+        "supplementary_box_name": 100, "supplementary_box_number": 50,
+        "supplementary_position": 50, "freezer_number": 50,
+        "supplementary_location": 100,
+        "preservation_method": 100, "container": 100,
+        "storage_location": 150, "storage_box": 100, "box_position": 30,
+    }
     data = {key: (request.POST.get(key) or "").strip() for key in limits}
     if any(len(data[key]) > limit for key, limit in limits.items()):
         messages.error(request, "One or more biobank fields exceed their maximum length.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+
+    for field in ("date_lyophilized", "lyo_date_encoded", "supplementary_date_encoded"):
+        value = (request.POST.get(field) or "").strip()
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%d").date() if value else None
+        except ValueError:
+            messages.error(request, f"Enter a valid {field.replace('_', ' ')}.")
+            return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+        if parsed and parsed > timezone.localdate():
+            messages.error(request, f"{field.replace('_', ' ').title()} cannot be in the future.")
+            return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+        data[field] = parsed
+
+    data["skimmed_milk"] = request.POST.get("skimmed_milk") == "on"
+    data["tsbg"] = request.POST.get("tsbg") == "on"
     LaboratoryBiobank.objects.update_or_create(
         isolate=isolate, defaults={
             **data, "date_harvested": date_harvested,
