@@ -67,6 +67,26 @@ def _receipt_or_404(receiving_id):
 @login_required
 @receiving_read_required
 def receiving_dashboard(request):
+    """Preserve old links and role-aware defaults for existing bookmarks."""
+    return _render_receiving_dashboard(request)
+
+
+@login_required
+@secretariat_receiving_required
+def secretariat_receiving_dashboard(request):
+    return _render_receiving_dashboard(request, queue="secretariat")
+
+
+@login_required
+@receiving_read_required
+def laboratory_receiving_dashboard(request):
+    if not (can_confirm_lab_receipt(request.user) or request.user.is_superuser):
+        messages.error(request, "Only Laboratory Receiving personnel may open this queue.")
+        return redirect("home")
+    return _render_receiving_dashboard(request, queue="laboratory")
+
+
+def _render_receiving_dashboard(request, queue=None):
     all_receipts = ReferralReceipt.objects.select_related("site", "received_by")
     counts = {
         row["status"]: row["total"]
@@ -76,7 +96,12 @@ def receiving_dashboard(request):
     can_manage_secretariat = can_manage_secretariat_receiving(request.user)
     can_confirm_lab = can_confirm_lab_receipt(request.user)
     # Prefer the laboratory queue for users who have both responsibilities.
-    is_lab_worklist = can_confirm_lab
+    is_lab_worklist = (queue == "laboratory") if queue else can_confirm_lab
+    queue_url_name = (
+        "laboratory_receiving_dashboard" if queue == "laboratory"
+        else "secretariat_receiving_dashboard" if queue == "secretariat"
+        else "receiving_dashboard"
+    )
     if is_lab_worklist:
         tab_definitions = [
             ("pending", "Pending Lab Receipt", ReferralReceipt.Status.ENDORSED),
@@ -147,6 +172,8 @@ def receiving_dashboard(request):
             "lab_received_count": counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0),
             "can_manage_secretariat": can_manage_secretariat,
             "can_confirm_lab": can_confirm_lab,
+            "receiving_queue_url": queue_url_name,
+            "is_lab_worklist": is_lab_worklist,
         },
     )
 
