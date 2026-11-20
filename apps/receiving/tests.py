@@ -1768,12 +1768,20 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         first.refresh_from_db()
         self.assertEqual(first.status, LaboratoryIsolate.Status.REVIVED)
         self.assertEqual(first.revival_retry_count, 1)
-        # Mark the rest revived individually only by a normal, complete-batch operation
-        # is not permitted now because one retried isolate is already revived.
+        # Still-in-progress isolates are completed in one atomic batch update.
+        # The previously retried isolate retains its original completion audit.
+        previous_completion = first.revival_completed_at
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        first.refresh_from_db()
+        self.assertEqual(first.revival_completed_at, previous_completion)
         self.assertEqual(
-            accession.isolate_records.filter(status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS).count(),
-            accession.isolate_count - 1,
+            accession.isolate_records.filter(status=LaboratoryIsolate.Status.REVIVED).count(),
+            accession.isolate_count,
         )
+        # A separate failed isolate must be tested using a new accession batch.
+        second.status = LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS
+        second.save(update_fields=("status",))
         self.client.post(reverse("laboratory_revival_failed", kwargs={"isolate_id": second.pk}),
                          {"status": "non_viable", "reason": "Not recoverable"})
         second.refresh_from_db()
