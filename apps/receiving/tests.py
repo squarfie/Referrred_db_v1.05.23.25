@@ -1626,6 +1626,54 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertEqual(result.organism_reported, "Klebsiella pneumoniae")
         self.assertEqual(result.source, LaboratoryIdentification.Source.CSV)
 
+    def test_biobank_form_records_lyophilization_and_supplementary_storage(self):
+        accession = self.create_pending_accession()
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        isolate = accession.isolate_records.first()
+        staff = User.objects.create_user(username="biobank-lab-staff", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(
+            name=home_permissions.ROLE_LAB_STAFF
+        )[0])
+        self.client.force_login(staff)
+        response = self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
+            "whonet_code": "ECO",
+            "date_harvested": "2026-11-19",
+            "date_lyophilized": "2026-11-19",
+            "lyo_box_name": "LAB BOX", "lyo_box_number": "2",
+            "lyo_position": "C3", "refrigerator_number": "1",
+            "lyo_location": "Room 1",
+            "lyo_date_encoded": "2026-11-19",
+            "skimmed_milk": "on", "tsbg": "on",
+            "supplementary_box_name": "SUPP BOX",
+            "supplementary_box_number": "4",
+            "supplementary_position": "B2",
+            "freezer_number": "3",
+            "supplementary_location": "Room 2",
+            "supplementary_date_encoded": "2026-11-19",
+        })
+        self.assertEqual(response.status_code, 302)
+        biobank = LaboratoryBiobank.objects.get(isolate=isolate)
+        self.assertEqual(biobank.whonet_code, "ECO")
+        self.assertEqual(biobank.lyo_box_name, "LAB BOX")
+        self.assertTrue(biobank.skimmed_milk)
+        self.assertTrue(biobank.tsbg)
+        self.assertEqual(biobank.supplementary_position, "B2")
+        self.assertEqual(self.client.get(reverse("laboratory_biobank_list")).status_code, 200)
+
+    def test_invalid_id_workbook_is_rejected(self):
+        staff = User.objects.create_user(username="invalid-excel-staff", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(
+            name=home_permissions.ROLE_LAB_STAFF
+        )[0])
+        self.client.force_login(staff)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        response = self.client.post(reverse("laboratory_id_upload"), {
+            "action": "preview",
+            "file": SimpleUploadedFile("bad.xlsx", b"not a workbook"),
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(LaboratoryIdentification.objects.exists())
+
     def test_endorsed_accession_is_protected_from_edit_and_delete(self):
         accession = self.create_pending_accession()
         self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
