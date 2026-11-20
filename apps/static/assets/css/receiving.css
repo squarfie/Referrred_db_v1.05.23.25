@@ -234,3 +234,10 @@
 .receiving-batch-warning-tooltip>span {display:block;margin:.25rem 0;overflow-wrap:anywhere;}
 .receiving-batch-warning-tooltip small {display:block;margin-top:.55rem;color:#b9dfe9;}
 .receiving-batch-warning:hover .receiving-batch-warning-tooltip,.receiving-batch-warning:focus .receiving-batch-warning-tooltip,.receiving-batch-warning:focus-within .receiving-batch-warning-tooltip {display:block;}
+
+
+/* Warnings are Bootstrap tooltips mounted on body to avoid table clipping. */
+button.receiving-batch-warning {border:0;background:transparent;padding:.12rem .2rem;line-height:1;appearance:none;}
+button.receiving-batch-warning:focus-visible {outline:2px solid #b52b2b;border-radius:3px;}
+body > .tooltip {z-index:100200;}
+body > .tooltip .tooltip-inner {max-width:370px;text-align:left;white-space:normal;overflow-wrap:anywhere;padding:.65rem .8rem;font-size:.78rem;line-height:1.45;}
