@@ -253,7 +253,7 @@ def laboratory_receiving_workspace(request, receiving_id):
             "count": len(isolates), "expected": accession.isolate_count,
             "can_queue": can_edit and not isolates,
             "can_start": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revival_queued" for i in isolates),
-            "can_complete": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revival_in_progress" for i in isolates),
+            "can_complete": can_edit and len(isolates) == accession.isolate_count and any(i.status == "revival_in_progress" for i in isolates) and all(i.status in {"revival_in_progress", "revived"} for i in isolates),
             "can_endorse": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revived" for i in isolates),
         })
     return render(request, "receiving/laboratory_workspace.html", {
