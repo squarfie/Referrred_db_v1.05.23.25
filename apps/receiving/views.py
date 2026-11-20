@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from apps.home.permissions import ROLE_ADMIN, get_user_roles
 from apps.home.services.batch_creation import (
     AccessionConflict,
     BatchAlreadyExists,
@@ -80,7 +81,7 @@ def secretariat_receiving_dashboard(request):
 @login_required
 @receiving_read_required
 def laboratory_receiving_dashboard(request):
-    if not (can_confirm_lab_receipt(request.user) or request.user.is_superuser):
+    if not (can_confirm_lab_receipt(request.user) or ROLE_ADMIN in get_user_roles(request.user)):
         messages.error(request, "Only Laboratory Receiving personnel may open this queue.")
         return redirect("home")
     return _render_receiving_dashboard(request, queue="laboratory")
