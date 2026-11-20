@@ -8,6 +8,7 @@ from hashlib import sha256
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
+from django.db.models import Count, Q
 from .organism_lookup import find_organisms, resolve_organism
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -18,7 +19,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .qr import render_qr_png
-from .laboratory_workflow import (WorkflowError, transition_batch,
+from .laboratory_workflow import (WorkflowError, transition_batch, transition_isolate_revival,
     record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
@@ -59,23 +60,61 @@ def laboratory_biobank_list(request):
 @login_required
 @lab_worklist_required
 def laboratory_worklist(request):
-    isolates = LaboratoryIsolate.objects.select_related(
-        "accession_range__laboratory_receiving__receipt__site"
-    ).prefetch_related("identifications").order_by("accession_number")
+    """Batch-first ID worklist; status and accession search remain available."""
     query = (request.GET.get("q") or "").strip()
     status = (request.GET.get("status") or "").strip()
+    batches = LaboratoryAccession.objects.select_related(
+        "laboratory_receiving__receipt__site", "batch"
+    ).filter(isolate_records__isnull=False).distinct().order_by(
+        "-date_referred", "-pk"
+    )
     if query:
-        isolates = isolates.filter(accession_number__icontains=query)
+        batches = batches.filter(
+            Q(isolate_records__accession_number__icontains=query)
+            | Q(laboratory_receiving__receipt__tracking_number__icontains=query)
+            | Q(laboratory_receiving__receipt__site__SiteCode__icontains=query)
+        ).distinct()
     if status in LaboratoryIsolate.Status.values:
-        isolates = isolates.filter(status=status)
+        batches = batches.filter(isolate_records__status=status).distinct()
+    rows = []
+    for accession in batches[:250]:
+        isolates = list(accession.isolate_records.all())
+        counts = {}
+        for isolate in isolates:
+            counts[isolate.status] = counts.get(isolate.status, 0) + 1
+        rows.append({
+            "accession": accession,
+            "count": len(isolates),
+            "status_counts": counts,
+            "returned_count": sum(bool(item.returned_at) for item in isolates),
+            "reviewed_count": sum(bool(item.reviewed_at) for item in isolates),
+            "biobanked_count": sum(item.status == LaboratoryIsolate.Status.BIOBANKED for item in isolates),
+        })
     return render(request, "receiving/lab_worklist.html", {
-        "isolates": isolates[:250], "query": query, "selected_status": status,
+        "batches": rows, "query": query, "selected_status": status,
         "statuses": LaboratoryIsolate.Status.choices,
         "can_test": can_manage_id_testing(request.user),
         "can_review": can_review_id_results(request.user),
         "can_bank": can_manage_biobank(request.user),
     })
 
+
+@login_required
+@lab_worklist_required
+def laboratory_batch_detail(request, accession_id):
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_related(
+            "laboratory_receiving__receipt__site", "batch"
+        ), pk=accession_id,
+    )
+    isolates = accession.isolate_records.prefetch_related(
+        "identifications"
+    ).order_by("accession_number", "pk")
+    return render(request, "receiving/lab_batch_detail.html", {
+        "accession": accession, "isolates": isolates,
+        "can_review": can_review_id_results(request.user),
+        "can_test": can_manage_id_testing(request.user),
+    })
 
 @login_required
 @lab_review_required
@@ -106,6 +145,18 @@ def laboratory_batch_transition(request, accession_id, action):
     accession = get_object_or_404(LaboratoryAccession, pk=accession_id)
     return redirect("laboratory_receiving_workspace",
                     receiving_id=accession.laboratory_receiving.receipt.receiving_id)
+
+
+@login_required
+@lab_review_required
+@require_POST
+def laboratory_isolate_revival(request, isolate_id, action):
+    try:
+        transition_isolate_revival(isolate_id, action, request.user)
+        messages.success(request, f"Isolate revival action '{action}' completed.")
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
 
 
 @login_required
@@ -192,8 +243,14 @@ def laboratory_isolate_detail(request, isolate_id):
         ).prefetch_related("identifications__recorded_by"), pk=isolate_id,
     )
     biobank = LaboratoryBiobank.objects.filter(isolate=isolate).first()
+    sibling_ids = list(isolate.accession_range.isolate_records.order_by(
+        "accession_number", "pk"
+    ).values_list("pk", flat=True))
+    index = sibling_ids.index(isolate.pk)
     return render(request, "receiving/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank,
+        "previous_isolate_id": sibling_ids[index - 1] if index else None,
+        "next_isolate_id": sibling_ids[index + 1] if index + 1 < len(sibling_ids) else None,
         "can_test": can_manage_id_testing(request.user),
         "can_review": can_review_id_results(request.user),
         "can_bank": can_manage_biobank(request.user),
