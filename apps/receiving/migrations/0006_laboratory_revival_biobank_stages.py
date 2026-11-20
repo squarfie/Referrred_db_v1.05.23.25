@@ -35,6 +35,9 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(model_name="laboratoryisolate", name="revival_failed_reason", field=models.TextField(blank=True, default="")),
+        migrations.AddField(model_name="laboratoryisolate", name="revival_retry_count", field=models.PositiveIntegerField(default=0)),
+        migrations.AddField(model_name="laboratoryisolate", name="revival_retried_at", field=models.DateTimeField(blank=True, null=True)),
+        migrations.AddField(model_name="laboratoryisolate", name="revival_retried_by", field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="lab_revival_retried_isolates", to=settings.AUTH_USER_MODEL)),
         migrations.AddField(model_name="laboratoryisolate", name="revival_queued_at", field=models.DateTimeField(blank=True, null=True)),
         migrations.AddField(model_name="laboratoryisolate", name="revival_started_at", field=models.DateTimeField(blank=True, null=True)),
         migrations.AddField(model_name="laboratoryisolate", name="revival_completed_at", field=models.DateTimeField(blank=True, null=True)),
