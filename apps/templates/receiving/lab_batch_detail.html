@@ -1,0 +1,42 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Laboratory Batch {{ accession.batch_number }}{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero">
+    <div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-vials"></i></span>
+      <div><p class="receiving-eyebrow">Identification / revival workflow</p>
+        <h1>Batch {{ accession.batch_number }} / {{ accession.total_batches }}</h1>
+        <p class="receiving-hero-subtitle">Site {{ accession.laboratory_receiving.receipt.site.SiteCode }} · Range {{ accession.reference_range }}{% if accession.batch %} · {{ accession.batch.bat_Batch_Code }}{% endif %}</p>
+      </div>
+    </div>
+    <div class="receiving-hero-actions">
+      <a class="btn btn-outline-light" href="{% url 'laboratory_worklist' %}">All Batches</a>
+      <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_workspace' accession.laboratory_receiving.receipt.receiving_id %}">Receiving Worksheet</a>
+    </div>
+  </header>
+  <div class="receiving-content">
+    <section class="receiving-surface">
+      <div class="receiving-card-header"><h2>Isolates in this batch</h2>
+      <p>Open an accession to record Main Laboratory identification or complete Laboratory Receiving revival, approval, and storage. Each isolate moves independently after cassette return.</p></div>
+      <div class="receiving-card-body">
+        <div class="table-responsive"><table class="table receiving-table">
+        <thead><tr><th>Accession</th><th>Workflow status</th><th>Identification results</th><th>ID returned</th><th>Approved organism</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for isolate in isolates %}
+        <tr>
+          <td><strong>{{ isolate.accession_number }}</strong></td>
+          <td>{{ isolate.get_status_display }}</td>
+          <td>{{ isolate.identifications.count }}</td>
+          <td>{% if isolate.returned_at %}{{ isolate.returned_at|date:"M j, Y g:i A" }}{% else %}Pending{% endif %}</td>
+          <td>{{ isolate.final_organism|default:"Pending review" }}</td>
+          <td><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}">Open Isolate</a></td>
+        </tr>
+        {% empty %}<tr><td colspan="6" class="text-muted text-center">No isolates have been endorsed to Main Laboratory for this range.</td></tr>{% endfor %}
+        </tbody></table></div>
+      </div>
+    </section>
+  </div>
+</main>
+{% endblock content %}
