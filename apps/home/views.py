@@ -8121,88 +8121,96 @@ def delete_specimen(request, pk):
 
 
 @login_required(login_url="login")
-@transaction.atomic
 def upload_specimen_code(request):
+    """Import specimen codes from Settings; preserve valid rows on duplicates."""
+    if request.method != "POST":
+        return redirect("/settings/?tab=specimen")
 
-    if request.method == "POST":
-        specimen_upload = SpecimenUploadForm(request.POST, request.FILES)
+    specimen_upload = SpecimenUploadForm(request.POST, request.FILES)
+    if not specimen_upload.is_valid():
+        messages.error(request, "Select a valid specimen CSV, TSV, or Excel file.")
+        return redirect("/settings/?tab=specimen")
 
-        if specimen_upload.is_valid():
-            uploaded_file = specimen_upload.save()
-            file = uploaded_file.File_uploadSpec
+    uploaded_file = specimen_upload.save()
+    file = uploaded_file.File_uploadSpec
 
-            try:
-                df = read_tabular_upload(file, dtype=str)
+    def clean_cell(value):
+        # Pandas represents blank Excel/CSV cells as NaN/NA. Converting them
+        # directly with str() writes the literal text "nan" into the database.
+        if value is None or pd.isna(value):
+            return ""
+        return str(value).strip()
 
-                # Normalize columns
-                df.columns = (
-                    df.columns
-                    .str.strip()
-                    .str.lower()
+    try:
+        df = read_tabular_upload(file, dtype=str)
+        df.columns = df.columns.str.strip().str.lower()
+        if "specimen_code" not in df.columns:
+            raise ValueError("Missing required column: Specimen_code")
+
+        seen = set()
+        rows = []
+        skipped = 0
+        duplicate_skipped = 0
+
+        # Validate before performing any specimen database writes.
+        for row_number, (_, row) in enumerate(df.iterrows(), start=2):
+            code = clean_cell(row.get("specimen_code")).lower()
+            if not code:
+                skipped += 1
+                continue
+            if len(code) > 4:
+                raise ValueError(f"Row {row_number}: Specimen_code exceeds 4 characters.")
+            if code in seen:
+                duplicate_skipped += 1
+                continue
+            seen.add(code)
+            group_code = clean_cell(row.get("specimen_code_grp")).lower()
+            if len(group_code) > 4:
+                raise ValueError(f"Row {row_number}: Specimen_code_grp exceeds 4 characters.")
+            name = clean_cell(row.get("specimen_name"))
+            group_name = clean_cell(row.get("specimen_grp_name"))
+            if len(name) > 100 or len(group_name) > 100:
+                raise ValueError(f"Row {row_number}: Specimen name or group name exceeds 100 characters.")
+            flag = clean_cell(row.get("emerging_spec_flag")).lower() in ("1", "true", "yes", "y")
+            rows.append((code, name, group_code, group_name, flag))
+
+        created = 0
+        group_links = []
+        # Keep this savepoint inside the error handler: any validation or DB
+        # error rolls back all specimen changes from this upload.
+        with transaction.atomic():
+            for code, name, group_code, group_name, flag in rows:
+                if SpecimenTypeModel.objects.filter(Specimen_code__iexact=code).exists():
+                    duplicate_skipped += 1
+                    continue
+                specimen = SpecimenTypeModel.objects.create(
+                    Specimen_code=code,
+                    Emerging_Spec_Flag=flag,
+                    Specimen_name=name,
+                    Specimen_Grp_Name=group_name,
                 )
+                created += 1
+                if group_code:
+                    group_links.append((specimen, group_code))
 
-                REQUIRED_COL = "specimen_code"
-                if REQUIRED_COL not in df.columns:
-                    messages.error(
-                        request,
-                        "Missing required column: Specimen_code"
-                    )
-                    return redirect("/settings/?tab=specimen")
+            # Resolve group references after creating import rows, so a later
+            # row's specimen code is not replaced by an empty placeholder.
+            for specimen, group_code in group_links:
+                group = SpecimenTypeModel.objects.filter(
+                    Specimen_code__iexact=group_code
+                ).first()
+                if group is None:
+                    group = SpecimenTypeModel.objects.create(Specimen_code=group_code)
+                specimen.Specimen_Code_Grp = group
+                specimen.save(update_fields=["Specimen_Code_Grp"])
 
-                skipped = 0
-                duplicate_skipped = 0
-                updated = 0
-                created = 0
-
-                for idx, row in df.iterrows():
-                    specimen_code = str(row.get("specimen_code", "")).strip().lower()
-
-                    if not specimen_code:
-                        skipped += 1
-                        continue
-
-                    if SpecimenTypeModel.objects.filter(Specimen_code__iexact=specimen_code).exists():
-                        duplicate_skipped += 1
-                        continue
-
-                    flag = str(row.get("emerging_spec_flag", "")).strip().upper() in [
-                        "1", "true", "yes", "y"
-                    ]
-
-                    grp_code = str(row.get("specimen_code_grp", "")).strip().lower()
-                    grp_obj = None
-                    if grp_code:
-                        grp_obj, _ = SpecimenTypeModel.objects.get_or_create(
-                            Specimen_code=grp_code
-                        )
-
-                    SpecimenTypeModel.objects.create(
-                        Specimen_code=specimen_code,
-                        Emerging_Spec_Flag=flag,
-                        Specimen_name=row.get("specimen_name", ""),
-                        Specimen_Code_Grp=grp_obj,
-                        Specimen_Grp_Name=row.get("specimen_grp_name", ""),
-                    )
-                    created += 1
-
-                messages.success(
-                    request,
-                    f"✅ Upload complete: {created} created, {updated} updated, {skipped} skipped."
-                )
-                if duplicate_skipped:
-                    messages.warning(request, f"{duplicate_skipped} specimen code(s) already exist and were skipped.")
-                return redirect("specimen_list")
-
-            except Exception as e:
-                messages.error(request, f"❌ Error processing file: {e}")
-                return redirect("/settings/?tab=specimen")
-
-        messages.error(request, "Form is not valid.")
-
-    # The upload form is embedded in the Settings -> Specimen Types tab.
-    # Rendering a bare "Settings.html" raises TemplateDoesNotExist and would
-    # omit the settings context even if the template path were corrected.
-    return redirect("/settings/?tab=specimen")
+        messages.success(request, f"Upload complete: {created} created, {skipped} blank-code rows skipped.")
+        if duplicate_skipped:
+            messages.warning(request, f"{duplicate_skipped} duplicate specimen code(s) skipped.")
+        return redirect("specimen_list")
+    except Exception as exc:
+        messages.error(request, f"Error processing specimen file: {exc}")
+        return redirect("/settings/?tab=specimen")
 
 
 @login_required(login_url="login")
