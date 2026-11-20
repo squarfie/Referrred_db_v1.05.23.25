@@ -347,20 +347,11 @@ def laboratory_organism_matrix_save(request, accession_id):
         messages.error(request, "The total organism count cannot exceed the accession-range isolate count.")
         return destination
 
-    # Validate all requested counts before applying any updates.
-    for code, value in counts.items():
-        if value:
-            LaboratoryOrganismCount(
-                accession_range=accession, organism_code=code, count=value
-            ).full_clean(exclude=["organism_code"])
-
-    existing = {
-        item.organism_code: item
-        for item in LaboratoryOrganismCount.objects.select_for_update().filter(accession_range=accession)
-    }
-    # Avoid partial row updates by validating first and using a single transaction.
-    for item in existing.values():
-        item.delete()
+    # The model enforces positive counts; the whole row is validated above.
+    # Replace within one transaction so a failed save rolls back completely.
+    LaboratoryOrganismCount.objects.select_for_update().filter(
+        accession_range=accession
+    ).delete()
     LaboratoryOrganismCount.objects.bulk_create([
         LaboratoryOrganismCount(accession_range=accession, organism_code=code, count=value)
         for code, value in counts.items() if value
