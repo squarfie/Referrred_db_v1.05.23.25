@@ -168,7 +168,7 @@ def role_flags(user):
         "can_view_wgs": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_VERIFIER, ROLE_LAB_MANAGER, ROLE_LAB_ENCODER}) or bool(user and user.is_authenticated),
         "can_view_receiving": bool(roles & {ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_LAB_ENCODER}),
         "nav_can_secretariat_receiving": bool(roles & {ROLE_ADMIN, ROLE_SECRETARIAT}),
-        "nav_can_laboratory_receiving": bool(roles & {ROLE_ADMIN, ROLE_LAB_ENCODER}),
+        "nav_can_laboratory_receiving": bool(roles & {ROLE_ADMIN, ROLE_LAB_ENCODER, ROLE_LAB_STAFF}),
         # Sidebar visibility mirrors existing backend role boundaries.
         "nav_can_add_batch": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER}),
         "nav_can_view_raw": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER}),
