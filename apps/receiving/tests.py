@@ -741,28 +741,43 @@ class ReceivingViewTests(TestCase):
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
 
-    def test_lab_encoder_can_confirm_receipt_but_secretariat_and_admin_cannot(self):
+    def test_lab_encoder_and_admin_can_confirm_receipt_but_secretariat_cannot(self):
         receipt = self.create_receipt(status=ReferralReceipt.Status.ENDORSED)
         url = self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id)
         payload = {"lab_date_received": "2026-11-12", "lab_time_received": "10:00"}
 
-        for denied_user in (self.secretariat, self.admin):
-            self.client.force_login(denied_user)
-            denied = self.client.post(url, payload)
-            self.assertEqual(denied.status_code, 302)
-            receipt.refresh_from_db()
-            self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.secretariat)
+        denied = self.client.post(url, payload)
+        self.assertEqual(denied.status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
 
         self.client.force_login(self.lab_encoder)
         confirmed = self.client.post(url, payload)
-
         self.assertRedirects(
             confirmed,
-            self.route("receiving_detail", receiving_id=receipt.receiving_id),
+            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+            fetch_redirect_response=False,
         )
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.LAB_RECEIVED)
         self.assertEqual(receipt.lab_received_by, self.lab_encoder)
+
+    def test_admin_can_confirm_endorsed_laboratory_receipt(self):
+        receipt = self.create_receipt(status=ReferralReceipt.Status.ENDORSED)
+        url = self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id)
+        self.client.force_login(self.admin)
+        response = self.client.post(url, {
+            "lab_date_received": "2026-11-12", "lab_time_received": "10:00",
+        })
+        self.assertRedirects(
+            response,
+            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+            fetch_redirect_response=False,
+        )
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.LAB_RECEIVED)
+        self.assertEqual(receipt.lab_received_by, self.admin)
 
     def test_stale_endorsement_does_not_duplicate_event(self):
         receipt = self.create_receipt(status=ReferralReceipt.Status.ENDORSED)
@@ -1069,7 +1084,7 @@ class ReceivingTemplateTests(TestCase):
         response = self.client.get(self.route("receiving_create"))
         self.assertContains(response,
             'href="' + self.route("secretariat_receiving_dashboard") + '"',
-            count=2, html=False)
+            count=3, html=False)
 
     def test_lab_encoder_sees_only_confirmation_for_endorsed_receipt(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
