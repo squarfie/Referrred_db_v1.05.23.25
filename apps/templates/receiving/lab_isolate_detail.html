@@ -104,11 +104,11 @@
 <div class="col-md-3 mb-2"><label for="lyo-date">Date lyophilized</label><input id="lyo-date" name="date_lyophilized" type="date" class="form-control" required></div>
 <div class="col-md-6 mb-2"><div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
 <label for="lyo-organism-search">WHONET organism for sticker</label>
-<input id="lyo-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
+<input id="lyo-organism-search" type="search" data-organism-search value="{% if isolate.approved_organism_code %}{{ isolate.approved_organism_code }} — {{ isolate.final_organism }}{% endif %}" class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
 <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
 <div class="organism-picker-pair">
-<input name="whonet_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
-<input name="whonet_organism_name" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
+<input name="whonet_code" data-organism-code type="text" value="{{ isolate.approved_organism_code }}" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
+<input name="whonet_organism_name" data-organism-name type="text" value="{% if isolate.approved_organism_code %}{{ isolate.final_organism }}{% endif %}" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
 </div></div></div>
 <div class="col-md-12 mb-2"><button class="btn btn-primary mb-0" type="submit">Complete lyophilization / harvest</button></div>
 </form>
