@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}{% load static %}
 {% block title %}Laboratory receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-conflict-preview">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-tooltip-layer">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span>
@@ -253,17 +253,12 @@
                 <div class="receiving-batch-action">
                   {% if row.preview.blocked %}
                     <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Create Batch</button>
-                    <span class="receiving-batch-warning" tabindex="0" role="img"
-                          aria-label="Batch creation blocked; review the conflict details" title="{{ row.preview.message }}">
+                    <button type="button" class="receiving-batch-warning"
+                            data-toggle="tooltip" data-container="body" data-placement="top"
+                            data-boundary="viewport" title="{{ row.preview.message }}"
+                            aria-label="Batch creation blocked: {{ row.preview.message }}">
                       <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
-                      <span class="receiving-batch-warning-tooltip" role="tooltip">
-                        <strong>Cannot create this batch</strong>
-                        {% for warning in row.preview.warnings %}
-                          <span>{{ warning }}</span>
-                        {% endfor %}
-                        <small>Correct the accession or resolve the existing records first.</small>
-                      </span>
-                    </span>
+                    </button>
                   {% else %}
                     <form method="post" action="{% url 'laboratory_batch_create' item.pk %}">
                       {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Create Batch</button>
@@ -284,4 +279,18 @@
   </section>
   </div>
 </main>
+<script>
+  // Bootstrap appends the tooltip to <body>, outside the table's scroll/stacking context.
+  // The native title remains usable if the tooltip plugin cannot initialize.
+  window.addEventListener("load", function () {
+    if (window.jQuery && window.jQuery.fn.tooltip) {
+      window.jQuery(".receiving-batch-warning").tooltip({
+        container: "body",
+        placement: "top",
+        boundary: "viewport",
+        trigger: "hover focus"
+      });
+    }
+  });
+</script>
 {% endblock content %}
