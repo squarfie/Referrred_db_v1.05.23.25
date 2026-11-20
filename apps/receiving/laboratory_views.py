@@ -6,6 +6,9 @@ from itertools import islice
 from zipfile import BadZipFile
 from hashlib import sha256
 
+from django.core.exceptions import ValidationError
+from django.http import JsonResponse
+from .organism_lookup import find_organisms, resolve_organism
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -15,8 +18,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .qr import render_qr_png
-from .laboratory_workflow import (WorkflowError, queue_for_revival, transition_batch,
-    record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank)
+from .laboratory_workflow import (WorkflowError, transition_batch,
+    record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
 )
@@ -25,9 +28,16 @@ from .permissions import (
     can_review_id_results, lab_staff_required, lab_review_required, lab_worklist_required,
 )
 
+@login_required
+@lab_worklist_required
+def laboratory_organism_search(request):
+    query = (request.GET.get("q") or "").strip()[:100]
+    return JsonResponse({"results": find_organisms(query) if len(query) >= 1 else []})
+
+
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 1000
-UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference")
+UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference", "organism_code")
 
 
 
@@ -71,10 +81,10 @@ def laboratory_worklist(request):
 @lab_review_required
 @require_POST
 def laboratory_endorse_id(request, accession_id):
-    """Legacy POST route now queues the accession range for revival."""
+    """Create and endorse accessioned ID work to Main Laboratory."""
     try:
-        created = queue_for_revival(accession_id, request.user)
-        messages.success(request, "Accession range queued for revival." if created else
+        created = create_id_handoff(accession_id, request.user)
+        messages.success(request, "Accessioned isolates endorsed to Main Laboratory for ID testing." if created else
                          "Isolates already exist for this range.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
@@ -144,11 +154,15 @@ def laboratory_lyophilization_complete(request, isolate_id):
         complete_lyophilization(
             isolate_id, request.POST.get("date_harvested"),
             request.POST.get("date_lyophilized"), request.user,
-            whonet_code=request.POST.get("whonet_code") or "",
+            whonet_code=resolve_organism(
+                code=request.POST.get("whonet_code") or "",
+                name=request.POST.get("whonet_organism_name") or "",
+                require_code=True,
+            )[0],
         )
         messages.success(request, "Harvest and lyophilization recorded. Isolate is ready for biobanking.")
-    except WorkflowError as exc:
-        messages.error(request, str(exc))
+    except (WorkflowError, ValidationError) as exc:
+        messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc))
     return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
 
 
@@ -196,11 +210,17 @@ def laboratory_record_id(request, isolate_id):
         messages.error(request, "ID results may be added only while testing is in progress.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
     organism = (request.POST.get("organism_reported") or "").strip()
+    code = (request.POST.get("organism_reported_code") or "").strip()
+    try:
+        canonical_code, organism = resolve_organism(code=code, name=organism)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
     if not organism or len(organism) > 255:
         messages.error(request, "Enter an identified organism (maximum 255 characters).")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
     LaboratoryIdentification.objects.create(
-        isolate=isolate, organism_reported=organism,
+        isolate=isolate, organism_reported=organism, whonet_organism_code=canonical_code,
         instrument=(request.POST.get("instrument") or "").strip()[:100],
         cassette_reference=(request.POST.get("cassette_reference") or "").strip()[:100],
         recorded_by=request.user,
@@ -215,8 +235,8 @@ def laboratory_record_id(request, isolate_id):
 @transaction.atomic
 def laboratory_return_id(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
-    if isolate.status != LaboratoryIsolate.Status.ID_TESTING or not isolate.identifications.exists():
-        messages.error(request, "At least one identification is required before return.")
+    if isolate.status != LaboratoryIsolate.Status.ID_TESTING or not isolate.identifications.filter(cassette_reference__gt="").exists():
+        messages.error(request, "Record at least one ID result with a cassette reference before returning the cassette.")
     else:
         isolate.status = LaboratoryIsolate.Status.ID_RETURNED
         isolate.returned_at = timezone.now()
@@ -233,16 +253,26 @@ def laboratory_return_id(request, isolate_id):
 def laboratory_review_id(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
     organism = (request.POST.get("final_organism") or "").strip()
-    if isolate.status != LaboratoryIsolate.Status.ID_RETURNED:
-        messages.error(request, "Only returned identifications may be reviewed.")
+    code = (request.POST.get("final_organism_code") or "").strip()
+    # Only validate code/name when the review is at the correct workflow stage.
+    approved_code = ""
+    if isolate.status == LaboratoryIsolate.Status.REVIVED:
+        try:
+            approved_code, organism = resolve_organism(code=code, name=organism)
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+            return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+    if isolate.status != LaboratoryIsolate.Status.REVIVED:
+        messages.error(request, "Complete revival after Main Laboratory cassette return before reviewing identification.")
     elif not organism or len(organism) > 255:
         messages.error(request, "An approved organism is required (maximum 255 characters).")
     else:
         isolate.final_organism = organism
+        isolate.approved_organism_code = approved_code
         isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
         isolate.reviewed_by = request.user
         isolate.reviewed_at = timezone.now()
-        isolate.save(update_fields=("final_organism", "status", "reviewed_by", "reviewed_at"))
+        isolate.save(update_fields=("final_organism", "approved_organism_code", "status", "reviewed_by", "reviewed_at"))
         messages.success(request, "Identification reviewed and approved.")
     return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
 
@@ -377,6 +407,14 @@ def _upload_rows(upload):
         values = {key: str(row.get(key) or "").strip() for key in UPLOAD_COLUMNS}
         if not values["accession_number"] or not values["organism_reported"]:
             raise ValueError(f"Row {number}: accession and organism are required.")
+        try:
+            _resolved_code, canonical_name = resolve_organism(
+                code=values["organism_code"], name=values["organism_reported"]
+            )
+            values["organism_reported"] = canonical_name
+            values["organism_code"] = _resolved_code
+        except ValidationError as exc:
+            raise ValueError(f"Row {number}: " + "; ".join(exc.messages)) from exc
         if len(values["accession_number"]) > 80 or len(values["organism_reported"]) > 255:
             raise ValueError(f"Row {number}: accession or organism exceeds its length limit.")
         if len(values["instrument"]) > 100 or len(values["cassette_reference"]) > 100:
@@ -447,6 +485,7 @@ def laboratory_id_upload(request):
             LaboratoryIdentification(
                 isolate=locked[row["accession_number"]],
                 organism_reported=row["organism_reported"],
+                whonet_organism_code=row["organism_code"],
                 instrument=row["instrument"],
                 cassette_reference=row["cassette_reference"],
                 source=(LaboratoryIdentification.Source.CSV

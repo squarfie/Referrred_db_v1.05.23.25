@@ -1,10 +1,12 @@
-"""Locked, audited isolate workflow transitions.
+"""Locked, audited isolate workflow transitions. Main Lab identification precedes revival.
 
 Do not infer a completed physical step from a browser print or an ID upload.
 All state mutations must pass through these services, never just a UI check.
 """
 from datetime import datetime
 
+from django.core.exceptions import ValidationError
+from .organism_lookup import resolve_organism
 from django.db import transaction
 from django.utils import timezone
 
@@ -19,7 +21,7 @@ S = LaboratoryIsolate.Status
 
 
 @transaction.atomic
-def queue_for_revival(accession_id, user):
+def create_id_handoff(accession_id, user):
     range_obj = LaboratoryAccession.objects.select_for_update().select_related(
         "laboratory_receiving__receipt__site"
     ).get(pk=accession_id)
@@ -37,18 +39,19 @@ def queue_for_revival(accession_id, user):
     now = timezone.now()
     LaboratoryIsolate.objects.bulk_create([
         LaboratoryIsolate(accession_range=range_obj, accession_number=number,
-                          status=S.REVIVAL_QUEUED, revival_queued_by=user, revival_queued_at=now)
+                          status=S.ID_PENDING, endorsed_by=user, endorsed_at=now)
         for number in accession_numbers
     ])
     return True
 
 
 BATCH_TRANSITIONS = {
+    # ID results and cassettes must be returned for *all* isolates before
+    # Laboratory Receiving can queue revival.
+    "queue": (S.ID_RETURNED, S.REVIVAL_QUEUED, "revival_queued_by", "revival_queued_at"),
     "start": (S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, "revival_started_by", "revival_started_at"),
     "complete": (S.REVIVAL_IN_PROGRESS, S.REVIVED, "revival_completed_by", "revival_completed_at"),
-    "endorse": (S.REVIVED, S.ID_PENDING, "endorsed_by", "endorsed_at"),
 }
-
 
 @transaction.atomic
 def transition_batch(accession_id, action, user):
@@ -60,6 +63,13 @@ def transition_batch(accession_id, action, user):
     if len(isolates) != range_obj.isolate_count:
         raise WorkflowError("Create all isolate records before advancing this accession range.")
     expected, target, actor_field, at_field = BATCH_TRANSITIONS[action]
+    if action == "queue" and any(
+        item.returned_at is None
+        or item.returned_by_id is None
+        or not item.identifications.filter(cassette_reference__gt="").exists()
+        for item in isolates
+    ):
+        raise WorkflowError("Main Laboratory must return ID results and cassette references for every isolate before revival.")
     if all(item.status == target for item in isolates):
         return False
     # Completing a batch after a retry can include already-revived isolates.
@@ -170,10 +180,20 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
     if harvest > lyoph:
         raise WorkflowError("Harvest date cannot be later than lyophilization date.")
     code = whonet_code.strip().upper()
+    if item.approved_organism_code and code != item.approved_organism_code.upper():
+        raise WorkflowError(
+            "The selected WHONET code differs from the approved identification code."
+        )
     if not code:
         raise WorkflowError("WHONET organism code is required for the isolate label.")
     if len(code) > 30:
         raise WorkflowError("WHONET code exceeds 30 characters.")
+    try:
+        # A sticker must never silently assign a different organism than the
+        # identification approved by Laboratory Receiving.
+        resolve_organism(code=code, name=item.final_organism, require_code=True)
+    except ValidationError as exc:
+        raise WorkflowError("Sticker organism does not match approved identification: " + "; ".join(exc.messages)) from exc
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
     bank.date_harvested = harvest
     bank.date_lyophilized = lyoph

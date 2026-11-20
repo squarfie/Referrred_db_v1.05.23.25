@@ -514,7 +514,7 @@ class LaboratoryIsolate(models.Model):
         LaboratoryAccession, on_delete=models.PROTECT, related_name="isolate_records"
     )
     accession_number = models.CharField(max_length=80, unique=True, db_index=True)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REVIVAL_QUEUED)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ID_PENDING)
     revival_queued_at = models.DateTimeField(null=True, blank=True)
     revival_queued_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
@@ -555,6 +555,7 @@ class LaboratoryIsolate(models.Model):
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     final_organism = models.CharField(max_length=255, blank=True, default="")
+    approved_organism_code = models.CharField(max_length=20, blank=True, default="")
     lyophilization_completed_at = models.DateTimeField(null=True, blank=True)
     lyophilization_completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_lyophilization_completed_isolates")
     biobanked_at = models.DateTimeField(null=True, blank=True)
@@ -580,6 +581,7 @@ class LaboratoryIdentification(models.Model):
         LaboratoryIsolate, on_delete=models.PROTECT, related_name="identifications"
     )
     organism_reported = models.CharField(max_length=255)
+    whonet_organism_code = models.CharField(max_length=20, blank=True, default="")
     instrument = models.CharField(max_length=100, blank=True, default="")
     cassette_reference = models.CharField(max_length=100, blank=True, default="")
     tested_at = models.DateTimeField(null=True, blank=True)

@@ -253,10 +253,11 @@ def laboratory_receiving_workspace(request, receiving_id):
         workflow_rows.append({
             "accession": accession, "stages": stages,
             "count": len(isolates), "expected": accession.isolate_count,
-            "can_queue": can_edit and not isolates,
+            "can_handoff": can_edit and not isolates,
+            "can_queue": can_edit and len(isolates) == accession.isolate_count and all(i.status == "id_returned" and i.returned_at and i.returned_by_id and i.identifications.filter(cassette_reference__gt="").exists() for i in isolates),
             "can_start": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revival_queued" for i in isolates),
             "can_complete": can_edit and len(isolates) == accession.isolate_count and any(i.status == "revival_in_progress" for i in isolates) and all(i.status in {"revival_in_progress", "revived"} for i in isolates),
-            "can_endorse": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revived" for i in isolates),
+
         })
     return render(request, "receiving/laboratory_workspace.html", {
         "receipt": receipt, "record": record, "form": form,

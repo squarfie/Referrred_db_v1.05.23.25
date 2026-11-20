@@ -227,3 +227,34 @@ These requirements supersede conflicting examples above.
 - Printable compact label: `apps/templates/receiving/lab_biobank_label.html` (single and per-accession-batch views).
 - Regression tests added/updated in `apps/receiving/tests.py` and `apps/home/tests.py` for role restrictions, invalid steps, retries, label QR payloads, date and storage validation, navigation, and migration mapping.
 - **Validation not yet performed:** local `python manage.py check`, `makemigrations --check --dry-run`, `python manage.py test apps.receiving apps.home`, and manual printed/scanned QR acceptance. Do not apply this migration to production or merge until these succeed.
+
+## Corrected Sequence — November 20, 2026 (ID First)
+
+This update **supersedes all earlier statements** in this document that describe
+revival before Main Laboratory identification:
+
+1. Secretariat receives and endorses the isolates.
+2. Laboratory Receiving confirms custody, acceptance and accession numbers.
+3. Laboratory Receiving endorses accessioned isolates **to Main Laboratory for ID**.
+4. Main Laboratory acknowledges the isolates, records ID results, and forwards
+   the cassette/slot reference and ID results back to Laboratory Receiving.
+   At least one result with a cassette reference and an authenticated return
+   timestamp/actor are mandatory for each isolate.
+5. Only after **every** isolate in the accession range has a recorded return
+   may Laboratory Receiving queue and start revival.
+6. Laboratory Receiving records successful revival, failed revival (retriable)
+   or non-viable (terminal); unresolved mixed statuses block batch completion.
+7. LAB Encoder reviews the instrument identification **after revival completes**.
+8. Lyophilization, harvest, position-gated biobanking, and compact batch QR
+   stickers follow the approved organism and WHONET code.
+
+The visible workflow and the server-side transitions must agree.
+Migration `0008_main_lab_id_before_revival` changes the default for new
+isolates to `id_pending` and conservatively reclassifies **untouched**
+legacy pre-ID revival queues. Active, completed or cassette-returned revival
+records are preserved for human review rather than silently modified.
+
+The separate organism lookup improvement lives in
+`feature/laboratory-organism-lookup` and uses `Organism_List` for searchable
+code/name pairs. Migrations `0007` and `0008` are not applied to production
+until local tests and migration review pass.
