@@ -11,7 +11,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from uuid import UUID
 
-from apps.home.models import Batch_Table, Referred_Data, SiteData, TATform
+from apps.home.models import Batch_Table, Referred_Data, SiteData, TATform, Organism_List
 from apps.receiving.forms import ReferralReceiptForm
 from apps.receiving.admin import ReferralReceiptAdmin
 from apps.receiving.models import (
@@ -1447,6 +1447,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.lab_record = LaboratoryReceiving.objects.create(
             receipt=self.receipt, recorded_by=self.lab_user
         )
+        Organism_List.objects.create(Whonet_Org_Code="KPN", Organism="Klebsiella pneumoniae")
+        Organism_List.objects.create(Whonet_Org_Code="ECO", Organism="Escherichia coli")
         self.client.force_login(self.lab_user)
 
     def test_lab_encoder_manually_saves_accepted_and_rejected_totals(self):
@@ -2164,6 +2166,76 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         accession.refresh_from_db()
         self.assertEqual(accession.reference_range, "0001-0005")
         self.assertEqual(accession.isolate_records.count(), 5)
+
+    def test_organism_lookup_searches_by_whonet_code_or_full_name(self):
+        url = reverse("laboratory_organism_search")
+        by_code = self.client.get(url, {"q": "kpn"})
+        self.assertEqual(by_code.status_code, 200)
+        self.assertIn({"code": "KPN", "name": "Klebsiella pneumoniae"}, by_code.json()["results"])
+        by_name = self.client.get(url, {"q": "pneumoniae"})
+        self.assertIn({"code": "KPN", "name": "Klebsiella pneumoniae"}, by_name.json()["results"])
+        self.assertEqual(self.client.get(url).json()["results"], [])
+
+    def test_organism_lookup_endpoint_denies_secretariat(self):
+        secretariat = User.objects.create_user(username="organism-secretariat", password="test-pass")
+        secretariat.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_SECRETARIAT)[0])
+        self.client.force_login(secretariat)
+        self.assertEqual(self.client.get(reverse("laboratory_organism_search"), {"q": "KPN"}).status_code, 302)
+
+    def test_isolate_form_exposes_shared_search_for_id_review_and_lyophilization(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        url = reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk})
+        response = self.client.get(url)
+        self.assertContains(response, "laboratory-organism-picker.js")
+        self.assertContains(response, "data-organism-picker")
+        self.assertContains(response, reverse("laboratory_organism_search"))
+        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+        isolate.save(update_fields=("status",))
+        response = self.client.get(url)
+        self.assertContains(response, 'name="final_organism_code"')
+        isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
+        isolate.final_organism = "Klebsiella pneumoniae"
+        isolate.save(update_fields=("status", "final_organism"))
+        response = self.client.get(url)
+        self.assertContains(response, 'name="whonet_code"')
+        self.assertContains(response, 'name="whonet_organism_name"')
+
+    def test_review_rejects_mismatched_code_and_name(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+        isolate.save(update_fields=("status",))
+        url = reverse("laboratory_review_id", kwargs={"isolate_id": isolate.pk})
+        self.client.post(url, {
+            "final_organism_code": "KPN", "final_organism": "Escherichia coli",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
+        self.client.post(url, {
+            "final_organism_code": "kpn", "final_organism": "Klebsiella pneumoniae",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.final_organism, "Klebsiella pneumoniae")
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
+
+    def test_lyophilization_rejects_mismatched_sticker_code(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
+        isolate.final_organism = "Klebsiella pneumoniae"
+        isolate.save(update_fields=("status", "final_organism"))
+        url = reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk})
+        self.client.post(url, {
+            "date_harvested": "2026-11-19", "date_lyophilized": "2026-11-19",
+            "whonet_code": "ECO", "whonet_organism_name": "Escherichia coli",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
+        self.assertFalse(LaboratoryBiobank.objects.filter(isolate=isolate).exists())
 
     def test_workspace_does_not_render_finalize_control(self):
         response = self.client.get(
