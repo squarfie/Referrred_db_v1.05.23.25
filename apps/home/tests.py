@@ -1263,7 +1263,7 @@ class SpecimenUploadDataTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-    def upload_csv(self, csv_text):
+    def upload_csv(self, csv_text, *, expect_success=True):
         from django.core.files.uploadedfile import SimpleUploadedFile
         from unittest.mock import patch
         # Django consumes submitted_file when building the multipart POST.
@@ -1280,14 +1280,14 @@ class SpecimenUploadDataTests(TestCase):
             response = self.client.post(
                 reverse("upload_specimen_code"), {"File_uploadSpec": submitted_file}
             )
-        if response.url != reverse("specimen_list"):
+        if expect_success:
             from django.contrib.messages import get_messages
             errors = [str(message) for message in get_messages(response.wsgi_request)]
             # Do not hide the real upload exception behind an opaque redirect assertion.
             self.assertEqual(
                 response.url, reverse("specimen_list"),
                 msg=f"Specimen import failed: {errors}",
-            ) if "toolong" not in csv_text else None
+            )
         return response
 
     def test_existing_bl_group_links_without_inserting_duplicate(self):
@@ -1353,7 +1353,8 @@ class SpecimenUploadDataTests(TestCase):
         response = self.upload_csv(
             "Specimen_code,Specimen_name\n"
             "ab,Abscess\n"
-            "toolong,Invalid\n"
+            "toolong,Invalid\n",
+            expect_success=False,
         )
         self.assertRedirects(response, "/settings/?tab=specimen", fetch_redirect_response=False)
         self.assertFalse(SpecimenTypeModel.objects.filter(Specimen_code="ab").exists())
