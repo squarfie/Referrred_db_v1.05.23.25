@@ -2,6 +2,7 @@ import csv
 from datetime import datetime
 from io import BytesIO, StringIO
 from itertools import islice
+from zipfile import BadZipFile
 from hashlib import sha256
 
 from django.contrib import messages
@@ -262,7 +263,11 @@ def _upload_rows(upload):
         rows = list(islice(reader, MAX_ROWS + 1))
     elif name.endswith(".xlsx"):
         from openpyxl import load_workbook
-        workbook = load_workbook(BytesIO(upload.read()), read_only=True, data_only=True)
+        from openpyxl.utils.exceptions import InvalidFileException
+        try:
+            workbook = load_workbook(BytesIO(upload.read()), read_only=True, data_only=True)
+        except (BadZipFile, InvalidFileException, ValueError, OSError) as exc:
+            raise ValueError("Invalid Excel workbook.") from exc
         try:
             values = workbook.active.iter_rows(values_only=True)
             headings = [str(v or "").strip() for v in next(values, [])]
