@@ -952,7 +952,10 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, "Received by Secretariat")
         self.assertContains(response, "Endorsed to Laboratory")
         self.assertContains(response, "Received by Laboratory")
-        self.assertContains(response, 'href="/receiving/"', html=False)
+        # The sidebar now routes Secretariat users to their dedicated worklist.
+        self.assertContains(
+            response, 'href="/receiving/secretariat/"', html=False
+        )
         self.assertContains(response, "/static/assets/css/receiving.css")
         self.assertContains(response, 'class="receiving-page"')
         self.assertContains(response, "receiving-hero")
@@ -1031,12 +1034,24 @@ class ReceivingTemplateTests(TestCase):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(user)
 
-        dashboard = self.client.get(self.route("receiving_dashboard"))
+        # A user holding both roles keeps both capabilities, but each
+        # receiving process now has a dedicated queue.
+        secretariat_dashboard = self.client.get(
+            self.route("secretariat_receiving_dashboard")
+        )
+        laboratory_dashboard = self.client.get(
+            self.route("laboratory_receiving_dashboard")
+        )
         detail = self.client.get(
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
 
-        self.assertContains(dashboard, "New receipt")
+        self.assertContains(secretariat_dashboard, "New receipt")
+        self.assertContains(secretariat_dashboard, "Pending Endorsement")
+        self.assertNotContains(secretariat_dashboard, "Confirm receipt")
+        self.assertContains(laboratory_dashboard, "Pending Lab Receipt")
+        self.assertContains(laboratory_dashboard, "Confirm receipt")
+        self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
         self.assertContains(detail, "Confirm laboratory receipt")
 
