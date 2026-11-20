@@ -1035,6 +1035,42 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
         self.assertNotContains(response, 'href="' + self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
 
+    def test_lab_staff_legacy_receiving_url_and_detail_use_laboratory_views(self):
+        lab_staff = self.create_user("template_laboratory_staff", home_permissions.ROLE_LAB_STAFF)
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(lab_staff)
+        dashboard = self.client.get(self.route("receiving_dashboard"))
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertContains(dashboard, "Pending Lab Receipt")
+        self.assertNotContains(dashboard, "New receipt")
+        legacy = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertRedirects(legacy, self.route(
+            "laboratory_receiving_detail", receiving_id=receipt.receiving_id
+        ), fetch_redirect_response=False)
+        lab_detail = self.client.get(self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertContains(lab_detail, "Open laboratory worksheet")
+        self.assertNotContains(lab_detail, "Print batch label")
+        self.assertNotContains(lab_detail, "Endorse to laboratory")
+
+    def test_monthly_register_back_and_access_remain_laboratory_only(self):
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(self.route("laboratory_receiving_register"))
+        self.assertContains(response,
+            'href="' + self.route("laboratory_receiving_dashboard") + '"', html=False)
+        self.client.force_login(self.secretariat)
+        denied = self.client.get(self.route("laboratory_receiving_register"))
+        self.assertRedirects(denied, self.route("home"), fetch_redirect_response=False)
+        secretariat_dashboard = self.client.get(self.route("secretariat_receiving_dashboard"))
+        self.assertNotContains(secretariat_dashboard, "Monthly Inventory")
+        self.assertNotContains(secretariat_dashboard, "Open worksheet")
+
+    def test_secretariat_new_receipt_back_and_cancel_stay_secretariat(self):
+        self.client.force_login(self.secretariat)
+        response = self.client.get(self.route("receiving_create"))
+        self.assertContains(response,
+            'href="' + self.route("secretariat_receiving_dashboard") + '"',
+            count=2, html=False)
+
     def test_lab_encoder_sees_only_confirmation_for_endorsed_receipt(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.lab_encoder)
