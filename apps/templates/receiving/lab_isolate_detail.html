@@ -63,7 +63,7 @@
 {% endif %}
 <div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Recorded</th><th>Organism</th><th>Instrument</th><th>Cassette/slot</th><th>Source</th><th>Entered by</th></tr></thead><tbody>
 {% for result in isolate.identifications.all %}
-<tr><td>{{ result.recorded_at|date:"M j, Y g:i A" }}</td><td><strong>{{ result.organism_reported }}</strong></td><td>{{ result.instrument|default:"—" }}</td><td>{{ result.cassette_reference|default:"—" }}</td><td>{{ result.get_source_display }}</td><td>{{ result.recorded_by|default:"—" }}</td></tr>
+<tr><td>{{ result.recorded_at|date:"M j, Y g:i A" }}</td><td>{% if result.whonet_organism_code %}<strong>{{ result.whonet_organism_code }}</strong> <span class="text-muted small">—</span> {% endif %}{{ result.organism_reported }}</td><td>{{ result.instrument|default:"—" }}</td><td>{{ result.cassette_reference|default:"—" }}</td><td>{{ result.get_source_display }}</td><td>{{ result.recorded_by|default:"—" }}</td></tr>
 {% empty %}<tr><td colspan="6" class="text-muted">No instrument results recorded yet.</td></tr>{% endfor %}
 </tbody></table></div>
 {% if can_test and isolate.status == 'id_testing' and isolate.identifications.exists %}
@@ -76,7 +76,7 @@
 <div class="receiving-card-header"><h2>Step 3 · Laboratory Receiving review</h2><p>Keep the instrument report unchanged; record the reviewed organism separately.</p></div>
 <div class="receiving-card-body">
 {% if isolate.status == 'id_reviewed' or isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}
-<p><strong>Approved organism:</strong> {{ isolate.final_organism }} &nbsp; <strong>Reviewed by:</strong> {{ isolate.reviewed_by|default:"—" }}</p>
+<p><strong>Approved organism:</strong> {% if isolate.approved_organism_code %}{{ isolate.approved_organism_code }} — {% endif %}{{ isolate.final_organism }} &nbsp; <strong>Reviewed by:</strong> {{ isolate.reviewed_by|default:"—" }}</p>
 {% elif can_review and isolate.status == 'id_returned' %}
 <form method="post" action="{% url 'laboratory_review_id' isolate.pk %}" class="form-row align-items-end">{% csrf_token %}
 <div class="col-md-7 mb-2"><div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
