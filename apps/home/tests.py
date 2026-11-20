@@ -1282,9 +1282,9 @@ class SpecimenUploadDataTests(TestCase):
             Specimen_code="bl", Specimen_name="Blood"
         )
         response = self.upload_csv(
-            "Specimen_code,Specimen_name,Specimen_code_grp,Specimen_grp_name\\n"
-            "ab,Abscess,bl,Blood group\\n"
-            "bl,Blood,bl,Blood group\\n"
+            "Specimen_code,Specimen_name,Specimen_code_grp,Specimen_grp_name\n"
+            "ab,Abscess,bl,Blood group\n"
+            "bl,Blood,bl,Blood group\n"
         )
         self.assertRedirects(response, reverse("specimen_list"), fetch_redirect_response=False)
         self.assertEqual(SpecimenTypeModel.objects.filter(Specimen_code__iexact="bl").count(), 1)
@@ -1296,9 +1296,9 @@ class SpecimenUploadDataTests(TestCase):
     def test_group_code_row_later_in_file_is_reused(self):
         from apps.home.models import SpecimenTypeModel
         response = self.upload_csv(
-            "Specimen_code,Specimen_name,Specimen_code_grp\\n"
-            "ab,Abscess,bl\\n"
-            "bl,Blood,\\n"
+            "Specimen_code,Specimen_name,Specimen_code_grp\n"
+            "ab,Abscess,bl\n"
+            "bl,Blood,\n"
         )
         self.assertRedirects(response, reverse("specimen_list"), fetch_redirect_response=False)
         self.assertEqual(SpecimenTypeModel.objects.count(), 2)
@@ -1310,9 +1310,9 @@ class SpecimenUploadDataTests(TestCase):
     def test_duplicate_file_codes_are_skipped(self):
         from apps.home.models import SpecimenTypeModel
         response = self.upload_csv(
-            "Specimen_code,Specimen_name\\n"
-            "bl,Blood\\n"
-            "BL,Duplicate blood\\n"
+            "Specimen_code,Specimen_name\n"
+            "bl,Blood\n"
+            "BL,Duplicate blood\n"
         )
         self.assertRedirects(response, reverse("specimen_list"), fetch_redirect_response=False)
         self.assertEqual(SpecimenTypeModel.objects.count(), 1)
@@ -1321,9 +1321,9 @@ class SpecimenUploadDataTests(TestCase):
     def test_invalid_later_row_rolls_back_whole_import(self):
         from apps.home.models import SpecimenTypeModel
         response = self.upload_csv(
-            "Specimen_code,Specimen_name\\n"
-            "ab,Abscess\\n"
-            "toolong,Invalid\\n"
+            "Specimen_code,Specimen_name\n"
+            "ab,Abscess\n"
+            "toolong,Invalid\n"
         )
         self.assertRedirects(response, "/settings/?tab=specimen", fetch_redirect_response=False)
         self.assertFalse(SpecimenTypeModel.objects.filter(Specimen_code="ab").exists())
