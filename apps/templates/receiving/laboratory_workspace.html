@@ -9,7 +9,7 @@
   </div>
 </div>
 <div class="receiving-hero-actions">
-  <a class="btn btn-outline-light" href="{% url 'receiving_detail' receipt.receiving_id %}">Document Tracking</a>
+  <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}">Laboratory Record</a>
   <a class="btn btn-info" href="{% url 'laboratory_receiving_register' %}">Monthly Inventory</a></div></header>
   <div class="receiving-content">
     <div class="alert alert-info receiving-notice"><i class="fas fa-user-check"></i><div><strong>The LAB Encoder decides acceptance or rejection.</strong> The system validates the totals but does not classify isolates automatically.</div></div>
@@ -110,7 +110,7 @@
         <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save new range</button></div>
       </form>
       {% endif %}
-      <p class="small text-muted mb-2">After saving a range, endorse it for identification testing. Endorsement creates one ID laboratory record per accession number and locks the range against changes.</p>
+      <p class="small text-muted mb-2">After accessioning, queue the full batch for revival. This creates one isolate record per accession and locks the range. Complete revival before endorsement to Main Laboratory.</p>
       <div class="table-responsive">
         <table class="table receiving-table receiving-accession-edit-table">
           <thead><tr><th>Date referred</th><th>Start</th><th>End</th><th>Batch no.</th><th>Total batches</th><th>Isolates</th><th>Status</th><th>Actions</th></tr></thead>
@@ -118,27 +118,27 @@
             {% for item in ranges %}
             <tr>
               <td data-label="Date referred">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.isolate_records.exists %}
                   <input aria-label="Date referred for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="date" name="date_referred" value="{{ item.date_referred|date:'Y-m-d' }}" required>
                 {% else %}{{ item.date_referred|date:"M j, Y" }}{% endif %}
               </td>
               <td data-label="Start">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.isolate_records.exists %}
                   <input aria-label="Start accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="start_number" min="1" max="9999" value="{{ item.start_number }}" required>
                 {% else %}{{ item.start_number|stringformat:"04d" }}{% endif %}
               </td>
               <td data-label="End">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.isolate_records.exists %}
                   <input aria-label="End accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="end_number" min="1" max="9999" value="{{ item.end_number }}" required>
                 {% else %}{{ item.end_number|stringformat:"04d" }}{% endif %}
               </td>
               <td data-label="Batch number">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.isolate_records.exists %}
                   <input aria-label="Batch number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="batch_number" min="1" value="{{ item.batch_number }}" required>
                 {% else %}{{ item.batch_number }}{% endif %}
               </td>
               <td data-label="Total batches">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.isolate_records.exists %}
                   <input aria-label="Total batches for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="total_batches" min="1" value="{{ item.total_batches }}" required>
                 {% else %}{{ item.total_batches }}{% endif %}
               </td>
@@ -148,20 +148,20 @@
               </td>
               <td data-label="Actions" class="receiving-actions">
                 {% if item.isolate_records.exists %}
-                  <span class="badge badge-info">Endorsed for ID</span>
+                  <span class="badge badge-info">Revival queued / in progress</span>
                   <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_worklist' %}">ID Worklist</a>
                 {% elif can_edit and not item.batch %}
                 <form id="accession-edit-{{ item.pk }}" method="post" action="{% url 'laboratory_accession_edit' item.pk %}">{% csrf_token %}</form>
                 <button type="submit" form="accession-edit-{{ item.pk }}" class="btn btn-sm btn-outline-primary mb-1">Save edits</button>
-                <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse all {{ item.isolate_count }} accessioned isolates for ID testing? The range will be locked against further edits.');">
-                  {% csrf_token %}<button class="btn btn-sm btn-info mb-1" type="submit">Endorse for ID</button>
+                <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Queue {{ item.isolate_count }} accessioned isolates for revival? The range will be locked against further edits.');">
+                  {% csrf_token %}<button class="btn btn-sm btn-info mb-1" type="submit">Queue for revival</button>
                 </form>
                 <form method="post" action="{% url 'laboratory_accession_delete' item.pk %}" class="d-inline" onsubmit="return confirm('Delete accession range {{ item.reference_range }} and its recorded organism counts?');">
                   {% csrf_token %}<input type="hidden" name="confirmation" value="DELETE">
                   <button type="submit" class="btn btn-sm btn-outline-danger mb-1">Delete</button>
                 </form>
                 {% else %}
-                  <span class="text-muted small">Locked after generation</span>
+                  <span class="text-muted small">Locked after isolate queue or batch generation</span>
                 {% endif %}
               </td>
             </tr>
@@ -233,9 +233,40 @@
     </div>
   </section>
 
+  <section class="receiving-surface receiving-form-card mb-4" id="revival">
+    <div class="receiving-card-header"><h2>Step 4: Revival and endorsement to Main Laboratory</h2>
+      <p>Start and complete revival as batch operations, then endorse revived isolates for identification. Any failed or non-viable isolate blocks batch advancement pending reconciliation.</p></div>
+    <div class="receiving-card-body">
+      <div class="table-responsive"><table class="table receiving-table">
+        <thead><tr><th>Batch / range</th><th>Isolate records</th><th>Workflow stages</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for row in workflow_rows %}
+          <tr><td><strong>{{ row.accession.reference_range }}</strong><div class="small text-muted">Batch {{ row.accession.batch_number }} / {{ row.accession.total_batches }}</div></td>
+          <td>{{ row.count }} / {{ row.expected }}</td>
+          <td>{% for status, total in row.stages.items %}<div>{{ status|cut:"_"|title }}: {{ total }}</div>{% empty %}<span class="text-muted">Not queued</span>{% endfor %}</td>
+          <td class="receiving-actions">
+          {% if row.can_queue %}
+            <form method="post" action="{% url 'laboratory_endorse_id' row.accession.pk %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-info">Queue batch for revival</button></form>
+          {% endif %}
+          {% if row.can_start %}
+            <form method="post" action="{% url 'laboratory_batch_transition' row.accession.pk 'start' %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-primary">Start revival</button></form>
+          {% endif %}
+          {% if row.can_complete %}
+            <form method="post" action="{% url 'laboratory_batch_transition' row.accession.pk 'complete' %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Complete revival</button></form>
+          {% endif %}
+          {% if row.can_endorse %}
+            <form method="post" action="{% url 'laboratory_batch_transition' row.accession.pk 'endorse' %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-primary">Endorse to Main Laboratory</button></form>
+          {% endif %}
+          <a class="btn btn-sm btn-outline-info" href="{% url 'laboratory_worklist' %}">Isolate worklist</a>
+          <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="{% url 'laboratory_batch_labels' row.accession.pk %}">Print batch stickers</a>
+          </td></tr>
+        {% empty %}<tr><td colspan="4" class="text-muted">Accession ranges must be created before revival.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+  </section>
   <section class="receiving-surface receiving-form-card mb-4" id="batch-generation">
     <div class="receiving-card-header">
-      <h2>Step 4: Batch generation</h2>
+      <h2>Step 5: Batch generation</h2>
       <p>Review the accession range and its organism inventory before creating the batch. Generated batches cannot be edited or deleted through this worksheet.</p>
     </div>
     <div class="receiving-card-body">
@@ -256,7 +287,7 @@
                 {% else %}<span class="badge badge-warning">Pending</span>{% endif %}
               </td>
               <td data-label="Actions" class="receiving-actions">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.isolate_records.exists %}
                 <div class="receiving-batch-action">
                   {% if row.preview.blocked %}
                     <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Create Batch</button>
