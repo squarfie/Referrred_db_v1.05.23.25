@@ -1,4 +1,5 @@
 import csv
+import base64
 from datetime import datetime
 from io import BytesIO, StringIO
 from itertools import islice
@@ -13,6 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from .qr import render_qr_png
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
 )
@@ -239,14 +241,54 @@ def laboratory_biobank_save(request, isolate_id):
     return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
 
 
+def _label_item(isolate):
+    """Render only fully identified/harvested isolates; QR is accession only."""
+    bank = LaboratoryBiobank.objects.filter(isolate=isolate).first()
+    if not bank or not bank.date_harvested or not bank.whonet_code.strip() or not isolate.final_organism:
+        return None
+    if isolate.status not in {
+        LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.BIOBANKED
+    }:
+        return None
+    png = render_qr_png(isolate.accession_number)
+    return {
+        "isolate": isolate,
+        "code": bank.whonet_code.strip().upper(),
+        "harvest": bank.date_harvested.strftime("%m/%d/%Y"),
+        "qr_data_uri": "data:image/png;base64," + base64.b64encode(png).decode("ascii"),
+    }
+
+
 @login_required
 @lab_worklist_required
 def laboratory_biobank_label(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
-    if isolate.status != LaboratoryIsolate.Status.REVIEWED or not isolate.final_organism:
-        messages.error(request, "An approved identification is required before printing a final sticker.")
+    label = _label_item(isolate)
+    if not label:
+        messages.error(request, "A reviewed organism, WHONET code, and harvest date are required for sticker printing.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
-    return render(request, "receiving/lab_biobank_label.html", {"isolate": isolate})
+    return render(request, "receiving/lab_biobank_label.html", {
+        "labels": [label], "unready": [], "batch": None,
+    })
+
+
+@login_required
+@lab_worklist_required
+def laboratory_batch_labels(request, accession_id):
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_related("laboratory_receiving__receipt"),
+        pk=accession_id,
+    )
+    labels, unready = [], []
+    for isolate in accession.isolate_records.order_by("accession_number"):
+        label = _label_item(isolate)
+        if label:
+            labels.append(label)
+        else:
+            unready.append(isolate.accession_number)
+    return render(request, "receiving/lab_biobank_label.html", {
+        "labels": labels, "unready": unready, "batch": accession,
+    })
 
 
 def _upload_rows(upload):
