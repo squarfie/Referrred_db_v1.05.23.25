@@ -501,6 +501,8 @@ class LaboratoryIsolate(models.Model):
         REVIVAL_QUEUED = "revival_queued", "Queued for revival"
         REVIVAL_IN_PROGRESS = "revival_in_progress", "Revival in progress"
         REVIVED = "revived", "Revival completed"
+        REVIVAL_FAILED = "revival_failed", "Revival failed"
+        NON_VIABLE = "non_viable", "Non-viable"
         ID_PENDING = "id_pending", "Awaiting Main Laboratory acknowledgment"
         ID_TESTING = "id_testing", "ID testing"
         ID_RETURNED = "id_returned", "ID results and cassette returned"
@@ -523,6 +525,7 @@ class LaboratoryIsolate(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="lab_revival_started_isolates",
     )
+    revival_failed_reason = models.TextField(blank=True, default="")
     revival_completed_at = models.DateTimeField(null=True, blank=True)
     revival_completed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
