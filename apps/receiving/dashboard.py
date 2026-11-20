@@ -3,7 +3,8 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.shortcuts import render
 from .models import ReferralReceipt
-from .permissions import can_manage_secretariat_receiving, can_confirm_lab_receipt, can_read_laboratory_receiving
+from .permissions import can_manage_secretariat_receiving
+from apps.laboratory.permissions import can_read_laboratory_receiving
 from .services import can_delete_receipt_safely
 
 def render_receiving_dashboard(request, queue=None):
@@ -17,7 +18,6 @@ def _render_secretariat_dashboard(request, queue=None):
     all_receipts = ReferralReceipt.objects.select_related('site', 'received_by')
     counts = {row['status']: row['total'] for row in all_receipts.values('status').annotate(total=Count('id'))}
     can_manage_secretariat = can_manage_secretariat_receiving(request.user)
-    can_confirm_lab = can_confirm_lab_receipt(request.user)
     queue_url_name = 'laboratory_receiving_dashboard' if queue == 'laboratory' else 'secretariat_receiving_dashboard' if queue == 'secretariat' else 'receiving_dashboard'
     tab_definitions = [('pending', 'Pending Endorsement', ReferralReceipt.Status.RECEIVED), ('endorsed', 'Endorsed', ReferralReceipt.Status.ENDORSED), ('received', 'Lab Received', ReferralReceipt.Status.LAB_RECEIVED), ('all', 'All Records', None)]
     tab_status = {key: value for key, _label, value in tab_definitions}

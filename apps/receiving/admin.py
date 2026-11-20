@@ -1,15 +1,6 @@
 from django.contrib import admin
 
-from .models import (
-    LaboratoryIsolate,
-    LaboratoryIdentification,
-    LaboratoryBiobank,
-    LaboratoryAccession,
-    LaboratoryOrganismCount,
-    LaboratoryReceiving,
-    ReceivingEvent,
-    ReferralReceipt,
-)
+from .models import ReceivingEvent, ReferralReceipt
 
 
 class ReadOnlyReceivingAdmin(admin.ModelAdmin):

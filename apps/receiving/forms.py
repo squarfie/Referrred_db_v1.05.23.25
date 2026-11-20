@@ -55,7 +55,3 @@ class ReferralReceiptForm(forms.ModelForm):
                     "Secretariat receipt cannot be later than the current time.",
                 )
         return cleaned_data
-
-
-# Compatibility for existing receiving integrations.
-from apps.laboratory.forms import LabReceiptForm, LaboratoryReceivingForm, LaboratoryAccessionForm, LaboratoryOrganismCountForm, LaboratoryRegisterFilterForm

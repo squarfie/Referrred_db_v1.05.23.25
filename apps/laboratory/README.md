@@ -19,6 +19,6 @@ Templates are in `apps/templates/laboratory/`. The receipt-detail page reuses th
 
 The actual model classes, migration labels, content types and database tables retain their existing `receiving` ownership. Importing them through `apps.laboratory.models` returns the same classes, not duplicate or proxy models. Changing database ownership would be a separate schema migration project.
 
-Legacy laboratory Python modules under `apps.receiving` are compatibility exports. New code should import the implementations from this app.
+Laboratory-only compatibility modules have been removed from `apps.receiving`; callers import implementations directly from this app. Shared receipt custody services and QR encoding remain in Receiving.
 
 Verify with `python manage.py check`, `python manage.py makemigrations --check --dry-run`, and `python manage.py test apps.receiving apps.laboratory apps.home`.

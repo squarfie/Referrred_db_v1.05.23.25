@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.home.models import SiteData
-from apps.receiving.forms import LabReceiptForm
+from apps.laboratory.forms import LabReceiptForm
 from apps.receiving.models import ReferralReceipt, ReceivingEvent
 
 

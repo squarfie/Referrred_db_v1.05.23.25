@@ -1,3 +1,4 @@
+from apps.laboratory.permissions import can_read_laboratory_receiving
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
@@ -6,7 +7,7 @@ from django.views.decorators.http import require_POST
 from .dashboard import render_receiving_dashboard as _render_receiving_dashboard
 from .forms import ReferralReceiptForm
 from .models import ReferralReceipt
-from .permissions import (can_read_laboratory_receiving, can_confirm_lab_receipt, can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
+from .permissions import (can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
 from .qr import build_receipt_detail_url, render_qr_png
 from .services import (InvalidReceivingTransition, create_receipt, delete_receipt_permanently, can_delete_receipt_safely, endorse_receipt)
 
@@ -132,21 +133,3 @@ def receiving_delete_permanently(request, receiving_id):
         return redirect("receiving_detail", receiving_id=receiving_id)
     messages.success(request, "Receiving record permanently deleted.")
     return redirect("secretariat_receiving_dashboard")
-
-
-
-# Backwards-compatible imports; laboratory views are owned by apps.laboratory.
-from apps.laboratory.receiving_views import (
-    laboratory_receiving_dashboard,
-    laboratory_receiving_workspace,
-    laboratory_accession_add,
-    laboratory_accession_edit,
-    laboratory_accession_delete,
-    laboratory_organism_matrix_save,
-    laboratory_organism_add,
-    laboratory_batch_create,
-    laboratory_receiving_register,
-    laboratory_receiving_register_pdf,
-    laboratory_receiving_detail,
-    receiving_lab_confirm,
-)

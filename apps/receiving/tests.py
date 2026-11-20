@@ -13,6 +13,8 @@ from uuid import UUID
 
 from apps.home.models import Batch_Table, Referred_Data, SiteData, TATform, Organism_List
 from apps.receiving.forms import ReferralReceiptForm
+from apps.laboratory import forms as laboratory_forms
+from apps.laboratory import permissions as laboratory_permissions
 from apps.receiving.admin import ReferralReceiptAdmin
 from apps.receiving.models import (
     LaboratoryIsolate, LaboratoryIdentification, LaboratoryBiobank,
@@ -109,7 +111,7 @@ class ReceivingPermissionTests(TestCase):
 
         self.assertTrue(permissions.can_read_receiving(user))
         self.assertTrue(permissions.can_manage_secretariat_receiving(user))
-        self.assertFalse(permissions.can_confirm_lab_receipt(user))
+        self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(user))
 
     def test_lab_encoder_can_read_and_confirm_but_not_manage_secretariat_receiving(self):
         permissions = self.receiving_permissions()
@@ -120,7 +122,7 @@ class ReceivingPermissionTests(TestCase):
 
         self.assertTrue(permissions.can_read_receiving(user))
         self.assertFalse(permissions.can_manage_secretariat_receiving(user))
-        self.assertTrue(permissions.can_confirm_lab_receipt(user))
+        self.assertTrue(laboratory_permissions.can_confirm_lab_receipt(user))
 
     def test_admin_can_manage_secretariat_and_confirm_laboratory_receipt(self):
         permissions = self.receiving_permissions()
@@ -128,7 +130,7 @@ class ReceivingPermissionTests(TestCase):
 
         self.assertTrue(permissions.can_read_receiving(user))
         self.assertTrue(permissions.can_manage_secretariat_receiving(user))
-        self.assertTrue(permissions.can_confirm_lab_receipt(user))
+        self.assertTrue(laboratory_permissions.can_confirm_lab_receipt(user))
 
     def test_unrelated_role_has_no_receiving_access(self):
         permissions = self.receiving_permissions()
@@ -139,7 +141,7 @@ class ReceivingPermissionTests(TestCase):
 
         self.assertFalse(permissions.can_read_receiving(user))
         self.assertFalse(permissions.can_manage_secretariat_receiving(user))
-        self.assertFalse(permissions.can_confirm_lab_receipt(user))
+        self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(user))
 
     def test_multiple_roles_grant_union_of_receiving_permissions(self):
         permissions = self.receiving_permissions()
@@ -151,7 +153,7 @@ class ReceivingPermissionTests(TestCase):
 
         self.assertTrue(permissions.can_read_receiving(user))
         self.assertTrue(permissions.can_manage_secretariat_receiving(user))
-        self.assertTrue(permissions.can_confirm_lab_receipt(user))
+        self.assertTrue(laboratory_permissions.can_confirm_lab_receipt(user))
 
 
 class ReceivingFormTests(TestCase):
@@ -214,7 +216,7 @@ class ReceivingFormTests(TestCase):
             status=ReferralReceipt.Status.ENDORSED,
             endorsed_at=timezone.make_aware(datetime(2026, 11, 12, 10, 0)),
         )
-        form = forms.LabReceiptForm(
+        form = laboratory_forms.LabReceiptForm(
             data={"lab_date_received": "2026-11-12", "lab_time_received": "09:59"},
             receipt=receipt,
         )
@@ -233,7 +235,7 @@ class ReceivingFormTests(TestCase):
             status=ReferralReceipt.Status.ENDORSED,
             endorsed_at=timezone.make_aware(datetime(2026, 11, 12, 10, 0)),
         )
-        form = forms.LabReceiptForm(
+        form = laboratory_forms.LabReceiptForm(
             data={"lab_date_received": "2026-11-12", "lab_time_received": "10:00"},
             receipt=receipt,
         )
@@ -261,7 +263,7 @@ class ReceivingFormTests(TestCase):
             status=ReferralReceipt.Status.ENDORSED,
             endorsed_at=endorsed_at,
         )
-        form = self.receiving_forms().LabReceiptForm(
+        form = laboratory_forms.LabReceiptForm(
             data={"lab_date_received": "2026-11-12", "lab_time_received": "10:01"},
             receipt=receipt,
             now=timezone.make_aware(datetime(2026, 11, 12, 10, 0)),
@@ -2023,7 +2025,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_revival_failed_retry_and_nonviable_are_audited(self):
         accession = self.create_pending_accession()
-        from apps.receiving.laboratory_workflow import WorkflowError, retry_revival, complete_revival_isolate
+        from apps.laboratory.workflow import WorkflowError, retry_revival, complete_revival_isolate
         self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
         self._return_all_cassettes_and_queue_revival(accession)
         self.client.post(reverse("laboratory_batch_transition",
@@ -2465,7 +2467,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
                 date_harvested=date(2026, 11, 19),
                 date_lyophilized=date(2026, 11, 19),
             )
-        with patch("apps.receiving.laboratory_views.render_qr_png",
+        with patch("apps.laboratory.views.render_qr_png",
                    return_value=b"PNG SAMPLE") as qr:
             response = self.client.get(reverse("laboratory_batch_labels",
                 kwargs={"accession_id": accession.pk}))
@@ -2477,7 +2479,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertEqual(len(response.context["labels"]), 2)
 
     def test_storage_cannot_rewrite_scientific_dates_or_whonet_code(self):
-        from apps.receiving.laboratory_workflow import save_biobank, WorkflowError
+        from apps.laboratory.workflow import save_biobank, WorkflowError
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()

@@ -1,3 +1,4 @@
+from apps.laboratory.permissions import can_confirm_lab_receipt
 from datetime import datetime
 
 from django.db import transaction
@@ -7,7 +8,6 @@ from .models import LaboratoryReceiving, ReceivingEvent, ReferralReceipt
 from apps.home.permissions import ROLE_ADMIN, get_user_roles
 
 from .permissions import (
-    can_confirm_lab_receipt,
     can_manage_secretariat_receiving,
     can_permanently_delete_receipt,
 )

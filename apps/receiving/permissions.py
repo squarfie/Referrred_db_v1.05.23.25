@@ -41,19 +41,3 @@ def _permission_required(checker):
 receiving_read_required = _permission_required(can_read_receiving)
 secretariat_receiving_required = _permission_required(can_manage_secretariat_receiving)
 admin_receiving_delete_required = _permission_required(can_permanently_delete_receipt)
-
-
-# Compatibility imports for callers of the original receiving policy module.
-from apps.laboratory.permissions import (
-    can_access_laboratory_worklist,
-    can_confirm_lab_receipt,
-    can_manage_biobank,
-    can_manage_id_testing,
-    can_read_laboratory_receiving,
-    can_review_id_results,
-    lab_receiving_read_required,
-    lab_receiving_required,
-    lab_review_required,
-    lab_staff_required,
-    lab_worklist_required,
-)
