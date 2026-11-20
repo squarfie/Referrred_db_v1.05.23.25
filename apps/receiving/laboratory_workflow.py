@@ -62,17 +62,22 @@ def transition_batch(accession_id, action, user):
     expected, target, actor_field, at_field = BATCH_TRANSITIONS[action]
     if all(item.status == target for item in isolates):
         return False
-    if any(item.status != expected for item in isolates):
+    # Completing a batch after a retry can include already-revived isolates.
+    # Never overwrite their original completion actor and timestamp.
+    accepted = (expected, target) if action == "complete" else (expected,)
+    if any(item.status not in accepted for item in isolates):
         raise WorkflowError(
             "Every isolate in the accession range must be at the expected stage. "
-            "A failed, non-viable, or mixed-status isolate requires reconciliation."
+            "A failed, non-viable, or unreconciled isolate blocks the entire batch."
         )
+    pending = [item for item in isolates if item.status == expected]
     now = timezone.now()
-    for item in isolates:
+    for item in pending:
         item.status = target
         setattr(item, actor_field, user)
         setattr(item, at_field, now)
-    LaboratoryIsolate.objects.bulk_update(isolates, ["status", actor_field, at_field])
+    if pending:
+        LaboratoryIsolate.objects.bulk_update(pending, ["status", actor_field, at_field])
     return True
 
 
