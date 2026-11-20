@@ -1231,3 +1231,25 @@ class GroupedSidebarNavigationTests(TestCase):
         self.assertNotIn("text-align", group_icon)
         self.assertEqual(focus.get("outline"), "none")
         self.assertEqual(focus.get("box-shadow"), "none")
+
+
+class SpecimenUploadNavigationTests(TestCase):
+    """Specimen upload is a Settings-tab form, not a standalone template."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "specimen-upload-admin", "specimen-upload@example.org", "test-password"
+        )
+        self.client.force_login(self.admin)
+
+    def test_specimen_upload_get_returns_to_settings_tab(self):
+        response = self.client.get(reverse("upload_specimen_code"))
+        self.assertRedirects(
+            response, "/settings/?tab=specimen", fetch_redirect_response=False
+        )
+
+    def test_invalid_specimen_upload_post_returns_to_settings_tab(self):
+        response = self.client.post(reverse("upload_specimen_code"), {})
+        self.assertRedirects(
+            response, "/settings/?tab=specimen", fetch_redirect_response=False
+        )
