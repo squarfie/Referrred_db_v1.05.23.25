@@ -189,8 +189,9 @@ def laboratory_isolate_detail(request, isolate_id):
 @login_required
 @lab_staff_required
 @require_POST
+@transaction.atomic
 def laboratory_record_id(request, isolate_id):
-    isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
+    isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
     if isolate.status != LaboratoryIsolate.Status.ID_TESTING:
         messages.error(request, "ID results may be added only while testing is in progress.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
@@ -254,7 +255,7 @@ def laboratory_biobank_save(request, isolate_id):
         messages.error(request, "You do not have permission to update biobank inventory.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
     limits = {
-        "whonet_code": 30, "lyo_box_name": 100, "lyo_box_number": 50,
+        "lyo_box_name": 100, "lyo_box_number": 50,
         "lyo_position": 50, "refrigerator_number": 50, "lyo_location": 100,
         "supplementary_box_name": 100, "supplementary_box_number": 50,
         "supplementary_position": 50, "freezer_number": 50,
