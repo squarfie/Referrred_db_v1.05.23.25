@@ -18,6 +18,11 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
+            model_name="laboratoryidentification",
+            name="whonet_organism_code",
+            field=models.CharField(max_length=20, blank=True, default=""),
+        ),
+        migrations.AddField(
             model_name="laboratoryisolate",
             name="approved_organism_code",
             field=models.CharField(max_length=20, blank=True, default=""),
