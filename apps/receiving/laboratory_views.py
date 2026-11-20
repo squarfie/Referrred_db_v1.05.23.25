@@ -191,7 +191,7 @@ def laboratory_isolate_detail(request, isolate_id):
 @require_POST
 def laboratory_record_id(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
-    if isolate.status != LaboratoryIsolate.Status.TESTING:
+    if isolate.status != LaboratoryIsolate.Status.ID_TESTING:
         messages.error(request, "ID results may be added only while testing is in progress.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
     organism = (request.POST.get("organism_reported") or "").strip()
@@ -214,7 +214,7 @@ def laboratory_record_id(request, isolate_id):
 @transaction.atomic
 def laboratory_return_id(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
-    if isolate.status != LaboratoryIsolate.Status.TESTING or not isolate.identifications.exists():
+    if isolate.status != LaboratoryIsolate.Status.ID_TESTING or not isolate.identifications.exists():
         messages.error(request, "At least one identification is required before return.")
     else:
         isolate.status = LaboratoryIsolate.Status.ID_RETURNED
@@ -232,7 +232,7 @@ def laboratory_return_id(request, isolate_id):
 def laboratory_review_id(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
     organism = (request.POST.get("final_organism") or "").strip()
-    if isolate.status != LaboratoryIsolate.Status.RETURNED:
+    if isolate.status != LaboratoryIsolate.Status.ID_RETURNED:
         messages.error(request, "Only returned identifications may be reviewed.")
     elif not organism or len(organism) > 255:
         messages.error(request, "An approved organism is required (maximum 255 characters).")
@@ -416,7 +416,7 @@ def laboratory_id_upload(request):
     problems = [
         row["accession_number"] for row in rows
         if row["accession_number"] not in isolates
-        or isolates[row["accession_number"]].status != LaboratoryIsolate.Status.TESTING
+        or isolates[row["accession_number"]].status != LaboratoryIsolate.Status.ID_TESTING
     ]
     if problems:
         messages.error(request, "Unknown or not-in-testing accessions: " + ", ".join(problems[:8]))
@@ -438,7 +438,7 @@ def laboratory_id_upload(request):
                 accession_number__in=accession_numbers
             )
         }
-        if any(number not in locked or locked[number].status != LaboratoryIsolate.Status.TESTING
+        if any(number not in locked or locked[number].status != LaboratoryIsolate.Status.ID_TESTING
                for number in accession_numbers):
             messages.error(request, "One or more isolate statuses changed. No results were imported.")
             return redirect("laboratory_id_upload")
