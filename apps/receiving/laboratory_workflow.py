@@ -205,7 +205,7 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
         raise WorkflowError("Scientific dates cannot precede laboratory receipt.")
     if harvest > lyoph:
         raise WorkflowError("Harvest date cannot be later than lyophilization date.")
-    code = whonet_code.strip().upper()
+    code = (whonet_code or item.approved_organism_code).strip().upper()
     if item.approved_organism_code and code != item.approved_organism_code.upper():
         raise WorkflowError(
             "The selected WHONET code differs from the approved identification code."
@@ -258,3 +258,60 @@ def save_biobank(isolate_id, details, user):
         item.biobanked_by = user
         item.save(update_fields=["status", "biobanked_at", "biobanked_by"])
     return bank
+
+
+def _actual_datetime(value, title):
+    from django.utils.dateparse import parse_datetime
+    try:
+        stamp = parse_datetime(value or '')
+    except (TypeError, ValueError):
+        stamp = None
+    if stamp is None:
+        raise WorkflowError(f'{title} must be a valid date and time.')
+    if timezone.is_naive(stamp):
+        stamp = timezone.make_aware(stamp)
+    if stamp > timezone.now():
+        raise WorkflowError(f'{title} cannot be in the future.')
+    return stamp
+
+
+@transaction.atomic
+def record_revival_outcome(isolate_id, status, started_at, completed_at, reason, user):
+    """Record actual physical work without overwriting earlier audit timestamps."""
+    if status not in (S.REVIVED, S.REVIVAL_FAILED, S.NON_VIABLE):
+        raise WorkflowError('Select a revival outcome.')
+    start = _actual_datetime(started_at, 'Revival start')
+    end = _actual_datetime(completed_at, 'Revival completion')
+    if end < start:
+        raise WorkflowError('Revival completion cannot precede its start.')
+    reason = (reason or '').strip()
+    if status != S.REVIVED and (not reason or len(reason) > 1000):
+        raise WorkflowError('An unsuccessful revival requires a reason of at most 1,000 characters.')
+    base = LaboratoryIsolate.objects.only('accession_range_id').get(pk=isolate_id)
+    LaboratoryAccession.objects.select_for_update().get(pk=base.accession_range_id)
+    item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
+    if item.status not in (S.ID_RETURNED, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS):
+        raise WorkflowError('Isolate is not ready for a revival outcome.')
+    if not item.returned_at or not item.returned_by_id or not item.identifications.filter(cassette_reference__gt='').exists():
+        raise WorkflowError('A recorded ID result and authenticated cassette return are required.')
+    if start < item.returned_at:
+        raise WorkflowError('Revival cannot precede cassette return.')
+    if item.revival_started_at and not item.revival_retry_count and start.replace(second=0, microsecond=0) != item.revival_started_at.replace(second=0, microsecond=0):
+        raise WorkflowError('Use the recorded revival start time.')
+    if item.revival_started_at and end < item.revival_started_at:
+        raise WorkflowError('Revival completion cannot precede the recorded start.')
+    if item.revival_retried_at and start < item.revival_retried_at:
+        raise WorkflowError('Retry work cannot precede the recorded retry.')
+    fields = ['status']
+    item.status = status
+    for field, value in [('revival_started_at', start), ('revival_started_by', user), ('revival_completed_at', end), ('revival_completed_by', user)]:
+        if getattr(item, field) is None:
+            setattr(item, field, value)
+            fields.append(field)
+    entry = f'{status}: started {start.isoformat()}; completed {end.isoformat()}; recorded by {user.get_username()}'
+    if reason:
+        entry += f'; reason: {reason}'
+    item.revival_failed_reason = '\n'.join(filter(None, [item.revival_failed_reason, entry]))
+    fields.append('revival_failed_reason')
+    item.save(update_fields=fields)
+    return item

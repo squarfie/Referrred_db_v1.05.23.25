@@ -4,6 +4,8 @@ from . import views, laboratory_views
 
 
 urlpatterns = [
+    path("laboratory-processing/", laboratory_views.laboratory_processing_worklist, name="laboratory_processing_worklist"),
+    path("laboratory-worklist/<int:isolate_id>/revival-outcome/", laboratory_views.laboratory_revival_outcome, name="laboratory_revival_outcome"),
     path("laboratory-worklist/", laboratory_views.laboratory_worklist, name="laboratory_worklist"),
     path("laboratory-worklist/batches/<int:accession_id>/", laboratory_views.laboratory_batch_detail, name="laboratory_batch_detail"),
     path("laboratory-worklist/<int:isolate_id>/revival/<str:action>/", laboratory_views.laboratory_isolate_revival, name="laboratory_isolate_revival"),
