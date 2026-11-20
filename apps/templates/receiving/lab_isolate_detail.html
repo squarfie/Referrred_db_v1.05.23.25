@@ -192,6 +192,13 @@
 <p><strong>Harvested:</strong> {{ biobank.date_harvested|default:"—" }} · <strong>Method:</strong> {{ biobank.preservation_method|default:"—" }} · <strong>Storage:</strong> {{ biobank.storage_location|default:"—" }} / {{ biobank.storage_box|default:"—" }} / {{ biobank.box_position|default:"—" }}</p>
 {% else %}<p class="text-muted">Biobank information has not yet been entered.</p>{% endif %}
 </div></section>
+<div class="receiving-surface p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between" style="gap:.75rem;">
+  <a class="btn btn-outline-secondary mb-0" href="{% url 'laboratory_batch_detail' isolate.accession_range.pk %}">Back to Batch</a>
+  <div class="d-flex flex-wrap" style="gap:.5rem;">
+    {% if previous_isolate_id %}<a class="btn btn-outline-primary mb-0" href="{% url 'laboratory_isolate_detail' previous_isolate_id %}">Previous Isolate</a>{% endif %}
+    {% if next_isolate_id %}<a class="btn btn-primary mb-0" href="{% url 'laboratory_isolate_detail' next_isolate_id %}">Next Isolate</a>{% endif %}
+  </div>
+</div>
 </div></main>
 {% endblock content %}
 
