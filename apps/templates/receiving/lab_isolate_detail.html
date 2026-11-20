@@ -51,7 +51,7 @@
 <tr><td>{{ result.recorded_at|date:"M j, Y g:i A" }}</td><td><strong>{{ result.organism_reported }}</strong></td><td>{{ result.instrument|default:"—" }}</td><td>{{ result.cassette_reference|default:"—" }}</td><td>{{ result.get_source_display }}</td><td>{{ result.recorded_by|default:"—" }}</td></tr>
 {% empty %}<tr><td colspan="6" class="text-muted">No instrument results recorded yet.</td></tr>{% endfor %}
 </tbody></table></div>
-{% if can_test and isolate.status == 'testing' and isolate.identifications.exists %}
+{% if can_test and isolate.status == 'id_testing' and isolate.identifications.exists %}
 <form method="post" action="{% url 'laboratory_return_id' isolate.pk %}" class="mt-3">{% csrf_token %}
 <button class="btn btn-info" type="submit">Endorse completed ID results back to Laboratory Receiving</button></form>
 {% endif %}
