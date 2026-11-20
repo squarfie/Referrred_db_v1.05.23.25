@@ -4,6 +4,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import LaboratoryReceiving, ReceivingEvent, ReferralReceipt
+from apps.home.permissions import ROLE_ADMIN, get_user_roles
+
 from .permissions import (
     can_confirm_lab_receipt,
     can_manage_secretariat_receiving,
@@ -143,15 +145,44 @@ def confirm_lab_receipt(
     return receipt
 
 
+def can_delete_receipt_safely(receipt, user):
+    """Allow Secretariat corrections before lab custody, or Admin test cleanup.
+
+    No role can delete a receipt once accession ranges exist. Protecting the
+    range prevents removal of isolate, batch, identification and biobank work.
+    """
+    if not can_permanently_delete_receipt(user):
+        return False
+    if receipt.status == ReferralReceipt.Status.LAB_RECEIVED and ROLE_ADMIN not in get_user_roles(user):
+        return False
+    try:
+        lab_record = receipt.laboratory_receiving
+    except LaboratoryReceiving.DoesNotExist:
+        lab_record = None
+    if lab_record is not None and lab_record.accession_ranges.exists():
+        return False
+    return True
+
+
 @transaction.atomic
 def delete_receipt_permanently(*, receipt_id, user):
     _require_permission(
         can_permanently_delete_receipt(user),
-        "Only Admin users may permanently delete receiving records.",
+        "Only Admin or Secretariat users may delete receiving records.",
     )
     receipt = ReferralReceipt.objects.select_for_update().get(pk=receipt_id)
-    if not receipt.can_permanently_delete:
+    try:
+        lab_record = LaboratoryReceiving.objects.select_for_update().get(receipt=receipt)
+    except LaboratoryReceiving.DoesNotExist:
+        lab_record = None
+
+    if not can_delete_receipt_safely(receipt, user):
         raise InvalidReceivingTransition(
-            "Only an unendorsed receiving record may be permanently deleted."
+            "This record cannot be deleted: only Admins may remove laboratory-received "
+            "receipts, and accessioned or downstream laboratory records are protected."
         )
+    # The laboratory link is PROTECT; remove only the empty laboratory worksheet
+    # before removing its parent receipt. Existing accession ranges always block.
+    if lab_record is not None:
+        lab_record.delete()
     receipt.delete()
