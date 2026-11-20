@@ -7,8 +7,8 @@
   <header class="receiving-hero">
     <div class="receiving-hero-main">
       <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-      <div><p class="receiving-eyebrow">Isolate custody</p><h1>Receiving</h1>
-        <p class="receiving-hero-subtitle">Track courier batches from Secretariat receipt to laboratory custody.</p>
+      <div><p class="receiving-eyebrow">Isolate custody</p><h1>{% if is_lab_worklist %}Laboratory Receiving{% else %}Secretariat Receiving{% endif %}</h1>
+        <p class="receiving-hero-subtitle">{% if is_lab_worklist %}Review endorsed courier batches and confirm laboratory custody before accessioning.{% else %}Record courier arrivals and endorse received isolates to Laboratory Receiving.{% endif %}</p>
       </div>
     </div>
     <div class="receiving-hero-actions">
@@ -37,7 +37,7 @@
               <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Tracking number, site code or name">
             </div>
             <button class="btn btn-primary mb-0" type="submit">Search</button>
-            <a class="btn btn-outline-secondary mb-0" href="{% url 'receiving_dashboard' %}?tab={{ active_tab }}">Reset</a>
+            <a class="btn btn-outline-secondary mb-0" href="{% url receiving_queue_url %}?tab={{ active_tab }}">Reset</a>
           </div>
         </form>
       </div>
@@ -46,7 +46,7 @@
         {% for tab in receiving_tabs %}
           <a class="receiving-tab {% if tab.active %}active{% endif %}"
              {% if tab.active %}aria-current="page"{% endif %}
-             href="{% url 'receiving_dashboard' %}?tab={{ tab.key }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+             href="{% url receiving_queue_url %}?tab={{ tab.key }}{% if q %}&q={{ q|urlencode }}{% endif %}">
             {{ tab.label }} <span class="receiving-tab-count">{{ tab.count }}</span>
           </a>
         {% endfor %}

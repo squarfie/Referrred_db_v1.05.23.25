@@ -47,6 +47,44 @@ class ReceivingPermissionTests(TestCase):
         except ModuleNotFoundError:
             self.fail("apps.receiving.permissions must define the receiving role boundary")
 
+    def test_secretariat_receiving_queue_is_distinct_from_laboratory_queue(self):
+        user = self.create_user_with_roles("sidebar-secretariat", "Secretariat")
+        self.client.force_login(user)
+        response = self.client.get(reverse("secretariat_receiving_dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Secretariat Receiving")
+        self.assertContains(response, "Pending Endorsement")
+        self.assertContains(response, reverse("secretariat_receiving_dashboard") + "?tab=pending")
+        self.assertNotContains(response, "Pending Lab Receipt")
+        denied = self.client.get(reverse("laboratory_receiving_dashboard"))
+        self.assertEqual(denied.status_code, 302)
+
+    def test_lab_receiving_queue_is_distinct_from_secretariat_queue(self):
+        user = self.create_user_with_roles("sidebar-lab-encoder", home_permissions.ROLE_LAB_ENCODER)
+        self.client.force_login(user)
+        response = self.client.get(reverse("laboratory_receiving_dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Laboratory Receiving")
+        self.assertContains(response, "Pending Lab Receipt")
+        self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=pending")
+        self.assertNotContains(response, "Pending Endorsement")
+        denied = self.client.get(reverse("secretariat_receiving_dashboard"))
+        self.assertEqual(denied.status_code, 302)
+
+    def test_admin_can_view_both_receiving_queues(self):
+        user = self.create_user_with_roles("sidebar-admin", home_permissions.ROLE_ADMIN)
+        self.client.force_login(user)
+        self.assertEqual(self.client.get(reverse("secretariat_receiving_dashboard")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("laboratory_receiving_dashboard")).status_code, 200)
+
+    def test_lab_staff_running_tat_and_wgs_visibility_remains_read_only(self):
+        user = self.create_user_with_roles("sidebar-lab-staff", home_permissions.ROLE_LAB_STAFF)
+        flags = home_permissions.role_flags(user)
+        self.assertTrue(flags["nav_can_view_wgs"])
+        self.assertTrue(flags["nav_can_view_reports"])
+        self.assertFalse(flags["nav_can_upload_wgs"])
+        self.assertFalse(flags["can_wgs_create"])
+
     def test_secretariat_group_is_resolved_as_secretariat_role(self):
         secretariat_role = getattr(home_permissions, "ROLE_SECRETARIAT", "")
         user = self.create_user_with_roles("secretariat", "Secretariat")
@@ -914,7 +952,10 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, "Received by Secretariat")
         self.assertContains(response, "Endorsed to Laboratory")
         self.assertContains(response, "Received by Laboratory")
-        self.assertContains(response, 'href="/receiving/"', html=False)
+        # The sidebar now routes Secretariat users to their dedicated worklist.
+        self.assertContains(
+            response, 'href="/receiving/secretariat/"', html=False
+        )
         self.assertContains(response, "/static/assets/css/receiving.css")
         self.assertContains(response, 'class="receiving-page"')
         self.assertContains(response, "receiving-hero")
@@ -993,12 +1034,24 @@ class ReceivingTemplateTests(TestCase):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(user)
 
-        dashboard = self.client.get(self.route("receiving_dashboard"))
+        # A user holding both roles keeps both capabilities, but each
+        # receiving process now has a dedicated queue.
+        secretariat_dashboard = self.client.get(
+            self.route("secretariat_receiving_dashboard")
+        )
+        laboratory_dashboard = self.client.get(
+            self.route("laboratory_receiving_dashboard")
+        )
         detail = self.client.get(
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
 
-        self.assertContains(dashboard, "New receipt")
+        self.assertContains(secretariat_dashboard, "New receipt")
+        self.assertContains(secretariat_dashboard, "Pending Endorsement")
+        self.assertNotContains(secretariat_dashboard, "Confirm receipt")
+        self.assertContains(laboratory_dashboard, "Pending Lab Receipt")
+        self.assertContains(laboratory_dashboard, "Confirm receipt")
+        self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
         self.assertContains(detail, "Confirm laboratory receipt")
 
