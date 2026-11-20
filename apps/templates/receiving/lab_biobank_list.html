@@ -19,7 +19,7 @@
 <td>{{ isolate.biobank.date_harvested|date:"M j, Y"|default:"—" }}</td>
 <td>{{ isolate.biobank.storage_location|default:"—" }}</td>
 <td>{{ isolate.biobank.storage_box|default:"—" }}</td>
-<td>{{ isolate.biobank.box_position|default:"—" }}</td>
+<td>{{ isolate.biobank.box_position|default:isolate.biobank.lyo_position|default:isolate.biobank.supplementary_position|default:"—" }}</td>
 <td><a href="{% url 'laboratory_isolate_detail' isolate.pk %}" class="btn btn-sm btn-primary">{% if can_bank %}Update{% else %}View{% endif %}</a>
 {% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a target="_blank" href="{% url 'laboratory_biobank_label' isolate.pk %}" class="btn btn-sm btn-outline-info">Sticker</a>{% endif %}</td>
 </tr>{% empty %}<tr><td colspan="8" class="text-muted text-center">No isolate records found.</td></tr>{% endfor %}
