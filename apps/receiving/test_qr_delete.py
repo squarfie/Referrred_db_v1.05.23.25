@@ -49,7 +49,13 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
             "password": "test-pass",
             "next": detail,
         })
-        self.assertRedirects(response, reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        # Login preserves the scanned legacy destination. That route then
+        # redirects lab-only users into the dedicated Laboratory Receiving page.
+        self.assertRedirects(response, detail, fetch_redirect_response=False)
+        self.assertRedirects(
+            self.client.get(detail),
+            reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}),
+        )
 
     @override_settings(ACCOUNT_APPROVAL_REQUIRE_STAFF_LINK=False)
     def test_login_rejects_external_next_redirect(self):
