@@ -172,6 +172,10 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
     if harvest > lyoph:
         raise WorkflowError("Harvest date cannot be later than lyophilization date.")
     code = whonet_code.strip().upper()
+    if item.approved_organism_code and code != item.approved_organism_code.upper():
+        raise WorkflowError(
+            "The selected WHONET code differs from the approved identification code."
+        )
     if not code:
         raise WorkflowError("WHONET organism code is required for the isolate label.")
     if len(code) > 30:
