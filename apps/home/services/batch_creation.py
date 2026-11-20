@@ -245,9 +245,8 @@ def create_referred_batch(
             raise BatchAlreadyExists(existing, raw_count, final_count)
         orphan = existing
 
-    raw_query = # Lock only the Raw Data rows. Selecting the nullable Batch_id relation
-    # for diagnostics would otherwise make PostgreSQL reject FOR UPDATE.
-    Referred_Data.objects.select_for_update(of=("self",)).filter(
+    # Lock only Raw Data rows; the nullable related batch must not be locked.
+    raw_query = Referred_Data.objects.select_for_update(of=("self",)).filter(
         AccessionNo__in=accessions
     ).exclude(Q(Batch_id__isnull=True) & Q(Batch_Code=""))
     if orphan is not None:
