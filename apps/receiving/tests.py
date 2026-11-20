@@ -1995,7 +1995,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "date_harvested": "2026-11-19", "date_lyophilized": "2026-11-19", "whonet_code": "KPN",
         })
         isolate.refresh_from_db()
-        self.assertEqual(isolate.status, LaboratoryIsolate.Status.REVIVAL_QUEUED)
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_PENDING)
         self.assertEqual(isolate.revival_failed_reason, "")
         self.assertEqual(isolate.lyophilization_completed_at, None)
 
@@ -2016,6 +2016,61 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         for url in urls:
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 405)
+
+    def test_0008_migrates_only_untouched_pre_id_revival_queue(self):
+        from django.apps import apps as django_apps
+        from importlib import import_module
+        accession = self.create_pending_accession()
+        codes = accession.accession_numbers
+        untouched = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=codes[0],
+            status=LaboratoryIsolate.Status.REVIVAL_QUEUED,
+            revival_queued_at=timezone.now(),
+            revival_queued_by=self.lab_user,
+        )
+        progress = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=codes[1],
+            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS,
+        )
+        returned = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=codes[2],
+            status=LaboratoryIsolate.Status.REVIVAL_QUEUED,
+            returned_at=timezone.now(),
+            returned_by=self.lab_user,
+        )
+        migration = import_module("apps.receiving.migrations.0008_main_lab_id_before_revival")
+        schema = SimpleNamespace(connection=SimpleNamespace(alias="default"))
+        migration.reconcile_pre_id_revival_queues(django_apps, schema)
+        untouched.refresh_from_db()
+        progress.refresh_from_db()
+        returned.refresh_from_db()
+        self.assertEqual(untouched.status, LaboratoryIsolate.Status.ID_PENDING)
+        self.assertEqual(untouched.endorsed_by, self.lab_user)
+        self.assertIsNotNone(untouched.endorsed_at)
+        self.assertEqual(progress.status, LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS)
+        self.assertEqual(returned.status, LaboratoryIsolate.Status.REVIVAL_QUEUED)
+
+    def test_batch_queue_rejects_missing_return_audit_or_cassette_reference(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        for isolate in accession.isolate_records.all():
+            isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+            isolate.save(update_fields=("status",))
+            LaboratoryIdentification.objects.create(
+                isolate=isolate,
+                organism_reported="Klebsiella pneumoniae",
+                cassette_reference="Cassette-1",
+            )
+        url = reverse("laboratory_batch_transition", kwargs={
+            "accession_id": accession.pk, "action": "queue",
+        })
+        self.client.post(url)
+        self.assertFalse(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_QUEUED
+        ).exists())
 
     def test_legacy_status_migration_keeps_identification_and_storage_records(self):
         from django.apps import apps as django_apps
