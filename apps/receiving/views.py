@@ -28,6 +28,7 @@ from .forms import (
 )
 from .models import (
     LaboratoryAccession,
+    LaboratoryIsolate,
     LaboratoryOrganismCount,
     LaboratoryReceiving,
     ReceivingEvent,
@@ -108,6 +109,7 @@ def _render_receiving_dashboard(request, queue=None):
         tab_definitions = [
             ("pending", "Pending Lab Receipt", ReferralReceipt.Status.ENDORSED),
             ("received", "Received by Laboratory", ReferralReceipt.Status.LAB_RECEIVED),
+            ("returned", "Returned from Main Lab", "main_lab_returned"),
             ("all", "All Records", None),
         ]
     else:
@@ -135,6 +137,25 @@ def _render_receiving_dashboard(request, queue=None):
         selected_tab = "pending"
 
     query = (request.GET.get("q") or "").strip()
+    # A return is an isolate-level event, not a second courier receipt.
+    # Retain returned isolates in this history after revival/ID review.
+    returned_isolates = None
+    returned_count = 0
+    if is_lab_worklist:
+        returned_base = LaboratoryIsolate.objects.filter(returned_at__isnull=False)
+        returned_count = returned_base.count()
+        if selected_tab == "returned":
+            returned_isolates = returned_base.select_related(
+                "accession_range__laboratory_receiving__receipt__site",
+                "returned_by",
+            ).order_by("-returned_at", "-pk")
+            if query:
+                returned_isolates = returned_isolates.filter(
+                    Q(accession_number__icontains=query)
+                    | Q(accession_range__laboratory_receiving__receipt__tracking_number__icontains=query)
+                    | Q(accession_range__laboratory_receiving__receipt__site__SiteCode__icontains=query)
+                    | Q(accession_range__laboratory_receiving__receipt__site__SiteName__icontains=query)
+                )
     receipts = all_receipts
     if query:
         receipts = receipts.filter(
@@ -148,7 +169,7 @@ def _render_receiving_dashboard(request, queue=None):
         {
             "key": key,
             "label": label,
-            "count": sum(counts.values()) if tab_filter is None else counts.get(tab_filter, 0),
+            "count": returned_count if key == "returned" else (sum(counts.values()) if tab_filter is None else counts.get(tab_filter, 0)),
             "active": key == selected_tab,
         }
         for key, label, tab_filter in tab_definitions
@@ -156,10 +177,14 @@ def _render_receiving_dashboard(request, queue=None):
     selected_status = tab_status[selected_tab]
     if not explicit_tab and legacy_status in valid_statuses:
         receipts = receipts.filter(status=legacy_status)
-    elif selected_status is not None:
+    elif selected_status is not None and selected_tab != "returned":
         receipts = receipts.filter(status=selected_status)
 
-    page_obj = Paginator(receipts.order_by("-created_at", "-pk"), 25).get_page(request.GET.get("page"))
+    page_obj = Paginator(
+        returned_isolates if selected_tab == "returned" and returned_isolates is not None
+        else receipts.order_by("-created_at", "-pk"),
+        25,
+    ).get_page(request.GET.get("page"))
     return render(
         request,
         "receiving/dashboard.html",
@@ -177,6 +202,7 @@ def _render_receiving_dashboard(request, queue=None):
             "can_read_lab": can_read_laboratory_receiving(request.user) and is_lab_worklist,
             "receiving_queue_url": queue_url_name,
             "is_lab_worklist": is_lab_worklist,
+            "show_main_lab_returns": is_lab_worklist and selected_tab == "returned",
         },
     )
 
