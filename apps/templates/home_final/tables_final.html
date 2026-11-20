@@ -1177,17 +1177,17 @@
               <td class="abx-cell">
                 <div class="abx-scroll">
                 {% for entry in isolate.final_entries.all %}
-                  {% if entry.ab_Disk_value or entry.ab_MIC_value %}
+                  {% if entry.ab_Disk_value or entry.ab_MIC_value or entry.ab_Disk_enRIS or entry.ab_MIC_enRIS %}
                   <div class="abx-entry">
                     <span class="abx-name">{{ entry.ab_Antibiotic }}</span>
                     (
-                    {% if entry.ab_Disk_value %}
-                      Disk: <strong>{{ entry.ab_Disk_value }}</strong>
+                    {% if entry.ab_Disk_value or entry.ab_Disk_enRIS %}
+                      Disk: <strong>{{ entry.ab_Disk_value|default_if_none:"" }}</strong>
                       {% if entry.ab_Disk_enRIS %}<strong class="enris-badge">{{ entry.ab_Disk_enRIS }}</strong>{% endif %})
                       {% if entry.ab_Disk_RIS %}&nbsp;<span class="abx-ris">{{ entry.ab_Disk_RIS }}</span>{% endif %}
                     {% endif %}
                     {% if entry.ab_Disk_value and entry.ab_MIC_value %},{% endif %}
-                    {% if entry.ab_MIC_value %}
+                    {% if entry.ab_MIC_value or entry.ab_MIC_enRIS %}
                       MIC: <strong>
                         {% if entry.ab_MIC_operand %}{{ entry.ab_MIC_operand }}{% endif %}
                         {{ entry.ab_MIC_value|floatformat:"-3" }}
@@ -1204,18 +1204,18 @@
 
                 <!-- Retest section -->
                 {% for retest in isolate.final_entries.all %}
-                  {% if retest.ab_Retest_DiskValue or retest.ab_Retest_MICValue %}
+                  {% if retest.ab_Retest_DiskValue or retest.ab_Retest_MICValue or retest.ab_Retest_Disk_enRIS or retest.ab_Retest_MIC_enRIS %}
                   {% if forloop.first %}<hr class="abx-divider">{% endif %}
                   <div class="abx-entry">
                     <span class="abx-name">{{ retest.ab_Retest_Antibiotic }}</span>
                     (
-                    {% if retest.ab_Retest_DiskValue %}
-                      Retest Disk: <strong>{{ retest.ab_Retest_DiskValue }}</strong>
+                    {% if retest.ab_Retest_DiskValue or retest.ab_Retest_Disk_enRIS %}
+                      Retest Disk: <strong>{{ retest.ab_Retest_DiskValue|default_if_none:"" }}</strong>
                       {% if retest.ab_Retest_Disk_enRIS %}<strong class="enris-badge">{{ retest.ab_Retest_Disk_enRIS }}</strong>{% endif %})
                       {% if retest.ab_Retest_Disk_RIS %}&nbsp;<span class="abx-ris">{{ retest.ab_Retest_Disk_RIS }}</span>{% endif %}
                     {% endif %}
                     {% if retest.ab_Retest_DiskValue and retest.ab_Retest_MICValue %},{% endif %}
-                    {% if retest.ab_Retest_MICValue %}
+                    {% if retest.ab_Retest_MICValue or retest.ab_Retest_MIC_enRIS %}
                       Retest MIC: <strong>
                         {% if retest.ab_Retest_MIC_operand %}{{ retest.ab_Retest_MIC_operand }}{% endif %}
                         {{ retest.ab_Retest_MICValue|floatformat:"-3" }}

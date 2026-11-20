@@ -264,7 +264,8 @@ th, td {
 
                             {% for abx, data in row %}
                                 <td>
-                                    {{ data.disk.ab_Retest_DiskValue|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }}
+                                    {{ data.disk.ab_Retest_DiskValue|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }} <br>
+                                    <span class="enris-text">{{ data.disk.ab_Retest_Disk_enRIS|default_if_none:"&nbsp;" }}</span>
                                 </td>
                             {% endfor %}
 
@@ -301,7 +302,8 @@ th, td {
                             {% for abx, data in row %}
                                 <td class="mic" style="font-size: 7px;">
                                     {{ data.mic.ab_Retest_MIC_operand }}
-                                    {{ data.mic.ab_Retest_MICValue|floatformat:2|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }}
+                                    {{ data.mic.ab_Retest_MICValue|floatformat:2|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }} <br>
+                                    <span class="enris-text">{{ data.mic.ab_Retest_MIC_enRIS|default_if_none:"&nbsp;" }}</span>
                                 </td>
                             {% endfor %}
 
@@ -489,7 +491,8 @@ th, td {
 
                             {% for abx, data in row %}
                                 <td>
-                                    {{ data.disk.ab_Retest_DiskValue|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }}
+                                    {{ data.disk.ab_Retest_DiskValue|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }} <br>
+                                    <span class="enris-text">{{ data.disk.ab_Retest_Disk_enRIS|default_if_none:"&nbsp;" }}</span>
                                 </td>
                             {% endfor %}
 
@@ -526,7 +529,8 @@ th, td {
                             {% for abx, data in row %}
                                 <td class="mic" style="font-size: 7px;">
                                     {{ data.mic.ab_Retest_MIC_operand }}
-                                    {{ data.mic.ab_Retest_MICValue|floatformat:2|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }}
+                                    {{ data.mic.ab_Retest_MICValue|floatformat:2|default_if_none:"&nbsp;"|default:"&nbsp;"|safe }} <br>
+                                    <span class="enris-text">{{ data.mic.ab_Retest_MIC_enRIS|default_if_none:"&nbsp;" }}</span>
                                 </td>
                             {% endfor %}
 

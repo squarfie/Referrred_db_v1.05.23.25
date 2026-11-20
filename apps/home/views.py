@@ -2966,7 +2966,7 @@ def raw_data(request, id):
             mic_value = None
 
         # Save ONLY if something was entered
-        if disk_value is None and mic_value is None:
+        if disk_value is None and mic_value is None and not disk_enris and not mic_enris:
             continue
 
         entry_defaults = {
@@ -3077,7 +3077,7 @@ def raw_data(request, id):
         except ValueError:
             mic_value = None
 
-        if disk_value is None and mic_value is None:
+        if disk_value is None and mic_value is None and not disk_enris and not mic_enris:
             continue
 
         entry_defaults = {
@@ -4590,7 +4590,7 @@ def edit_data(request, id):
         except ValueError:
             mic_value = None
 
-        if disk_value is None and mic_value is None:
+        if disk_value is None and mic_value is None and not disk_enris and not mic_enris:
             for entry in AntibioticEntry.objects.filter(
                 ab_idNum_referred=isolates,
                 ab_Abx_code=abx_code
@@ -4750,7 +4750,7 @@ def edit_data(request, id):
             mic_value = None
 
 
-        if disk_value is None and mic_value is None:
+        if disk_value is None and mic_value is None and not disk_enris and not mic_enris:
             for entry in AntibioticEntry.objects.filter(
                 ab_idNum_referred=isolates,
                 ab_Retest_Abx_code=abx_code
@@ -5263,9 +5263,9 @@ def generate_pdf_panel_old(request, id):
         abx_code = abx_map.get((e.ab_Abx_code or "").strip().upper())
         if abx_code not in grouped_entries:
             continue
-        if e.ab_Disk_value is not None:
+        if e.ab_Disk_value is not None or e.ab_Disk_enRIS:
             grouped_entries[abx_code]["disk"] = e
-        if e.ab_MIC_value is not None:
+        if e.ab_MIC_value is not None or e.ab_MIC_enRIS:
             grouped_entries[abx_code]["mic"] = e
 
     # FETCHED GROUPED RETEST ENTRIES
@@ -5278,9 +5278,9 @@ def generate_pdf_panel_old(request, id):
         abx_code = abx_map.get((e.ab_Retest_Abx_code or "").strip().upper())
         if abx_code not in grouped_retest:
             continue
-        if e.ab_Retest_DiskValue is not None:
+        if e.ab_Retest_DiskValue is not None or e.ab_Retest_Disk_enRIS:
             grouped_retest[abx_code]["disk"] = e
-        if e.ab_Retest_MICValue is not None:
+        if e.ab_Retest_MICValue is not None or e.ab_Retest_MIC_enRIS:
             grouped_retest[abx_code]["mic"] = e
 
     # CHUNKING FOR TABLE DISPLAY
@@ -5411,16 +5411,16 @@ def generate_pdf(request, id):
     for e in entries:
         site_abx = abx_map.get((e.ab_Abx_code or "").strip().upper())
         if site_abx in grouped_entries:
-            if e.ab_Disk_value is not None:
+            if e.ab_Disk_value is not None or e.ab_Disk_enRIS:
                 grouped_entries[site_abx]["disk"] = e
-            if e.ab_MIC_value is not None:
+            if e.ab_MIC_value is not None or e.ab_MIC_enRIS:
                 grouped_entries[site_abx]["mic"] = e
 
         ars_abx = abx_map.get((e.ab_Retest_Abx_code or "").strip().upper())
         if ars_abx in grouped_retest:
-            if e.ab_Retest_DiskValue is not None:
+            if e.ab_Retest_DiskValue is not None or e.ab_Retest_Disk_enRIS:
                 grouped_retest[ars_abx]["disk"] = e
-            if e.ab_Retest_MICValue is not None:
+            if e.ab_Retest_MICValue is not None or e.ab_Retest_MIC_enRIS:
                 grouped_retest[ars_abx]["mic"] = e
 
     MAX_COLS = 29
@@ -5977,10 +5977,10 @@ def generate_batch_pdf_panel_old(request, id):
                 if e.ab_Abx_code:
                     abx = abx_map.get(e.ab_Abx_code.strip().upper())
                     if abx and abx in grouped_site:
-                        if e.ab_Disk_value is not None:
+                        if e.ab_Disk_value is not None or e.ab_Disk_enRIS:
                             grouped_site[abx]["disk"] = e
 
-                        if e.ab_MIC_value is not None:
+                        if e.ab_MIC_value is not None or e.ab_MIC_enRIS:
                             grouped_site[abx]["mic"] = e
 
 
@@ -5988,10 +5988,10 @@ def generate_batch_pdf_panel_old(request, id):
                 if e.ab_Retest_Abx_code:
                     abx = abx_map.get(e.ab_Retest_Abx_code.strip().upper())
                     if abx and abx in grouped_ars:
-                        if e.ab_Retest_DiskValue is not None:
+                        if e.ab_Retest_DiskValue is not None or e.ab_Retest_Disk_enRIS:
                             grouped_ars[abx]["disk"] = e
 
-                        if e.ab_Retest_MICValue is not None:
+                        if e.ab_Retest_MICValue is not None or e.ab_Retest_MIC_enRIS:
                             grouped_ars[abx]["mic"] = e
 
 
@@ -6197,10 +6197,10 @@ def generate_batch_pdf_panel_gram_pos(request, id):
                 if e.ab_Abx_code:
                     abx = abx_map.get(e.ab_Abx_code.strip().upper())
                     if abx and abx in grouped_site:
-                        if e.ab_Disk_value is not None:
+                        if e.ab_Disk_value is not None or e.ab_Disk_enRIS:
                             grouped_site[abx]["disk"] = e
 
-                        if e.ab_MIC_value is not None:
+                        if e.ab_MIC_value is not None or e.ab_MIC_enRIS:
                             grouped_site[abx]["mic"] = e
 
 
@@ -6208,10 +6208,10 @@ def generate_batch_pdf_panel_gram_pos(request, id):
                 if e.ab_Retest_Abx_code:
                     abx = abx_map.get(e.ab_Retest_Abx_code.strip().upper())
                     if abx and abx in grouped_ars:
-                        if e.ab_Retest_DiskValue is not None:
+                        if e.ab_Retest_DiskValue is not None or e.ab_Retest_Disk_enRIS:
                             grouped_ars[abx]["disk"] = e
 
-                        if e.ab_Retest_MICValue is not None:
+                        if e.ab_Retest_MICValue is not None or e.ab_Retest_MIC_enRIS:
                             grouped_ars[abx]["mic"] = e
 
 

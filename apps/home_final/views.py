@@ -1706,7 +1706,7 @@ def edit_final_data(request, id):
         except ValueError:
             mic_value = None
 
-        if disk_value is None and mic_value is None:
+        if disk_value is None and mic_value is None and not disk_enris and not mic_enris:
             for entry in Final_AntibioticEntry.objects.filter(
                 ab_idNum_f_referred=isolate,
                 ab_Abx_code=abx_code
@@ -1844,7 +1844,7 @@ def edit_final_data(request, id):
         except ValueError:
             mic_value = None
 
-        if disk_value is None and mic_value is None:
+        if disk_value is None and mic_value is None and not disk_enris and not mic_enris:
             for entry in Final_AntibioticEntry.objects.filter(
                 ab_idNum_f_referred=isolate,
                 ab_Retest_Abx_code=abx_code
@@ -2250,12 +2250,12 @@ def generate_final_batch_pdf_panel_old(request, id):
                     abx = abx_map.get(site_whonet)
                     if abx and abx in grouped_site:
                         # Prefer DISK if a disk value exists
-                        if e.ab_Disk_value is not None:
+                        if e.ab_Disk_value is not None or e.ab_Disk_enRIS:
                             grouped_site[abx]["disk"] = e
                             grouped_site[abx]["disk_show_value"] = show_value_by_whonet.get(site_whonet, True)
 
                         # Otherwise assign MIC only if MIC value exists
-                        elif e.ab_MIC_value is not None:
+                        elif e.ab_MIC_value is not None or e.ab_MIC_enRIS:
                             grouped_site[abx]["mic"] = e
                             grouped_site[abx]["mic_show_value"] = show_value_by_whonet.get(site_whonet, True)
 
@@ -2265,10 +2265,10 @@ def generate_final_batch_pdf_panel_old(request, id):
                     ars_whonet = e.ab_Retest_Abx_code.strip().upper()
                     abx = abx_map.get(ars_whonet)
                     if abx and abx in grouped_ars:
-                        if e.ab_Retest_DiskValue is not None:
+                        if e.ab_Retest_DiskValue is not None or e.ab_Retest_Disk_enRIS:
                             grouped_ars[abx]["disk"] = e
                             grouped_ars[abx]["disk_show_value"] = show_value_by_whonet.get(ars_whonet, True)
-                        elif e.ab_Retest_MICValue is not None:
+                        elif e.ab_Retest_MICValue is not None or e.ab_Retest_MIC_enRIS:
                             grouped_ars[abx]["mic"] = e
                             grouped_ars[abx]["mic_show_value"] = show_value_by_whonet.get(ars_whonet, True)
 
