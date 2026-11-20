@@ -14,6 +14,7 @@
 <div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession</th><th>Status</th><th>Approved organism</th><th>Preservation method</th><th>Harvested</th><th>Location</th><th>Box</th><th>Position</th><th>Action</th></tr></thead><tbody>
 {% regroup isolates by accession_range as inventory_batches %}
 {% for inventory_batch in inventory_batches %}
+<tr><td colspan="9"><a href="{% url 'laboratory_batch_labels' inventory_batch.grouper.pk %}" target="_blank" class="btn btn-sm btn-info">Print batch stickers · {{ inventory_batch.grouper.reference_range }}</a></td></tr>
 <tr><th colspan="9" scope="rowgroup">Batch {{ inventory_batch.grouper.batch_number }} / {{ inventory_batch.grouper.total_batches }} · {{ inventory_batch.grouper.reference_range }} · {{ inventory_batch.grouper.laboratory_receiving.receipt.site.SiteCode }} <a href="{% url 'laboratory_batch_detail' inventory_batch.grouper.pk %}?area=biobank" class="btn btn-sm btn-outline-primary">Open Batch</a></th></tr>
 {% for isolate in inventory_batch.list %}
 <tr>

@@ -450,8 +450,11 @@ def laboratory_biobank_label(request, isolate_id):
     if not label:
         messages.error(request, "A reviewed organism, WHONET code, and harvest date are required for sticker printing.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+    if request.GET.get("format") == "pdf":
+        return _sticker_pdf_response([label], f"isolate-{isolate.pk}-stickers.pdf")
     return render(request, "receiving/lab_biobank_label.html", {
         "labels": [label], "unready": [], "batch": None,
+        "accession": isolate.accession_range,
     })
 
 
@@ -469,9 +472,22 @@ def laboratory_batch_labels(request, accession_id):
             labels.append(label)
         else:
             unready.append(isolate.accession_number)
+    if request.GET.get("format") == "pdf":
+        if not labels:
+            messages.error(request, "No isolates in this batch are eligible for sticker printing yet.")
+            return redirect("laboratory_batch_labels", accession_id=accession.pk)
+        return _sticker_pdf_response(labels, f"batch-{accession.pk}-stickers.pdf")
     return render(request, "receiving/lab_biobank_label.html", {
         "labels": labels, "unready": unready, "batch": accession,
+        "accession": accession,
     })
+
+
+def _sticker_pdf_response(labels, filename):
+    from .sticker_pdf import render_sticker_pdf
+    response = HttpResponse(render_sticker_pdf(labels), content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
 
 
 def _upload_rows(upload):

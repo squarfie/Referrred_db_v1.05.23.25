@@ -12,6 +12,7 @@
       </div>
     </div>
     <div class="receiving-hero-actions">
+      <a class="btn btn-info" href="{% url 'laboratory_batch_labels' accession.pk %}" target="_blank">Print batch stickers</a>
       <a class="btn btn-outline-light" href="{% if area == 'biobank' %}{% url 'laboratory_biobank_list' %}{% elif area == 'processing' %}{% url 'laboratory_processing_worklist' %}{% else %}{% url 'laboratory_worklist' %}{% endif %}?area={{ area }}{% if show_history %}&history=1{% endif %}">All Batches</a>
       {% if user_access.is_admin or user_access.is_lab_encoder %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_workspace' accession.laboratory_receiving.receipt.receiving_id %}">Receiving Worksheet</a>{% endif %}
     </div>
