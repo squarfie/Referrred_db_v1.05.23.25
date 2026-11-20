@@ -1131,7 +1131,7 @@ class GroupedSidebarNavigationTests(TestCase):
     def test_laboratory_staff_gets_wgs_and_tat_without_secretariat_or_wgs_upload(self):
         markup = self._render_sidebar("Laboratory Staff", "laboratory_worklist")
         self.assertIn("Data Management", markup)
-        self.assertIn("Laboratory Operations", markup)
+        self.assertIn(">Laboratory</span>", markup)
         self.assertIn("WGS Data", markup)
         self.assertIn("Running TAT", markup)
         self.assertIn("Biobank Inventory", markup)
@@ -1141,9 +1141,9 @@ class GroupedSidebarNavigationTests(TestCase):
 
     def test_secretariat_receiving_is_standalone(self):
         markup = self._render_sidebar("Secretariat", "secretariat_receiving_dashboard")
-        self.assertIn("Secretariat Receiving", markup)
+        self.assertIn(">Receiving</span>", markup)
         self.assertIn('href="/receiving/secretariat/"', markup)
-        self.assertNotIn("Laboratory Operations", markup)
+        self.assertNotIn(">Laboratory</span>", markup)
         self.assertNotIn("WGS Upload", markup)
 
     def test_lab_encoder_gets_laboratory_receiving_and_wgs_data(self):
@@ -1154,12 +1154,18 @@ class GroupedSidebarNavigationTests(TestCase):
         self.assertIn("Running TAT", markup)
         self.assertNotIn("Secretariat Receiving", markup)
 
-    def test_verification_remains_outside_workspace_group(self):
-        markup = self._render_sidebar("Verifier", "verification_dashboard")
+    def test_workspace_groups_follow_secretariat_before_verification_and_tat(self):
+        markup = self._render_sidebar("Admin", "verification_dashboard")
+        secretariat_pos = markup.index('href="/receiving/secretariat/"')
+        data_management_pos = markup.index('data-group-container="data-management"')
+        laboratory_pos = markup.index('data-group-container="laboratory-operations"')
         verification_pos = markup.index(">Verification</span>")
-        group_pos = markup.index('data-group-container="data-management"')
-        self.assertLess(verification_pos, group_pos)
-        self.assertIn("WGS Data", markup)
+        tat_pos = markup.index(">Running TAT</span>")
+
+        self.assertLess(secretariat_pos, data_management_pos)
+        self.assertLess(data_management_pos, laboratory_pos)
+        self.assertLess(laboratory_pos, verification_pos)
+        self.assertLess(verification_pos, tat_pos)
 
     def test_group_controls_have_accessible_ids_and_browser_assets(self):
         markup = self._render_sidebar("Admin", "show_data")
@@ -1179,3 +1185,47 @@ class GroupedSidebarNavigationTests(TestCase):
         request.resolver_match = SimpleNamespace(url_name="home")
         markup = render_to_string("layouts/base.html", {"request": request}, request=request)
         self.assertIn("sidebar-workspaces.js", markup)
+
+    def test_workspace_navigation_has_no_outline_or_vertical_edge(self):
+        stylesheet = Path(
+            finders.find("assets/css/sidebar-icon-rail.css")
+        ).read_text(encoding="utf-8")
+        rules = tinycss2.parse_stylesheet(
+            stylesheet,
+            skip_comments=True,
+            skip_whitespace=True,
+        )
+        declarations_by_selector = {}
+
+        for rule in rules:
+            if rule.type != "qualified-rule":
+                continue
+            selector = tinycss2.serialize(rule.prelude).strip()
+            declarations_by_selector[selector] = {
+                declaration.name: tinycss2.serialize(declaration.value).strip()
+                for declaration in tinycss2.parse_declaration_list(
+                    rule.content,
+                    skip_comments=True,
+                    skip_whitespace=True,
+                )
+                if declaration.type == "declaration"
+            }
+
+        items = declarations_by_selector["#sidenav-main .sidenav-workspace-items"]
+        group_toggle = declarations_by_selector[
+            "#sidenav-main .sidenav-workspace-toggle"
+        ]
+        group_icon = declarations_by_selector[
+            "#sidenav-main .sidenav-workspace-toggle > i:first-child"
+        ]
+        focus = declarations_by_selector.get(
+            "#sidenav-main .sidenav-workspace-toggle:focus", {}
+        )
+        self.assertEqual(items.get("border-left"), "0")
+        self.assertEqual(items.get("padding"), ".12rem 0 .25rem 1.75rem")
+        self.assertEqual(group_toggle.get("margin"), "3px 10px")
+        self.assertEqual(group_toggle.get("width"), "calc(100% - 20px)")
+        self.assertEqual(group_icon.get("min-width"), "2rem")
+        self.assertNotIn("text-align", group_icon)
+        self.assertEqual(focus.get("outline"), "none")
+        self.assertEqual(focus.get("box-shadow"), "none")

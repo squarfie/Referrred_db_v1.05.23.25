@@ -137,20 +137,22 @@
 
 /* Grouped workspace navigation */
 #sidenav-main .sidenav-workspace {width:100%;margin:.3rem 0;}
-#sidenav-main .sidenav-workspace-toggle {display:flex;align-items:center;text-align:left;width:calc(100% - 1.5rem);margin:.2rem .75rem;padding:.7rem .9rem;border:0;border-radius:.4rem;background:transparent;color:#344767;font-size:.875rem;font-weight:650;cursor:pointer;line-height:1.4;}
-#sidenav-main .sidenav-workspace-toggle > i:first-child {min-width:1.75rem;text-align:center;}
+#sidenav-main .sidenav-workspace-toggle {display:flex;align-items:center;text-align:left;width:calc(100% - 20px);margin:3px 10px;padding:.675rem 1.5rem;border:0;border-radius:.4rem;background:transparent;color:#344767;font-size:.875rem;font-weight:650;cursor:pointer;line-height:1.4;}
+#sidenav-main .sidenav-workspace-toggle > i:first-child {min-width:2rem;}
 #sidenav-main .sidenav-workspace-toggle .nav-link-text {flex:1;white-space:nowrap;}
 #sidenav-main .sidenav-workspace-toggle:hover,#sidenav-main .sidenav-workspace-toggle:focus-visible {background:#e8f4ff;color:#1f6fb2;}
-#sidenav-main .sidenav-workspace-toggle:focus-visible {outline:2px solid #1f6fb2;outline-offset:2px;}
+#sidenav-main .sidenav-workspace-toggle:focus {outline:none;box-shadow:none;}
+#sidenav-main .sidenav-workspace-toggle:focus-visible {outline:none;background:#e8f4ff;color:#1f6fb2;}
 #sidenav-main .sidenav-workspace-chevron {margin-left:auto;font-size:.66rem;transition:transform .18s ease;}
 #sidenav-main .sidenav-workspace-toggle[aria-expanded="true"] .sidenav-workspace-chevron {transform:rotate(180deg);}
 #sidenav-main .sidenav-workspace-toggle.has-active-child {color:#1f6fb2;}
-#sidenav-main .sidenav-workspace-items {padding:.12rem 0 .25rem;border-left:2px solid #dce9f4;margin-left:1.75rem;}
+#sidenav-main .sidenav-workspace-items {padding:.12rem 0 .25rem 1.75rem;border-left:0;margin-right:0;margin-left:0;}
 #sidenav-main .sidenav-workspace-items[hidden] {display:none!important;}
 #sidenav-main .sidenav-workspace-items .nav-link {margin:.07rem .45rem;padding:.55rem .55rem;font-size:.81rem;min-height:34px;}
 #sidenav-main .sidenav-workspace-items .nav-link > i {font-size:.9rem;min-width:1.4rem;}
 @media(min-width:1200px) {
   body.sidenav-icon-rail-collapsed #sidenav-main .sidenav-workspace-toggle {display:flex;justify-content:center;width:56px;min-height:44px;margin:.15rem auto;padding:.65rem 0;}
+  body.sidenav-icon-rail-collapsed #sidenav-main .sidenav-workspace-toggle > i:first-child {min-width:0;text-align:center;}
   body.sidenav-icon-rail-collapsed #sidenav-main .sidenav-workspace-chevron {display:none;}
   body.sidenav-icon-rail-collapsed #sidenav-main .sidenav-workspace-items {display:none!important;}
 }

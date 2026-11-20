@@ -91,18 +91,10 @@
         <ul class="navbar-nav">
           <li class="nav-item"><a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/"><i class="ni ni-album-2 text-primary" aria-hidden="true"></i><span class="nav-link-text">Dashboard</span></a></li>
           {% if user_access.nav_can_secretariat_receiving %}
-          <li class="nav-item"><a class="nav-link {% if current_url == 'secretariat_receiving_dashboard' or current_url == 'receiving_create' or current_url == 'receiving_endorse' %}active{% endif %}" href="{% url 'secretariat_receiving_dashboard' %}"><i class="fas fa-inbox text-primary" aria-hidden="true"></i><span class="nav-link-text">Secretariat Receiving</span></a></li>
+          <li class="nav-item"><a class="nav-link {% if current_url == 'secretariat_receiving_dashboard' or current_url == 'receiving_create' or current_url == 'receiving_endorse' %}active{% endif %}" href="{% url 'secretariat_receiving_dashboard' %}"><i class="fas fa-inbox text-primary" aria-hidden="true"></i><span class="nav-link-text">Receiving</span></a></li>
           {% endif %}
-          {% if user_access.nav_can_view_verification %}
-          <li class="nav-item"><a class="nav-link {% if current_url == 'verification_dashboard' or current_url == 'verification_case_detail' %}active{% endif %}" href="{% url 'verification_dashboard' %}"><i class="fas fa-clipboard-check text-primary" aria-hidden="true"></i><span class="nav-link-text">Verification</span></a></li>
-          {% endif %}
-          {% if user_access.nav_can_view_reports %}
-          <li class="nav-item"><a class="nav-link {% if current_url == 'tat_running_list' or current_url == 'tat_running_process_list' or current_url == 'tat_monitoring_view' %}active{% endif %}" href="{% url 'tat_running_list' %}"><i class="fas fa-chart-line text-primary" aria-hidden="true"></i><span class="nav-link-text">Running TAT</span></a></li>
-          {% endif %}
-        </ul>
-
-        {% if user_access.nav_can_add_batch or user_access.nav_can_view_raw or user_access.nav_can_view_final or user_access.nav_can_view_wgs or user_access.nav_can_upload_wgs or user_access.nav_can_view_concordance %}
-        <div class="sidenav-workspace" data-group-container="data-management">
+          {% if user_access.nav_can_add_batch or user_access.nav_can_view_raw or user_access.nav_can_view_final or user_access.nav_can_view_wgs or user_access.nav_can_upload_wgs or user_access.nav_can_view_concordance %}
+          <li class="nav-item sidenav-workspace" data-group-container="data-management">
           <button type="button" class="nav-link sidenav-workspace-toggle"
                   id="sidebarDataManagementToggle" data-sidebar-group="data-management"
                   aria-controls="sidebarDataManagementItems" aria-expanded="false"
@@ -131,17 +123,17 @@
             <li class="nav-item"><a class="nav-link {% if current_url == 'concordance_history' %}active{% endif %}" href="{% url 'concordance_history' %}"><i class="fas fa-chart-bar text-primary" aria-hidden="true"></i><span class="nav-link-text">Concordance</span></a></li>
             {% endif %}
           </ul>
-        </div>
-        {% endif %}
+          </li>
+          {% endif %}
 
-        {% if user_access.nav_can_laboratory_receiving or user_access.can_view_lab_testing %}
-        <div class="sidenav-workspace" data-group-container="laboratory-operations">
+          {% if user_access.nav_can_laboratory_receiving or user_access.can_view_lab_testing %}
+          <li class="nav-item sidenav-workspace" data-group-container="laboratory-operations">
           <button type="button" class="nav-link sidenav-workspace-toggle"
                   id="sidebarLaboratoryOperationsToggle" data-sidebar-group="laboratory-operations"
                   aria-controls="sidebarLaboratoryOperationsItems" aria-expanded="false"
                   aria-label="Laboratory Operations" title="Laboratory Operations">
             <i class="fas fa-flask text-primary" aria-hidden="true"></i>
-            <span class="nav-link-text">Laboratory Operations</span>
+            <span class="nav-link-text">Laboratory</span>
             <i class="fas fa-chevron-down sidenav-workspace-chevron" aria-hidden="true"></i>
           </button>
           <ul class="navbar-nav sidenav-workspace-items" id="sidebarLaboratoryOperationsItems" hidden>
@@ -153,8 +145,15 @@
             <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_biobank_list' or current_url == 'laboratory_biobank_label' %}active{% endif %}" href="{% url 'laboratory_biobank_list' %}"><i class="fas fa-archive text-primary" aria-hidden="true"></i><span class="nav-link-text">Biobank Inventory</span></a></li>
             {% endif %}
           </ul>
-        </div>
-        {% endif %}
+          </li>
+          {% endif %}
+          {% if user_access.nav_can_view_verification %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'verification_dashboard' or current_url == 'verification_case_detail' %}active{% endif %}" href="{% url 'verification_dashboard' %}"><i class="fas fa-clipboard-check text-primary" aria-hidden="true"></i><span class="nav-link-text">Verification</span></a></li>
+          {% endif %}
+          {% if user_access.nav_can_view_reports %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'tat_running_list' or current_url == 'tat_running_process_list' or current_url == 'tat_monitoring_view' %}active{% endif %}" href="{% url 'tat_running_list' %}"><i class="fas fa-chart-line text-primary" aria-hidden="true"></i><span class="nav-link-text">Running TAT</span></a></li>
+          {% endif %}
+        </ul>
         <hr class="my-3">
         <h6 class="navbar-heading p-0 text-muted"><span class="docs-normal">Utilities</span></h6>
         <ul class="navbar-nav mb-md-3">
