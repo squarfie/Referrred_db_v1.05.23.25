@@ -115,7 +115,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.create_pending_accession()
         response = self.client.get(reverse('laboratory_receiving_dashboard'))
         cards = response.context['lab_summary_cards']
-        self.assertEqual([card['key'] for card in cards], ['pending', 'received', 'pending_batch', 'main_lab', 'processing', 'complete'])
+        self.assertEqual([card['key'] for card in cards], ['pending', 'received', 'main_lab', 'processing', 'pending_batch', 'complete'])
         self.assertEqual(next(card['count'] for card in cards if card['key'] == 'received'), 1)
         self.assertNotContains(response, '<div class="receiving-stat-label">Received by Secretariat</div>')
         user = User.objects.create_user('tab-secretariat')
