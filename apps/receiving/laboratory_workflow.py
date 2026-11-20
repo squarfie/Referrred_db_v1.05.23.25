@@ -80,18 +80,60 @@ def transition_batch(accession_id, action, user):
 def record_revival_failure(isolate_id, status, reason, user):
     if status not in (S.REVIVAL_FAILED, S.NON_VIABLE):
         raise WorkflowError("Select Revival failed or Non-viable.")
-    if not reason.strip():
+    if not reason or not reason.strip():
         raise WorkflowError("A reason is required for unsuccessful revival.")
+    base = LaboratoryIsolate.objects.select_related("accession_range").get(pk=isolate_id)
+    LaboratoryAccession.objects.select_for_update().get(pk=base.accession_range_id)
     item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
     if item.status not in (S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS):
         raise WorkflowError("An unsuccessful revival can only be recorded before revival completes.")
     item.status = status
-    item.revival_failed_reason = reason.strip()
+    item.revival_failed_reason = (item.revival_failed_reason + "\\n" if item.revival_failed_reason else "") + reason.strip()
     item.revival_completed_by = user
     item.revival_completed_at = timezone.now()
     item.save(update_fields=["status", "revival_failed_reason",
                              "revival_completed_by", "revival_completed_at"])
     return item
+
+
+@transaction.atomic
+def retry_revival(isolate_id, user):
+    """Restart a failed revival without silently reopening a non-viable isolate.
+
+    A retry enters revival_in_progress. Other isolates in the range must
+    also be in progress or failed, to avoid creating an impossible batch.
+    """
+    item = LaboratoryIsolate.objects.select_related("accession_range").get(pk=isolate_id)
+    LaboratoryAccession.objects.select_for_update().get(pk=item.accession_range_id)
+    item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
+    if item.status != S.REVIVAL_FAILED:
+        raise WorkflowError("Only Revival failed can be retried. Non-viable is closed.")
+    siblings = LaboratoryIsolate.objects.select_for_update().filter(accession_range_id=item.accession_range_id)
+    permitted = (S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED)
+    if siblings.exclude(status__in=permitted).exists():
+        raise WorkflowError("Retry requires the entire batch to be in the active or failed revival stage.")
+    item.status = S.REVIVAL_IN_PROGRESS
+    item.revival_retry_count += 1
+    item.revival_retried_by = user
+    item.revival_retried_at = timezone.now()
+    item.save(update_fields=("status", "revival_retry_count", "revival_retried_by", "revival_retried_at"))
+    return item
+
+
+@transaction.atomic
+def complete_revival_isolate(isolate_id, user):
+    """Complete retried isolate without prematurely advancing other isolates."""
+    item = LaboratoryIsolate.objects.select_related("accession_range").get(pk=isolate_id)
+    LaboratoryAccession.objects.select_for_update().get(pk=item.accession_range_id)
+    item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
+    if item.status != S.REVIVAL_IN_PROGRESS or item.revival_retry_count < 1:
+        raise WorkflowError("Only retried, in-progress isolates may be completed individually.")
+    item.status = S.REVIVED
+    item.revival_completed_by = user
+    item.revival_completed_at = timezone.now()
+    item.save(update_fields=("status", "revival_completed_by", "revival_completed_at"))
+    return item
+
 
 
 def _valid_date(value, title):
