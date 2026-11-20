@@ -48,7 +48,7 @@
 <div class="receiving-card-body">
 {% if can_test and isolate.status == 'id_testing' %}
 <form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="form-row align-items-end mb-3">{% csrf_token %}
-<div class="col-md-5 mb-2"><div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
+<div class="col-md-5 mb-2"><div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
 <label for="id-organism-search">Instrument-reported organism</label>
 <input id="id-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
 <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
@@ -79,7 +79,7 @@
 <p><strong>Approved organism:</strong> {{ isolate.final_organism }} &nbsp; <strong>Reviewed by:</strong> {{ isolate.reviewed_by|default:"—" }}</p>
 {% elif can_review and isolate.status == 'id_returned' %}
 <form method="post" action="{% url 'laboratory_review_id' isolate.pk %}" class="form-row align-items-end">{% csrf_token %}
-<div class="col-md-7 mb-2"><div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
+<div class="col-md-7 mb-2"><div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
 <label for="review-organism-search">Approved organism (search code or name)</label>
 <input id="review-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
 <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
