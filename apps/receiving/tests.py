@@ -2007,6 +2007,27 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertEqual(result.whonet_organism_code, "KPN")
         self.assertEqual(result.source, LaboratoryIdentification.Source.CSV)
 
+    def test_id_csv_upload_rejects_mismatched_whonet_code_and_name(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.ID_TESTING
+        isolate.save(update_fields=("status",))
+        staff = User.objects.create_user(username="csv-mismatch-staff", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
+        self.client.force_login(staff)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        data = (
+            "accession_number,organism_reported,organism_code,instrument\n"
+            f"{isolate.accession_number},Escherichia coli,KPN,ID system\n"
+        ).encode("utf-8")
+        response = self.client.post(reverse("laboratory_id_upload"), {
+            "action": "preview",
+            "file": SimpleUploadedFile("mismatched.csv", data, content_type="text/csv"),
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(isolate.identifications.exists())
+
     def test_biobank_form_records_lyophilization_and_supplementary_storage(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
