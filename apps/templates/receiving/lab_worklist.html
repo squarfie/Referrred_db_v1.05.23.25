@@ -14,7 +14,7 @@
   </div></header>
   <div class="receiving-content">
     <section class="receiving-surface">
-      <div class="receiving-card-header"><h2>Isolate worklist</h2><p>Search accession numbers and open an isolate for identification, result review, or biobanking.</p></div>
+      <div class="receiving-card-header"><h2>Isolate worklist</h2><p>Browse accession batches and open their isolates for identification, revival, result review, or biobanking.</p></div>
       <div class="receiving-card-body">
         <form method="get" class="form-row align-items-end mb-3">
           <div class="col-md-5 mb-2"><label for="id-q">Accession number</label><input id="id-q" name="q" value="{{ query }}" class="form-control" placeholder="e.g. 26ARS_RI0001"></div>
@@ -25,23 +25,24 @@
         </form>
         <div class="table-responsive">
           <table class="table receiving-table">
-            <thead><tr><th>Accession number</th><th>Referring site</th><th>Workflow status</th><th>Reported ID results</th><th>Approved organism</th><th>Biobank</th><th>Action</th></tr></thead>
+            <thead><tr><th>Batch / accession range</th><th>Referring site</th><th>Isolates</th><th>ID returned</th><th>Reviewed</th><th>Biobanked</th><th>Current stages</th><th>Action</th></tr></thead>
             <tbody>
-            {% for isolate in isolates %}
+            {% for row in batches %}
               <tr>
-                <td data-label="Accession"><strong>{{ isolate.accession_number }}</strong></td>
-                <td data-label="Site">{{ isolate.accession_range.laboratory_receiving.receipt.site.SiteCode }}</td>
-                <td data-label="Status">{{ isolate.get_status_display }}</td>
-                <td data-label="Results">{{ isolate.identifications.count }}</td>
-                <td data-label="Organism">{{ isolate.final_organism|default:"Pending review" }}</td>
-                <td data-label="Biobank">{% if isolate.biobank %}Recorded{% else %}Pending{% endif %}</td>
-                <td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}">Open</a></td>
+                <td data-label="Batch"><strong>Batch {{ row.accession.batch_number }} / {{ row.accession.total_batches }}</strong><span class="receiving-site-name">{{ row.accession.reference_range }}{% if row.accession.batch %} · {{ row.accession.batch.bat_Batch_Code }}{% endif %}</span></td>
+                <td data-label="Site">{{ row.accession.laboratory_receiving.receipt.site.SiteCode }}</td>
+                <td data-label="Isolates">{{ row.count }} / {{ row.accession.isolate_count }}</td>
+                <td data-label="Returned">{{ row.returned_count }}</td>
+                <td data-label="Reviewed">{{ row.reviewed_count }}</td>
+                <td data-label="Biobanked">{{ row.biobanked_count }}</td>
+                <td data-label="Stages">{% for stage, total in row.status_counts.items %}<div class="small">{{ stage|cut:"_"|title }}: {{ total }}</div>{% endfor %}</td>
+                <td data-label="Action" class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}">Open Batch</a></td>
               </tr>
-            {% empty %}<tr><td colspan="7" class="text-center text-muted">No isolates in this worklist. Laboratory Receiving must endorse accession ranges first.</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="8" class="text-center text-muted">No isolate batches match the filters. Laboratory Receiving must endorse accession ranges first.</td></tr>{% endfor %}
             </tbody>
           </table>
         </div>
-        <p class="small text-muted mt-2 mb-0">Showing up to 250 matching isolates. Narrow the results with accession or status filters.</p>
+        <p class="small text-muted mt-2 mb-0">Showing up to 250 matching accession batches. Narrow results with accession or status filters.</p>
       </div>
     </section>
   </div>

@@ -9,7 +9,9 @@
 <h1>{{ isolate.accession_number }}</h1>
 <p class="receiving-hero-subtitle">{{ isolate.accession_range.laboratory_receiving.receipt.site.SiteCode }} · {{ isolate.get_status_display }}</p>
 </div></div><div class="receiving-hero-actions">
-<a href="{% url 'laboratory_worklist' %}" class="btn btn-outline-light">Back to Worklist</a>
+<a href="{% url 'laboratory_batch_detail' isolate.accession_range.pk %}" class="btn btn-outline-light">Back to Batch</a>
+{% if previous_isolate_id %}<a href="{% url 'laboratory_isolate_detail' previous_isolate_id %}" class="btn btn-outline-light"><i class="fas fa-chevron-left mr-1"></i>Previous Isolate</a>{% endif %}
+{% if next_isolate_id %}<a href="{% url 'laboratory_isolate_detail' next_isolate_id %}" class="btn btn-outline-light">Next Isolate<i class="fas fa-chevron-right ml-1"></i></a>{% endif %}
 {% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a href="{% url 'laboratory_biobank_label' isolate.pk %}" target="_blank" class="btn btn-info"><i class="fas fa-print mr-1"></i>Biobank Sticker</a>{% endif %}
 </div></header>
 <div class="receiving-content">
@@ -77,7 +79,19 @@
 <p>Revival is allowed only after Main Laboratory has returned the identification results and cassette reference. Batch actions are managed from the Laboratory Receiving worksheet.</p></div>
 <div class="receiving-card-body">
 <p><strong>Current status:</strong> {{ isolate.get_status_display }}</p>
-{% if isolate.status == 'id_returned' %}<p class="text-muted">Cassette returned. Laboratory Receiving can now queue this accession range for revival.</p>{% endif %}
+{% if isolate.status == 'id_returned' %}<p class="text-muted">Cassette returned. This isolate may proceed to revival independently of others in the batch.</p>{% endif %}
+{% if can_review and isolate.status == 'id_returned' %}
+<form method="post" action="{% url 'laboratory_isolate_revival' isolate.pk 'queue' %}" class="mb-3">{% csrf_token %}
+<button class="btn btn-info" type="submit">Queue this isolate for revival</button></form>
+{% endif %}
+{% if can_review and isolate.status == 'revival_queued' %}
+<form method="post" action="{% url 'laboratory_isolate_revival' isolate.pk 'start' %}" class="mb-3">{% csrf_token %}
+<button class="btn btn-primary" type="submit">Start revival for this isolate</button></form>
+{% endif %}
+{% if can_review and isolate.status == 'revival_in_progress' and not isolate.revival_retry_count %}
+<form method="post" action="{% url 'laboratory_isolate_revival' isolate.pk 'complete' %}" class="mb-3">{% csrf_token %}
+<button class="btn btn-success" type="submit">Complete revival for this isolate</button></form>
+{% endif %}
 {% if isolate.revival_queued_at %}<p><strong>Revival queued:</strong> {{ isolate.revival_queued_at|date:"M j, Y g:i A" }}</p>{% endif %}
 {% if isolate.revival_started_at %}<p><strong>Revival started:</strong> {{ isolate.revival_started_at|date:"M j, Y g:i A" }}</p>{% endif %}
 {% if isolate.revival_completed_at %}<p><strong>Revival outcome recorded:</strong> {{ isolate.revival_completed_at|date:"M j, Y g:i A" }}</p>{% endif %}
@@ -178,6 +192,13 @@
 <p><strong>Harvested:</strong> {{ biobank.date_harvested|default:"—" }} · <strong>Method:</strong> {{ biobank.preservation_method|default:"—" }} · <strong>Storage:</strong> {{ biobank.storage_location|default:"—" }} / {{ biobank.storage_box|default:"—" }} / {{ biobank.box_position|default:"—" }}</p>
 {% else %}<p class="text-muted">Biobank information has not yet been entered.</p>{% endif %}
 </div></section>
+<div class="receiving-surface p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between" style="gap:.75rem;">
+  <a class="btn btn-outline-secondary mb-0" href="{% url 'laboratory_batch_detail' isolate.accession_range.pk %}">Back to Batch</a>
+  <div class="d-flex flex-wrap" style="gap:.5rem;">
+    {% if previous_isolate_id %}<a class="btn btn-outline-primary mb-0" href="{% url 'laboratory_isolate_detail' previous_isolate_id %}">Previous Isolate</a>{% endif %}
+    {% if next_isolate_id %}<a class="btn btn-primary mb-0" href="{% url 'laboratory_isolate_detail' next_isolate_id %}">Next Isolate</a>{% endif %}
+  </div>
+</div>
 </div></main>
 {% endblock content %}
 

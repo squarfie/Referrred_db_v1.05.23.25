@@ -92,6 +92,35 @@ def transition_batch(accession_id, action, user):
 
 
 @transaction.atomic
+def transition_isolate_revival(isolate_id, action, user):
+    """Progress an independently returned ID cassette through revival."""
+    transitions = {
+        "queue": (S.ID_RETURNED, S.REVIVAL_QUEUED, "revival_queued_by", "revival_queued_at"),
+        "start": (S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, "revival_started_by", "revival_started_at"),
+        "complete": (S.REVIVAL_IN_PROGRESS, S.REVIVED, "revival_completed_by", "revival_completed_at"),
+    }
+    if action not in transitions:
+        raise WorkflowError("Unknown isolate revival transition.")
+    candidate = LaboratoryIsolate.objects.only("accession_range_id").get(pk=isolate_id)
+    LaboratoryAccession.objects.select_for_update().get(pk=candidate.accession_range_id)
+    item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
+    expected, target, actor_field, at_field = transitions[action]
+    if item.status != expected:
+        raise WorkflowError("Isolate is not at the expected stage for this revival action.")
+    if (
+        item.returned_at is None
+        or item.returned_by_id is None
+        or not item.identifications.filter(cassette_reference__gt="").exists()
+    ):
+        raise WorkflowError("A recorded ID result and authenticated cassette return are required.")
+    item.status = target
+    setattr(item, actor_field, user)
+    setattr(item, at_field, timezone.now())
+    item.save(update_fields=["status", actor_field, at_field])
+    return item
+
+
+@transaction.atomic
 def record_revival_failure(isolate_id, status, reason, user):
     if status not in (S.REVIVAL_FAILED, S.NON_VIABLE):
         raise WorkflowError("Select Revival failed or Non-viable.")
@@ -125,10 +154,7 @@ def retry_revival(isolate_id, user):
     item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
     if item.status != S.REVIVAL_FAILED:
         raise WorkflowError("Only Revival failed can be retried. Non-viable is closed.")
-    siblings = LaboratoryIsolate.objects.select_for_update().filter(accession_range_id=item.accession_range_id)
-    permitted = (S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED, S.REVIVED)
-    if siblings.exclude(status__in=permitted).exists():
-        raise WorkflowError("Retry requires the entire batch to be in the active or failed revival stage.")
+    # Revival retries are independent of sibling isolates still in ID testing.
     item.status = S.REVIVAL_IN_PROGRESS
     item.revival_retry_count += 1
     item.revival_retried_by = user
