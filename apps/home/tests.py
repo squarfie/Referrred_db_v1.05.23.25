@@ -1105,3 +1105,77 @@ class LaboratoryStaffRoleSettingsTests(TestCase):
         form = ContactForm(instance=staff, can_edit_roles=True)
         self.assertIn(ROLE_LAB_STAFF, form.initial["Staff_Role"])
         self.assertIn(ROLE_LAB_STAFF, get_user_roles(user))
+
+
+class GroupedSidebarNavigationTests(TestCase):
+    def _render_sidebar(self, role, route_name="home"):
+        from django.contrib.auth.models import Group
+        from django.template.loader import render_to_string
+        from apps.home.permissions import role_flags
+
+        user = User.objects.create_user(
+            username=f"sidebar-{role.replace(' ', '-').lower()}",
+            password="test-pass",
+        )
+        user.groups.add(Group.objects.get_or_create(name=role)[0])
+        request = RequestFactory().get("/")
+        request.user = user
+        request.resolver_match = SimpleNamespace(url_name=route_name)
+        result = render_to_string(
+            "includes/sidenav.html",
+            {"request": request, "user_access": role_flags(user)},
+            request=request,
+        )
+        return result
+
+    def test_laboratory_staff_gets_wgs_and_tat_without_secretariat_or_wgs_upload(self):
+        markup = self._render_sidebar("Laboratory Staff", "laboratory_worklist")
+        self.assertIn("Data Management", markup)
+        self.assertIn("Laboratory Operations", markup)
+        self.assertIn("WGS Data", markup)
+        self.assertIn("Running TAT", markup)
+        self.assertIn("Biobank Inventory", markup)
+        self.assertNotIn("WGS Upload", markup)
+        self.assertNotIn("Secretariat Receiving", markup)
+        self.assertNotIn("Laboratory Receiving</span>", markup)
+
+    def test_secretariat_receiving_is_standalone(self):
+        markup = self._render_sidebar("Secretariat", "secretariat_receiving_dashboard")
+        self.assertIn("Secretariat Receiving", markup)
+        self.assertIn('href="/receiving/secretariat/"', markup)
+        self.assertNotIn("Laboratory Operations", markup)
+        self.assertNotIn("WGS Upload", markup)
+
+    def test_lab_encoder_gets_laboratory_receiving_and_wgs_data(self):
+        markup = self._render_sidebar("LAB Encoder", "laboratory_receiving_dashboard")
+        self.assertIn("Laboratory Receiving", markup)
+        self.assertIn('href="/receiving/laboratory-receiving/"', markup)
+        self.assertIn("WGS Data", markup)
+        self.assertIn("Running TAT", markup)
+        self.assertNotIn("Secretariat Receiving", markup)
+
+    def test_verification_remains_outside_workspace_group(self):
+        markup = self._render_sidebar("Verifier", "verification_dashboard")
+        verification_pos = markup.index(">Verification</span>")
+        group_pos = markup.index('data-group-container="data-management"')
+        self.assertLess(verification_pos, group_pos)
+        self.assertIn("WGS Data", markup)
+
+    def test_group_controls_have_accessible_ids_and_browser_assets(self):
+        markup = self._render_sidebar("Admin", "show_data")
+        self.assertIn('id="sidebarDataManagementToggle"', markup)
+        self.assertIn('aria-controls="sidebarDataManagementItems"', markup)
+        self.assertIn('id="sidebarLaboratoryOperationsToggle"', markup)
+        self.assertIn('aria-controls="sidebarLaboratoryOperationsItems"', markup)
+        self.assertEqual(markup.count('data-sidebar-group='), 2)
+        self.assertIn('class="navbar-nav sidenav-workspace-items"', markup)
+        self.assertIn('>WGS Upload</span>', markup)
+
+    def test_shared_layout_loads_group_navigation_javascript(self):
+        template = get_template("layouts/base.html")
+        self.assertIsNotNone(template)
+        request = RequestFactory().get("/")
+        request.user = AnonymousUser()
+        request.resolver_match = SimpleNamespace(url_name="home")
+        markup = render_to_string("layouts/base.html", {"request": request}, request=request)
+        self.assertIn("sidebar-workspaces.js", markup)
