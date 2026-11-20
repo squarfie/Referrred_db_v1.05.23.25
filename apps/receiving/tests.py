@@ -1542,7 +1542,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 1: Receiving and acceptance summary",
             "Step 2: Accessioning",
             "Step 3: Organism inventory",
-            "Step 4: Revival and endorsement to Main Laboratory",
+            "Step 4: Main Laboratory ID handoff, cassette return and revival",
             "Step 5: Batch generation",
         ]
         positions = [text.index(label) for label in labels]
@@ -1871,6 +1871,68 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertContains(response, "data:image/png;base64,")
         first.refresh_from_db()
         self.assertEqual(first.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+
+    def test_id_cassette_return_must_precede_revival(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        self.client.post(reverse("laboratory_batch_transition", kwargs={
+            "accession_id": accession.pk, "action": "queue",
+        }))
+        self.assertFalse(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_QUEUED).exists())
+        self.client.post(reverse("laboratory_batch_transition", kwargs={
+            "accession_id": accession.pk, "action": "start",
+        }))
+        self.assertFalse(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS).exists())
+        staff = User.objects.create_user(username="cassette-gate-staff", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
+        self.client.force_login(staff)
+        self.client.post(reverse("laboratory_acknowledge_id", kwargs={"isolate_id": isolate.pk}))
+        self.client.post(reverse("laboratory_record_id", kwargs={"isolate_id": isolate.pk}), {
+            "organism_reported_code": "KPN",
+            "organism_reported": "Klebsiella pneumoniae",
+            "instrument": "Analyzer",
+        })
+        self.client.post(reverse("laboratory_return_id", kwargs={"isolate_id": isolate.pk}))
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_TESTING)
+        self.client.post(reverse("laboratory_record_id", kwargs={"isolate_id": isolate.pk}), {
+            "organism_reported_code": "KPN",
+            "organism_reported": "Klebsiella pneumoniae",
+            "cassette_reference": "Cassette-124",
+        })
+        self.client.post(reverse("laboratory_return_id", kwargs={"isolate_id": isolate.pk}))
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
+        self.client.force_login(self.lab_user)
+        self.client.post(reverse("laboratory_batch_transition", kwargs={
+            "accession_id": accession.pk, "action": "queue",
+        }))
+        # All isolates in the batch must have returned cassettes.
+        self.assertFalse(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_QUEUED).exists())
+        self._return_all_cassettes_and_queue_revival(accession)
+        self.assertTrue(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_QUEUED).exists())
+
+    def test_id_review_is_blocked_until_revival_complete(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        self._return_all_cassettes_and_queue_revival(accession)
+        isolate = accession.isolate_records.first()
+        url = reverse("laboratory_review_id", kwargs={"isolate_id": isolate.pk})
+        self.client.post(url, {"final_organism_code": "KPN", "final_organism": "Klebsiella pneumoniae"})
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.REVIVAL_QUEUED)
+        for action in ("start", "complete"):
+            self.client.post(reverse("laboratory_batch_transition", kwargs={
+                "accession_id": accession.pk, "action": action,
+            }))
+        self.client.post(url, {"final_organism_code": "KPN", "final_organism": "Klebsiella pneumoniae"})
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
 
     def test_early_stage_transitions_are_rejected_without_partial_updates(self):
         accession = self.create_pending_accession()
@@ -2253,7 +2315,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertContains(response, "laboratory-organism-picker.js")
         self.assertContains(response, "data-organism-picker")
         self.assertContains(response, reverse("laboratory_organism_search"))
-        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+        isolate.status = LaboratoryIsolate.Status.REVIVED
         isolate.save(update_fields=("status",))
         response = self.client.get(url)
         self.assertContains(response, 'name="final_organism_code"')
@@ -2268,14 +2330,14 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()
-        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+        isolate.status = LaboratoryIsolate.Status.REVIVED
         isolate.save(update_fields=("status",))
         url = reverse("laboratory_review_id", kwargs={"isolate_id": isolate.pk})
         self.client.post(url, {
             "final_organism_code": "KPN", "final_organism": "Escherichia coli",
         })
         isolate.refresh_from_db()
-        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.REVIVED)
         self.client.post(url, {
             "final_organism_code": "kpn", "final_organism": "Klebsiella pneumoniae",
         })
@@ -2328,7 +2390,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()
-        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+        isolate.status = LaboratoryIsolate.Status.REVIVED
         isolate.save(update_fields=("status",))
         self.client.post(reverse("laboratory_review_id", kwargs={"isolate_id": isolate.pk}), {
             "final_organism_code": "KPN",
