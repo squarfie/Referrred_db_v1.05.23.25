@@ -28,11 +28,15 @@ Retain acknowledgment because it records physical custody. Consolidate saving ID
 
 ## Tasks
 
-- [ ] Add role-aware guidance, task queues, counters and guarded submissions in laboratory_guidance.py, laboratory_views.py, laboratory_workflow.py and urls.py; test in test_workflow_ux.py.
-- [ ] Reorganize sidebar/worklists into Receiving & Accessioning, Identification Testing, Revival & Processing, Biobank Inventory; preserve batch navigation and return history.
-- [ ] Show one current-stage form on isolate detail; move completed records into collapsible read-only history; reuse approved values and keep storage separate.
-- [ ] Review integrated changes; run Django checks, migration dry run, receiving suite and receiving/home suite; commit only relevant files in small commits.
+- [x] Add role-aware guidance, task queues, counters and guarded submissions in laboratory_guidance.py, laboratory_views.py, laboratory_workflow.py and urls.py; test in test_workflow_ux.py.
+- [x] Reorganize sidebar/worklists into Receiving & Accessioning, Identification Testing, Revival & Processing, Biobank Inventory; preserve batch navigation and return history.
+- [x] Show one current-stage form on isolate detail; move completed records into collapsible read-only history; reuse approved values and keep storage separate.
+- [x] Review integrated changes; run Django checks, migration dry run, receiving suite and receiving/home suite; commit only relevant files in small commits.
 
 ## Verification and limits
 
 Exercise role visibility and direct POST denials, every next-action state, independent processing, actual revival dates and failed reasons, code/name consistency, batch conflicts, partial records, labels and navigation. Preserve existing local settings, workbook and media changes. No spreadsheet automation, automatic physical events, historical advancement, production-data mutation, push or merge is included.
+
+## Verification results
+
+Django system check passed; migration dry run reported No changes detected. Combined receiving/home suite: 266 tests passed. Final workflow/navigation suite after history-link correction: 15 tests passed. Final code review found no remaining material findings. Local walkthrough and merge confirmation remain with the user.
