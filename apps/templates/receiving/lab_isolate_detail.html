@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Isolate {{ isolate.accession_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
 <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-vial"></i></span><div>
@@ -48,7 +48,14 @@
 <div class="receiving-card-body">
 {% if can_test and isolate.status == 'id_testing' %}
 <form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="form-row align-items-end mb-3">{% csrf_token %}
-<div class="col-md-5 mb-2"><label for="organism">Instrument-reported organism</label><input id="organism" name="organism_reported" class="form-control" maxlength="255" required></div>
+<div class="col-md-5 mb-2"><div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
+<label for="id-organism-search">Instrument-reported organism</label>
+<input id="id-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
+<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
+<div class="organism-picker-pair">
+<input name="organism_reported_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
+<input name="organism_reported" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
+</div></div></div>
 <div class="col-md-3 mb-2"><label for="instrument">Instrument</label><input id="instrument" name="instrument" class="form-control" maxlength="100"></div>
 <div class="col-md-3 mb-2"><label for="cassette">Cassette/slot reference</label><input id="cassette" name="cassette_reference" class="form-control" maxlength="100"></div>
 <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save result</button></div>
@@ -72,7 +79,14 @@
 <p><strong>Approved organism:</strong> {{ isolate.final_organism }} &nbsp; <strong>Reviewed by:</strong> {{ isolate.reviewed_by|default:"—" }}</p>
 {% elif can_review and isolate.status == 'id_returned' %}
 <form method="post" action="{% url 'laboratory_review_id' isolate.pk %}" class="form-row align-items-end">{% csrf_token %}
-<div class="col-md-7 mb-2"><label for="final-organism">Approved organism name</label><input id="final-organism" name="final_organism" maxlength="255" class="form-control" required></div>
+<div class="col-md-7 mb-2"><div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
+<label for="review-organism-search">Approved organism (search code or name)</label>
+<input id="review-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
+<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
+<div class="organism-picker-pair">
+<input name="final_organism_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
+<input name="final_organism" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
+</div></div></div>
 <div class="col-md-auto mb-2"><button class="btn btn-primary mb-0" type="submit">Accept identification</button></div></form>
 {% else %}
 <p class="text-muted mb-0">Awaiting the laboratory's completed result and review.</p>
@@ -88,8 +102,15 @@
 {% csrf_token %}
 <div class="col-md-3 mb-2"><label for="lyo-harvest">Date harvested</label><input id="lyo-harvest" name="date_harvested" type="date" class="form-control" required></div>
 <div class="col-md-3 mb-2"><label for="lyo-date">Date lyophilized</label><input id="lyo-date" name="date_lyophilized" type="date" class="form-control" required></div>
-<div class="col-md-3 mb-2"><label for="lyo-whonet">WHONET code for label</label><input id="lyo-whonet" name="whonet_code" maxlength="30" class="form-control" placeholder="KPN" required></div>
-<div class="col-md-3 mb-2"><button class="btn btn-primary mb-0" type="submit">Complete lyophilization / harvest</button></div>
+<div class="col-md-6 mb-2"><div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
+<label for="lyo-organism-search">WHONET organism for sticker</label>
+<input id="lyo-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
+<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
+<div class="organism-picker-pair">
+<input name="whonet_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
+<input name="whonet_organism_name" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
+</div></div></div>
+<div class="col-md-12 mb-2"><button class="btn btn-primary mb-0" type="submit">Complete lyophilization / harvest</button></div>
 </form>
 {% elif isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}
 <p><strong>Harvest date:</strong> {{ biobank.date_harvested|date:"m/d/Y" }}
@@ -148,3 +169,5 @@
 </div></section>
 </div></main>
 {% endblock content %}
+
+{% block javascripts %}<script defer src="{% static 'assets/js/laboratory-organism-picker.js' %}"></script>{% endblock javascripts %}
