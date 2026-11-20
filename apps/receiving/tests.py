@@ -1110,7 +1110,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
 
-        self.assertContains(response, "Custody confirmed")
+        self.assertContains(response, "Laboratory custody confirmed")
         self.assertNotContains(response, "Endorse to laboratory")
         self.assertNotContains(response, "Confirm laboratory receipt")
 
