@@ -14,6 +14,7 @@ from apps.home.services.batch_creation import (
     BatchAlreadyExists,
     BatchCreationError,
     create_referred_batch,
+    preview_referred_batch_conflicts,
 )
 
 from .forms import (
@@ -190,11 +191,32 @@ def laboratory_receiving_workspace(request, receiving_id):
             ],
             "total": sum(values.values()),
         })
+    batch_previews = {}
+    if can_edit:
+        for accession in ranges:
+            if accession.batch_id:
+                continue
+            warnings = preview_referred_batch_conflicts(
+                site_code=receipt.site.SiteCode,
+                referral_date=accession.date_referred,
+                start_number=accession.start_number,
+                end_number=accession.end_number,
+                batch_number=accession.batch_number,
+                total_batches=accession.total_batches,
+            )
+            batch_previews[accession.pk] = {
+                "warnings": warnings,
+                "blocked": bool(warnings),
+            }
+    batch_rows = [
+        {"accession": accession, "preview": batch_previews.get(accession.pk, {})}
+        for accession in ranges
+    ]
     return render(request, "receiving/laboratory_workspace.html", {
         "receipt": receipt, "record": record, "form": form,
         "accession_form": LaboratoryAccessionForm(initial={"date_referred": record.date_accepted or receipt.lab_date_received}),
         "organism_form": LaboratoryOrganismCountForm(),
-        "ranges": ranges, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
+        "ranges": ranges, "batch_rows": batch_rows, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
     })
 
 
