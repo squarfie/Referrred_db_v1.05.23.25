@@ -37,7 +37,7 @@ def laboratory_organism_search(request):
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 1000
-UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference")
+UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference", "organism_code")
 
 
 
@@ -405,6 +405,13 @@ def _upload_rows(upload):
         values = {key: str(row.get(key) or "").strip() for key in UPLOAD_COLUMNS}
         if not values["accession_number"] or not values["organism_reported"]:
             raise ValueError(f"Row {number}: accession and organism are required.")
+        try:
+            _resolved_code, canonical_name = resolve_organism(
+                code=values["organism_code"], name=values["organism_reported"]
+            )
+            values["organism_reported"] = canonical_name
+        except ValidationError as exc:
+            raise ValueError(f"Row {number}: " + "; ".join(exc.messages)) from exc
         if len(values["accession_number"]) > 80 or len(values["organism_reported"]) > 255:
             raise ValueError(f"Row {number}: accession or organism exceeds its length limit.")
         if len(values["instrument"]) > 100 or len(values["cassette_reference"]) > 100:
