@@ -98,7 +98,7 @@ def _render_receiving_dashboard(request, queue=None):
     can_manage_secretariat = can_manage_secretariat_receiving(request.user)
     can_confirm_lab = can_confirm_lab_receipt(request.user)
     # Prefer the laboratory queue for users who have both responsibilities.
-    is_lab_worklist = (queue == "laboratory") if queue else can_confirm_lab
+    is_lab_worklist = (queue == "laboratory") if queue else can_read_laboratory_receiving(request.user)
     queue_url_name = (
         "laboratory_receiving_dashboard" if queue == "laboratory"
         else "secretariat_receiving_dashboard" if queue == "secretariat"
