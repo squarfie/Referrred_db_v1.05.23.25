@@ -2008,6 +2008,53 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.BIOBANKED)
         self.assertEqual(self.client.get(reverse("laboratory_biobank_list")).status_code, 200)
 
+    def test_batch_sticker_qr_encodes_exact_accession_only(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        first, second = list(accession.isolate_records.order_by("accession_number")[:2])
+        for isolate, code in ((first, "KPN"), (second, "ECO")):
+            isolate.status = LaboratoryIsolate.Status.READY_FOR_BIOBANK
+            isolate.final_organism = "Klebsiella pneumoniae"
+            isolate.save(update_fields=("status", "final_organism"))
+            LaboratoryBiobank.objects.create(
+                isolate=isolate, whonet_code=code,
+                date_harvested=date(2026, 11, 19),
+                date_lyophilized=date(2026, 11, 19),
+            )
+        with patch("apps.receiving.laboratory_views.render_qr_png",
+                   return_value=b"PNG SAMPLE") as qr:
+            response = self.client.get(reverse("laboratory_batch_labels",
+                kwargs={"accession_id": accession.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(qr.call_count, 2)
+        self.assertEqual([call.args[0] for call in qr.call_args_list],
+                         [first.accession_number, second.accession_number])
+        self.assertNotIn("https://", str(qr.call_args_list))
+        self.assertEqual(len(response.context["labels"]), 2)
+
+    def test_storage_cannot_rewrite_scientific_dates_or_whonet_code(self):
+        from apps.receiving.laboratory_workflow import save_biobank, WorkflowError
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.READY_FOR_BIOBANK
+        isolate.final_organism = "Klebsiella pneumoniae"
+        isolate.save(update_fields=("status", "final_organism"))
+        bank = LaboratoryBiobank.objects.create(
+            isolate=isolate, whonet_code="KPN",
+            date_harvested=date(2026, 11, 19),
+            date_lyophilized=date(2026, 11, 19),
+        )
+        with self.assertRaises(WorkflowError):
+            save_biobank(isolate.pk, {
+                "box_position": "A1", "whonet_code": "ECO",
+            }, self.lab_user)
+        bank.refresh_from_db()
+        isolate.refresh_from_db()
+        self.assertEqual(bank.whonet_code, "KPN")
+        self.assertEqual(bank.box_position, "")
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+
     def test_biobank_save_without_box_position_does_not_advance(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
