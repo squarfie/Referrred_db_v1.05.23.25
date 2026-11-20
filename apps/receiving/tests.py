@@ -1607,8 +1607,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.client.post(reverse("laboratory_acknowledge_id", kwargs={"isolate_id": isolate.pk}))
 
         from django.core.files.uploadedfile import SimpleUploadedFile
-        data = (f"accession_number,organism_reported,instrument,cassette_reference\\n"
-                f"{isolate.accession_number},Klebsiella pneumoniae,ID system,Slot 1\\n").encode()
+        data = (f"accession_number,organism_reported,instrument,cassette_reference\n"
+                f"{isolate.accession_number},Klebsiella pneumoniae,ID system,Slot 1\n").encode()
         url = reverse("laboratory_id_upload")
         preview = self.client.post(url, {
             "action": "preview",
