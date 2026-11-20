@@ -20,7 +20,7 @@ Sticker printing is an available output, not a stored workflow stage, status, ev
 - Create individual accessioned isolate records before revival starts, grouped by the saved laboratory accession batch/range.
 - Add explicit, validated revival, Main Laboratory handoff, ID return, lyophilization, and biobank states.
 - Print a batch sheet containing one label per isolate. Each label and QR payload use the exact accession number, for example `26ARS_APM0001`.
-- Show the approved organism identifier and harvest date on the isolate label when available.
+- Show only the approved WHONET organism code (e.g., KPN), exact accession QR, printed accession, and harvest date (MM/DD/YYYY) on each compact isolate label.
 - Permit both LAB Encoder and Laboratory Staff to access the biobanking function after the required laboratory work is complete.
 - Preserve an auditable actor and timestamp for each custody/workflow transition.
 
@@ -207,3 +207,23 @@ Detailed scientific dates remain on `LaboratoryBiobank`; transition timestamps r
 - Update the Phase 2 living history with the approved workflow, migration, verification evidence, and remaining deployment gates.
 - Record any pre-existing full-suite failures separately from regressions.
 - Do not claim deployment, migration application, or production acceptance without direct evidence.
+
+## Implementation Clarifications — November 20, 2026
+
+These requirements supersede conflicting examples above.
+
+- Revival may fail or produce a non-viable isolate. LAB Encoder records a mandatory reason; **Revival failed** is eligible for an audited retry, while **Non-viable** is terminal. Unreconciled failures or mixed statuses block whole-batch transitions.
+- A successfully retried isolate retains its original revival-completion actor/time. Remaining in-progress isolates can subsequently complete together without overwriting that history.
+- Box position is the required storage location detail to mark an isolate biobanked. It may be provided in the standard, lyophilization, or supplementary storage position field.
+- The compact sticker displays the exact accession as text (e.g., `26ARS_APM0001`), a QR whose decoded content is **only that accession string**, the WHONET organism code (e.g., `KPN`) and the harvest date in `MM/DD/YYYY`. No full organism name or storage details appear.
+- A batch sticker sheet prints multiple complete stickers in accession order; incomplete rows are listed separately and omitted from the printable sticker grid. Printing is never recorded as a workflow transition.
+- LAB Encoder and Laboratory Staff can GET a laboratory-received worksheet, but its acceptance, accession, revival, and review mutations remain LAB Encoder/Admin-only. Main Laboratory personnel manage ID result entry/return; both lab roles may enter authorized biobank storage after lyophilization.
+
+## Feature Branch Implementation Evidence
+
+- Development branch: `feature/lab-revival-lyophilization-biobank-workflow`.
+- Database migration: `receiving.0006_laboratory_revival_biobank_stages`. It adds new states and audit columns, and maps legacy statuses conservatively.
+- State-transition implementation: `apps/receiving/laboratory_workflow.py`; role-checked routes in `laboratory_views.py`; worksheet/receipt separation in `views.py` and receiving templates.
+- Printable compact label: `apps/templates/receiving/lab_biobank_label.html` (single and per-accession-batch views).
+- Regression tests added/updated in `apps/receiving/tests.py` and `apps/home/tests.py` for role restrictions, invalid steps, retries, label QR payloads, date and storage validation, navigation, and migration mapping.
+- **Validation not yet performed:** local `python manage.py check`, `makemigrations --check --dry-run`, `python manage.py test apps.receiving apps.home`, and manual printed/scanned QR acceptance. Do not apply this migration to production or merge until these succeed.
