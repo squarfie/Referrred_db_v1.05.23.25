@@ -10,14 +10,26 @@
 <p class="receiving-hero-subtitle">{{ isolate.accession_range.laboratory_receiving.receipt.site.SiteCode }} · {{ isolate.get_status_display }}</p>
 </div></div><div class="receiving-hero-actions">
 <a href="{% url 'laboratory_worklist' %}" class="btn btn-outline-light">Back to Worklist</a>
-{% if isolate.status == 'reviewed' %}<a href="{% url 'laboratory_biobank_label' isolate.pk %}" target="_blank" class="btn btn-info"><i class="fas fa-print mr-1"></i>Biobank Sticker</a>{% endif %}
+{% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a href="{% url 'laboratory_biobank_label' isolate.pk %}" target="_blank" class="btn btn-info"><i class="fas fa-print mr-1"></i>Biobank Sticker</a>{% endif %}
 </div></header>
 <div class="receiving-content">
 <section class="receiving-surface receiving-form-card mb-4">
-<div class="receiving-card-header"><h2>Step 1 · ID testing handoff</h2><p>Laboratory Receiving assigns accessions and endorses them to the testing laboratory.</p></div>
+<div class="receiving-card-header"><h2>Step 1 · Revival and Main Laboratory ID handoff</h2><p>Laboratory Receiving revives accessioned isolates before endorsement to Main Laboratory.</p></div>
 <div class="receiving-card-body">
 <p><strong>Endorsed:</strong> {{ isolate.endorsed_at|date:"M j, Y g:i A"|default:"Not endorsed" }} &nbsp; <strong>Acknowledged:</strong> {{ isolate.acknowledged_at|date:"M j, Y g:i A"|default:"Pending" }}</p>
-{% if can_test and isolate.status == 'pending' %}
+{% if can_review and isolate.status == 'revival_queued' or can_review and isolate.status == 'revival_in_progress' %}
+<form method="post" action="{% url 'laboratory_revival_failed' isolate.pk %}" class="form-row align-items-end mb-3">
+{% csrf_token %}
+<div class="col-md-3"><label for="revival-status">Unsuccessful revival outcome</label><select id="revival-status" class="form-control" name="status" required>
+<option value="">Choose outcome</option><option value="revival_failed">Revival failed</option><option value="non_viable">Non-viable</option></select></div>
+<div class="col-md-6"><label for="revival-reason">Reason / observations</label><input id="revival-reason" class="form-control" name="reason" maxlength="1000" required></div>
+<div class="col-md-3"><button type="submit" class="btn btn-outline-danger mb-0">Record unsuccessful revival</button></div>
+</form>
+{% endif %}
+{% if isolate.status == 'revival_failed' or isolate.status == 'non_viable' %}
+<div class="alert alert-warning"><strong>{{ isolate.get_status_display }}</strong> — {{ isolate.revival_failed_reason }}. This isolate is blocked from further processing until reconciled.</div>
+{% endif %}
+{% if can_test and isolate.status == 'id_pending' %}
 <form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}
 <button class="btn btn-success" type="submit">Acknowledge isolate for ID testing</button></form>
 {% endif %}
@@ -26,7 +38,7 @@
 <section class="receiving-surface receiving-form-card mb-4">
 <div class="receiving-card-header"><h2>Step 2 · Identification results</h2><p>Each instrument result is preserved. Multiple results or retests can belong to the same accession.</p></div>
 <div class="receiving-card-body">
-{% if can_test and isolate.status == 'testing' %}
+{% if can_test and isolate.status == 'id_testing' %}
 <form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="form-row align-items-end mb-3">{% csrf_token %}
 <div class="col-md-5 mb-2"><label for="organism">Instrument-reported organism</label><input id="organism" name="organism_reported" class="form-control" maxlength="255" required></div>
 <div class="col-md-3 mb-2"><label for="instrument">Instrument</label><input id="instrument" name="instrument" class="form-control" maxlength="100"></div>
@@ -48,9 +60,9 @@
 <section class="receiving-surface receiving-form-card mb-4">
 <div class="receiving-card-header"><h2>Step 3 · Laboratory Receiving review</h2><p>Keep the instrument report unchanged; record the reviewed organism separately.</p></div>
 <div class="receiving-card-body">
-{% if isolate.status == 'reviewed' %}
+{% if isolate.status == 'id_reviewed' or isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}
 <p><strong>Approved organism:</strong> {{ isolate.final_organism }} &nbsp; <strong>Reviewed by:</strong> {{ isolate.reviewed_by|default:"—" }}</p>
-{% elif can_review and isolate.status == 'returned' %}
+{% elif can_review and isolate.status == 'id_returned' %}
 <form method="post" action="{% url 'laboratory_review_id' isolate.pk %}" class="form-row align-items-end">{% csrf_token %}
 <div class="col-md-7 mb-2"><label for="final-organism">Approved organism name</label><input id="final-organism" name="final_organism" maxlength="255" class="form-control" required></div>
 <div class="col-md-auto mb-2"><button class="btn btn-primary mb-0" type="submit">Accept identification</button></div></form>
@@ -60,20 +72,39 @@
 </div></section>
 
 <section class="receiving-surface receiving-form-card mb-4">
-<div class="receiving-card-header"><h2>Biobank inventory</h2><p>Storage details are independent of ID review. The final sticker contains only the accession and approved organism.</p></div>
+<div class="receiving-card-header"><h2>Step 4 · Lyophilization and harvest</h2>
+<p>LAB Encoder records the required scientific dates after reviewing the returned identification. Harvest date must be on or before lyophilization date.</p></div>
 <div class="receiving-card-body">
-{% if can_bank %}
+{% if isolate.status == 'id_reviewed' and can_review %}
+<form method="post" action="{% url 'laboratory_lyophilization_complete' isolate.pk %}" class="row align-items-end">
+{% csrf_token %}
+<div class="col-md-3 mb-2"><label for="lyo-harvest">Date harvested</label><input id="lyo-harvest" name="date_harvested" type="date" class="form-control" required></div>
+<div class="col-md-3 mb-2"><label for="lyo-date">Date lyophilized</label><input id="lyo-date" name="date_lyophilized" type="date" class="form-control" required></div>
+<div class="col-md-3 mb-2"><label for="lyo-whonet">WHONET code for label</label><input id="lyo-whonet" name="whonet_code" maxlength="30" class="form-control" placeholder="KPN" required></div>
+<div class="col-md-3 mb-2"><button class="btn btn-primary mb-0" type="submit">Complete lyophilization / harvest</button></div>
+</form>
+{% elif isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}
+<p><strong>Harvest date:</strong> {{ biobank.date_harvested|date:"m/d/Y" }}
+&nbsp; <strong>Lyophilization date:</strong> {{ biobank.date_lyophilized|date:"m/d/Y" }}
+&nbsp; <strong>WHONET code:</strong> {{ biobank.whonet_code|default:"Not entered" }}</p>
+{% else %}<p class="text-muted">Complete identification review before recording lyophilization and harvest.</p>{% endif %}
+</div></section>
+
+<section class="receiving-surface receiving-form-card mb-4">
+<div class="receiving-card-header"><h2>Step 5 · Biobank inventory</h2><p>Available after lyophilization and harvest. Record a position in box. Stickers show WHONET code, accession QR, and harvest date.</p></div>
+<div class="receiving-card-body">
+{% if can_bank and isolate.status == 'ready_for_biobank' or can_bank and isolate.status == 'biobanked' %}
 <form method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}">{% csrf_token %}
-<h3 class="h5 mb-3">Isolate identification and harvest</h3>
+<h3 class="h5 mb-3">Isolate information (recorded at lyophilization)</h3>
 <div class="row">
-<div class="col-md-3 mb-3"><label for="harvested">Date harvested</label><input id="harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control"></div>
+<div class="col-md-3 mb-3"><label for="harvested">Date harvested</label><input id="harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control" readonly></div>
 <div class="col-md-3 mb-3"><label for="whonet">Organism ID (WHONET code)</label><input id="whonet" name="whonet_code" value="{{ biobank.whonet_code|default:'' }}" class="form-control" maxlength="30"></div>
 <div class="col-md-3 mb-3"><label for="container">Container number/type</label><input id="container" name="container" value="{{ biobank.container|default:'' }}" class="form-control" maxlength="100"></div>
 <div class="col-md-3 mb-3"><label for="method">Preservation method</label><input id="method" name="preservation_method" value="{{ biobank.preservation_method|default:'' }}" class="form-control" maxlength="100"></div>
 </div>
 <h3 class="h5 mb-3">Lyophilization</h3>
 <div class="row">
-<div class="col-md-3 mb-3"><label for="date-lyo">Date lyophilized</label><input type="date" id="date-lyo" name="date_lyophilized" value="{{ biobank.date_lyophilized|date:'Y-m-d' }}" class="form-control"></div>
+<div class="col-md-3 mb-3"><label for="date-lyo">Date lyophilized</label><input type="date" id="date-lyo" name="date_lyophilized" value="{{ biobank.date_lyophilized|date:'Y-m-d' }}" class="form-control" readonly></div>
 <div class="col-md-3 mb-3"><label for="lyo-box">Box name</label><input id="lyo-box" name="lyo_box_name" value="{{ biobank.lyo_box_name|default:'' }}" maxlength="100" class="form-control"></div>
 <div class="col-md-2 mb-3"><label for="lyo-number">Box number</label><input id="lyo-number" name="lyo_box_number" value="{{ biobank.lyo_box_number|default:'' }}" maxlength="50" class="form-control"></div>
 <div class="col-md-2 mb-3"><label for="lyo-position">Position in box</label><input id="lyo-position" name="lyo_position" value="{{ biobank.lyo_position|default:'' }}" maxlength="50" class="form-control"></div>
@@ -101,7 +132,7 @@
 <div class="col-md-2 mb-3"><label for="position">Additional position</label><input id="position" name="box_position" value="{{ biobank.box_position|default:'' }}" class="form-control" maxlength="30"></div>
 <div class="col-md-4 mb-3"><label for="remarks">Remarks</label><input id="remarks" name="remarks" value="{{ biobank.remarks|default:'' }}" class="form-control"></div>
 </div>
-<button class="btn btn-primary" type="submit">Save biobank inventory</button>
+<p class="text-muted small">A position in box is required. Use Additional position, Lyophilization position, or Supplementary position.</p><button class="btn btn-primary" type="submit">Save biobank inventory</button>
 </form>
 {% elif biobank %}
 <p><strong>Harvested:</strong> {{ biobank.date_harvested|default:"—" }} · <strong>Method:</strong> {{ biobank.preservation_method|default:"—" }} · <strong>Storage:</strong> {{ biobank.storage_location|default:"—" }} / {{ biobank.storage_box|default:"—" }} / {{ biobank.box_position|default:"—" }}</p>
