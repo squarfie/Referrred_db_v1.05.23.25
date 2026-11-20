@@ -25,7 +25,7 @@ def can_confirm_lab_receipt(user):
 
 
 def can_permanently_delete_receipt(user):
-    return ROLE_ADMIN in get_user_roles(user)
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_SECRETARIAT})
 
 
 def _permission_required(checker):
