@@ -109,7 +109,7 @@ def retry_revival(isolate_id, user):
     if item.status != S.REVIVAL_FAILED:
         raise WorkflowError("Only Revival failed can be retried. Non-viable is closed.")
     siblings = LaboratoryIsolate.objects.select_for_update().filter(accession_range_id=item.accession_range_id)
-    permitted = (S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED)
+    permitted = (S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED, S.REVIVED)
     if siblings.exclude(status__in=permitted).exists():
         raise WorkflowError("Retry requires the entire batch to be in the active or failed revival stage.")
     item.status = S.REVIVAL_IN_PROGRESS
@@ -163,13 +163,14 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
     if harvest > lyoph:
         raise WorkflowError("Harvest date cannot be later than lyophilization date.")
     code = whonet_code.strip().upper()
+    if not code:
+        raise WorkflowError("WHONET organism code is required for the isolate label.")
     if len(code) > 30:
         raise WorkflowError("WHONET code exceeds 30 characters.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
     bank.date_harvested = harvest
     bank.date_lyophilized = lyoph
-    if code:
-        bank.whonet_code = code
+    bank.whonet_code = code
     bank.recorded_by = user
     bank.save()
     item.status = S.READY_FOR_BIOBANK
@@ -189,6 +190,10 @@ def save_biobank(isolate_id, details, user):
     if not position:
         raise WorkflowError("Position in box is required before the isolate is biobanked.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
+    # Scientific dates belong to lyophilization; storage edits must not rewrite them.
+    blocked = {"date_harvested", "date_lyophilized"}
+    if blocked.intersection(details):
+        raise WorkflowError("Harvest and lyophilization dates cannot be edited from storage.")
     for name, value in details.items():
         setattr(bank, name, value)
     bank.recorded_by = user
