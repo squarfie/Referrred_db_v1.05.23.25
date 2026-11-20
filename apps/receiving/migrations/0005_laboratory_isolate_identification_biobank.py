@@ -4,10 +4,16 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+def create_laboratory_staff_group(apps, schema_editor):
+    Group = apps.get_model("auth", "Group")
+    Group.objects.using(schema_editor.connection.alias).get_or_create(name="Laboratory Staff")
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("receiving", "0004_remove_laboratory_finalize"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+        ("auth", "0012_alter_user_first_name_max_length"),
     ]
 
     operations = [
@@ -97,4 +103,5 @@ class Migration(migrations.Migration):
             ],
             options={"db_table": "laboratory_biobank"},
         ),
+        migrations.RunPython(create_laboratory_staff_group, migrations.RunPython.noop),
     ]
