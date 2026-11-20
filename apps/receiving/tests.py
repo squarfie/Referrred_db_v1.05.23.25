@@ -1816,6 +1816,121 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         first.refresh_from_db()
         self.assertEqual(first.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
 
+    def test_early_stage_transitions_are_rejected_without_partial_updates(self):
+        accession = self.create_pending_accession()
+        self.assertEqual(self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "endorse"})).status_code, 302)
+        self.assertEqual(accession.isolate_records.count(), 0)
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(accession.isolate_records.count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(accession.isolate_records.count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_QUEUED).count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "start"}))
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "endorse"}))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS).count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVED).count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "endorse"}))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.ID_PENDING).count(), accession.isolate_count)
+
+    def test_revived_and_non_viable_mixed_batch_does_not_endorse(self):
+        accession = self.create_pending_accession()
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "start"}))
+        isolate = accession.isolate_records.first()
+        self.client.post(reverse("laboratory_revival_failed", kwargs={"isolate_id": isolate.pk}),
+                         {"status": "non_viable", "reason": "Lost during transport"})
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        self.assertFalse(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVED).exists())
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "endorse"}))
+        self.assertFalse(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.ID_PENDING).exists())
+
+    def test_lab_staff_cannot_perform_revival_or_lyophilization_actions(self):
+        accession = self.create_pending_accession()
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        isolate = accession.isolate_records.first()
+        staff = User.objects.create_user(username="revival-read-only", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(reverse("laboratory_receiving_workspace",
+            kwargs={"receiving_id": self.receipt.receiving_id})).status_code, 200)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "start"}))
+        self.client.post(reverse("laboratory_revival_failed", kwargs={"isolate_id": isolate.pk}),
+                         {"status": "non_viable", "reason": "Unauthorized"})
+        self.client.post(reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}), {
+            "date_harvested": "2026-11-19", "date_lyophilized": "2026-11-19", "whonet_code": "KPN",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.REVIVAL_QUEUED)
+        self.assertEqual(isolate.revival_failed_reason, "")
+        self.assertEqual(isolate.lyophilization_completed_at, None)
+
+    def test_all_revival_transitions_require_post(self):
+        accession = self.create_pending_accession()
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        isolate = accession.isolate_records.first()
+        urls = [
+            reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}),
+            reverse("laboratory_batch_transition",
+                    kwargs={"accession_id": accession.pk, "action": "start"}),
+            reverse("laboratory_revival_failed", kwargs={"isolate_id": isolate.pk}),
+            reverse("laboratory_revival_retry", kwargs={"isolate_id": isolate.pk}),
+            reverse("laboratory_revival_retry_complete", kwargs={"isolate_id": isolate.pk}),
+            reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}),
+            reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}),
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 405)
+
+    def test_legacy_status_migration_keeps_identification_and_storage_records(self):
+        from django.apps import apps as django_apps
+        from importlib import import_module
+        accession = self.create_pending_accession()
+        rows = [
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number, status=legacy,
+                final_organism="Klebsiella pneumoniae" if legacy == "reviewed" else "",
+            ) for number, legacy in zip(accession.accession_numbers,
+                ("pending", "testing", "returned", "reviewed"))
+        ]
+        LaboratoryIdentification.objects.create(
+            isolate=rows[2], organism_reported="Klebsiella pneumoniae", recorded_by=self.lab_user)
+        LaboratoryBiobank.objects.create(
+            isolate=rows[3], whonet_code="KPN",
+            date_harvested=date(2026, 11, 19), date_lyophilized=date(2026, 11, 19),
+            box_position="A1", recorded_by=self.lab_user,
+        )
+        migration = import_module("apps.receiving.migrations.0006_laboratory_revival_biobank_stages")
+        schema = SimpleNamespace(connection=SimpleNamespace(alias="default"))
+        migration.migrate_legacy_isolates(django_apps, schema)
+        for item, expected in zip(rows, (
+            LaboratoryIsolate.Status.ID_PENDING, LaboratoryIsolate.Status.ID_TESTING,
+            LaboratoryIsolate.Status.ID_RETURNED, LaboratoryIsolate.Status.BIOBANKED,
+        )):
+            item.refresh_from_db()
+            self.assertEqual(item.status, expected)
+        self.assertEqual(rows[2].identifications.count(), 1)
+        self.assertEqual(rows[3].biobank.whonet_code, "KPN")
+        self.assertEqual(rows[3].biobank.box_position, "A1")
+
     def test_id_csv_upload_preview_and_commit(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
