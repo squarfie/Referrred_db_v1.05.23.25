@@ -520,7 +520,7 @@ def _register_context(request):
 
 
 @login_required
-@receiving_read_required
+@lab_receiving_read_required
 def laboratory_receiving_register(request):
     form, month, year, _records, rows, totals, organism_totals = _register_context(request)
     return render(request, "receiving/laboratory_register.html", {
@@ -532,7 +532,7 @@ def laboratory_receiving_register(request):
 
 
 @login_required
-@receiving_read_required
+@lab_receiving_read_required
 def laboratory_receiving_register_pdf(request):
     _form, month, year, records, _rows, _totals, _organism_totals = _register_context(request)
     response = HttpResponse(render_register_pdf(records, month, year), content_type="application/pdf")
