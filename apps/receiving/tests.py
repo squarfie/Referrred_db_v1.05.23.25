@@ -122,13 +122,13 @@ class ReceivingPermissionTests(TestCase):
         self.assertFalse(permissions.can_manage_secretariat_receiving(user))
         self.assertTrue(permissions.can_confirm_lab_receipt(user))
 
-    def test_admin_can_read_and_manage_but_not_confirm_lab_receipt(self):
+    def test_admin_can_manage_secretariat_and_confirm_laboratory_receipt(self):
         permissions = self.receiving_permissions()
         user = self.create_user_with_roles("admin_permissions", is_superuser=True)
 
         self.assertTrue(permissions.can_read_receiving(user))
         self.assertTrue(permissions.can_manage_secretariat_receiving(user))
-        self.assertFalse(permissions.can_confirm_lab_receipt(user))
+        self.assertTrue(permissions.can_confirm_lab_receipt(user))
 
     def test_unrelated_role_has_no_receiving_access(self):
         permissions = self.receiving_permissions()
