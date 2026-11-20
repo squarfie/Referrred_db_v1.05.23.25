@@ -12,7 +12,7 @@
       </div>
     </div>
     <div class="receiving-hero-actions">
-      <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_register' %}"><i class="fas fa-file-alt mr-2"></i>Monthly Inventory</a>
+      {% if is_lab_worklist %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_register' %}"><i class="fas fa-file-alt mr-2"></i>Monthly Inventory</a>{% endif %}
       {% if can_manage_secretariat %}<a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>{% endif %}
     </div>
   </header>
@@ -69,10 +69,10 @@
               {% endif %}
               {% if can_confirm_lab and receipt.status == 'endorsed' %}
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm receipt</a>
-              {% elif can_confirm_lab and receipt.status == 'lab_received' %}
-                <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Update / Create Batch</a>
+              {% elif can_read_lab and receipt.status == 'lab_received' %}
+                <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Open worksheet</a>
               {% endif %}
-              <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Open</a>
+              <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_worklist %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}">Open</a>
             </td>
           </tr>
         {% empty %}

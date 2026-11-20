@@ -122,13 +122,13 @@ class ReceivingPermissionTests(TestCase):
         self.assertFalse(permissions.can_manage_secretariat_receiving(user))
         self.assertTrue(permissions.can_confirm_lab_receipt(user))
 
-    def test_admin_can_read_and_manage_but_not_confirm_lab_receipt(self):
+    def test_admin_can_manage_secretariat_and_confirm_laboratory_receipt(self):
         permissions = self.receiving_permissions()
         user = self.create_user_with_roles("admin_permissions", is_superuser=True)
 
         self.assertTrue(permissions.can_read_receiving(user))
         self.assertTrue(permissions.can_manage_secretariat_receiving(user))
-        self.assertFalse(permissions.can_confirm_lab_receipt(user))
+        self.assertTrue(permissions.can_confirm_lab_receipt(user))
 
     def test_unrelated_role_has_no_receiving_access(self):
         permissions = self.receiving_permissions()
@@ -741,28 +741,43 @@ class ReceivingViewTests(TestCase):
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
 
-    def test_lab_encoder_can_confirm_receipt_but_secretariat_and_admin_cannot(self):
+    def test_lab_encoder_and_admin_can_confirm_receipt_but_secretariat_cannot(self):
         receipt = self.create_receipt(status=ReferralReceipt.Status.ENDORSED)
         url = self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id)
         payload = {"lab_date_received": "2026-11-12", "lab_time_received": "10:00"}
 
-        for denied_user in (self.secretariat, self.admin):
-            self.client.force_login(denied_user)
-            denied = self.client.post(url, payload)
-            self.assertEqual(denied.status_code, 302)
-            receipt.refresh_from_db()
-            self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.secretariat)
+        denied = self.client.post(url, payload)
+        self.assertEqual(denied.status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
 
         self.client.force_login(self.lab_encoder)
         confirmed = self.client.post(url, payload)
-
         self.assertRedirects(
             confirmed,
-            self.route("receiving_detail", receiving_id=receipt.receiving_id),
+            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+            fetch_redirect_response=False,
         )
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.LAB_RECEIVED)
         self.assertEqual(receipt.lab_received_by, self.lab_encoder)
+
+    def test_admin_can_confirm_endorsed_laboratory_receipt(self):
+        receipt = self.create_receipt(status=ReferralReceipt.Status.ENDORSED)
+        url = self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id)
+        self.client.force_login(self.admin)
+        response = self.client.post(url, {
+            "lab_date_received": "2026-11-12", "lab_time_received": "10:00",
+        })
+        self.assertRedirects(
+            response,
+            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+            fetch_redirect_response=False,
+        )
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.LAB_RECEIVED)
+        self.assertEqual(receipt.lab_received_by, self.admin)
 
     def test_stale_endorsement_does_not_duplicate_event(self):
         receipt = self.create_receipt(status=ReferralReceipt.Status.ENDORSED)
@@ -990,15 +1005,104 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, "Endorse to laboratory")
         self.assertNotContains(response, "Confirm laboratory receipt")
 
+    def test_secretariat_receipt_links_never_expose_laboratory_worksheet(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.secretariat)
+        response = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertContains(response, 'href="' + self.route("secretariat_receiving_dashboard") + '"', html=False)
+        self.assertNotContains(response, "Open laboratory worksheet")
+        self.assertNotContains(response, "Confirm laboratory receipt")
+        self.assertNotContains(response, "Update Lab Receiving")
+        self.assertNotContains(response, "The LAB Encoder can now")
+
+    def test_laboratory_receipt_detail_buttons_stay_in_laboratory_queue(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        lab_url = self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
+        lab_queue_url = self.route("laboratory_receiving_dashboard")
+        response = self.client.get(lab_url)
+        self.assertContains(response, 'href="' + lab_queue_url + '"', html=False)
+        self.assertContains(response, 'href="' + self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id) + '"', html=False)
+        self.assertNotContains(response, "Endorse to laboratory")
+        self.assertNotContains(response, "New receipt")
+        self.assertNotContains(response, "Print batch label")
+        self.assertNotContains(response, "Open laboratory worksheet")
+
+    def test_lab_receipt_confirm_form_back_and_cancel_link_to_lab_detail(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id))
+        target = self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
+        self.assertContains(response, 'href="' + target + '"', count=2, html=False)
+        self.assertNotContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
+
+    def test_lab_dashboard_open_links_to_lab_specific_record(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(self.route("laboratory_receiving_dashboard"))
+        self.assertContains(response, 'href="' + self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
+        self.assertNotContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
+
+    def test_secretariat_dashboard_open_links_to_secretariat_record(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
+        self.client.force_login(self.secretariat)
+        response = self.client.get(self.route("secretariat_receiving_dashboard"))
+        self.assertContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
+        self.assertNotContains(response, 'href="' + self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
+
+    def test_lab_staff_legacy_receiving_url_and_detail_use_laboratory_views(self):
+        lab_staff = self.create_user("template_laboratory_staff", home_permissions.ROLE_LAB_STAFF)
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(lab_staff)
+        dashboard = self.client.get(self.route("receiving_dashboard"))
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertContains(dashboard, "Pending Lab Receipt")
+        self.assertNotContains(dashboard, "New receipt")
+        legacy = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertRedirects(legacy, self.route(
+            "laboratory_receiving_detail", receiving_id=receipt.receiving_id
+        ), fetch_redirect_response=False)
+        lab_detail = self.client.get(self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertContains(lab_detail, "Open laboratory worksheet")
+        self.assertNotContains(lab_detail, "Print batch label")
+        self.assertNotContains(lab_detail, "Endorse to laboratory")
+
+    def test_monthly_register_back_and_access_remain_laboratory_only(self):
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(self.route("laboratory_receiving_register"))
+        self.assertContains(response,
+            'href="' + self.route("laboratory_receiving_dashboard") + '"', html=False)
+        self.client.force_login(self.secretariat)
+        denied = self.client.get(self.route("laboratory_receiving_register"))
+        self.assertRedirects(denied, self.route("home"), fetch_redirect_response=False)
+        secretariat_dashboard = self.client.get(self.route("secretariat_receiving_dashboard"))
+        self.assertNotContains(secretariat_dashboard, "Monthly Inventory")
+        self.assertNotContains(secretariat_dashboard, "Open worksheet")
+
+    def test_secretariat_new_receipt_back_and_cancel_stay_secretariat(self):
+        self.client.force_login(self.secretariat)
+        response = self.client.get(self.route("receiving_create"))
+        self.assertContains(response,
+            'href="' + self.route("secretariat_receiving_dashboard") + '"',
+            count=3, html=False)
+
     def test_lab_encoder_sees_only_confirmation_for_endorsed_receipt(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.lab_encoder)
 
-        response = self.client.get(
+        legacy = self.client.get(
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
-
+        self.assertRedirects(
+            legacy,
+            self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id),
+            fetch_redirect_response=False,
+        )
+        response = self.client.get(
+            self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
+        )
         self.assertContains(response, "Confirm laboratory receipt")
+        self.assertContains(response, 'href="' + self.route("laboratory_receiving_dashboard") + '"', html=False)
         self.assertNotContains(response, "Print batch label")
         self.assertNotContains(response, "Endorse to laboratory")
 
@@ -1021,7 +1125,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
 
-        self.assertContains(response, "Custody confirmed")
+        self.assertContains(response, "Laboratory custody confirmed")
         self.assertNotContains(response, "Endorse to laboratory")
         self.assertNotContains(response, "Confirm laboratory receipt")
 
@@ -1053,7 +1157,12 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(laboratory_dashboard, "Confirm receipt")
         self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
-        self.assertContains(detail, "Confirm laboratory receipt")
+        self.assertNotContains(detail, "Confirm laboratory receipt")
+        lab_detail = self.client.get(
+            self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
+        )
+        self.assertContains(lab_detail, "Confirm laboratory receipt")
+        self.assertNotContains(lab_detail, "Endorse to laboratory")
 
     def test_detail_displays_events_in_chronological_order(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
@@ -1363,10 +1472,10 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_lab_encoder_sees_prominent_workspace_action_on_custody_record(self):
         response = self.client.get(
-            reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
+            reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
         )
 
-        self.assertContains(response, "Update Lab Receiving")
+        self.assertContains(response, "Open laboratory worksheet")
         self.assertContains(
             response,
             reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}),
@@ -1431,7 +1540,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 1: Receiving and acceptance summary",
             "Step 2: Accessioning",
             "Step 3: Organism inventory",
-            "Step 4: Batch generation",
+            "Step 4: Revival and endorsement to Main Laboratory",
+            "Step 5: Batch generation",
         ]
         positions = [text.index(label) for label in labels]
         self.assertEqual(positions, sorted(positions))
@@ -1577,80 +1687,295 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertContains(response, "Batch code already exists")
         self.assertContains(response, 'aria-disabled="true"')
 
+    def _queue_and_endorse_to_main_lab(self, accession):
+        start_url = reverse("laboratory_batch_transition", kwargs={"accession_id": accession.pk, "action": "start"})
+        complete_url = reverse("laboratory_batch_transition", kwargs={"accession_id": accession.pk, "action": "complete"})
+        endorse_url = reverse("laboratory_batch_transition", kwargs={"accession_id": accession.pk, "action": "endorse"})
+        self.assertEqual(self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk})).status_code, 302)
+        self.assertEqual(self.client.post(start_url).status_code, 302)
+        self.assertEqual(self.client.post(complete_url).status_code, 302)
+        self.assertEqual(self.client.post(endorse_url).status_code, 302)
+        self.assertEqual(
+            accession.isolate_records.filter(status=LaboratoryIsolate.Status.ID_PENDING).count(),
+            accession.isolate_count,
+        )
+
     def test_id_handoff_and_review_follow_roles(self):
         accession = self.create_pending_accession()
-        endorsed = self.client.post(reverse(
-            "laboratory_endorse_id", kwargs={"accession_id": accession.pk}
-        ))
-        self.assertEqual(endorsed.status_code, 302)
-        self.assertEqual(accession.isolate_records.count(), 5)
+        self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.order_by("accession_number").first()
-        self.assertEqual(isolate.status, LaboratoryIsolate.Status.PENDING)
-
         staff = User.objects.create_user(username="id-laboratory-staff", password="test-pass")
-        staff.groups.add(Group.objects.get_or_create(
-            name=home_permissions.ROLE_LAB_STAFF
-        )[0])
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
         self.client.force_login(staff)
         self.assertEqual(self.client.get(reverse("laboratory_worklist")).status_code, 200)
-        self.assertEqual(self.client.get(reverse(
-            "laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk}
-        )).status_code, 200)
+        self.assertEqual(self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk})).status_code, 200)
 
-        # Laboratory staff cannot assign accession ranges.
-        denial = self.client.post(reverse(
-            "laboratory_accession_add",
-            kwargs={"receiving_id": self.receipt.receiving_id},
-        ), {})
+        denial = self.client.post(reverse("laboratory_accession_add",
+            kwargs={"receiving_id": self.receipt.receiving_id}), {})
         self.assertEqual(denial.status_code, 302)
 
-        acknowledged = self.client.post(reverse(
-            "laboratory_acknowledge_id", kwargs={"isolate_id": isolate.pk}
-        ))
-        self.assertEqual(acknowledged.status_code, 302)
-        recorded = self.client.post(reverse(
-            "laboratory_record_id", kwargs={"isolate_id": isolate.pk}
-        ), {"organism_reported": "Escherichia coli", "instrument": "ID system"})
-        self.assertEqual(recorded.status_code, 302)
+        self.client.post(reverse("laboratory_acknowledge_id", kwargs={"isolate_id": isolate.pk}))
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_TESTING)
+        self.client.post(reverse("laboratory_record_id", kwargs={"isolate_id": isolate.pk}), {
+            "organism_reported": "Klebsiella pneumoniae", "instrument": "ID system",
+        })
         self.assertEqual(isolate.identifications.count(), 1)
         self.client.post(reverse("laboratory_return_id", kwargs={"isolate_id": isolate.pk}))
         isolate.refresh_from_db()
-        self.assertEqual(isolate.status, LaboratoryIsolate.Status.RETURNED)
-
-        # Laboratory staff cannot approve its own result.
-        self.client.post(reverse(
-            "laboratory_review_id", kwargs={"isolate_id": isolate.pk}
-        ), {"final_organism": "Escherichia coli"})
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
+        self.client.post(reverse("laboratory_review_id", kwargs={"isolate_id": isolate.pk}),
+                         {"final_organism": "Klebsiella pneumoniae"})
         isolate.refresh_from_db()
-        self.assertEqual(isolate.status, LaboratoryIsolate.Status.RETURNED)
-
-        self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
-            "date_harvested": "2026-11-19",
-            "storage_location": "Freezer A", "storage_box": "Box 12",
-            "box_position": "B4", "container": "Cryovial",
-            "preservation_method": "Freezing",
-        })
-        self.assertEqual(isolate.biobank.storage_box, "Box 12")
-        self.assertEqual(self.client.get(reverse(
-            "laboratory_biobank_label", kwargs={"isolate_id": isolate.pk}
-        )).status_code, 302)
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
+        self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}),
+                         {"box_position": "B4"})
+        self.assertFalse(LaboratoryBiobank.objects.filter(isolate=isolate).exists())
 
         self.client.force_login(self.lab_user)
-        self.client.post(reverse(
-            "laboratory_review_id", kwargs={"isolate_id": isolate.pk}
-        ), {"final_organism": "Escherichia coli"})
+        self.client.post(reverse("laboratory_review_id", kwargs={"isolate_id": isolate.pk}),
+                         {"final_organism": "Klebsiella pneumoniae"})
         isolate.refresh_from_db()
-        self.assertEqual(isolate.status, LaboratoryIsolate.Status.REVIEWED)
-        sticker = self.client.get(reverse(
-            "laboratory_biobank_label", kwargs={"isolate_id": isolate.pk}
-        ))
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
+        self.client.post(reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}), {
+            "date_harvested": "2026-11-19", "date_lyophilized": "2026-11-19", "whonet_code": "KPN",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+        self.client.force_login(staff)
+        self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
+            "storage_location": "Freezer A", "storage_box": "Box 12",
+            "box_position": "B4", "container": "Cryovial", "preservation_method": "Freezing",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.BIOBANKED)
+        self.assertEqual(isolate.biobank.storage_box, "Box 12")
+        sticker = self.client.get(reverse("laboratory_biobank_label", kwargs={"isolate_id": isolate.pk}))
+        self.assertEqual(sticker.status_code, 200)
+        self.assertContains(sticker, "KPN")
         self.assertContains(sticker, isolate.accession_number)
-        self.assertContains(sticker, "Escherichia coli")
+        self.assertContains(sticker, "11/19/2026")
+        self.assertNotContains(sticker, "Klebsiella pneumoniae")
         self.assertNotContains(sticker, "Freezer A")
+
+    def test_revival_failed_retry_and_nonviable_are_audited(self):
+        accession = self.create_pending_accession()
+        from apps.receiving.laboratory_workflow import WorkflowError, retry_revival, complete_revival_isolate
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "start"}))
+        first, second = list(accession.isolate_records.order_by("accession_number")[:2])
+        failed = reverse("laboratory_revival_failed", kwargs={"isolate_id": first.pk})
+        self.client.post(failed, {"status": "revival_failed", "reason": "Contamination"})
+        first.refresh_from_db()
+        self.assertEqual(first.status, LaboratoryIsolate.Status.REVIVAL_FAILED)
+        self.assertIn("Contamination", first.revival_failed_reason)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        self.assertEqual(
+            accession.isolate_records.filter(status=LaboratoryIsolate.Status.REVIVED).count(), 0
+        )
+        self.client.post(reverse("laboratory_revival_retry", kwargs={"isolate_id": first.pk}))
+        first.refresh_from_db()
+        self.assertEqual(first.revival_retry_count, 1)
+        self.assertEqual(first.status, LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS)
+        self.client.post(reverse("laboratory_revival_retry_complete", kwargs={"isolate_id": first.pk}))
+        first.refresh_from_db()
+        self.assertEqual(first.status, LaboratoryIsolate.Status.REVIVED)
+        self.assertEqual(first.revival_retry_count, 1)
+        # Still-in-progress isolates are completed in one atomic batch update.
+        # The previously retried isolate retains its original completion audit.
+        previous_completion = first.revival_completed_at
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        first.refresh_from_db()
+        self.assertEqual(first.revival_completed_at, previous_completion)
+        self.assertEqual(
+            accession.isolate_records.filter(status=LaboratoryIsolate.Status.REVIVED).count(),
+            accession.isolate_count,
+        )
+        # A separate failed isolate must be tested using a new accession batch.
+        second.status = LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS
+        second.save(update_fields=("status",))
+        self.client.post(reverse("laboratory_revival_failed", kwargs={"isolate_id": second.pk}),
+                         {"status": "non_viable", "reason": "Not recoverable"})
+        second.refresh_from_db()
+        self.assertEqual(second.status, LaboratoryIsolate.Status.NON_VIABLE)
+        with self.assertRaises(WorkflowError):
+            retry_revival(second.pk, self.lab_user)
+
+    def test_batch_stickers_print_only_complete_isolates_in_accession_order(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        first, second = list(accession.isolate_records.order_by("accession_number")[:2])
+        for isolate, code in ((first, "KPN"), (second, "ECO")):
+            isolate.status = LaboratoryIsolate.Status.READY_FOR_BIOBANK
+            isolate.final_organism = "Klebsiella pneumoniae" if code == "KPN" else "Escherichia coli"
+            isolate.save(update_fields=("status", "final_organism"))
+            LaboratoryBiobank.objects.create(
+                isolate=isolate, whonet_code=code, date_harvested=date(2026, 11, 19),
+                date_lyophilized=date(2026, 11, 19),
+            )
+        response = self.client.get(reverse("laboratory_batch_labels",
+                                           kwargs={"accession_id": accession.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["labels"]), 2)
+        self.assertEqual(len(response.context["unready"]), accession.isolate_count - 2)
+        self.assertLess(response.content.index(first.accession_number.encode()),
+                        response.content.index(second.accession_number.encode()))
+        self.assertContains(response, "KPN")
+        self.assertContains(response, "ECO")
+        self.assertContains(response, "11/19/2026")
+        self.assertNotContains(response, "Klebsiella pneumoniae")
+        self.assertContains(response, "data:image/png;base64,")
+        first.refresh_from_db()
+        self.assertEqual(first.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+
+    def test_early_stage_transitions_are_rejected_without_partial_updates(self):
+        accession = self.create_pending_accession()
+        self.assertEqual(self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "endorse"})).status_code, 302)
+        self.assertEqual(accession.isolate_records.count(), 0)
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(accession.isolate_records.count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(accession.isolate_records.count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_QUEUED).count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "start"}))
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "endorse"}))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS).count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVED).count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "endorse"}))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.ID_PENDING).count(), accession.isolate_count)
+
+    def test_revived_and_non_viable_mixed_batch_does_not_endorse(self):
+        accession = self.create_pending_accession()
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "start"}))
+        isolate = accession.isolate_records.first()
+        self.client.post(reverse("laboratory_revival_failed", kwargs={"isolate_id": isolate.pk}),
+                         {"status": "non_viable", "reason": "Lost during transport"})
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "complete"}))
+        self.assertFalse(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVED).exists())
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "endorse"}))
+        self.assertFalse(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.ID_PENDING).exists())
+
+    def test_lab_staff_cannot_perform_revival_or_lyophilization_actions(self):
+        accession = self.create_pending_accession()
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        isolate = accession.isolate_records.first()
+        staff = User.objects.create_user(username="revival-read-only", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(reverse("laboratory_receiving_workspace",
+            kwargs={"receiving_id": self.receipt.receiving_id})).status_code, 200)
+        self.client.post(reverse("laboratory_batch_transition",
+            kwargs={"accession_id": accession.pk, "action": "start"}))
+        self.client.post(reverse("laboratory_revival_failed", kwargs={"isolate_id": isolate.pk}),
+                         {"status": "non_viable", "reason": "Unauthorized"})
+        self.client.post(reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}), {
+            "date_harvested": "2026-11-19", "date_lyophilized": "2026-11-19", "whonet_code": "KPN",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.REVIVAL_QUEUED)
+        self.assertEqual(isolate.revival_failed_reason, "")
+        self.assertEqual(isolate.lyophilization_completed_at, None)
+
+    def test_all_revival_transitions_require_post(self):
+        accession = self.create_pending_accession()
+        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        isolate = accession.isolate_records.first()
+        urls = [
+            reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}),
+            reverse("laboratory_batch_transition",
+                    kwargs={"accession_id": accession.pk, "action": "start"}),
+            reverse("laboratory_revival_failed", kwargs={"isolate_id": isolate.pk}),
+            reverse("laboratory_revival_retry", kwargs={"isolate_id": isolate.pk}),
+            reverse("laboratory_revival_retry_complete", kwargs={"isolate_id": isolate.pk}),
+            reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}),
+            reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}),
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 405)
+
+    def test_legacy_status_migration_keeps_identification_and_storage_records(self):
+        from django.apps import apps as django_apps
+        from importlib import import_module
+        accession = self.create_pending_accession()
+        rows = [
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number, status=legacy,
+                final_organism="Klebsiella pneumoniae" if legacy == "reviewed" else "",
+            ) for number, legacy in zip(accession.accession_numbers,
+                ("pending", "testing", "returned", "reviewed"))
+        ]
+        LaboratoryIdentification.objects.create(
+            isolate=rows[2], organism_reported="Klebsiella pneumoniae", recorded_by=self.lab_user)
+        LaboratoryBiobank.objects.create(
+            isolate=rows[3], whonet_code="KPN",
+            date_harvested=date(2026, 11, 19), date_lyophilized=date(2026, 11, 19),
+            box_position="A1", recorded_by=self.lab_user,
+        )
+        migration = import_module("apps.receiving.migrations.0006_laboratory_revival_biobank_stages")
+        schema = SimpleNamespace(connection=SimpleNamespace(alias="default"))
+        migration.migrate_legacy_isolates(django_apps, schema)
+        for item, expected in zip(rows, (
+            LaboratoryIsolate.Status.ID_PENDING, LaboratoryIsolate.Status.ID_TESTING,
+            LaboratoryIsolate.Status.ID_RETURNED, LaboratoryIsolate.Status.BIOBANKED,
+        )):
+            item.refresh_from_db()
+            self.assertEqual(item.status, expected)
+        self.assertEqual(rows[2].identifications.count(), 1)
+        self.assertEqual(rows[3].biobank.whonet_code, "KPN")
+        self.assertEqual(rows[3].biobank.box_position, "A1")
+
+    def test_migration_keeps_ambiguous_reviewed_rows_at_earliest_proven_stage(self):
+        from django.apps import apps as django_apps
+        from importlib import import_module
+        accession = self.create_pending_accession()
+        first, second = [
+            LaboratoryIsolate.objects.create(
+                accession_range=accession,
+                accession_number=number,
+                status="reviewed",
+                final_organism="Klebsiella pneumoniae",
+            ) for number in accession.accession_numbers[:2]
+        ]
+        LaboratoryBiobank.objects.create(
+            isolate=second, whonet_code="KPN",
+            date_harvested=date(2026, 11, 19),
+            date_lyophilized=date(2026, 11, 19),
+        )
+        migration = import_module("apps.receiving.migrations.0006_laboratory_revival_biobank_stages")
+        schema = SimpleNamespace(connection=SimpleNamespace(alias="default"))
+        migration.migrate_legacy_isolates(django_apps, schema)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, LaboratoryIsolate.Status.ID_REVIEWED)
+        self.assertEqual(second.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+        self.assertEqual(second.biobank.whonet_code, "KPN")
+        self.assertFalse(second.biobank.box_position)
 
     def test_id_csv_upload_preview_and_commit(self):
         accession = self.create_pending_accession()
-        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.order_by("accession_number").first()
         staff = User.objects.create_user(username="csv-laboratory-staff", password="test-pass")
         staff.groups.add(Group.objects.get_or_create(
@@ -1681,17 +2006,25 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_biobank_form_records_lyophilization_and_supplementary_storage(self):
         accession = self.create_pending_accession()
-        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()
+        isolate.final_organism = "Escherichia coli"
+        isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
+        isolate.save(update_fields=("final_organism", "status"))
+        self.client.post(reverse("laboratory_lyophilization_complete",
+            kwargs={"isolate_id": isolate.pk}), {
+                "date_harvested": "2026-11-19",
+                "date_lyophilized": "2026-11-19",
+                "whonet_code": "ECO",
+            })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
         staff = User.objects.create_user(username="biobank-lab-staff", password="test-pass")
-        staff.groups.add(Group.objects.get_or_create(
-            name=home_permissions.ROLE_LAB_STAFF
-        )[0])
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
         self.client.force_login(staff)
-        response = self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
+        response = self.client.post(reverse("laboratory_biobank_save",
+            kwargs={"isolate_id": isolate.pk}), {
             "whonet_code": "ECO",
-            "date_harvested": "2026-11-19",
-            "date_lyophilized": "2026-11-19",
             "lyo_box_name": "LAB BOX", "lyo_box_number": "2",
             "lyo_position": "C3", "refrigerator_number": "1",
             "lyo_location": "Room 1",
@@ -1708,11 +2041,102 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         biobank = LaboratoryBiobank.objects.get(isolate=isolate)
         self.assertEqual(biobank.whonet_code, "ECO")
         self.assertEqual(biobank.lyo_box_name, "LAB BOX")
+        self.assertEqual(biobank.date_harvested, date(2026, 11, 19))
+        self.assertEqual(biobank.date_lyophilized, date(2026, 11, 19))
         self.assertTrue(biobank.skimmed_milk)
         self.assertTrue(biobank.tsbg)
         self.assertEqual(biobank.supplementary_position, "B2")
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.BIOBANKED)
         self.assertEqual(self.client.get(reverse("laboratory_biobank_list")).status_code, 200)
 
+    def test_batch_sticker_qr_encodes_exact_accession_only(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        first, second = list(accession.isolate_records.order_by("accession_number")[:2])
+        for isolate, code in ((first, "KPN"), (second, "ECO")):
+            isolate.status = LaboratoryIsolate.Status.READY_FOR_BIOBANK
+            isolate.final_organism = "Klebsiella pneumoniae"
+            isolate.save(update_fields=("status", "final_organism"))
+            LaboratoryBiobank.objects.create(
+                isolate=isolate, whonet_code=code,
+                date_harvested=date(2026, 11, 19),
+                date_lyophilized=date(2026, 11, 19),
+            )
+        with patch("apps.receiving.laboratory_views.render_qr_png",
+                   return_value=b"PNG SAMPLE") as qr:
+            response = self.client.get(reverse("laboratory_batch_labels",
+                kwargs={"accession_id": accession.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(qr.call_count, 2)
+        self.assertEqual([call.args[0] for call in qr.call_args_list],
+                         [first.accession_number, second.accession_number])
+        self.assertNotIn("https://", str(qr.call_args_list))
+        self.assertEqual(len(response.context["labels"]), 2)
+
+    def test_storage_cannot_rewrite_scientific_dates_or_whonet_code(self):
+        from apps.receiving.laboratory_workflow import save_biobank, WorkflowError
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.READY_FOR_BIOBANK
+        isolate.final_organism = "Klebsiella pneumoniae"
+        isolate.save(update_fields=("status", "final_organism"))
+        bank = LaboratoryBiobank.objects.create(
+            isolate=isolate, whonet_code="KPN",
+            date_harvested=date(2026, 11, 19),
+            date_lyophilized=date(2026, 11, 19),
+        )
+        with self.assertRaises(WorkflowError):
+            save_biobank(isolate.pk, {
+                "box_position": "A1", "whonet_code": "ECO",
+            }, self.lab_user)
+        bank.refresh_from_db()
+        isolate.refresh_from_db()
+        self.assertEqual(bank.whonet_code, "KPN")
+        self.assertEqual(bank.box_position, "")
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+
+    def test_biobank_save_without_box_position_does_not_advance(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.READY_FOR_BIOBANK
+        isolate.final_organism = "Klebsiella pneumoniae"
+        isolate.save(update_fields=("status", "final_organism"))
+        LaboratoryBiobank.objects.create(
+            isolate=isolate, whonet_code="KPN",
+            date_harvested=date(2026, 11, 19),
+            date_lyophilized=date(2026, 11, 19),
+        )
+        response = self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
+            "storage_box": "Box A", "storage_location": "Room 1",
+        })
+        self.assertEqual(response.status_code, 302)
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+        self.assertEqual(isolate.biobank.storage_box, "")
+
+    def test_lyophilization_rejects_early_future_or_reverse_dates(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        url = reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk})
+        self.client.post(url, {"date_harvested": "2026-11-19",
+                               "date_lyophilized": "2026-11-19", "whonet_code": "KPN"})
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_PENDING)
+        isolate.final_organism = "Klebsiella pneumoniae"
+        isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
+        isolate.save(update_fields=("final_organism", "status"))
+        for start, end in (("2026-11-20", "2026-11-19"),
+                           ("2099-12-01", "2099-12-02"),
+                           ("2026-11-18", "2026-11-19")):
+            self.client.post(url, {"date_harvested": start,
+                                   "date_lyophilized": end, "whonet_code": "KPN"})
+            isolate.refresh_from_db()
+            self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
+        self.assertFalse(LaboratoryBiobank.objects.filter(isolate=isolate).exists())
     def test_invalid_id_workbook_is_rejected(self):
         staff = User.objects.create_user(username="invalid-excel-staff", password="test-pass")
         staff.groups.add(Group.objects.get_or_create(

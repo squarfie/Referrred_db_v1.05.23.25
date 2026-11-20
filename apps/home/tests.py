@@ -1137,7 +1137,9 @@ class GroupedSidebarNavigationTests(TestCase):
         self.assertIn("Biobank Inventory", markup)
         self.assertNotIn("WGS Upload", markup)
         self.assertNotIn("Secretariat Receiving", markup)
-        self.assertNotIn("Laboratory Receiving</span>", markup)
+        # Laboratory Staff now has worksheet read access after custody confirmation.
+        self.assertIn("Laboratory Receiving</span>", markup)
+        self.assertIn('href="/receiving/laboratory-receiving/"', markup)
 
     def test_secretariat_receiving_is_standalone(self):
         markup = self._render_sidebar("Secretariat", "secretariat_receiving_dashboard")

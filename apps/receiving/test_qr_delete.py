@@ -49,7 +49,13 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
             "password": "test-pass",
             "next": detail,
         })
-        self.assertRedirects(response, detail)
+        # Login preserves the scanned legacy destination. That route then
+        # redirects lab-only users into the dedicated Laboratory Receiving page.
+        self.assertRedirects(response, detail, fetch_redirect_response=False)
+        self.assertRedirects(
+            self.client.get(detail),
+            reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}),
+        )
 
     @override_settings(ACCOUNT_APPROVAL_REQUIRE_STAFF_LINK=False)
     def test_login_rejects_external_next_redirect(self):
@@ -64,7 +70,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
     def test_lab_confirmation_is_not_automatic_on_qr_scan(self):
         self.client.force_login(self.lab)
         detail = reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
-        self.assertEqual(self.client.get(detail).status_code, 200)
+        self.assertRedirects(self.client.get(detail), reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
         self.receipt.refresh_from_db()
         self.assertEqual(self.receipt.status, ReferralReceipt.Status.RECEIVED)
         self.assertEqual(self.receipt.events.count(), 1)
@@ -79,7 +85,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         dashboard = self.client.get(reverse("receiving_dashboard"))
         self.assertContains(dashboard, 'Confirm receipt')
         self.assertContains(dashboard, target)
-        detail = self.client.get(reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        detail = self.client.get(reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
         self.assertContains(detail, 'Confirm laboratory receipt')
         self.assertContains(detail, 'Scanning is optional.')
         self.assertEqual(self.client.get(target).status_code, 200)
@@ -88,10 +94,10 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         self.client.force_login(self.lab)
         dashboard = self.client.get(reverse("receiving_dashboard"))
         self.assertNotContains(dashboard, 'Confirm receipt')
-        detail = self.client.get(reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        detail = self.client.get(reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
         self.assertContains(detail, 'awaiting endorsement')
         url = reverse("receiving_lab_confirm", kwargs={"receiving_id": self.receipt.receiving_id})
-        self.assertRedirects(self.client.get(url), reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        self.assertRedirects(self.client.get(url), reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
         self.receipt.refresh_from_db()
         self.assertEqual(self.receipt.status, ReferralReceipt.Status.RECEIVED)
 
@@ -119,7 +125,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
             "receiving_lab_confirm",
             kwargs={"receiving_id": self.receipt.receiving_id},
         ))
-        self.assertRedirects(response, reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        self.assertRedirects(response, reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
         self.assertEqual(self.receipt.events.count(), 1)
 
     def test_form_default_is_not_before_endorsement_in_same_minute(self):
@@ -173,7 +179,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         url = reverse("receiving_delete_permanently", kwargs={"receiving_id": self.receipt.receiving_id})
         self.client.force_login(self.admin)
         response = self.client.post(url, {"confirmation": "DELETE PERMANENTLY"})
-        self.assertRedirects(response, reverse("receiving_dashboard"))
+        self.assertRedirects(response, reverse("secretariat_receiving_dashboard"))
         self.assertFalse(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
         self.assertFalse(ReceivingEvent.objects.filter(receipt_id=self.receipt.pk).exists())
 

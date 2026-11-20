@@ -41,6 +41,7 @@ from .permissions import (
     lab_receiving_required,
     receiving_read_required,
     secretariat_receiving_required,
+    can_read_laboratory_receiving, lab_receiving_read_required,
 )
 from .qr import build_receipt_detail_url, render_qr_png
 from .reports import REGISTER_COLUMNS, build_register_rows, render_register_pdf
@@ -81,7 +82,7 @@ def secretariat_receiving_dashboard(request):
 @login_required
 @receiving_read_required
 def laboratory_receiving_dashboard(request):
-    if not (can_confirm_lab_receipt(request.user) or ROLE_ADMIN in get_user_roles(request.user)):
+    if not can_read_laboratory_receiving(request.user):
         messages.error(request, "Only Laboratory Receiving personnel may open this queue.")
         return redirect("home")
     return _render_receiving_dashboard(request, queue="laboratory")
@@ -97,7 +98,7 @@ def _render_receiving_dashboard(request, queue=None):
     can_manage_secretariat = can_manage_secretariat_receiving(request.user)
     can_confirm_lab = can_confirm_lab_receipt(request.user)
     # Prefer the laboratory queue for users who have both responsibilities.
-    is_lab_worklist = (queue == "laboratory") if queue else can_confirm_lab
+    is_lab_worklist = (queue == "laboratory") if queue else can_read_laboratory_receiving(request.user)
     queue_url_name = (
         "laboratory_receiving_dashboard" if queue == "laboratory"
         else "secretariat_receiving_dashboard" if queue == "secretariat"
@@ -173,6 +174,7 @@ def _render_receiving_dashboard(request, queue=None):
             "lab_received_count": counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0),
             "can_manage_secretariat": can_manage_secretariat and not is_lab_worklist,
             "can_confirm_lab": can_confirm_lab and is_lab_worklist,
+            "can_read_lab": can_read_laboratory_receiving(request.user) and is_lab_worklist,
             "receiving_queue_url": queue_url_name,
             "is_lab_worklist": is_lab_worklist,
         },
@@ -186,13 +188,13 @@ def _laboratory_record(receipt):
 
 
 @login_required
-@receiving_read_required
+@lab_receiving_read_required
 def laboratory_receiving_workspace(request, receiving_id):
     receipt = _receipt_or_404(receiving_id)
     record = _laboratory_record(receipt)
     if record is None:
         messages.warning(request, "Confirm laboratory custody before recording acceptance decisions.")
-        return redirect("receiving_detail", receiving_id=receiving_id)
+        return redirect("laboratory_receiving_dashboard")
     can_edit = can_confirm_lab_receipt(request.user)
     if request.method == "POST":
         if not can_edit:
@@ -241,11 +243,26 @@ def laboratory_receiving_workspace(request, receiving_id):
         {"accession": accession, "preview": batch_previews.get(accession.pk, {})}
         for accession in ranges
     ]
+    from collections import Counter
+    workflow_rows = []
+    for accession in ranges:
+        isolates = list(accession.isolate_records.all())
+        # Counter returns zero for missing keys, so Django templates resolve
+        # stages.items as an integer instead of the dict.items method.
+        stages = dict(Counter(item.status for item in isolates))
+        workflow_rows.append({
+            "accession": accession, "stages": stages,
+            "count": len(isolates), "expected": accession.isolate_count,
+            "can_queue": can_edit and not isolates,
+            "can_start": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revival_queued" for i in isolates),
+            "can_complete": can_edit and len(isolates) == accession.isolate_count and any(i.status == "revival_in_progress" for i in isolates) and all(i.status in {"revival_in_progress", "revived"} for i in isolates),
+            "can_endorse": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revived" for i in isolates),
+        })
     return render(request, "receiving/laboratory_workspace.html", {
         "receipt": receipt, "record": record, "form": form,
         "accession_form": LaboratoryAccessionForm(initial={"date_referred": record.date_accepted or receipt.lab_date_received}),
         "organism_form": LaboratoryOrganismCountForm(),
-        "ranges": ranges, "batch_rows": batch_rows, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
+        "ranges": ranges, "batch_rows": batch_rows, "workflow_rows": workflow_rows, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
     })
 
 
@@ -258,7 +275,7 @@ def laboratory_accession_add(request, receiving_id):
     record = LaboratoryReceiving.objects.select_for_update().filter(receipt=receipt).first()
     if record is None:
         messages.error(request, "Laboratory custody has not been confirmed.")
-        return redirect("receiving_detail", receiving_id=receiving_id)
+        return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     if record.isolates_accepted <= 0:
         messages.error(request, "Save a laboratory decision with accepted isolates before assigning accessions.")
         return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
@@ -505,7 +522,7 @@ def _register_context(request):
 
 
 @login_required
-@receiving_read_required
+@lab_receiving_read_required
 def laboratory_receiving_register(request):
     form, month, year, _records, rows, totals, organism_totals = _register_context(request)
     return render(request, "receiving/laboratory_register.html", {
@@ -517,7 +534,7 @@ def laboratory_receiving_register(request):
 
 
 @login_required
-@receiving_read_required
+@lab_receiving_read_required
 def laboratory_receiving_register_pdf(request):
     _form, month, year, records, _rows, _totals, _organism_totals = _register_context(request)
     response = HttpResponse(render_register_pdf(records, month, year), content_type="application/pdf")
@@ -542,12 +559,18 @@ def receiving_create(request):
 @login_required
 @receiving_read_required
 def receiving_detail(request, receiving_id):
+    # This legacy URL is Secretariat-facing. Laboratory personnel have
+    # a separate receipt detail that does not expose Secretariat actions.
     receipt = _receipt_or_404(receiving_id)
+    # Preserve existing QR/bookmark links but route laboratory-only accounts
+    # to their dedicated detail page rather than Secretariat controls.
+    if (can_read_laboratory_receiving(request.user)
+            and not can_manage_secretariat_receiving(request.user)):
+        return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     events = receipt.events.select_related("performed_by").order_by(
         "occurred_at", "recorded_at", "id"
     )
     can_manage = can_manage_secretariat_receiving(request.user)
-    can_confirm = can_confirm_lab_receipt(request.user)
     return render(
         request,
         "receiving/receipt_detail.html",
@@ -558,12 +581,29 @@ def receiving_detail(request, receiving_id):
             "can_permanently_delete": can_permanently_delete_receipt(request.user)
             and receipt.can_permanently_delete,
             "can_endorse": can_manage and receipt.status == ReferralReceipt.Status.RECEIVED,
-            "can_confirm_lab": can_confirm
-            and receipt.status == ReferralReceipt.Status.ENDORSED,
-            "can_work_lab": can_confirm
-            and receipt.status == ReferralReceipt.Status.LAB_RECEIVED,
+            "can_confirm_lab": False,
+            "can_work_lab": False,
+            "laboratory_detail": False,
         },
     )
+
+
+@login_required
+@lab_receiving_read_required
+def laboratory_receiving_detail(request, receiving_id):
+    receipt = _receipt_or_404(receiving_id)
+    events = receipt.events.select_related("performed_by").order_by(
+        "occurred_at", "recorded_at", "id"
+    )
+    can_confirm = can_confirm_lab_receipt(request.user)
+    return render(request, "receiving/receipt_detail.html", {
+        "receipt": receipt, "events": events,
+        "can_print_label": False, "can_permanently_delete": False,
+        "can_endorse": False,
+        "can_confirm_lab": can_confirm and receipt.status == ReferralReceipt.Status.ENDORSED,
+        "can_work_lab": receipt.status == ReferralReceipt.Status.LAB_RECEIVED,
+        "laboratory_detail": True,
+    })
 
 
 @login_required
@@ -603,13 +643,14 @@ def receiving_lab_confirm(request, receiving_id):
     receipt = _receipt_or_404(receiving_id)
     if receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
         messages.info(request, "This batch has already been received by the laboratory.")
-        return redirect("receiving_detail", receiving_id=receiving_id)
+        return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     if receipt.status != ReferralReceipt.Status.ENDORSED:
         messages.warning(request, "This batch has not yet been endorsed to the laboratory.")
-        return redirect("receiving_detail", receiving_id=receiving_id)
+        return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     if request.method == "POST":
         form = LabReceiptForm(request.POST, receipt=receipt)
         if form.is_valid():
+            confirmed = False
             try:
                 confirm_lab_receipt(
                     receipt_id=receipt.pk,
@@ -620,8 +661,11 @@ def receiving_lab_confirm(request, receiving_id):
             except InvalidReceivingTransition as exc:
                 messages.warning(request, str(exc))
             else:
+                confirmed = True
                 messages.success(request, "Laboratory receipt confirmed. Open the laboratory worksheet to record the manual acceptance decision.")
-            return redirect("receiving_detail", receiving_id=receiving_id)
+            if confirmed:
+                return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
+            return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     else:
         form = LabReceiptForm(receipt=receipt)
     return render(
@@ -650,4 +694,4 @@ def receiving_delete_permanently(request, receiving_id):
         messages.warning(request, str(exc))
         return redirect("receiving_detail", receiving_id=receiving_id)
     messages.success(request, "Receiving batch permanently deleted.")
-    return redirect("receiving_dashboard")
+    return redirect("secretariat_receiving_dashboard")

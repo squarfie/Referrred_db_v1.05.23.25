@@ -8,7 +8,7 @@
 <div class="receiving-hero-actions"><a href="{% url 'laboratory_worklist' %}" class="btn btn-outline-light">ID Testing Worklist</a></div></header>
 <div class="receiving-content">
 <section class="receiving-surface">
-<div class="receiving-card-header"><h2>Isolate storage ledger</h2><p>Storage details can be entered before the final ID review. Stickers require approved organism identification.</p></div>
+<div class="receiving-card-header"><h2>Isolate storage ledger</h2><p>Storage is available after identification review and lyophilization. Stickers require an approved organism, WHONET code, and harvest date.</p></div>
 <div class="receiving-card-body">
 <form method="get" class="form-row align-items-end mb-3"><div class="col-md-6 mb-2"><label for="bank-q">Search accession</label><input id="bank-q" name="q" value="{{ query }}" class="form-control" placeholder="Accession number"></div><div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Search</button></div></form>
 <div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession</th><th>Approved organism</th><th>Preservation method</th><th>Harvested</th><th>Location</th><th>Box</th><th>Position</th><th>Action</th></tr></thead><tbody>
@@ -19,9 +19,9 @@
 <td>{{ isolate.biobank.date_harvested|date:"M j, Y"|default:"—" }}</td>
 <td>{{ isolate.biobank.storage_location|default:"—" }}</td>
 <td>{{ isolate.biobank.storage_box|default:"—" }}</td>
-<td>{{ isolate.biobank.box_position|default:"—" }}</td>
+<td>{{ isolate.biobank.box_position|default:isolate.biobank.lyo_position|default:isolate.biobank.supplementary_position|default:"—" }}</td>
 <td><a href="{% url 'laboratory_isolate_detail' isolate.pk %}" class="btn btn-sm btn-primary">{% if can_bank %}Update{% else %}View{% endif %}</a>
-{% if isolate.status == 'reviewed' %}<a target="_blank" href="{% url 'laboratory_biobank_label' isolate.pk %}" class="btn btn-sm btn-outline-info">Sticker</a>{% endif %}</td>
+{% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a target="_blank" href="{% url 'laboratory_biobank_label' isolate.pk %}" class="btn btn-sm btn-outline-info">Sticker</a>{% endif %}</td>
 </tr>{% empty %}<tr><td colspan="8" class="text-muted text-center">No isolate records found.</td></tr>{% endfor %}
 </tbody></table></div><p class="small text-muted">Showing up to 250 matching records.</p>
 </div></section></div></main>
