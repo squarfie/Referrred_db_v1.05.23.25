@@ -197,3 +197,30 @@
 .receiving-tab.active .receiving-tab-count {color:#fff;background:rgba(255,255,255,.2);}
 .receiving-board-pagination {padding:.85rem 1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem;font-size:.8rem;color:var(--receiving-muted);border-top:1px solid var(--receiving-border);}
 @media(max-width:800px){.receiving-board-search {flex:1 1 100%;}.receiving-board-toolbar{align-items:stretch;}}
+
+
+/* Laboratory accession editing and paper-style organism grid. */
+.receiving-accession-edit-table {min-width:850px;}
+.receiving-accession-edit-table input[type="number"] {min-width:76px;max-width:105px;}
+.receiving-accession-edit-table input[type="date"] {min-width:142px;}
+.receiving-accession-edit-table td {vertical-align:middle;}
+.receiving-organism-grid-wrap {width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid #cbdde6;border-radius:7px;}
+.receiving-organism-grid {border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:.72rem;}
+.receiving-organism-grid th,.receiving-organism-grid td {padding:.36rem .38rem;border-right:1px solid #d9e4ed;border-bottom:1px solid #d9e4ed;text-align:center;vertical-align:middle;white-space:nowrap;}
+.receiving-organism-grid thead th {background:#143e56;color:#fff;font-weight:800;}
+.receiving-organism-grid thead tr:nth-child(2) th {background:#dbedf1;color:#174358;}
+.receiving-organism-grid tbody tr:hover td,.receiving-organism-grid tbody tr:hover th {background:#f0fbfd;}
+.receiving-organism-grid .organism-grid-sticky {position:sticky;left:0;z-index:2;min-width:120px;background:#f7fbff;color:#123d55;box-shadow:2px 0 3px rgba(10,45,64,.12);}
+.receiving-organism-grid thead .organism-grid-sticky {z-index:3;background:#143e56;color:#fff;}
+.receiving-organism-grid .organism-grid-number {width:58px;min-width:58px;height:32px;padding:.25rem .2rem;text-align:center;font-size:.76rem;}
+.receiving-organism-grid input:focus-visible {outline:2px solid #00bcd4;outline-offset:1px;}
+.receiving-organism-grid td:last-child {min-width:110px;}
+@media(max-width:767.98px) {
+  .receiving-accession-edit-table thead {display:table-header-group;}
+  .receiving-accession-edit-table,.receiving-accession-edit-table tbody,.receiving-accession-edit-table tr,.receiving-accession-edit-table td {display:table-row-group;}
+  .receiving-accession-edit-table {display:table;}
+  .receiving-accession-edit-table tr {display:table-row;padding:0;}
+  .receiving-accession-edit-table td {display:table-cell;width:auto;min-width:85px;padding:.35rem;}
+  .receiving-accession-edit-table td::before {display:none;}
+  .receiving-accession-edit-table td.receiving-actions {display:table-cell;}
+}
