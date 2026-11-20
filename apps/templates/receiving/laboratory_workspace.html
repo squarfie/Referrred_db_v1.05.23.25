@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}{% load static %}
 {% block title %}Laboratory receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-matrix">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span>
@@ -14,7 +14,7 @@
   <div class="receiving-content">
     <div class="alert alert-info receiving-notice"><i class="fas fa-user-check"></i><div><strong>The LAB Encoder decides acceptance or rejection.</strong> The system validates the totals but does not classify isolates automatically.</div></div>
     
-  <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Step 1: Receiving and Inventory of Referred Isolates</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
+  <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Step 1: Receiving and acceptance summary</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
     <div class="receiving-card-body">
       <form method="post" novalidate>
         {% csrf_token %}
@@ -90,151 +90,180 @@
         {% endif %}
       </form>
 
-      <div class="border-top mt-4 pt-4">
-        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
-          <div>
-            <h2 class="h5 mb-1">Step 2: Organism inventory</h2>
-            <p class="text-muted small mb-0">Record organism counts for each saved accession range. These counts remain linked to the range for traceability.</p>
-          </div>
-        </div>
-        {% if ranges %}
-        <div class="table-responsive">
-          <table class="table table-sm receiving-table">
-            <thead>
-              <tr>
-                <th scope="col">Accession range</th>
-                <th scope="col">Isolates</th>
-                <th scope="col">Recorded organisms</th>
-                {% if can_edit %}<th scope="col">Add organism count</th>{% endif %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in ranges %}
-              <tr>
-                <td><strong>{{ item.reference_range }}</strong></td>
-                <td>{{ item.isolate_count }}</td>
-                <td>
-                  {% for count in item.organism_counts.all %}
-                    <span class="badge badge-info mr-1 mb-1">{{ count.organism_code }} {{ count.count }}</span>
-                  {% empty %}
-                    <span class="text-muted">Not entered</span>
-                  {% endfor %}
-                </td>
-                {% if can_edit %}
-                <td>
-                  <form class="form-inline" method="post" action="{% url 'laboratory_organism_add' item.pk %}">
-                    {% csrf_token %}
-                    <label class="sr-only" for="organism-code-{{ item.pk }}">Organism for {{ item.reference_range }}</label>
-                    <select class="form-control form-control-sm mr-2 mb-1" id="organism-code-{{ item.pk }}" name="organism_code" required>
-                      {% for value, label in organism_form.fields.organism_code.choices %}
-                        <option value="{{ value }}">{{ label }}</option>
-                      {% endfor %}
-                    </select>
-                    <label class="sr-only" for="organism-count-{{ item.pk }}">Quantity for {{ item.reference_range }}</label>
-                    <input class="form-control form-control-sm mr-2 mb-1" id="organism-count-{{ item.pk }}" type="number" name="count" min="1" step="1" required placeholder="Qty" style="width: 90px;">
-                    <button class="btn btn-sm btn-outline-info mb-1" type="submit">Add</button>
-                  </form>
-                </td>
-                {% endif %}
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-          <p class="text-muted small mt-3 mb-0">No accession ranges saved yet. Save the laboratory decision, then add a range below to record its organism inventory here.</p>
-        {% endif %}
       </div>
-    </div>
   </section>
-    
-  <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Accession ranges and generated batches</h2><p>Saving a range does not create a batch. Use Create Batch only after reviewing it.</p></div><div class="receiving-card-body">
+
+  <section class="receiving-surface receiving-form-card mb-4" id="accessioning">
+    <div class="receiving-card-header">
+      <h2>Step 2: Accessioning</h2>
+      <p>Save accession ranges before recording the organisms. Ungenerated ranges can be edited or removed here.</p>
+    </div>
+    <div class="receiving-card-body">
       {% if can_edit %}
-      <form method="post" action="{% url 'laboratory_accession_add' receipt.receiving_id %}" class="row align-items-end mb-4">
+      <form method="post" action="{% url 'laboratory_accession_add' receipt.receiving_id %}" class="row align-items-end mb-3">
         {% csrf_token %}
-
-        <!-- Field: date_referred -->
-        <div class="col-md mb-3">
-          <label for="{{ accession_form.date_referred.id_for_label }}">Date referred</label>
-          {{ accession_form.date_referred }}
-        </div>
-
-        <!-- Field: start_number -->
-        <div class="col-md mb-3">
-          <label for="{{ accession_form.start_number.id_for_label }}">Accession start number</label>
-          {{ accession_form.start_number }}
-        </div>
-
-        <!-- Field: end_number -->
-        <div class="col-md mb-3">
-          <label for="{{ accession_form.end_number.id_for_label }}">Accession end number</label>
-          {{ accession_form.end_number }}
-        </div>
-
-        <!-- Field: batch_number -->
-        <div class="col-md mb-3">
-          <label for="{{ accession_form.batch_number.id_for_label }}">Batch number</label>
-          {{ accession_form.batch_number }}
-        </div>
-
-        <!-- Field: total_batches -->
-        <div class="col-md mb-3">
-          <label for="{{ accession_form.total_batches.id_for_label }}">Total batches</label>
-          {{ accession_form.total_batches }}
-        </div>
-
-        <div class="col-md-auto mb-3">
-          <button class="btn btn-outline-primary" type="submit">Save range</button>
-        </div>
+        <div class="col-md mb-2"><label for="{{ accession_form.date_referred.id_for_label }}">Date referred</label>{{ accession_form.date_referred }}</div>
+        <div class="col-md mb-2"><label for="{{ accession_form.start_number.id_for_label }}">Start number</label>{{ accession_form.start_number }}</div>
+        <div class="col-md mb-2"><label for="{{ accession_form.end_number.id_for_label }}">End number</label>{{ accession_form.end_number }}</div>
+        <div class="col-md mb-2"><label for="{{ accession_form.batch_number.id_for_label }}">Batch number</label>{{ accession_form.batch_number }}</div>
+        <div class="col-md mb-2"><label for="{{ accession_form.total_batches.id_for_label }}">Total batches</label>{{ accession_form.total_batches }}</div>
+        <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save new range</button></div>
       </form>
       {% endif %}
       <div class="table-responsive">
-        <table class="table table-sm receiving-table">
-          <thead>
-            <tr>
-              <th scope="col">Date referred</th>
-              <th scope="col">Accession range</th>
-              <th scope="col">Batch number</th>
-              <th scope="col">Total batches</th>
-              <th scope="col">Isolates</th>
-              <th scope="col">Status</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
+        <table class="table receiving-table receiving-accession-edit-table">
+          <thead><tr><th>Date referred</th><th>Start</th><th>End</th><th>Batch no.</th><th>Total batches</th><th>Isolates</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {% for item in ranges %}
             <tr>
-              <td>{{ item.date_referred|date:"M j, Y" }}</td>
-              <td><strong>{{ item.reference_range }}</strong></td>
-              <td>{{ item.batch_number }}</td>
-              <td>{{ item.total_batches }}</td>
-              <td>{{ item.isolate_count }}</td>
-              <td>
-                {% if item.batch %}
-                  <span class="badge badge-success">Generated</span>
-                  <div class="small">{{ item.batch.bat_Batch_Code }}</div>
-                {% else %}
-                  <span class="badge badge-warning">Pending</span>
-                {% endif %}
-              </td>
-              <td>
+              <td data-label="Date referred">
                 {% if can_edit and not item.batch %}
-                  <form method="post" action="{% url 'laboratory_batch_create' item.pk %}">
-                    {% csrf_token %}
-                    <button class="btn btn-sm btn-success" type="submit">Create Batch</button>
-                  </form>
-                {% elif item.batch %}
-                  <a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>
+                  <input aria-label="Date referred for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="date" name="date_referred" value="{{ item.date_referred|date:'Y-m-d' }}" required>
+                {% else %}{{ item.date_referred|date:"M j, Y" }}{% endif %}
+              </td>
+              <td data-label="Start">
+                {% if can_edit and not item.batch %}
+                  <input aria-label="Start accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="start_number" min="1" max="9999" value="{{ item.start_number }}" required>
+                {% else %}{{ item.start_number|stringformat:"04d" }}{% endif %}
+              </td>
+              <td data-label="End">
+                {% if can_edit and not item.batch %}
+                  <input aria-label="End accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="end_number" min="1" max="9999" value="{{ item.end_number }}" required>
+                {% else %}{{ item.end_number|stringformat:"04d" }}{% endif %}
+              </td>
+              <td data-label="Batch number">
+                {% if can_edit and not item.batch %}
+                  <input aria-label="Batch number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="batch_number" min="1" value="{{ item.batch_number }}" required>
+                {% else %}{{ item.batch_number }}{% endif %}
+              </td>
+              <td data-label="Total batches">
+                {% if can_edit and not item.batch %}
+                  <input aria-label="Total batches for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="total_batches" min="1" value="{{ item.total_batches }}" required>
+                {% else %}{{ item.total_batches }}{% endif %}
+              </td>
+              <td data-label="Isolates">{{ item.isolate_count }}</td>
+              <td data-label="Status">
+                {% if item.batch %}<span class="badge badge-success">Generated</span>{% else %}<span class="badge badge-warning">Pending</span>{% endif %}
+              </td>
+              <td data-label="Actions" class="receiving-actions">
+                {% if can_edit and not item.batch %}
+                <form id="accession-edit-{{ item.pk }}" method="post" action="{% url 'laboratory_accession_edit' item.pk %}">{% csrf_token %}</form>
+                <button type="submit" form="accession-edit-{{ item.pk }}" class="btn btn-sm btn-outline-primary mb-1">Save edits</button>
+                <form method="post" action="{% url 'laboratory_accession_delete' item.pk %}" class="d-inline" onsubmit="return confirm('Delete accession range {{ item.reference_range }} and its recorded organism counts?');">
+                  {% csrf_token %}<input type="hidden" name="confirmation" value="DELETE">
+                  <button type="submit" class="btn btn-sm btn-outline-danger mb-1">Delete</button>
+                </form>
+                {% else %}
+                  <span class="text-muted small">Locked after generation</span>
                 {% endif %}
               </td>
             </tr>
-            {% empty %}
-              <tr><td colspan="7" class="text-center text-muted">No accession ranges yet.</td></tr>
+            {% empty %}<tr><td colspan="8" class="text-center text-muted">No accession ranges yet. Use the form above to add one.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="receiving-surface receiving-form-card mb-4" id="organism-inventory">
+    <div class="receiving-card-header">
+      <h2>Step 3: Organism inventory</h2>
+      <p>The organism headings are fixed like the paper register. Enter only the number of isolates for each accession range, then save that row.</p>
+    </div>
+    <div class="receiving-card-body">
+      {% if organism_rows %}
+      <div class="receiving-organism-grid-wrap" role="region" tabindex="0" aria-label="Organism inventory spreadsheet">
+        <table class="receiving-organism-grid">
+          <thead>
+            <tr>
+              <th rowspan="2" class="organism-grid-sticky">Accession range</th><th rowspan="2">Isolates</th>
+              <th colspan="4">Fastidious Organisms</th>
+              <th colspan="3">Enterobacterales</th>
+              <th colspan="4">Enterics / Gram-negative</th>
+              <th colspan="3">NFO</th>
+              <th colspan="4">Gram-positive Organisms</th>
+              <th rowspan="2">Count total</th>
+              {% if can_edit %}<th rowspan="2">Action</th>{% endif %}
+            </tr>
+            <tr>
+              {% for code, short, label in register_columns %}
+              <th title="{{ label }}" scope="col">{{ short }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in organism_rows %}
+            <tr>
+              <th scope="row" class="organism-grid-sticky">{{ row.accession.reference_range }}</th>
+              <td>{{ row.accession.isolate_count }}</td>
+              {% for cell in row.cells %}
+              <td>
+                {% if can_edit %}
+                  <input aria-label="{{ cell.label }} count for {{ row.accession.reference_range }}"
+                         form="organisms-save-{{ row.accession.pk }}"
+                         class="form-control form-control-sm organism-grid-number"
+                         type="number" name="organism_{{ cell.code }}" min="0" step="1"
+                         value="{% if cell.count %}{{ cell.count }}{% endif %}">
+                {% else %}{% if cell.count %}{{ cell.count }}{% endif %}{% endif %}
+              </td>
+              {% endfor %}
+              <td><strong>{{ row.total }}</strong></td>
+              {% if can_edit %}
+              <td>
+                <form method="post" id="organisms-save-{{ row.accession.pk }}" action="{% url 'laboratory_organism_matrix_save' row.accession.pk %}">{% csrf_token %}</form>
+                <button type="submit" form="organisms-save-{{ row.accession.pk }}" class="btn btn-sm btn-primary mb-0">Save counts</button>
+              </td>
+              {% endif %}
+            </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-    </div></section>
+      <p class="small text-muted mb-0 mt-2">Blank cells count as zero. The total for each row cannot exceed the number of isolates in its accession range. Scroll horizontally to view all organism groups.</p>
+      {% else %}
+      <p class="text-muted mb-0">Create an accession range in Step 2 before entering organism counts.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="receiving-surface receiving-form-card mb-4" id="batch-generation">
+    <div class="receiving-card-header">
+      <h2>Step 4: Batch generation</h2>
+      <p>Review the accession range and its organism inventory before creating the batch. Generated batches cannot be edited or deleted through this worksheet.</p>
+    </div>
+    <div class="receiving-card-body">
+      <div class="table-responsive">
+        <table class="table receiving-table">
+          <thead><tr><th>Date referred</th><th>Accession range</th><th>Batch no.</th><th>Total batches</th><th>Isolates</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for item in ranges %}
+            <tr>
+              <td data-label="Date referred">{{ item.date_referred|date:"M j, Y" }}</td>
+              <td data-label="Accession range"><strong>{{ item.reference_range }}</strong></td>
+              <td data-label="Batch number">{{ item.batch_number }}</td>
+              <td data-label="Total batches">{{ item.total_batches }}</td>
+              <td data-label="Isolates">{{ item.isolate_count }}</td>
+              <td data-label="Status">
+                {% if item.batch %}<span class="badge badge-success">Generated</span>
+                <div class="small">{{ item.batch.bat_Batch_Code }}</div>
+                {% else %}<span class="badge badge-warning">Pending</span>{% endif %}
+              </td>
+              <td data-label="Actions" class="receiving-actions">
+                {% if can_edit and not item.batch %}
+                <form method="post" action="{% url 'laboratory_batch_create' item.pk %}">
+                  {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Create Batch</button>
+                </form>
+                {% elif item.batch %}
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}<tr><td colspan="7" class="text-center text-muted">No accession ranges have been saved yet.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
   </div>
 </main>
 {% endblock content %}

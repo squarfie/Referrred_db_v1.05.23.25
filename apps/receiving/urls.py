@@ -20,6 +20,9 @@ urlpatterns = [
     ),
     path("<uuid:receiving_id>/laboratory/", views.laboratory_receiving_workspace, name="laboratory_receiving_workspace"),
     path("<uuid:receiving_id>/laboratory/accessions/add/", views.laboratory_accession_add, name="laboratory_accession_add"),
+    path("laboratory/accessions/<int:accession_id>/edit/", views.laboratory_accession_edit, name="laboratory_accession_edit"),
+    path("laboratory/accessions/<int:accession_id>/delete/", views.laboratory_accession_delete, name="laboratory_accession_delete"),
+    path("laboratory/accessions/<int:accession_id>/organisms/save/", views.laboratory_organism_matrix_save, name="laboratory_organism_matrix_save"),
     path("laboratory/accessions/<int:accession_id>/organisms/add/", views.laboratory_organism_add, name="laboratory_organism_add"),
     path("laboratory/accessions/<int:accession_id>/create-batch/", views.laboratory_batch_create, name="laboratory_batch_create"),
 ]
