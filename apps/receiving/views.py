@@ -273,7 +273,7 @@ def laboratory_accession_add(request, receiving_id):
     record = LaboratoryReceiving.objects.select_for_update().filter(receipt=receipt).first()
     if record is None:
         messages.error(request, "Laboratory custody has not been confirmed.")
-        return redirect("receiving_detail", receiving_id=receiving_id)
+        return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     if record.isolates_accepted <= 0:
         messages.error(request, "Save a laboratory decision with accepted isolates before assigning accessions.")
         return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
@@ -560,11 +560,15 @@ def receiving_detail(request, receiving_id):
     # This legacy URL is Secretariat-facing. Laboratory personnel have
     # a separate receipt detail that does not expose Secretariat actions.
     receipt = _receipt_or_404(receiving_id)
+    # Preserve existing QR/bookmark links but route laboratory-only accounts
+    # to their dedicated detail page rather than Secretariat controls.
+    if (can_read_laboratory_receiving(request.user)
+            and not can_manage_secretariat_receiving(request.user)):
+        return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     events = receipt.events.select_related("performed_by").order_by(
         "occurred_at", "recorded_at", "id"
     )
     can_manage = can_manage_secretariat_receiving(request.user)
-    can_confirm = can_confirm_lab_receipt(request.user)
     return render(
         request,
         "receiving/receipt_detail.html",
@@ -688,4 +692,4 @@ def receiving_delete_permanently(request, receiving_id):
         messages.warning(request, str(exc))
         return redirect("receiving_detail", receiving_id=receiving_id)
     messages.success(request, "Receiving batch permanently deleted.")
-    return redirect("receiving_dashboard")
+    return redirect("secretariat_receiving_dashboard")
