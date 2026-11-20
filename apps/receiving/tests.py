@@ -2004,6 +2004,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertEqual(saved.status_code, 302)
         result = isolate.identifications.get()
         self.assertEqual(result.organism_reported, "Klebsiella pneumoniae")
+        self.assertEqual(result.whonet_organism_code, "KPN")
         self.assertEqual(result.source, LaboratoryIdentification.Source.CSV)
 
     def test_biobank_form_records_lyophilization_and_supplementary_storage(self):
@@ -2221,6 +2222,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         })
         isolate.refresh_from_db()
         self.assertEqual(isolate.final_organism, "Klebsiella pneumoniae")
+        self.assertEqual(isolate.approved_organism_code, "KPN")
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
 
     def test_lyophilization_rejects_mismatched_sticker_code(self):
@@ -2238,6 +2240,70 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate.refresh_from_db()
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
         self.assertFalse(LaboratoryBiobank.objects.filter(isolate=isolate).exists())
+
+    def test_manual_id_stores_both_selected_code_and_canonical_name(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.ID_TESTING
+        isolate.save(update_fields=("status",))
+        staff = User.objects.create_user(username="organism-record-staff", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
+        self.client.force_login(staff)
+        url = reverse("laboratory_record_id", kwargs={"isolate_id": isolate.pk})
+        self.client.post(url, {
+            "organism_reported_code": "KPN",
+            "organism_reported": "Klebsiella pneumoniae",
+            "instrument": "ID analyzer",
+        })
+        recorded = isolate.identifications.get()
+        self.assertEqual(recorded.whonet_organism_code, "KPN")
+        self.assertEqual(recorded.organism_reported, "Klebsiella pneumoniae")
+        self.client.post(url, {
+            "organism_reported_code": "KPN",
+            "organism_reported": "Escherichia coli",
+        })
+        self.assertEqual(isolate.identifications.count(), 1)
+
+    def test_approved_code_is_carried_to_lyophilization(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+        isolate.save(update_fields=("status",))
+        self.client.post(reverse("laboratory_review_id", kwargs={"isolate_id": isolate.pk}), {
+            "final_organism_code": "KPN",
+            "final_organism": "Klebsiella pneumoniae",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.approved_organism_code, "KPN")
+        page = self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk}))
+        self.assertContains(page, 'value="KPN"')
+        self.client.post(reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}), {
+            "date_harvested": "2026-11-19",
+            "date_lyophilized": "2026-11-19",
+            "whonet_code": "KPN",
+            "whonet_organism_name": "Klebsiella pneumoniae",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+        self.assertEqual(isolate.biobank.whonet_code, "KPN")
+
+    def test_0007_backfills_approved_code_from_existing_biobank_record(self):
+        from django.apps import apps as django_apps
+        from importlib import import_module
+        accession = self.create_pending_accession()
+        isolate = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            final_organism="Klebsiella pneumoniae",
+            status=LaboratoryIsolate.Status.BIOBANKED,
+        )
+        LaboratoryBiobank.objects.create(isolate=isolate, whonet_code="kpn")
+        migration = import_module("apps.receiving.migrations.0007_laboratory_approved_organism_code")
+        schema = SimpleNamespace(connection=SimpleNamespace(alias="default"))
+        migration.backfill_approved_codes(django_apps, schema)
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.approved_organism_code, "KPN")
 
     def test_workspace_does_not_render_finalize_control(self):
         response = self.client.get(
