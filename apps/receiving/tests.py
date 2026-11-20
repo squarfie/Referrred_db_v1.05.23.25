@@ -1350,6 +1350,115 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertEqual(pdf["Content-Type"], "application/pdf")
         self.assertTrue(pdf.content.startswith(b"%PDF"))
 
+    def create_pending_accession(self):
+        self.lab_record.total_isolates_received = 5
+        self.lab_record.isolates_accepted = 5
+        self.lab_record.date_accepted = date(2026, 11, 19)
+        self.lab_record.save()
+        return LaboratoryAccession.objects.create(
+            laboratory_receiving=self.lab_record,
+            date_referred=date(2026, 11, 19),
+            start_number=1,
+            end_number=5,
+            batch_number=1,
+            total_batches=1,
+            assigned_by=self.lab_user,
+        )
+
+    def test_workspace_has_four_ordered_steps_and_fixed_organism_headings(self):
+        accession = self.create_pending_accession()
+        response = self.client.get(reverse(
+            "laboratory_receiving_workspace",
+            kwargs={"receiving_id": self.receipt.receiving_id},
+        ))
+        self.assertEqual(response.status_code, 200)
+        text = response.content.decode("utf-8")
+        labels = [
+            "Step 1: Receiving and acceptance summary",
+            "Step 2: Accessioning",
+            "Step 3: Organism inventory",
+            "Step 4: Batch generation",
+        ]
+        positions = [text.index(label) for label in labels]
+        self.assertEqual(positions, sorted(positions))
+        self.assertContains(response, "Fastidious Organisms")
+        self.assertContains(response, "organism_HA")
+        self.assertContains(response, reverse(
+            "laboratory_accession_edit", kwargs={"accession_id": accession.pk}
+        ))
+
+    def test_organism_matrix_creates_and_replaces_counts(self):
+        accession = self.create_pending_accession()
+        url = reverse("laboratory_organism_matrix_save", kwargs={"accession_id": accession.pk})
+        first = self.client.post(url, {"organism_HA": "2", "organism_ECO": "1"})
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(dict(accession.organism_counts.values_list("organism_code", "count")), {
+            "HA": 2, "ECO": 1,
+        })
+        second = self.client.post(url, {"organism_HA": "1", "organism_ECO": ""})
+        self.assertEqual(second.status_code, 302)
+        self.assertEqual(dict(accession.organism_counts.values_list("organism_code", "count")), {
+            "HA": 1,
+        })
+
+    def test_invalid_matrix_count_keeps_existing_values(self):
+        accession = self.create_pending_accession()
+        LaboratoryOrganismCount.objects.create(accession_range=accession, organism_code="HA", count=2)
+        url = reverse("laboratory_organism_matrix_save", kwargs={"accession_id": accession.pk})
+        self.client.post(url, {"organism_HA": "6"})
+        self.assertEqual(accession.organism_counts.get(organism_code="HA").count, 2)
+        self.client.post(url, {"organism_HA": "-1"})
+        self.assertEqual(accession.organism_counts.get(organism_code="HA").count, 2)
+
+    def test_ungenerated_accession_can_be_edited_and_deleted(self):
+        accession = self.create_pending_accession()
+        edit_url = reverse("laboratory_accession_edit", kwargs={"accession_id": accession.pk})
+        edited = self.client.post(edit_url, {
+            "date_referred": "2026-11-19", "start_number": 2,
+            "end_number": 5, "batch_number": 1, "total_batches": 1,
+        })
+        self.assertEqual(edited.status_code, 302)
+        accession.refresh_from_db()
+        self.assertEqual(accession.reference_range, "0002-0005")
+        delete_url = reverse("laboratory_accession_delete", kwargs={"accession_id": accession.pk})
+        self.client.post(delete_url, {"confirmation": "wrong"})
+        self.assertTrue(LaboratoryAccession.objects.filter(pk=accession.pk).exists())
+        self.client.post(delete_url, {"confirmation": "DELETE"})
+        self.assertFalse(LaboratoryAccession.objects.filter(pk=accession.pk).exists())
+
+    def test_generated_accession_cannot_be_edited_or_deleted(self):
+        accession = self.create_pending_accession()
+        result = self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(result.status_code, 302)
+        accession.refresh_from_db()
+        self.assertIsNotNone(accession.batch_id)
+        edit_url = reverse("laboratory_accession_edit", kwargs={"accession_id": accession.pk})
+        self.client.post(edit_url, {
+            "date_referred": "2026-11-19", "start_number": 2,
+            "end_number": 5, "batch_number": 1, "total_batches": 1,
+        })
+        self.client.post(
+            reverse("laboratory_accession_delete", kwargs={"accession_id": accession.pk}),
+            {"confirmation": "DELETE"},
+        )
+        accession.refresh_from_db()
+        self.assertEqual(accession.reference_range, "0001-0005")
+        self.assertIsNotNone(accession.batch_id)
+
+    def test_secretariat_cannot_change_accessions_or_organism_counts(self):
+        accession = self.create_pending_accession()
+        secretariat = User.objects.create_user(username="lab-matrix-secretariat", password="test-pass")
+        secretariat.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_SECRETARIAT)[0])
+        self.client.force_login(secretariat)
+        responses = [
+            self.client.post(reverse("laboratory_accession_edit", kwargs={"accession_id": accession.pk}), {}),
+            self.client.post(reverse("laboratory_accession_delete", kwargs={"accession_id": accession.pk}), {"confirmation": "DELETE"}),
+            self.client.post(reverse("laboratory_organism_matrix_save", kwargs={"accession_id": accession.pk}), {"organism_HA": "2"}),
+        ]
+        self.assertTrue(all(response.status_code == 302 for response in responses))
+        self.assertTrue(LaboratoryAccession.objects.filter(pk=accession.pk).exists())
+        self.assertFalse(accession.organism_counts.exists())
+
     def test_workspace_does_not_render_finalize_control(self):
         response = self.client.get(
             reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id})
