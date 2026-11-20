@@ -51,6 +51,7 @@ from .services import (
     confirm_lab_receipt,
     create_receipt,
     delete_receipt_permanently,
+    can_delete_receipt_safely,
     endorse_receipt,
 )
 
@@ -185,6 +186,11 @@ def _render_receiving_dashboard(request, queue=None):
         else receipts.order_by("-created_at", "-pk"),
         25,
     ).get_page(request.GET.get("page"))
+    if not (is_lab_worklist and selected_tab == "returned"):
+        for receipt in page_obj:
+            receipt.can_delete_from_queue = (
+                not is_lab_worklist and can_delete_receipt_safely(receipt, request.user)
+            )
     return render(
         request,
         "receiving/dashboard.html",
@@ -605,8 +611,7 @@ def receiving_detail(request, receiving_id):
             "receipt": receipt,
             "events": events,
             "can_print_label": can_manage,
-            "can_permanently_delete": can_permanently_delete_receipt(request.user)
-            and receipt.can_permanently_delete,
+            "can_permanently_delete": can_delete_receipt_safely(receipt, request.user),
             "can_endorse": can_manage and receipt.status == ReferralReceipt.Status.RECEIVED,
             "can_confirm_lab": False,
             "can_work_lab": False,
@@ -706,10 +711,11 @@ def receiving_lab_confirm(request, receiving_id):
 @admin_receiving_delete_required
 @require_POST
 def receiving_delete_permanently(request, receiving_id):
-    """Administrators may irreversibly remove a mistakenly entered courier batch.
+    """Delete mistaken courier receipts with server-enforced custody safeguards.
 
-    Existing ReceivingEvent rows cascade away; no deletion-history event is created.
-    This does not delete independent Raw/Final/Data or accessioning records.
+    Secretariat may correct records before Laboratory Receiving confirms
+    custody. Admins may also clean up laboratory-received test records if no
+    accession or other dependent laboratory work exists.
     """
     receipt = _receipt_or_404(receiving_id)
     if request.POST.get("confirmation", "").strip() != "DELETE PERMANENTLY":
@@ -720,5 +726,5 @@ def receiving_delete_permanently(request, receiving_id):
     except InvalidReceivingTransition as exc:
         messages.warning(request, str(exc))
         return redirect("receiving_detail", receiving_id=receiving_id)
-    messages.success(request, "Receiving batch permanently deleted.")
+    messages.success(request, "Receiving record permanently deleted.")
     return redirect("secretariat_receiving_dashboard")
