@@ -18,7 +18,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .qr import render_qr_png
-from .laboratory_workflow import (WorkflowError, queue_for_revival, transition_batch,
+from .laboratory_workflow import (WorkflowError, transition_batch,
     record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
