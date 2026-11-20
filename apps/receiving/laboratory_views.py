@@ -2,6 +2,7 @@ import csv
 from datetime import datetime
 from io import BytesIO, StringIO
 from itertools import islice
+from hashlib import sha256
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -276,6 +277,14 @@ def laboratory_id_upload(request):
     if not file:
         messages.error(request, "Choose a CSV or Excel file.")
         return redirect("laboratory_id_upload")
+    if file.size > MAX_UPLOAD_BYTES:
+        messages.error(request, "Maximum upload size is 2 MB.")
+        return redirect("laboratory_id_upload")
+    digest = sha256(file.read()).hexdigest()
+    file.seek(0)
+    if request.POST.get("action") == "commit" and request.session.get("lab_id_preview_digest") != digest:
+        messages.error(request, "Preview this exact file before importing it.")
+        return redirect("laboratory_id_upload")
     try:
         rows = _upload_rows(file)
     except ValueError as exc:
@@ -296,6 +305,7 @@ def laboratory_id_upload(request):
         return redirect("laboratory_id_upload")
 
     if request.POST.get("action") != "commit":
+        request.session["lab_id_preview_digest"] = digest
         return render(request, "receiving/lab_id_upload.html", {
             "rows": rows, "preview": True,
             "warning": "Review the records before saving. Upload the same file again to confirm."
@@ -326,5 +336,6 @@ def laboratory_id_upload(request):
                 recorded_by=request.user,
             ) for row in rows
         ])
+    request.session.pop("lab_id_preview_digest", None)
     messages.success(request, f"Imported {len(rows)} identification results.")
     return redirect("laboratory_worklist")
