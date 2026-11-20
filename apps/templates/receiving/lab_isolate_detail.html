@@ -1,0 +1,80 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Isolate {{ isolate.accession_number }}{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+<header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-vial"></i></span><div>
+<p class="receiving-eyebrow">Isolate identification &amp; biobank record</p>
+<h1>{{ isolate.accession_number }}</h1>
+<p class="receiving-hero-subtitle">{{ isolate.accession_range.laboratory_receiving.receipt.site.SiteCode }} · {{ isolate.get_status_display }}</p>
+</div></div><div class="receiving-hero-actions">
+<a href="{% url 'laboratory_worklist' %}" class="btn btn-outline-light">Back to Worklist</a>
+{% if isolate.status == 'reviewed' %}<a href="{% url 'laboratory_biobank_label' isolate.pk %}" target="_blank" class="btn btn-info"><i class="fas fa-print mr-1"></i>Biobank Sticker</a>{% endif %}
+</div></header>
+<div class="receiving-content">
+<section class="receiving-surface receiving-form-card mb-4">
+<div class="receiving-card-header"><h2>Step 1 · ID testing handoff</h2><p>Laboratory Receiving assigns accessions and endorses them to the testing laboratory.</p></div>
+<div class="receiving-card-body">
+<p><strong>Endorsed:</strong> {{ isolate.endorsed_at|date:"M j, Y g:i A"|default:"Not endorsed" }} &nbsp; <strong>Acknowledged:</strong> {{ isolate.acknowledged_at|date:"M j, Y g:i A"|default:"Pending" }}</p>
+{% if can_test and isolate.status == 'pending' %}
+<form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}
+<button class="btn btn-success" type="submit">Acknowledge isolate for ID testing</button></form>
+{% endif %}
+</div></section>
+
+<section class="receiving-surface receiving-form-card mb-4">
+<div class="receiving-card-header"><h2>Step 2 · Identification results</h2><p>Each instrument result is preserved. Multiple results or retests can belong to the same accession.</p></div>
+<div class="receiving-card-body">
+{% if can_test and isolate.status == 'testing' %}
+<form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="form-row align-items-end mb-3">{% csrf_token %}
+<div class="col-md-5 mb-2"><label for="organism">Instrument-reported organism</label><input id="organism" name="organism_reported" class="form-control" maxlength="255" required></div>
+<div class="col-md-3 mb-2"><label for="instrument">Instrument</label><input id="instrument" name="instrument" class="form-control" maxlength="100"></div>
+<div class="col-md-3 mb-2"><label for="cassette">Cassette/slot reference</label><input id="cassette" name="cassette_reference" class="form-control" maxlength="100"></div>
+<div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save result</button></div>
+</form>
+{% endif %}
+<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Recorded</th><th>Organism</th><th>Instrument</th><th>Cassette/slot</th><th>Source</th><th>Entered by</th></tr></thead><tbody>
+{% for result in isolate.identifications.all %}
+<tr><td>{{ result.recorded_at|date:"M j, Y g:i A" }}</td><td><strong>{{ result.organism_reported }}</strong></td><td>{{ result.instrument|default:"—" }}</td><td>{{ result.cassette_reference|default:"—" }}</td><td>{{ result.get_source_display }}</td><td>{{ result.recorded_by|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">No instrument results recorded yet.</td></tr>{% endfor %}
+</tbody></table></div>
+{% if can_test and isolate.status == 'testing' and isolate.identifications.exists %}
+<form method="post" action="{% url 'laboratory_return_id' isolate.pk %}" class="mt-3">{% csrf_token %}
+<button class="btn btn-info" type="submit">Endorse completed ID results back to Laboratory Receiving</button></form>
+{% endif %}
+</div></section>
+
+<section class="receiving-surface receiving-form-card mb-4">
+<div class="receiving-card-header"><h2>Step 3 · Laboratory Receiving review</h2><p>Keep the instrument report unchanged; record the reviewed organism separately.</p></div>
+<div class="receiving-card-body">
+{% if isolate.status == 'reviewed' %}
+<p><strong>Approved organism:</strong> {{ isolate.final_organism }} &nbsp; <strong>Reviewed by:</strong> {{ isolate.reviewed_by|default:"—" }}</p>
+{% elif can_review and isolate.status == 'returned' %}
+<form method="post" action="{% url 'laboratory_review_id' isolate.pk %}" class="form-row align-items-end">{% csrf_token %}
+<div class="col-md-7 mb-2"><label for="final-organism">Approved organism name</label><input id="final-organism" name="final_organism" maxlength="255" class="form-control" required></div>
+<div class="col-md-auto mb-2"><button class="btn btn-primary mb-0" type="submit">Accept identification</button></div></form>
+{% else %}
+<p class="text-muted mb-0">Awaiting the laboratory's completed result and review.</p>
+{% endif %}
+</div></section>
+
+<section class="receiving-surface receiving-form-card mb-4">
+<div class="receiving-card-header"><h2>Biobank inventory</h2><p>Storage details are independent of ID review. The final sticker contains only the accession and approved organism.</p></div>
+<div class="receiving-card-body">
+{% if can_bank %}
+<form method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}" class="row">{% csrf_token %}
+<div class="col-md-3 mb-3"><label for="harvested">Date harvested</label><input id="harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control"></div>
+<div class="col-md-3 mb-3"><label for="method">Preservation method</label><input id="method" name="preservation_method" value="{{ biobank.preservation_method|default:'' }}" class="form-control" maxlength="100"></div>
+<div class="col-md-3 mb-3"><label for="container">Container</label><input id="container" name="container" value="{{ biobank.container|default:'' }}" class="form-control" maxlength="100"></div>
+<div class="col-md-3 mb-3"><label for="location">Storage location</label><input id="location" name="storage_location" value="{{ biobank.storage_location|default:'' }}" class="form-control" maxlength="150"></div>
+<div class="col-md-3 mb-3"><label for="box">Storage box</label><input id="box" name="storage_box" value="{{ biobank.storage_box|default:'' }}" class="form-control" maxlength="100"></div>
+<div class="col-md-3 mb-3"><label for="position">Box position</label><input id="position" name="box_position" value="{{ biobank.box_position|default:'' }}" class="form-control" maxlength="30"></div>
+<div class="col-md-6 mb-3"><label for="remarks">Remarks</label><input id="remarks" name="remarks" value="{{ biobank.remarks|default:'' }}" class="form-control"></div>
+<div class="col-12"><button class="btn btn-primary" type="submit">Save biobank inventory</button></div></form>
+{% elif biobank %}
+<p><strong>Harvested:</strong> {{ biobank.date_harvested|default:"—" }} · <strong>Method:</strong> {{ biobank.preservation_method|default:"—" }} · <strong>Storage:</strong> {{ biobank.storage_location|default:"—" }} / {{ biobank.storage_box|default:"—" }} / {{ biobank.box_position|default:"—" }}</p>
+{% else %}<p class="text-muted">Biobank information has not yet been entered.</p>{% endif %}
+</div></section>
+</div></main>
+{% endblock content %}
