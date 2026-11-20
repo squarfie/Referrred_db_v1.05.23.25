@@ -1,6 +1,7 @@
 import csv
 from datetime import datetime
 from io import BytesIO, StringIO
+from itertools import islice
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -235,14 +236,14 @@ def _upload_rows(upload):
             raise ValueError("CSV files must be UTF-8 encoded.") from exc
         reader = csv.DictReader(StringIO(data))
         headings = reader.fieldnames or []
-        rows = list(reader)
+        rows = list(islice(reader, MAX_ROWS + 1))
     elif name.endswith(".xlsx"):
         from openpyxl import load_workbook
         workbook = load_workbook(BytesIO(upload.read()), read_only=True, data_only=True)
         try:
             values = workbook.active.iter_rows(values_only=True)
             headings = [str(v or "").strip() for v in next(values, [])]
-            rows = [dict(zip(headings, row)) for row in values]
+            rows = [dict(zip(headings, row)) for row in islice(values, MAX_ROWS + 1)]
         finally:
             workbook.close()
     else:
