@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}{% load static %}
 {% block title %}Laboratory receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-matrix">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-conflict-preview">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span>
@@ -254,7 +254,7 @@
                   {% if row.preview.blocked %}
                     <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Create Batch</button>
                     <span class="receiving-batch-warning" tabindex="0" role="img"
-                          aria-label="Batch creation blocked; review the conflict details">
+                          aria-label="Batch creation blocked; review the conflict details" title="Batch creation blocked: duplicate accession or existing batch">
                       <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
                       <span class="receiving-batch-warning-tooltip" role="tooltip">
                         <strong>Cannot create this batch</strong>
@@ -275,6 +275,7 @@
                 {% endif %}
               </td>
             </tr>
+            {% endwith %}
             {% empty %}<tr><td colspan="7" class="text-center text-muted">No accession ranges have been saved yet.</td></tr>{% endfor %}
           </tbody>
         </table>
