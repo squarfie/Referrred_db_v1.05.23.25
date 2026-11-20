@@ -1457,10 +1457,10 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_lab_encoder_sees_prominent_workspace_action_on_custody_record(self):
         response = self.client.get(
-            reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
+            reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
         )
 
-        self.assertContains(response, "Update Lab Receiving")
+        self.assertContains(response, "Open laboratory worksheet")
         self.assertContains(
             response,
             reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}),
@@ -1525,7 +1525,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 1: Receiving and acceptance summary",
             "Step 2: Accessioning",
             "Step 3: Organism inventory",
-            "Step 4: Batch generation",
+            "Step 4: Revival and endorsement to Main Laboratory",
+            "Step 5: Batch generation",
         ]
         positions = [text.index(label) for label in labels]
         self.assertEqual(positions, sorted(positions))
@@ -1809,7 +1810,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_id_csv_upload_preview_and_commit(self):
         accession = self.create_pending_accession()
-        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.order_by("accession_number").first()
         staff = User.objects.create_user(username="csv-laboratory-staff", password="test-pass")
         staff.groups.add(Group.objects.get_or_create(
@@ -1840,17 +1841,25 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_biobank_form_records_lyophilization_and_supplementary_storage(self):
         accession = self.create_pending_accession()
-        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()
+        isolate.final_organism = "Escherichia coli"
+        isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
+        isolate.save(update_fields=("final_organism", "status"))
+        self.client.post(reverse("laboratory_lyophilization_complete",
+            kwargs={"isolate_id": isolate.pk}), {
+                "date_harvested": "2026-11-19",
+                "date_lyophilized": "2026-11-19",
+                "whonet_code": "ECO",
+            })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
         staff = User.objects.create_user(username="biobank-lab-staff", password="test-pass")
-        staff.groups.add(Group.objects.get_or_create(
-            name=home_permissions.ROLE_LAB_STAFF
-        )[0])
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
         self.client.force_login(staff)
-        response = self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
+        response = self.client.post(reverse("laboratory_biobank_save",
+            kwargs={"isolate_id": isolate.pk}), {
             "whonet_code": "ECO",
-            "date_harvested": "2026-11-19",
-            "date_lyophilized": "2026-11-19",
             "lyo_box_name": "LAB BOX", "lyo_box_number": "2",
             "lyo_position": "C3", "refrigerator_number": "1",
             "lyo_location": "Room 1",
@@ -1867,11 +1876,55 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         biobank = LaboratoryBiobank.objects.get(isolate=isolate)
         self.assertEqual(biobank.whonet_code, "ECO")
         self.assertEqual(biobank.lyo_box_name, "LAB BOX")
+        self.assertEqual(biobank.date_harvested, date(2026, 11, 19))
+        self.assertEqual(biobank.date_lyophilized, date(2026, 11, 19))
         self.assertTrue(biobank.skimmed_milk)
         self.assertTrue(biobank.tsbg)
         self.assertEqual(biobank.supplementary_position, "B2")
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.BIOBANKED)
         self.assertEqual(self.client.get(reverse("laboratory_biobank_list")).status_code, 200)
 
+    def test_biobank_save_without_box_position_does_not_advance(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.READY_FOR_BIOBANK
+        isolate.final_organism = "Klebsiella pneumoniae"
+        isolate.save(update_fields=("status", "final_organism"))
+        LaboratoryBiobank.objects.create(
+            isolate=isolate, whonet_code="KPN",
+            date_harvested=date(2026, 11, 19),
+            date_lyophilized=date(2026, 11, 19),
+        )
+        response = self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
+            "storage_box": "Box A", "storage_location": "Room 1",
+        })
+        self.assertEqual(response.status_code, 302)
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+        self.assertEqual(isolate.biobank.storage_box, "")
+
+    def test_lyophilization_rejects_early_future_or_reverse_dates(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        url = reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk})
+        self.client.post(url, {"date_harvested": "2026-11-19",
+                               "date_lyophilized": "2026-11-19", "whonet_code": "KPN"})
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_PENDING)
+        isolate.final_organism = "Klebsiella pneumoniae"
+        isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
+        isolate.save(update_fields=("final_organism", "status"))
+        for start, end in (("2026-11-20", "2026-11-19"),
+                           ("2099-12-01", "2099-12-02"),
+                           ("2026-11-18", "2026-11-19")):
+            self.client.post(url, {"date_harvested": start,
+                                   "date_lyophilized": end, "whonet_code": "KPN"})
+            isolate.refresh_from_db()
+            self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
+        self.assertFalse(LaboratoryBiobank.objects.filter(isolate=isolate).exists())
     def test_invalid_id_workbook_is_rejected(self):
         staff = User.objects.create_user(username="invalid-excel-staff", password="test-pass")
         staff.groups.add(Group.objects.get_or_create(
