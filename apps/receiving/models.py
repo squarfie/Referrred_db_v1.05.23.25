@@ -555,6 +555,7 @@ class LaboratoryIsolate(models.Model):
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     final_organism = models.CharField(max_length=255, blank=True, default="")
+    approved_organism_code = models.CharField(max_length=20, blank=True, default="")
     lyophilization_completed_at = models.DateTimeField(null=True, blank=True)
     lyophilization_completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_lyophilization_completed_isolates")
     biobanked_at = models.DateTimeField(null=True, blank=True)
