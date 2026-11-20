@@ -1802,6 +1802,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         accession = self.create_pending_accession()
         from apps.receiving.laboratory_workflow import WorkflowError, retry_revival, complete_revival_isolate
         self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self._return_all_cassettes_and_queue_revival(accession)
         self.client.post(reverse("laboratory_batch_transition",
             kwargs={"accession_id": accession.pk, "action": "start"}))
         first, second = list(accession.isolate_records.order_by("accession_number")[:2])
@@ -1873,35 +1874,36 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_early_stage_transitions_are_rejected_without_partial_updates(self):
         accession = self.create_pending_accession()
-        self.assertEqual(self.client.post(reverse("laboratory_batch_transition",
-            kwargs={"accession_id": accession.pk, "action": "endorse"})).status_code, 302)
+        for action in ("queue", "start", "complete", "endorse"):
+            self.assertEqual(self.client.post(reverse("laboratory_batch_transition", kwargs={
+                "accession_id": accession.pk, "action": action,
+            })).status_code, 302)
         self.assertEqual(accession.isolate_records.count(), 0)
+        self._queue_and_endorse_to_main_lab(accession)
         self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
         self.assertEqual(accession.isolate_records.count(), accession.isolate_count)
-        self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
-        self.assertEqual(accession.isolate_records.count(), accession.isolate_count)
-        self.client.post(reverse("laboratory_batch_transition",
-            kwargs={"accession_id": accession.pk, "action": "complete"}))
-        self.assertEqual(accession.isolate_records.filter(
-            status=LaboratoryIsolate.Status.REVIVAL_QUEUED).count(), accession.isolate_count)
-        self.client.post(reverse("laboratory_batch_transition",
-            kwargs={"accession_id": accession.pk, "action": "start"}))
-        self.client.post(reverse("laboratory_batch_transition",
-            kwargs={"accession_id": accession.pk, "action": "endorse"}))
-        self.assertEqual(accession.isolate_records.filter(
-            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS).count(), accession.isolate_count)
-        self.client.post(reverse("laboratory_batch_transition",
-            kwargs={"accession_id": accession.pk, "action": "complete"}))
-        self.assertEqual(accession.isolate_records.filter(
-            status=LaboratoryIsolate.Status.REVIVED).count(), accession.isolate_count)
-        self.client.post(reverse("laboratory_batch_transition",
-            kwargs={"accession_id": accession.pk, "action": "endorse"}))
+        for action in ("queue", "start", "complete"):
+            self.client.post(reverse("laboratory_batch_transition", kwargs={
+                "accession_id": accession.pk, "action": action,
+            }))
         self.assertEqual(accession.isolate_records.filter(
             status=LaboratoryIsolate.Status.ID_PENDING).count(), accession.isolate_count)
+        self._return_all_cassettes_and_queue_revival(accession)
+        self.client.post(reverse("laboratory_batch_transition", kwargs={
+            "accession_id": accession.pk, "action": "start",
+        }))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS).count(), accession.isolate_count)
+        self.client.post(reverse("laboratory_batch_transition", kwargs={
+            "accession_id": accession.pk, "action": "complete",
+        }))
+        self.assertEqual(accession.isolate_records.filter(
+            status=LaboratoryIsolate.Status.REVIVED).count(), accession.isolate_count)
 
-    def test_revived_and_non_viable_mixed_batch_does_not_endorse(self):
+    def test_revived_and_non_viable_mixed_batch_does_not_review(self):
         accession = self.create_pending_accession()
         self.client.post(reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk}))
+        self._return_all_cassettes_and_queue_revival(accession)
         self.client.post(reverse("laboratory_batch_transition",
             kwargs={"accession_id": accession.pk, "action": "start"}))
         isolate = accession.isolate_records.first()
@@ -1911,10 +1913,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             kwargs={"accession_id": accession.pk, "action": "complete"}))
         self.assertFalse(accession.isolate_records.filter(
             status=LaboratoryIsolate.Status.REVIVED).exists())
-        self.client.post(reverse("laboratory_batch_transition",
-            kwargs={"accession_id": accession.pk, "action": "endorse"}))
         self.assertFalse(accession.isolate_records.filter(
-            status=LaboratoryIsolate.Status.ID_PENDING).exists())
+            status=LaboratoryIsolate.Status.REVIVED).exists())
 
     def test_lab_staff_cannot_perform_revival_or_lyophilization_actions(self):
         accession = self.create_pending_accession()
