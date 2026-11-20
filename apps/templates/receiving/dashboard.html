@@ -27,14 +27,14 @@
     <section class="receiving-surface receiving-table-card" aria-label="Receiving worklist">
       <div class="receiving-board-toolbar">
         <div><h2 class="receiving-board-title">{{ active_tab_label }}</h2>
-          <p class="receiving-board-subtitle">Choose a tab to view the work queue. Counts represent all records.</p>
+          <p class="receiving-board-subtitle">{% if show_main_lab_returns %}Isolates with recorded ID results and cassette return from Main Laboratory. Returns remain visible after revival. Counts represent all returned isolates.{% else %}Choose a tab to view the work queue. Counts represent all records.{% endif %}</p>
         </div>
         <form method="get" class="receiving-board-search">
           <input type="hidden" name="tab" value="{{ active_tab }}">
           <label class="form-control-label" for="receiving-search">Search records</label>
           <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
             <div class="receiving-search-wrap"><i class="fas fa-search" aria-hidden="true"></i>
-              <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Tracking number, site code or name">
+              <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="{% if show_main_lab_returns %}Accession, tracking number, site{% else %}Tracking number, site code or name{% endif %}">
             </div>
             <button class="btn btn-primary mb-0" type="submit">Search</button>
             <a class="btn btn-outline-secondary mb-0" href="{% url receiving_queue_url %}?tab={{ active_tab }}">Reset</a>
@@ -52,6 +52,30 @@
         {% endfor %}
       </nav>
 
+      {% if show_main_lab_returns %}
+      <div class="table-responsive"><table class="table receiving-table">
+        <caption class="sr-only">Main Laboratory returned isolate records</caption>
+        <thead><tr><th scope="col">Accession number</th><th scope="col">Referring site</th><th scope="col">Tracking number</th><th scope="col">Returned on</th><th scope="col">Returned by</th><th scope="col">Current stage</th><th scope="col">Actions</th></tr></thead>
+        <tbody>
+          {% for isolate in page_obj %}
+          <tr>
+            <td data-label="Accession number"><span class="receiving-tracking">{{ isolate.accession_number }}</span></td>
+            <td data-label="Referring site"><strong>{{ isolate.accession_range.laboratory_receiving.receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ isolate.accession_range.laboratory_receiving.receipt.site.SiteName }}</span></td>
+            <td data-label="Tracking number">{{ isolate.accession_range.laboratory_receiving.receipt.tracking_number }}</td>
+            <td data-label="Returned on">{{ isolate.returned_at|date:"M j, Y" }}<span class="receiving-site-name">{{ isolate.returned_at|time:"g:i A" }}</span></td>
+            <td data-label="Returned by">{% if isolate.returned_by %}{{ isolate.returned_by.get_full_name|default:isolate.returned_by.username }}{% else %}—{% endif %}</td>
+            <td data-label="Current stage"><span class="receiving-status">{{ isolate.get_status_display }}</span></td>
+            <td class="receiving-actions text-right">
+              <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_isolate_detail' isolate.pk %}">View isolate</a>
+              <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' isolate.accession_range.laboratory_receiving.receipt.receiving_id %}">Open worksheet</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="receiving-empty"><i class="fas fa-microscope" aria-hidden="true"></i>No Main Laboratory ID returns recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}
       <div class="table-responsive"><table class="table receiving-table">
         <caption class="sr-only">Courier batch receiving records</caption>
         <thead><tr><th scope="col">Tracking number</th><th scope="col">Referring site</th><th scope="col">Secretariat received</th><th scope="col">Received by</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
@@ -73,6 +97,12 @@
                 <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Open worksheet</a>
               {% endif %}
               <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_worklist %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}">Open</a>
+              {% if receipt.can_delete_from_queue %}
+              <form method="post" action="{% url 'receiving_delete_permanently' receipt.receiving_id %}" class="d-inline" onsubmit="var typed = window.prompt('Delete this receiving record permanently? Type DELETE PERMANENTLY to confirm.'); if (typed !== 'DELETE PERMANENTLY') return false; this.querySelector('[name=confirmation]').value = typed; return true;">
+                {% csrf_token %}<input type="hidden" name="confirmation" value="">
+                <button type="submit" class="btn btn-sm btn-outline-danger mb-1"><i class="fas fa-trash-alt mr-1"></i>Delete</button>
+              </form>
+              {% endif %}
             </td>
           </tr>
         {% empty %}
@@ -80,6 +110,7 @@
         {% endfor %}
         </tbody>
       </table></div>
+      {% endif %}
       <div class="receiving-board-pagination">
         <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} record{{ page_obj.paginator.count|pluralize }}</span>
         {% if page_obj.paginator.num_pages > 1 %}

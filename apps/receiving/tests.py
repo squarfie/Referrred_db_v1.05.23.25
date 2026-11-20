@@ -1430,6 +1430,93 @@ class SharedBatchCreationServiceTests(TestCase):
         self.assertEqual(Referred_Data.objects.filter(Batch_id=batch).count(), 5)
 
 
+class ReceivingDeletionGuardTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser("delete-admin", "delete-admin@example.org", "test-pass")
+        self.secretariat = User.objects.create_user("delete-secretariat", password="test-pass")
+        self.secretariat.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_SECRETARIAT)[0])
+        self.lab_user = User.objects.create_user("delete-lab", password="test-pass")
+        self.lab_user.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_ENCODER)[0])
+        self.site = SiteData.objects.create(SiteCode="DLP", SiteName="Delete test site")
+
+    def receipt(self, status=ReferralReceipt.Status.RECEIVED):
+        data = {
+            "tracking_number": f"DELETE-{status}", "site": self.site,
+            "date_sent": date(2026, 11, 18), "date_received": date(2026, 11, 18),
+            "time_received": time(8), "received_by": self.secretariat,
+            "status": status,
+        }
+        if status != ReferralReceipt.Status.RECEIVED:
+            data.update(endorsed_by=self.secretariat,
+                        endorsed_at=timezone.make_aware(datetime(2026, 11, 18, 9)))
+        if status == ReferralReceipt.Status.LAB_RECEIVED:
+            data.update(lab_date_received=date(2026, 11, 19),
+                        lab_time_received=time(9), lab_received_by=self.lab_user)
+        return ReferralReceipt.objects.create(**data)
+
+    def delete_url(self, receipt):
+        return reverse("receiving_delete_permanently", kwargs={"receiving_id": receipt.receiving_id})
+
+    def test_secretariat_can_delete_received_mistake_from_dashboard(self):
+        receipt = self.receipt()
+        self.client.force_login(self.secretariat)
+        dashboard = self.client.get(reverse("secretariat_receiving_dashboard"))
+        self.assertContains(dashboard, self.delete_url(receipt))
+        response = self.client.post(self.delete_url(receipt), {"confirmation": "DELETE PERMANENTLY"})
+        self.assertRedirects(response, reverse("secretariat_receiving_dashboard"), fetch_redirect_response=False)
+        self.assertFalse(ReferralReceipt.objects.filter(pk=receipt.pk).exists())
+
+    def test_secretariat_can_delete_endorsed_but_unacknowledged_record(self):
+        receipt = self.receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.secretariat)
+        response = self.client.post(self.delete_url(receipt), {"confirmation": "DELETE PERMANENTLY"})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ReferralReceipt.objects.filter(pk=receipt.pk).exists())
+
+    def test_admin_can_remove_lab_received_test_record_without_accessions(self):
+        receipt = self.receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        LaboratoryReceiving.objects.create(receipt=receipt, recorded_by=self.lab_user)
+        self.client.force_login(self.admin)
+        dashboard = self.client.get(reverse("secretariat_receiving_dashboard") + "?tab=received")
+        self.assertContains(dashboard, self.delete_url(receipt))
+        self.client.post(self.delete_url(receipt), {"confirmation": "DELETE PERMANENTLY"})
+        self.assertFalse(ReferralReceipt.objects.filter(pk=receipt.pk).exists())
+        self.assertFalse(LaboratoryReceiving.objects.filter(receipt_id=receipt.pk).exists())
+
+    def test_secretariat_cannot_remove_lab_received_record(self):
+        receipt = self.receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        LaboratoryReceiving.objects.create(receipt=receipt, recorded_by=self.lab_user)
+        self.client.force_login(self.secretariat)
+        dashboard = self.client.get(reverse("secretariat_receiving_dashboard") + "?tab=received")
+        self.assertNotContains(dashboard, self.delete_url(receipt))
+        self.client.post(self.delete_url(receipt), {"confirmation": "DELETE PERMANENTLY"})
+        self.assertTrue(ReferralReceipt.objects.filter(pk=receipt.pk).exists())
+
+    def test_admin_cannot_delete_receipt_with_accession_range(self):
+        receipt = self.receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        lab_record = LaboratoryReceiving.objects.create(receipt=receipt, recorded_by=self.lab_user)
+        accession = LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_record, date_referred=date(2026, 11, 19),
+            start_number=1, end_number=1, batch_number=1, total_batches=1,
+            assigned_by=self.lab_user,
+        )
+        self.client.force_login(self.admin)
+        dashboard = self.client.get(reverse("secretariat_receiving_dashboard") + "?tab=received")
+        self.assertNotContains(dashboard, self.delete_url(receipt))
+        self.client.post(self.delete_url(receipt), {"confirmation": "DELETE PERMANENTLY"})
+        self.assertTrue(ReferralReceipt.objects.filter(pk=receipt.pk).exists())
+        self.assertTrue(LaboratoryAccession.objects.filter(pk=accession.pk).exists())
+
+    def test_confirmation_and_role_restrictions_are_enforced_on_post(self):
+        receipt = self.receipt()
+        self.client.force_login(self.secretariat)
+        self.client.post(self.delete_url(receipt), {"confirmation": "DELETE"})
+        self.assertTrue(ReferralReceipt.objects.filter(pk=receipt.pk).exists())
+        self.client.force_login(self.lab_user)
+        self.client.post(self.delete_url(receipt), {"confirmation": "DELETE PERMANENTLY"})
+        self.assertTrue(ReferralReceipt.objects.filter(pk=receipt.pk).exists())
+
+
 class LaboratoryReceivingWorkspaceTests(TestCase):
     def setUp(self):
         self.lab_user = User.objects.create_user(username="lab-workspace", password="test-pass")
@@ -1450,6 +1537,77 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         Organism_List.objects.create(Whonet_Org_Code="KPN", Organism="Klebsiella pneumoniae")
         Organism_List.objects.create(Whonet_Org_Code="ECO", Organism="Escherichia coli")
         self.client.force_login(self.lab_user)
+
+    def test_main_lab_return_tab_shows_only_returned_isolates_and_audit(self):
+        accession = self.create_pending_accession()
+        pending = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[0],
+            status=LaboratoryIsolate.Status.ID_PENDING,
+        )
+        returned = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[1],
+            status=LaboratoryIsolate.Status.ID_RETURNED,
+            returned_at=timezone.now(),
+            returned_by=self.lab_user,
+        )
+        url = reverse("laboratory_receiving_dashboard")
+        response = self.client.get(url + "?tab=returned")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["show_main_lab_returns"])
+        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertContains(response, "Returned from Main Lab")
+        self.assertContains(response, returned.accession_number)
+        self.assertNotContains(response, pending.accession_number)
+        self.assertContains(response, self.receipt.tracking_number)
+        self.assertContains(response, self.lab_user.username)
+        self.assertContains(response, reverse("laboratory_isolate_detail", kwargs={"isolate_id": returned.pk}))
+        self.assertContains(response, reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}))
+
+    def test_main_lab_return_remains_visible_after_revival(self):
+        accession = self.create_pending_accession()
+        isolate = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[0],
+            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS,
+            returned_at=timezone.now(),
+            returned_by=self.lab_user,
+        )
+        response = self.client.get(reverse("laboratory_receiving_dashboard") + "?tab=returned")
+        self.assertContains(response, isolate.accession_number)
+        self.assertContains(response, "Revival in progress")
+
+    def test_main_lab_return_search_by_accession_and_not_courier_receipts(self):
+        accession = self.create_pending_accession()
+        isolate = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[0],
+            status=LaboratoryIsolate.Status.ID_RETURNED,
+            returned_at=timezone.now(),
+            returned_by=self.lab_user,
+        )
+        url = reverse("laboratory_receiving_dashboard")
+        response = self.client.get(url + "?tab=returned&q=" + isolate.accession_number)
+        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertContains(response, isolate.accession_number)
+        missed = self.client.get(url + "?tab=returned&q=NOT-A-REAL-ACCESSION")
+        self.assertEqual(missed.context["page_obj"].paginator.count, 0)
+        self.assertContains(missed, "No Main Laboratory ID returns recorded yet.")
+        # The existing courier tab remains unchanged.
+        courier = self.client.get(url + "?tab=received")
+        self.assertFalse(courier.context["show_main_lab_returns"])
+        self.assertEqual(courier.context["page_obj"].paginator.count, 1)
+
+    def test_main_lab_return_tab_not_shown_to_secretariat(self):
+        secretariat = User.objects.create_user(username="returns-secretariat", password="test-pass")
+        secretariat.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_SECRETARIAT)[0])
+        self.client.force_login(secretariat)
+        response = self.client.get(reverse("secretariat_receiving_dashboard"))
+        self.assertNotContains(response, "Returned from Main Lab")
+        self.assertNotContains(response, "Main Laboratory returned isolate records")
+        denied = self.client.get(reverse("laboratory_receiving_dashboard") + "?tab=returned")
+        self.assertRedirects(denied, reverse("home"), fetch_redirect_response=False)
 
     def test_lab_encoder_manually_saves_accepted_and_rejected_totals(self):
         response = self.client.post(
