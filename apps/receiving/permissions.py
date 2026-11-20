@@ -13,7 +13,7 @@ from apps.home.permissions import (
 
 
 def can_read_receiving(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_LAB_ENCODER})
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_LAB_ENCODER, ROLE_LAB_STAFF})
 
 
 def can_manage_secretariat_receiving(user):
@@ -21,7 +21,7 @@ def can_manage_secretariat_receiving(user):
 
 
 def can_confirm_lab_receipt(user):
-    return ROLE_LAB_ENCODER in get_user_roles(user)
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_ENCODER})
 
 
 def can_permanently_delete_receipt(user):
@@ -57,7 +57,7 @@ def can_review_id_results(user):
 
 
 def can_manage_biobank(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_STAFF})
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_STAFF, ROLE_LAB_ENCODER})
 
 
 def can_access_laboratory_worklist(user):
@@ -67,3 +67,10 @@ def can_access_laboratory_worklist(user):
 lab_staff_required = _permission_required(can_manage_id_testing)
 lab_review_required = _permission_required(can_review_id_results)
 lab_worklist_required = _permission_required(can_access_laboratory_worklist)
+
+
+def can_read_laboratory_receiving(user):
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_ENCODER, ROLE_LAB_STAFF})
+
+
+lab_receiving_read_required = _permission_required(can_read_laboratory_receiving)
