@@ -206,6 +206,7 @@ def laboratory_receiving_workspace(request, receiving_id):
             )
             batch_previews[accession.pk] = {
                 "warnings": warnings,
+                "message": " ".join(warnings),
                 "blocked": bool(warnings),
             }
     batch_rows = [
