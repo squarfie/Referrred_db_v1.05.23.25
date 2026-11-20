@@ -87,6 +87,8 @@ def record_revival_failure(isolate_id, status, reason, user):
         raise WorkflowError("Select Revival failed or Non-viable.")
     if not reason or not reason.strip():
         raise WorkflowError("A reason is required for unsuccessful revival.")
+    if len(reason.strip()) > 1000:
+        raise WorkflowError("Revival failure reason cannot exceed 1,000 characters.")
     base = LaboratoryIsolate.objects.select_related("accession_range").get(pk=isolate_id)
     LaboratoryAccession.objects.select_for_update().get(pk=base.accession_range_id)
     item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
