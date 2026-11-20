@@ -8,12 +8,12 @@
 body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}
 .toolbar{padding:10px 12px;background:#f2f5f9;margin-bottom:6mm}
 .toolbar button{font-size:14px;padding:7px 15px;cursor:pointer}
-.sheet{display:grid;grid-template-columns:repeat(3,64mm);gap:2.5mm}
-.sticker{width:64mm;height:28mm;padding:2mm 2.5mm;border:1px solid #777;display:grid;grid-template-columns:21mm 1fr;grid-template-rows:7mm 14mm 3mm;gap:0 2mm;break-inside:avoid;page-break-inside:avoid;background:#fff;overflow:hidden}
-.sticker .code{grid-column:2;grid-row:1;align-self:center;font-weight:800;font-size:12pt;line-height:1}
-.sticker .qr{grid-column:1;grid-row:1 / span 3;align-self:center;justify-self:center;width:20mm;height:20mm;object-fit:contain}
-.sticker .accession{grid-column:2;grid-row:2;align-self:center;font-size:10pt;font-weight:700;white-space:nowrap}
-.sticker .harvest{grid-column:2;grid-row:3;font-size:8.5pt;font-weight:600;white-space:nowrap}
+.sheet{display:grid;grid-template-columns:repeat(3,62mm);gap:2.5mm}
+.sticker{width:62mm;height:28mm;padding:1mm 2mm;border:1px solid #777;display:grid;grid-template-columns:20mm 1fr;grid-template-rows:5mm 17mm 3mm;gap:0 2mm;break-inside:avoid;page-break-inside:avoid;background:#fff;overflow:hidden}
+.sticker .code{grid-column:2;grid-row:2;align-self:center;justify-self:center;font-weight:800;font-size:12pt;line-height:1}
+.sticker .qr{grid-column:1;grid-row:2;align-self:center;justify-self:center;width:17mm;height:17mm;object-fit:contain}
+.sticker .accession{grid-column:1 / -1;grid-row:1;align-self:center;justify-self:center;font-size:10pt;font-weight:800;white-space:nowrap}
+.sticker .harvest{grid-column:1 / -1;grid-row:3;align-self:center;justify-self:center;font-size:8.5pt;font-weight:600;white-space:nowrap}
 .warning{padding:12px;margin-top:10px;background:#fff4dc}
 @media print{.toolbar,.warning{display:none!important}.sticker{border:1px solid #bbb} .sheet{gap:2.5mm}}
 </style></head>
