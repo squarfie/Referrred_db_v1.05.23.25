@@ -212,7 +212,7 @@ def laboratory_record_id(request, isolate_id):
     organism = (request.POST.get("organism_reported") or "").strip()
     code = (request.POST.get("organism_reported_code") or "").strip()
     try:
-        _, organism = resolve_organism(code=code, name=organism)
+        canonical_code, organism = resolve_organism(code=code, name=organism)
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
@@ -220,7 +220,7 @@ def laboratory_record_id(request, isolate_id):
         messages.error(request, "Enter an identified organism (maximum 255 characters).")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
     LaboratoryIdentification.objects.create(
-        isolate=isolate, organism_reported=organism,
+        isolate=isolate, organism_reported=organism, whonet_organism_code=canonical_code,
         instrument=(request.POST.get("instrument") or "").strip()[:100],
         cassette_reference=(request.POST.get("cassette_reference") or "").strip()[:100],
         recorded_by=request.user,
@@ -412,6 +412,7 @@ def _upload_rows(upload):
                 code=values["organism_code"], name=values["organism_reported"]
             )
             values["organism_reported"] = canonical_name
+            values["organism_code"] = _resolved_code
         except ValidationError as exc:
             raise ValueError(f"Row {number}: " + "; ".join(exc.messages)) from exc
         if len(values["accession_number"]) > 80 or len(values["organism_reported"]) > 255:
@@ -484,6 +485,7 @@ def laboratory_id_upload(request):
             LaboratoryIdentification(
                 isolate=locked[row["accession_number"]],
                 organism_reported=row["organism_reported"],
+                whonet_organism_code=row["organism_code"],
                 instrument=row["instrument"],
                 cassette_reference=row["cassette_reference"],
                 source=(LaboratoryIdentification.Source.CSV
