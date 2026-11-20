@@ -1293,6 +1293,22 @@ class SpecimenUploadDataTests(TestCase):
             existing.pk,
         )
 
+    def test_self_referencing_group_code_is_created_only_once(self):
+        from apps.home.models import SpecimenTypeModel
+        response = self.upload_csv(
+            "Specimen_code,Specimen_name,Specimen_code_grp\n"
+            "bl,Blood,bl\n"
+            "ab,Abscess,bl\n"
+        )
+        self.assertRedirects(response, reverse("specimen_list"), fetch_redirect_response=False)
+        self.assertEqual(SpecimenTypeModel.objects.count(), 2)
+        blood = SpecimenTypeModel.objects.get(Specimen_code="bl")
+        self.assertEqual(blood.Specimen_Code_Grp_id, blood.pk)
+        self.assertEqual(
+            SpecimenTypeModel.objects.get(Specimen_code="ab").Specimen_Code_Grp_id,
+            blood.pk,
+        )
+
     def test_group_code_row_later_in_file_is_reused(self):
         from apps.home.models import SpecimenTypeModel
         response = self.upload_csv(
