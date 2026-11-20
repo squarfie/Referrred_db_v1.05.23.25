@@ -8147,7 +8147,7 @@ def upload_specimen_code(request):
                         request,
                         "Missing required column: Specimen_code"
                     )
-                    return redirect("upload_specimen_code")
+                    return redirect("/settings/?tab=specimen")
 
                 skipped = 0
                 duplicate_skipped = 0
@@ -8195,7 +8195,7 @@ def upload_specimen_code(request):
 
             except Exception as e:
                 messages.error(request, f"❌ Error processing file: {e}")
-                return redirect("upload_specimen_code")
+                return redirect("/settings/?tab=specimen")
 
         messages.error(request, "Form is not valid.")
 
