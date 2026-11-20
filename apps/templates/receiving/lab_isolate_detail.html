@@ -106,7 +106,7 @@
 <h3 class="h5 mb-3">Isolate information (recorded at lyophilization)</h3>
 <div class="row">
 <div class="col-md-3 mb-3"><label for="harvested">Date harvested</label><input id="harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control" readonly></div>
-<div class="col-md-3 mb-3"><label for="whonet">Organism ID (WHONET code)</label><input id="whonet" name="whonet_code" value="{{ biobank.whonet_code|default:'' }}" class="form-control" maxlength="30"></div>
+<div class="col-md-3 mb-3"><label for="whonet">Organism ID (WHONET code)</label><input id="whonet" name="whonet_code" value="{{ biobank.whonet_code|default:'' }}" class="form-control" maxlength="30" readonly></div>
 <div class="col-md-3 mb-3"><label for="container">Container number/type</label><input id="container" name="container" value="{{ biobank.container|default:'' }}" class="form-control" maxlength="100"></div>
 <div class="col-md-3 mb-3"><label for="method">Preservation method</label><input id="method" name="preservation_method" value="{{ biobank.preservation_method|default:'' }}" class="form-control" maxlength="100"></div>
 </div>
