@@ -58,9 +58,9 @@ class LaboratoryNavigationUXTests(SimpleTestCase):
 
     def test_laboratory_templates_compile(self):
         for template in (
-            "includes/sidenav.html", "receiving/dashboard.html",
-            "receiving/laboratory_workspace.html", "receiving/lab_worklist.html",
-            "receiving/lab_batch_detail.html", "receiving/lab_biobank_list.html",
+            "includes/sidenav.html", "laboratory/dashboard.html",
+            "laboratory/laboratory_workspace.html", "laboratory/lab_worklist.html",
+            "laboratory/lab_batch_detail.html", "laboratory/lab_biobank_list.html",
         ):
             with self.subTest(template=template):
                 get_template(template)

@@ -41,7 +41,7 @@
 <div class="col-md-3 mb-2"><label for="cassette">Cassette/slot reference</label><input id="cassette" name="cassette_reference" class="form-control" maxlength="100" required></div>
 <div class="col-md-auto mb-2"><button type="submit" name="action" value="submit_return" class="btn btn-primary mb-0">Save result and return cassette</button> <button type="submit" name="action" value="save" class="btn btn-outline-secondary mb-0">Save and add another result</button></div>
 </form>
-{% if isolate.identifications.exists %}<details class="mb-3"><summary>Previously saved instrument results</summary>{% include 'receiving/_lab_isolate_results.html' %}</details>
+{% if isolate.identifications.exists %}<details class="mb-3"><summary>Previously saved instrument results</summary>{% include 'laboratory/_lab_isolate_results.html' %}</details>
 <form method="post" action="{% url 'laboratory_return_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-outline-primary" type="submit">Return saved results and cassette</button></form>{% endif %}
 {% elif next_action.section == 'revival' and can_review %}
 {% if isolate.status == 'revival_failed' %}
@@ -90,13 +90,13 @@
 <div class="col-md-12 mb-2"><button class="btn btn-primary mb-0" type="submit">Complete lyophilization / harvest</button></div>
 </form>
 {% elif next_action.section == 'biobank' and can_bank and isolate.status == 'ready_for_biobank' %}
-{% include 'receiving/_lab_isolate_storage_form.html' %}
+{% include 'laboratory/_lab_isolate_storage_form.html' %}
 {% endif %}
 </div></section>
 <details class="receiving-surface receiving-form-card mb-4">
 <summary class="p-3"><strong>Scientific record and completed history</strong></summary>
 <div class="receiving-card-body">
-<h2 class="h5">Instrument results</h2>{% include 'receiving/_lab_isolate_results.html' %}
+<h2 class="h5">Instrument results</h2>{% include 'laboratory/_lab_isolate_results.html' %}
 <h2 class="h5 mt-4">Workflow audit</h2><dl class="row">
 {% if isolate.created_at %}<dt class="col-md-4">Accession created</dt><dd class="col-md-8">{{ isolate.created_at|date:"M j, Y g:i A" }}</dd>{% endif %}
 {% if isolate.endorsed_at %}<dt class="col-md-4">Endorsed</dt><dd class="col-md-8">{{ isolate.endorsed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.endorsed_by|default:"&mdash;" }}</dd>{% endif %}
@@ -112,9 +112,9 @@
 </dl>
 {% if isolate.revival_retry_count or isolate.revival_failed_reason %}<h3 class="h6">Revival observations and retries</h3><p>Retry count: {{ isolate.revival_retry_count }}<br>{{ isolate.revival_failed_reason|linebreaksbr }}</p>{% endif %}
 {% if isolate.final_organism %}<h3 class="h6">Approved organism</h3><p>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}</p>{% endif %}
-{% if biobank %}{% include 'receiving/_lab_isolate_storage_record.html' %}{% endif %}
+{% if biobank %}{% include 'laboratory/_lab_isolate_storage_record.html' %}{% endif %}
 </div></details>
-{% if can_bank and isolate.status == 'biobanked' %}<details class="receiving-surface receiving-form-card mb-4"><summary class="p-3"><strong>Edit completed biobank storage</strong></summary><div class="receiving-card-body">{% include 'receiving/_lab_isolate_storage_form.html' %}</div></details>{% endif %}
+{% if can_bank and isolate.status == 'biobanked' %}<details class="receiving-surface receiving-form-card mb-4"><summary class="p-3"><strong>Edit completed biobank storage</strong></summary><div class="receiving-card-body">{% include 'laboratory/_lab_isolate_storage_form.html' %}</div></details>{% endif %}
 <div class="receiving-surface p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between" style="gap:.75rem;">
   <a class="btn btn-outline-secondary mb-0" href="{% url 'laboratory_batch_detail' isolate.accession_range.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}">Back to Batch</a>
   <div class="d-flex flex-wrap" style="gap:.5rem;">

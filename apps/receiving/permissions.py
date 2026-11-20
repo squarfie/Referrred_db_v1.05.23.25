@@ -20,10 +20,6 @@ def can_manage_secretariat_receiving(user):
     return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_SECRETARIAT})
 
 
-def can_confirm_lab_receipt(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_ENCODER})
-
-
 def can_permanently_delete_receipt(user):
     return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_SECRETARIAT})
 
@@ -44,33 +40,20 @@ def _permission_required(checker):
 
 receiving_read_required = _permission_required(can_read_receiving)
 secretariat_receiving_required = _permission_required(can_manage_secretariat_receiving)
-lab_receiving_required = _permission_required(can_confirm_lab_receipt)
 admin_receiving_delete_required = _permission_required(can_permanently_delete_receipt)
 
 
-def can_manage_id_testing(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_STAFF})
-
-
-def can_review_id_results(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_ENCODER})
-
-
-def can_manage_biobank(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_STAFF, ROLE_LAB_ENCODER})
-
-
-def can_access_laboratory_worklist(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_STAFF, ROLE_LAB_ENCODER})
-
-
-lab_staff_required = _permission_required(can_manage_id_testing)
-lab_review_required = _permission_required(can_review_id_results)
-lab_worklist_required = _permission_required(can_access_laboratory_worklist)
-
-
-def can_read_laboratory_receiving(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_ENCODER, ROLE_LAB_STAFF})
-
-
-lab_receiving_read_required = _permission_required(can_read_laboratory_receiving)
+# Compatibility imports for callers of the original receiving policy module.
+from apps.laboratory.permissions import (
+    can_access_laboratory_worklist,
+    can_confirm_lab_receipt,
+    can_manage_biobank,
+    can_manage_id_testing,
+    can_read_laboratory_receiving,
+    can_review_id_results,
+    lab_receiving_read_required,
+    lab_receiving_required,
+    lab_review_required,
+    lab_staff_required,
+    lab_worklist_required,
+)

@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'apps.home_final.apps.HomeFinalConfig',
     'apps.verification.apps.VerificationConfig',
     "apps.receiving.apps.ReceivingConfig",
+    "apps.laboratory.apps.LaboratoryConfig",
 
 ]
 

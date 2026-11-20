@@ -12,7 +12,7 @@ from apps.receiving.models import LaboratoryBiobank, LaboratoryIsolate
 
 class StickerPDFLayoutTests(SimpleTestCase):
     def test_a4_pagination_and_accession_only_qr(self):
-        from apps.receiving.sticker_pdf import render_sticker_pdf
+        from apps.laboratory.sticker_pdf import render_sticker_pdf
         from apps.receiving.qr import render_qr_png
         import base64
         labels = [{

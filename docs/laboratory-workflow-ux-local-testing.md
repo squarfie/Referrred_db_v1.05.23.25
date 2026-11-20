@@ -27,7 +27,7 @@ Run from the project directory using the existing virtual environment:
 ..\referred\Scripts\python.exe manage.py check
 ..\referred\Scripts\python.exe manage.py makemigrations --check --dry-run
 ..\referred\Scripts\python.exe manage.py test apps.receiving
-..\referred\Scripts\python.exe manage.py test apps.receiving apps.home
+..\referred\Scripts\python.exe manage.py test apps.receiving apps.laboratory apps.home
 ```
 
 Automated tests use an isolated test database. The implementation run uses Django's MD5 password hasher only within the test process to reduce fixture setup time; production password settings are unchanged.

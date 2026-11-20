@@ -44,7 +44,7 @@ class WorkflowUXTests(TestCase):
         self.assertEqual(item.returned_by_id, self.lab_user.pk)
 
     def test_guidance_is_role_aware(self):
-        from apps.receiving.laboratory_guidance import next_action
+        from apps.laboratory.guidance import next_action
         item = self.isolate()
         guidance = next_action(item, self.lab_user)
         self.assertEqual(guidance['section'], 'identification')
@@ -59,7 +59,7 @@ class WorkflowUXTests(TestCase):
         self.assertEqual(len(self.client.get(reverse('laboratory_worklist')+'?history=1').context['batches']), 1)
 
     def test_record_revival_actual_dates_and_preserve_start(self):
-        from apps.receiving.laboratory_workflow import record_revival_outcome
+        from apps.laboratory.workflow import record_revival_outcome
         item = self.isolate('id_returned')
         now = timezone.now()
         item.returned_at = now - timedelta(days=3)
@@ -92,7 +92,7 @@ class WorkflowUXTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.status, 'ready_for_biobank')
     def test_revival_rejects_unreturned_and_invalid_dates(self):
-        from apps.receiving.laboratory_workflow import record_revival_outcome, WorkflowError
+        from apps.laboratory.workflow import record_revival_outcome, WorkflowError
         item = self.isolate('id_returned')
         now = timezone.now()
         for start, end in [(now.isoformat(), now.isoformat()), ('bad', now.isoformat()), (now.isoformat(), (now-timedelta(days=1)).isoformat())]:
@@ -102,7 +102,7 @@ class WorkflowUXTests(TestCase):
         self.assertEqual(item.status, 'id_returned')
 
     def test_revival_retry_preserves_original_and_records_actual_attempt(self):
-        from apps.receiving.laboratory_workflow import record_revival_outcome
+        from apps.laboratory.workflow import record_revival_outcome
         item = self.isolate('revival_in_progress')
         now = timezone.now()
         item.returned_at = now-timedelta(days=5)
