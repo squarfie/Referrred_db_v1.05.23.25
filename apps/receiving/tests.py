@@ -1476,6 +1476,24 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertContains(response, "26ARS_RI0001")
         self.assertContains(response, 'aria-disabled="true"')
 
+    def test_batch_creation_rejects_raw_record_with_code_but_null_batch_id(self):
+        accession = self.create_pending_accession()
+        Referred_Data.objects.create(
+            AccessionNo="26ARS_RI0001",
+            Batch_Code="OTHER_EXISTING_BATCH",
+            Batch_id=None,
+        )
+        response = self.client.post(
+            reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk})
+        )
+        self.assertEqual(response.status_code, 302)
+        accession.refresh_from_db()
+        self.assertIsNone(accession.batch_id)
+        self.assertEqual(
+            Referred_Data.objects.get(AccessionNo="26ARS_RI0001").Batch_Code,
+            "OTHER_EXISTING_BATCH",
+        )
+
     def test_batch_conflict_preview_keeps_button_enabled_without_conflicts(self):
         self.create_pending_accession()
         response = self.client.get(reverse(
