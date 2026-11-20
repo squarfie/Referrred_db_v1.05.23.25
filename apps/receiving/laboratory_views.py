@@ -23,6 +23,22 @@ MAX_ROWS = 1000
 UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference")
 
 
+
+@login_required
+@lab_worklist_required
+def laboratory_biobank_list(request):
+    search = (request.GET.get("q") or "").strip()
+    isolates = LaboratoryIsolate.objects.select_related(
+        "accession_range__laboratory_receiving__receipt__site", "biobank"
+    ).order_by("accession_number")
+    if search:
+        isolates = isolates.filter(accession_number__icontains=search)
+    return render(request, "receiving/lab_biobank_list.html", {
+        "isolates": isolates[:250], "query": search,
+        "can_bank": can_manage_biobank(request.user),
+    })
+
+
 @login_required
 @lab_worklist_required
 def laboratory_worklist(request):
