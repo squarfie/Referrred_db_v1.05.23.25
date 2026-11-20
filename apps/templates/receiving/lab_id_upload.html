@@ -8,7 +8,7 @@
 <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'laboratory_worklist' %}">Back to Worklist</a></div></header>
 <div class="receiving-content">
 <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Import ID results</h2><p>Accepted formats: UTF-8 CSV, .xlsx · max 2 MB · max 1,000 result rows.</p></div><div class="receiving-card-body">
-<p>Required columns: <code>accession_number</code>, <code>organism_reported</code>. Optional: <code>instrument</code>, <code>cassette_reference</code>. Keep one row per instrument finding, including retests.</p>
+<p>Required columns: <code>accession_number</code>, <code>organism_reported</code>. Optional: <code>instrument</code>, <code>cassette_reference</code>, <code>organism_code</code> (WHONET code matched against the organism table). Keep one row per instrument finding, including retests.</p>
 {% if warning %}<div class="alert alert-warning">{{ warning }}</div>{% endif %}
 <form method="post" enctype="multipart/form-data" class="form-row align-items-end">{% csrf_token %}
 <div class="col-md-7 mb-2"><label for="id-file">Identification result file</label><input class="form-control" type="file" id="id-file" name="file" accept=".csv,.xlsx" required></div>
