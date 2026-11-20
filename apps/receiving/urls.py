@@ -22,6 +22,7 @@ urlpatterns = [
     path("", views.receiving_dashboard, name="receiving_dashboard"),
     path("secretariat/", views.secretariat_receiving_dashboard, name="secretariat_receiving_dashboard"),
     path("laboratory-receiving/", views.laboratory_receiving_dashboard, name="laboratory_receiving_dashboard"),
+    path("laboratory-receiving/<uuid:receiving_id>/", views.laboratory_receiving_detail, name="laboratory_receiving_detail"),
     path("laboratory-register/", views.laboratory_receiving_register, name="laboratory_receiving_register"),
     path("laboratory-register/pdf/", views.laboratory_receiving_register_pdf, name="laboratory_receiving_register_pdf"),
     path("new/", views.receiving_create, name="receiving_create"),
