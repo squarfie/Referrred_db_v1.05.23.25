@@ -248,6 +248,7 @@ from apps.home.permissions import (
     ROLE_CHECKER,
     ROLE_ENCODER,
     ROLE_LAB_ENCODER,
+    ROLE_LAB_STAFF,
     ROLE_LAB_MANAGER,
     ROLE_VERIFIER,
     can_manage_batch,
@@ -8348,7 +8349,7 @@ def upload_contacts(request):
             return str(value).strip()
         return ""
 
-    valid_roles = {"", ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_VERIFIER, ROLE_CHECKER, ROLE_LAB_MANAGER, ROLE_ADMIN}
+    valid_roles = {"", ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_LAB_STAFF, ROLE_VERIFIER, ROLE_CHECKER, ROLE_LAB_MANAGER, ROLE_ADMIN}
 
     def normalize_uploaded_roles(value):
         role_aliases = {
@@ -8359,6 +8360,9 @@ def upload_contacts(request):
             "lab encoder": ROLE_LAB_ENCODER,
             "lab_encoder": ROLE_LAB_ENCODER,
             "labencoder": ROLE_LAB_ENCODER,
+            "laboratory staff": ROLE_LAB_STAFF,
+            "lab staff": ROLE_LAB_STAFF,
+            "laboratory_staff": ROLE_LAB_STAFF,
             "verifier": ROLE_VERIFIER,
             "checker": ROLE_CHECKER,
             "lab manager": ROLE_LAB_MANAGER,

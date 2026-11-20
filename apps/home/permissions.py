@@ -9,6 +9,7 @@ ROLE_ADMIN = "Admin"
 ROLE_VERIFIER = "Verifier"
 ROLE_ENCODER = "DMU Encoder"
 ROLE_LAB_ENCODER = "LAB Encoder"
+ROLE_LAB_STAFF = "Laboratory Staff"
 ROLE_SECRETARIAT = "Secretariat"
 ROLE_CHECKER = "Checker"
 ROLE_LAB_MANAGER = "Manager"
@@ -25,6 +26,9 @@ ROLE_BY_NAME = {
     ROLE_VERIFIER.lower(): ROLE_VERIFIER,
     ROLE_ENCODER.lower(): ROLE_ENCODER,
     ROLE_LAB_ENCODER.lower(): ROLE_LAB_ENCODER,
+    ROLE_LAB_STAFF.lower(): ROLE_LAB_STAFF,
+    "laboratory_staff": ROLE_LAB_STAFF,
+    "lab staff": ROLE_LAB_STAFF,
     ROLE_SECRETARIAT.lower(): ROLE_SECRETARIAT,
     ROLE_CHECKER.lower(): ROLE_CHECKER,
     ROLE_LAB_MANAGER.lower(): ROLE_LAB_MANAGER,
@@ -92,6 +96,7 @@ def get_user_roles(user):
         ROLE_VERIFIER,
         ROLE_ENCODER,
         ROLE_LAB_ENCODER,
+        ROLE_LAB_STAFF,
         ROLE_SECRETARIAT,
         ROLE_CHECKER,
         ROLE_LAB_MANAGER,
@@ -113,7 +118,7 @@ def get_user_roles(user):
 
 def get_user_role(user):
     roles = get_user_roles(user)
-    for role in (ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_CHECKER, ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_VERIFIER, ROLE_LAB_MANAGER):
+    for role in (ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_CHECKER, ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_LAB_STAFF, ROLE_VERIFIER, ROLE_LAB_MANAGER):
         if role in roles:
             return role
     return ""
@@ -133,6 +138,8 @@ def role_flags(user):
         "is_encoder": ROLE_ENCODER in roles,
         "is_dmu_encoder": ROLE_ENCODER in roles,
         "is_lab_encoder": ROLE_LAB_ENCODER in roles,
+        "is_lab_staff": ROLE_LAB_STAFF in roles,
+        "can_view_lab_testing": bool(roles & {ROLE_ADMIN, ROLE_LAB_ENCODER, ROLE_LAB_STAFF}),
         "is_secretariat": ROLE_SECRETARIAT in roles,
         "is_checker": ROLE_CHECKER in roles or not roles,
         "is_lab_manager": ROLE_LAB_MANAGER in roles,

@@ -1,6 +1,9 @@
 from django.contrib import admin
 
 from .models import (
+    LaboratoryIsolate,
+    LaboratoryIdentification,
+    LaboratoryBiobank,
     LaboratoryAccession,
     LaboratoryOrganismCount,
     LaboratoryReceiving,
@@ -67,3 +70,23 @@ class LaboratoryAccessionAdmin(ReadOnlyReceivingAdmin):
 class LaboratoryOrganismCountAdmin(ReadOnlyReceivingAdmin):
     list_display = ("accession_range", "organism_code", "count")
     list_filter = ("organism_code",)
+
+
+@admin.register(LaboratoryIsolate)
+class LaboratoryIsolateAdmin(ReadOnlyReceivingAdmin):
+    list_display = ("accession_number", "status", "final_organism", "endorsed_at", "reviewed_at")
+    list_filter = ("status",)
+    search_fields = ("accession_number", "final_organism")
+
+
+@admin.register(LaboratoryIdentification)
+class LaboratoryIdentificationAdmin(ReadOnlyReceivingAdmin):
+    list_display = ("isolate", "organism_reported", "source", "instrument", "recorded_at")
+    list_filter = ("source",)
+    search_fields = ("isolate__accession_number", "organism_reported")
+
+
+@admin.register(LaboratoryBiobank)
+class LaboratoryBiobankAdmin(ReadOnlyReceivingAdmin):
+    list_display = ("isolate", "preservation_method", "storage_location", "storage_box", "box_position")
+    search_fields = ("isolate__accession_number", "storage_location", "storage_box")

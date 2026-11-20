@@ -110,6 +110,7 @@
         <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save new range</button></div>
       </form>
       {% endif %}
+      <p class="small text-muted mb-2">After saving a range, endorse it for identification testing. Endorsement creates one ID laboratory record per accession number and locks the range against changes.</p>
       <div class="table-responsive">
         <table class="table receiving-table receiving-accession-edit-table">
           <thead><tr><th>Date referred</th><th>Start</th><th>End</th><th>Batch no.</th><th>Total batches</th><th>Isolates</th><th>Status</th><th>Actions</th></tr></thead>
@@ -146,9 +147,15 @@
                 {% if item.batch %}<span class="badge badge-success">Generated</span>{% else %}<span class="badge badge-warning">Pending</span>{% endif %}
               </td>
               <td data-label="Actions" class="receiving-actions">
-                {% if can_edit and not item.batch %}
+                {% if item.isolate_records.exists %}
+                  <span class="badge badge-info">Endorsed for ID</span>
+                  <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_worklist' %}">ID Worklist</a>
+                {% elif can_edit and not item.batch %}
                 <form id="accession-edit-{{ item.pk }}" method="post" action="{% url 'laboratory_accession_edit' item.pk %}">{% csrf_token %}</form>
                 <button type="submit" form="accession-edit-{{ item.pk }}" class="btn btn-sm btn-outline-primary mb-1">Save edits</button>
+                <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse all {{ item.isolate_count }} accessioned isolates for ID testing? The range will be locked against further edits.');">
+                  {% csrf_token %}<button class="btn btn-sm btn-info mb-1" type="submit">Endorse for ID</button>
+                </form>
                 <form method="post" action="{% url 'laboratory_accession_delete' item.pk %}" class="d-inline" onsubmit="return confirm('Delete accession range {{ item.reference_range }} and its recorded organism counts?');">
                   {% csrf_token %}<input type="hidden" name="confirmation" value="DELETE">
                   <button type="submit" class="btn btn-sm btn-outline-danger mb-1">Delete</button>

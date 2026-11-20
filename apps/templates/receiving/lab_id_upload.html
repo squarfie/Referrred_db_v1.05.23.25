@@ -1,0 +1,25 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Upload identification results{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+<header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-file-upload"></i></span><div><p class="receiving-eyebrow">Laboratory ID results</p><h1>Bulk Identification Upload</h1><p class="receiving-hero-subtitle">Import reviewed CSV or Excel rows only for accessioned isolates currently in ID testing.</p></div></div>
+<div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'laboratory_worklist' %}">Back to Worklist</a></div></header>
+<div class="receiving-content">
+<section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Import ID results</h2><p>Accepted formats: UTF-8 CSV, .xlsx · max 2 MB · max 1,000 result rows.</p></div><div class="receiving-card-body">
+<p>Required columns: <code>accession_number</code>, <code>organism_reported</code>. Optional: <code>instrument</code>, <code>cassette_reference</code>. Keep one row per instrument finding, including retests.</p>
+{% if warning %}<div class="alert alert-warning">{{ warning }}</div>{% endif %}
+<form method="post" enctype="multipart/form-data" class="form-row align-items-end">{% csrf_token %}
+<div class="col-md-7 mb-2"><label for="id-file">Identification result file</label><input class="form-control" type="file" id="id-file" name="file" accept=".csv,.xlsx" required></div>
+<div class="col-md-auto mb-2"><button class="btn btn-primary mb-0" type="submit" name="action" value="preview">Preview results</button></div>
+<div class="col-md-auto mb-2"><button class="btn btn-success mb-0" type="submit" name="action" value="commit" onclick="return confirm('Confirm import of all rows in the selected file?');">Import confirmed results</button></div>
+</form>
+<p class="small text-muted mt-3">Preview does not save data. To import, choose the same file again and select Import confirmed results. Existing result history is never overwritten.</p>
+</div></section>
+{% if preview %}
+<section class="receiving-surface"><div class="receiving-card-header"><h2>Validated preview · {{ rows|length }} rows</h2><p>Accession numbers were matched to isolates in testing status.</p></div>
+<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession number</th><th>Reported organism</th><th>Instrument</th><th>Cassette/slot</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.accession_number }}</td><td>{{ row.organism_reported }}</td><td>{{ row.instrument }}</td><td>{{ row.cassette_reference }}</td></tr>{% endfor %}</tbody></table></div></section>
+{% endif %}
+</div></main>
+{% endblock content %}

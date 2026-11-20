@@ -93,6 +93,12 @@
           {% if user_access.can_view_receiving %}
           <li class="nav-item"><a class="nav-link {% if current_url == 'receiving_dashboard' or current_url == 'receiving_create' or current_url == 'receiving_detail' or current_url == 'receiving_lab_confirm' or current_url == 'laboratory_receiving_workspace' or current_url == 'laboratory_receiving_register' %}active{% endif %}" href="{% url 'receiving_dashboard' %}"><i class="fas fa-box-open text-primary"></i><span class="nav-link-text">Receiving</span></a></li>
           {% endif %}
+          {% if user_access.can_view_lab_testing %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_worklist' or current_url == 'laboratory_isolate_detail' or current_url == 'laboratory_id_upload' %}active{% endif %}" href="{% url 'laboratory_worklist' %}"><i class="fas fa-microscope text-primary"></i><span class="nav-link-text">Laboratory ID &amp; Biobank</span></a></li>
+          {% endif %}
+          {% if user_access.can_view_lab_testing %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_biobank_list' or current_url == 'laboratory_biobank_label' %}active{% endif %}" href="{% url 'laboratory_biobank_list' %}"><i class="fas fa-archive text-primary"></i><span class="nav-link-text">Biobank Inventory</span></a></li>
+          {% endif %}
           {% if user_access.nav_can_add_batch %}
           <li class="nav-item"><a class="nav-link {% if current_url == 'batch_create_view' %}active{% endif %}" href="{% url 'batch_create_view' %}"><i class="fa fa-plus text-primary"></i><span class="nav-link-text">Add Batch</span></a></li>
           {% endif %}

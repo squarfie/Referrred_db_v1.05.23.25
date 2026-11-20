@@ -1,9 +1,20 @@
 from django.urls import path
 
-from . import views
+from . import views, laboratory_views
 
 
 urlpatterns = [
+    path("laboratory-worklist/", laboratory_views.laboratory_worklist, name="laboratory_worklist"),
+    path("biobank-inventory/", laboratory_views.laboratory_biobank_list, name="laboratory_biobank_list"),
+    path("laboratory-worklist/upload/", laboratory_views.laboratory_id_upload, name="laboratory_id_upload"),
+    path("laboratory-worklist/<int:isolate_id>/", laboratory_views.laboratory_isolate_detail, name="laboratory_isolate_detail"),
+    path("laboratory-worklist/<int:isolate_id>/acknowledge/", laboratory_views.laboratory_acknowledge_id, name="laboratory_acknowledge_id"),
+    path("laboratory-worklist/<int:isolate_id>/record/", laboratory_views.laboratory_record_id, name="laboratory_record_id"),
+    path("laboratory-worklist/<int:isolate_id>/return/", laboratory_views.laboratory_return_id, name="laboratory_return_id"),
+    path("laboratory-worklist/<int:isolate_id>/review/", laboratory_views.laboratory_review_id, name="laboratory_review_id"),
+    path("laboratory-worklist/<int:isolate_id>/biobank/", laboratory_views.laboratory_biobank_save, name="laboratory_biobank_save"),
+    path("laboratory-worklist/<int:isolate_id>/sticker/", laboratory_views.laboratory_biobank_label, name="laboratory_biobank_label"),
+    path("laboratory/accessions/<int:accession_id>/endorse-id/", laboratory_views.laboratory_endorse_id, name="laboratory_endorse_id"),
     path("", views.receiving_dashboard, name="receiving_dashboard"),
     path("laboratory-register/", views.laboratory_receiving_register, name="laboratory_receiving_register"),
     path("laboratory-register/pdf/", views.laboratory_receiving_register_pdf, name="laboratory_receiving_register_pdf"),

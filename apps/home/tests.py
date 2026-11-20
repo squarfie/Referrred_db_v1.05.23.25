@@ -1080,3 +1080,28 @@ class ReferredUploadSecurityTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Referred_Data.objects.filter(AccessionNo="NEW-1").exists())
+
+
+class LaboratoryStaffRoleSettingsTests(TestCase):
+    def test_staff_settings_form_offers_laboratory_staff_role(self):
+        from apps.home.forms import ContactForm
+        from apps.home.permissions import ROLE_LAB_STAFF
+        from apps.home.models import arsStaff_Details
+        form = ContactForm(can_edit_roles=True)
+        values = dict(form.fields["Staff_Role"].choices)
+        self.assertEqual(values[ROLE_LAB_STAFF], ROLE_LAB_STAFF)
+        self.assertIn(ROLE_LAB_STAFF, dict(arsStaff_Details.Role_choices))
+
+    def test_staff_role_assignment_is_recognized_for_linked_user(self):
+        from apps.home.forms import ContactForm
+        from apps.home.models import arsStaff_Details
+        from apps.home.permissions import ROLE_LAB_STAFF, get_user_roles
+        user = User.objects.create_user(username="lab-role-settings-test", password="test-pass")
+        staff = arsStaff_Details.objects.create(
+            User_Account=user,
+            Staff_Name="Laboratory Staff Test",
+            Staff_Role=ROLE_LAB_STAFF,
+        )
+        form = ContactForm(instance=staff, can_edit_roles=True)
+        self.assertIn(ROLE_LAB_STAFF, form.initial["Staff_Role"])
+        self.assertIn(ROLE_LAB_STAFF, get_user_roles(user))

@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Biobank sticker · {{ isolate.accession_number }}</title>
+<style>
+@page {size: auto;margin: 8mm;}body {margin:0;font-family:Arial,Helvetica,sans-serif;color:#111}
+.sticker {border:1px solid #111;width:65mm;min-height:25mm;box-sizing:border-box;padding:3mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2mm;}
+.accession {font-weight:800;font-size:13pt;overflow-wrap:anywhere}.organism {font-size:10pt;font-style:italic;overflow-wrap:anywhere}
+@media print {.controls {display:none!important}}
+</style></head><body><div class="controls" style="padding:12px"><button onclick="window.print()">Print sticker</button></div>
+<div class="sticker"><div class="accession">{{ isolate.accession_number }}</div><div class="organism">{{ isolate.final_organism }}</div></div></body></html>
