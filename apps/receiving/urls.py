@@ -15,6 +15,7 @@ urlpatterns = [
     path("laboratory-worklist/<int:isolate_id>/biobank/", laboratory_views.laboratory_biobank_save, name="laboratory_biobank_save"),
     path("laboratory-worklist/<int:isolate_id>/sticker/", laboratory_views.laboratory_biobank_label, name="laboratory_biobank_label"),
     path("laboratory/accessions/<int:accession_id>/endorse-id/", laboratory_views.laboratory_endorse_id, name="laboratory_endorse_id"),
+    path("laboratory/accessions/<int:accession_id>/stickers/", laboratory_views.laboratory_batch_labels, name="laboratory_batch_labels"),
     path("", views.receiving_dashboard, name="receiving_dashboard"),
     path("secretariat/", views.secretariat_receiving_dashboard, name="secretariat_receiving_dashboard"),
     path("laboratory-receiving/", views.laboratory_receiving_dashboard, name="laboratory_receiving_dashboard"),
