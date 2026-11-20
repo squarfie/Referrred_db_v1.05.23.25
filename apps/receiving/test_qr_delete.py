@@ -88,7 +88,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         self.client.force_login(self.lab)
         dashboard = self.client.get(reverse("receiving_dashboard"))
         self.assertNotContains(dashboard, 'Confirm receipt')
-        detail = self.client.get(reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        detail = self.client.get(reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
         self.assertContains(detail, 'awaiting endorsement')
         url = reverse("receiving_lab_confirm", kwargs={"receiving_id": self.receipt.receiving_id})
         self.assertRedirects(self.client.get(url), reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
