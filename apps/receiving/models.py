@@ -581,6 +581,7 @@ class LaboratoryIdentification(models.Model):
         LaboratoryIsolate, on_delete=models.PROTECT, related_name="identifications"
     )
     organism_reported = models.CharField(max_length=255)
+    whonet_organism_code = models.CharField(max_length=20, blank=True, default="")
     instrument = models.CharField(max_length=100, blank=True, default="")
     cassette_reference = models.CharField(max_length=100, blank=True, default="")
     tested_at = models.DateTimeField(null=True, blank=True)
