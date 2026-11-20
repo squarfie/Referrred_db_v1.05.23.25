@@ -1266,15 +1266,29 @@ class SpecimenUploadDataTests(TestCase):
     def upload_csv(self, csv_text):
         from django.core.files.uploadedfile import SimpleUploadedFile
         from unittest.mock import patch
-        file = SimpleUploadedFile(
+        # Django consumes submitted_file when building the multipart POST.
+        # The mocked saved FileField must use an *independent* readable stream.
+        submitted_file = SimpleUploadedFile(
+            "specimens.csv", csv_text.encode("utf-8"), content_type="text/csv"
+        )
+        saved_file = SimpleUploadedFile(
             "specimens.csv", csv_text.encode("utf-8"), content_type="text/csv"
         )
         # Avoid writing uploaded files to the developer's MEDIA_ROOT.
         with patch("apps.home.views.SpecimenUploadForm.save",
-                   return_value=SimpleNamespace(File_uploadSpec=file)):
-            return self.client.post(
-                reverse("upload_specimen_code"), {"File_uploadSpec": file}
+                   return_value=SimpleNamespace(File_uploadSpec=saved_file)):
+            response = self.client.post(
+                reverse("upload_specimen_code"), {"File_uploadSpec": submitted_file}
             )
+        if response.url != reverse("specimen_list"):
+            from django.contrib.messages import get_messages
+            errors = [str(message) for message in get_messages(response.wsgi_request)]
+            # Do not hide the real upload exception behind an opaque redirect assertion.
+            self.assertEqual(
+                response.url, reverse("specimen_list"),
+                msg=f"Specimen import failed: {errors}",
+            ) if "toolong" not in csv_text else None
+        return response
 
     def test_existing_bl_group_links_without_inserting_duplicate(self):
         from apps.home.models import SpecimenTypeModel
