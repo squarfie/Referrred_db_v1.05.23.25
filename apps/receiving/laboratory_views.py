@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 
 from .qr import render_qr_png
 from .laboratory_workflow import (WorkflowError, queue_for_revival, transition_batch,
-    record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank)
+    record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
 )
@@ -81,10 +81,10 @@ def laboratory_worklist(request):
 @lab_review_required
 @require_POST
 def laboratory_endorse_id(request, accession_id):
-    """Legacy POST route now queues the accession range for revival."""
+    """Create and endorse accessioned ID work to Main Laboratory."""
     try:
-        created = queue_for_revival(accession_id, request.user)
-        messages.success(request, "Accession range queued for revival." if created else
+        created = create_id_handoff(accession_id, request.user)
+        messages.success(request, "Accessioned isolates endorsed to Main Laboratory for ID testing." if created else
                          "Isolates already exist for this range.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
@@ -235,8 +235,8 @@ def laboratory_record_id(request, isolate_id):
 @transaction.atomic
 def laboratory_return_id(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
-    if isolate.status != LaboratoryIsolate.Status.ID_TESTING or not isolate.identifications.exists():
-        messages.error(request, "At least one identification is required before return.")
+    if isolate.status != LaboratoryIsolate.Status.ID_TESTING or not isolate.identifications.filter(cassette_reference__gt="").exists():
+        messages.error(request, "Record at least one ID result with a cassette reference before returning the cassette.")
     else:
         isolate.status = LaboratoryIsolate.Status.ID_RETURNED
         isolate.returned_at = timezone.now()
@@ -256,14 +256,14 @@ def laboratory_review_id(request, isolate_id):
     code = (request.POST.get("final_organism_code") or "").strip()
     # Only validate code/name when the review is at the correct workflow stage.
     approved_code = ""
-    if isolate.status == LaboratoryIsolate.Status.ID_RETURNED:
+    if isolate.status == LaboratoryIsolate.Status.REVIVED:
         try:
             approved_code, organism = resolve_organism(code=code, name=organism)
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
             return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
-    if isolate.status != LaboratoryIsolate.Status.ID_RETURNED:
-        messages.error(request, "Only returned identifications may be reviewed.")
+    if isolate.status != LaboratoryIsolate.Status.REVIVED:
+        messages.error(request, "Complete revival after Main Laboratory cassette return before reviewing identification.")
     elif not organism or len(organism) > 255:
         messages.error(request, "An approved organism is required (maximum 255 characters).")
     else:
