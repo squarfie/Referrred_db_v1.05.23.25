@@ -6,6 +6,9 @@ from itertools import islice
 from zipfile import BadZipFile
 from hashlib import sha256
 
+from django.core.exceptions import ValidationError
+from django.http import JsonResponse
+from .organism_lookup import find_organisms, resolve_organism
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -24,6 +27,13 @@ from .permissions import (
     can_access_laboratory_worklist, can_manage_id_testing, can_manage_biobank,
     can_review_id_results, lab_staff_required, lab_review_required, lab_worklist_required,
 )
+
+@login_required
+@lab_worklist_required
+def laboratory_organism_search(request):
+    query = (request.GET.get("q") or "").strip()[:100]
+    return JsonResponse({"results": find_organisms(query) if len(query) >= 1 else []})
+
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 1000
@@ -144,11 +154,15 @@ def laboratory_lyophilization_complete(request, isolate_id):
         complete_lyophilization(
             isolate_id, request.POST.get("date_harvested"),
             request.POST.get("date_lyophilized"), request.user,
-            whonet_code=request.POST.get("whonet_code") or "",
+            whonet_code=resolve_organism(
+                code=request.POST.get("whonet_code") or "",
+                name=request.POST.get("whonet_organism_name") or "",
+                require_code=True,
+            )[0],
         )
         messages.success(request, "Harvest and lyophilization recorded. Isolate is ready for biobanking.")
-    except WorkflowError as exc:
-        messages.error(request, str(exc))
+    except (WorkflowError, ValidationError) as exc:
+        messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc))
     return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
 
 
@@ -196,6 +210,12 @@ def laboratory_record_id(request, isolate_id):
         messages.error(request, "ID results may be added only while testing is in progress.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
     organism = (request.POST.get("organism_reported") or "").strip()
+    code = (request.POST.get("organism_reported_code") or "").strip()
+    try:
+        _, organism = resolve_organism(code=code, name=organism)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
     if not organism or len(organism) > 255:
         messages.error(request, "Enter an identified organism (maximum 255 characters).")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
@@ -233,6 +253,14 @@ def laboratory_return_id(request, isolate_id):
 def laboratory_review_id(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
     organism = (request.POST.get("final_organism") or "").strip()
+    code = (request.POST.get("final_organism_code") or "").strip()
+    # Only validate code/name when the review is at the correct workflow stage.
+    if isolate.status == LaboratoryIsolate.Status.ID_RETURNED:
+        try:
+            _, organism = resolve_organism(code=code, name=organism)
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+            return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
     if isolate.status != LaboratoryIsolate.Status.ID_RETURNED:
         messages.error(request, "Only returned identifications may be reviewed.")
     elif not organism or len(organism) > 255:
