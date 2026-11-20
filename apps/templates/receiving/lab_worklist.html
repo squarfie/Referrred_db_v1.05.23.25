@@ -1,0 +1,49 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Laboratory ID Worklist{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
+    <p class="receiving-eyebrow">Laboratory staff</p><h1>Identification Testing &amp; Biobank</h1>
+    <p class="receiving-hero-subtitle">Accessions endorsed by Laboratory Receiving. Testing results and storage records remain linked to the individual isolate.</p>
+  </div></div>
+  <div class="receiving-hero-actions">
+    {% if can_test %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}"><i class="fas fa-file-upload mr-1"></i> Upload ID Results</a>{% endif %}
+    <a class="btn btn-outline-light" href="{% url 'receiving_dashboard' %}">Receiving</a>
+  </div></header>
+  <div class="receiving-content">
+    <section class="receiving-surface">
+      <div class="receiving-card-header"><h2>Isolate worklist</h2><p>Search accession numbers and open an isolate for identification, result review, or biobanking.</p></div>
+      <div class="receiving-card-body">
+        <form method="get" class="form-row align-items-end mb-3">
+          <div class="col-md-5 mb-2"><label for="id-q">Accession number</label><input id="id-q" name="q" value="{{ query }}" class="form-control" placeholder="e.g. 26ARS_RI0001"></div>
+          <div class="col-md-4 mb-2"><label for="id-status">Testing status</label><select id="id-status" name="status" class="form-control">
+            <option value="">All statuses</option>{% for value,label in statuses %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select></div>
+          <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Filter</button></div>
+        </form>
+        <div class="table-responsive">
+          <table class="table receiving-table">
+            <thead><tr><th>Accession number</th><th>Referring site</th><th>Workflow status</th><th>Reported ID results</th><th>Approved organism</th><th>Biobank</th><th>Action</th></tr></thead>
+            <tbody>
+            {% for isolate in isolates %}
+              <tr>
+                <td data-label="Accession"><strong>{{ isolate.accession_number }}</strong></td>
+                <td data-label="Site">{{ isolate.accession_range.laboratory_receiving.receipt.site.SiteCode }}</td>
+                <td data-label="Status">{{ isolate.get_status_display }}</td>
+                <td data-label="Results">{{ isolate.identifications.count }}</td>
+                <td data-label="Organism">{{ isolate.final_organism|default:"Pending review" }}</td>
+                <td data-label="Biobank">{% if isolate.biobank %}Recorded{% else %}Pending{% endif %}</td>
+                <td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}">Open</a></td>
+              </tr>
+            {% empty %}<tr><td colspan="7" class="text-center text-muted">No isolates in this worklist. Laboratory Receiving must endorse accession ranges first.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="small text-muted mt-2 mb-0">Showing up to 250 matching isolates. Narrow the results with accession or status filters.</p>
+      </div>
+    </section>
+  </div>
+</main>
+{% endblock content %}
