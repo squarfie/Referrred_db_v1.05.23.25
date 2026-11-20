@@ -5,6 +5,8 @@ All state mutations must pass through these services, never just a UI check.
 """
 from datetime import datetime
 
+from django.core.exceptions import ValidationError
+from .organism_lookup import resolve_organism
 from django.db import transaction
 from django.utils import timezone
 
@@ -174,6 +176,12 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
         raise WorkflowError("WHONET organism code is required for the isolate label.")
     if len(code) > 30:
         raise WorkflowError("WHONET code exceeds 30 characters.")
+    try:
+        # A sticker must never silently assign a different organism than the
+        # identification approved by Laboratory Receiving.
+        resolve_organism(code=code, name=item.final_organism, require_code=True)
+    except ValidationError as exc:
+        raise WorkflowError("Sticker organism does not match approved identification: " + "; ".join(exc.messages)) from exc
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
     bank.date_harvested = harvest
     bank.date_lyophilized = lyoph
