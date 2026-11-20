@@ -1451,6 +1451,77 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         Organism_List.objects.create(Whonet_Org_Code="ECO", Organism="Escherichia coli")
         self.client.force_login(self.lab_user)
 
+    def test_main_lab_return_tab_shows_only_returned_isolates_and_audit(self):
+        accession = self.create_pending_accession()
+        pending = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[0],
+            status=LaboratoryIsolate.Status.ID_PENDING,
+        )
+        returned = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[1],
+            status=LaboratoryIsolate.Status.ID_RETURNED,
+            returned_at=timezone.now(),
+            returned_by=self.lab_user,
+        )
+        url = reverse("laboratory_receiving_dashboard")
+        response = self.client.get(url + "?tab=returned")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["show_main_lab_returns"])
+        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertContains(response, "Returned from Main Lab")
+        self.assertContains(response, returned.accession_number)
+        self.assertNotContains(response, pending.accession_number)
+        self.assertContains(response, self.receipt.tracking_number)
+        self.assertContains(response, self.lab_user.username)
+        self.assertContains(response, reverse("laboratory_isolate_detail", kwargs={"isolate_id": returned.pk}))
+        self.assertContains(response, reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}))
+
+    def test_main_lab_return_remains_visible_after_revival(self):
+        accession = self.create_pending_accession()
+        isolate = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[0],
+            status=LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS,
+            returned_at=timezone.now(),
+            returned_by=self.lab_user,
+        )
+        response = self.client.get(reverse("laboratory_receiving_dashboard") + "?tab=returned")
+        self.assertContains(response, isolate.accession_number)
+        self.assertContains(response, "Revival in progress")
+
+    def test_main_lab_return_search_by_accession_and_not_courier_receipts(self):
+        accession = self.create_pending_accession()
+        isolate = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[0],
+            status=LaboratoryIsolate.Status.ID_RETURNED,
+            returned_at=timezone.now(),
+            returned_by=self.lab_user,
+        )
+        url = reverse("laboratory_receiving_dashboard")
+        response = self.client.get(url + "?tab=returned&q=" + isolate.accession_number)
+        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertContains(response, isolate.accession_number)
+        missed = self.client.get(url + "?tab=returned&q=NOT-A-REAL-ACCESSION")
+        self.assertEqual(missed.context["page_obj"].paginator.count, 0)
+        self.assertContains(missed, "No Main Laboratory ID returns recorded yet.")
+        # The existing courier tab remains unchanged.
+        courier = self.client.get(url + "?tab=received")
+        self.assertFalse(courier.context["show_main_lab_returns"])
+        self.assertEqual(courier.context["page_obj"].paginator.count, 1)
+
+    def test_main_lab_return_tab_not_shown_to_secretariat(self):
+        secretariat = User.objects.create_user(username="returns-secretariat", password="test-pass")
+        secretariat.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_SECRETARIAT)[0])
+        self.client.force_login(secretariat)
+        response = self.client.get(reverse("secretariat_receiving_dashboard"))
+        self.assertNotContains(response, "Returned from Main Lab")
+        self.assertNotContains(response, "Main Laboratory returned isolate records")
+        denied = self.client.get(reverse("laboratory_receiving_dashboard") + "?tab=returned")
+        self.assertRedirects(denied, reverse("home"), fetch_redirect_response=False)
+
     def test_lab_encoder_manually_saves_accepted_and_rejected_totals(self):
         response = self.client.post(
             reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}),
