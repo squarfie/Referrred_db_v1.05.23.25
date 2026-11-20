@@ -2186,6 +2186,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.ID_TESTING
+        isolate.save(update_fields=("status",))
         url = reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk})
         response = self.client.get(url)
         self.assertContains(response, "laboratory-organism-picker.js")
