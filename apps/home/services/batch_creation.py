@@ -188,12 +188,14 @@ def preview_referred_batch_conflicts(
         else:
             orphan = existing
 
-    raw_conflicts = list(
-        Referred_Data.objects.filter(AccessionNo__in=accessions)
-        .exclude(Q(Batch_id__isnull=True) & Q(Batch_Code=""))
-        .exclude(Batch_id=orphan)
-        .values_list("AccessionNo", flat=True)
+    raw_query = Referred_Data.objects.filter(AccessionNo__in=accessions).exclude(
+        Q(Batch_id__isnull=True) & Q(Batch_Code="")
     )
+    # exclude(Batch_id=None) would incorrectly hide assigned-by-code records
+    # whose Batch_id is NULL. Only ignore a real recoverable orphan batch.
+    if orphan is not None:
+        raw_query = raw_query.exclude(Batch_id=orphan)
+    raw_conflicts = list(raw_query.values_list("AccessionNo", flat=True))
     final_conflicts = list(
         Final_Data.objects.filter(f_AccessionNo__in=accessions)
         .values_list("f_AccessionNo", flat=True)
@@ -243,11 +245,13 @@ def create_referred_batch(
             raise BatchAlreadyExists(existing, raw_count, final_count)
         orphan = existing
 
+    raw_query = Referred_Data.objects.select_for_update().filter(
+        AccessionNo__in=accessions
+    ).exclude(Q(Batch_id__isnull=True) & Q(Batch_Code=""))
+    if orphan is not None:
+        raw_query = raw_query.exclude(Batch_id=orphan)
     raw_conflicts = list(
-        Referred_Data.objects.select_for_update().filter(AccessionNo__in=accessions)
-        .exclude(Q(Batch_id__isnull=True) & Q(Batch_Code=""))
-        .exclude(Batch_id=orphan)
-        .values("AccessionNo", "Batch_Code", "Batch_id__bat_Batch_Code")
+        raw_query.values("AccessionNo", "Batch_Code", "Batch_id__bat_Batch_Code")
     )
     final_conflicts = list(
         Final_Data.objects.select_for_update().filter(f_AccessionNo__in=accessions)
