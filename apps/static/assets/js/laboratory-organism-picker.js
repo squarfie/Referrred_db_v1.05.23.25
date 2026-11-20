@@ -8,6 +8,7 @@
     const results = picker.querySelector("[data-organism-results]");
     if (!search || !code || !name || !results) return;
     const endpoint = picker.dataset.endpoint;
+    const allowUnlisted = picker.hasAttribute("data-allow-unlisted");
     let requestId = 0;
     let controller = null;
 
@@ -53,6 +54,20 @@
           option.addEventListener("click", function () { choose(item); });
           results.appendChild(option);
         });
+        if (allowUnlisted) {
+          const custom = document.createElement("button");
+          custom.type = "button";
+          custom.className = "organism-picker-option organism-picker-custom";
+          custom.textContent = "Use unlisted name: " + term;
+          custom.addEventListener("click", function () {
+            code.value = "";
+            name.value = term;
+            search.value = term;
+            search.setCustomValidity("");
+            close();
+          });
+          results.appendChild(custom);
+        }
         results.hidden = false;
       } catch (error) {
         if (error.name !== "AbortError") {
@@ -69,7 +84,7 @@
       if (event.key === "Escape") close();
     });
     picker.closest("form")?.addEventListener("submit", function (event) {
-      if (!code.value || !name.value) {
+      if (!name.value || (!code.value && !allowUnlisted)) {
         event.preventDefault();
         search.setCustomValidity("Choose an organism from the search results.");
         search.reportValidity();
