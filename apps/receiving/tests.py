@@ -1931,6 +1931,33 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertEqual(rows[3].biobank.whonet_code, "KPN")
         self.assertEqual(rows[3].biobank.box_position, "A1")
 
+    def test_migration_keeps_ambiguous_reviewed_rows_at_earliest_proven_stage(self):
+        from django.apps import apps as django_apps
+        from importlib import import_module
+        accession = self.create_pending_accession()
+        first, second = [
+            LaboratoryIsolate.objects.create(
+                accession_range=accession,
+                accession_number=number,
+                status="reviewed",
+                final_organism="Klebsiella pneumoniae",
+            ) for number in accession.accession_numbers[:2]
+        ]
+        LaboratoryBiobank.objects.create(
+            isolate=second, whonet_code="KPN",
+            date_harvested=date(2026, 11, 19),
+            date_lyophilized=date(2026, 11, 19),
+        )
+        migration = import_module("apps.receiving.migrations.0006_laboratory_revival_biobank_stages")
+        schema = SimpleNamespace(connection=SimpleNamespace(alias="default"))
+        migration.migrate_legacy_isolates(django_apps, schema)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, LaboratoryIsolate.Status.ID_REVIEWED)
+        self.assertEqual(second.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+        self.assertEqual(second.biobank.whonet_code, "KPN")
+        self.assertFalse(second.biobank.box_position)
+
     def test_id_csv_upload_preview_and_commit(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
