@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 
 from .qr import render_qr_png
 from .laboratory_workflow import (WorkflowError, queue_for_revival, transition_batch,
-    record_revival_failure, complete_lyophilization, save_biobank)
+    record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
 )
@@ -107,6 +107,30 @@ def laboratory_revival_failed(request, isolate_id):
     try:
         record_revival_failure(isolate_id, status, reason, request.user)
         messages.success(request, f"Revival outcome recorded: {status.replace('_', ' ')}.")
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+
+
+@login_required
+@lab_review_required
+@require_POST
+def laboratory_revival_retry(request, isolate_id):
+    try:
+        retry_revival(isolate_id, request.user)
+        messages.success(request, "Revival retry started; previous failure reason remains recorded.")
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+
+
+@login_required
+@lab_review_required
+@require_POST
+def laboratory_revival_retry_complete(request, isolate_id):
+    try:
+        complete_revival_isolate(isolate_id, request.user)
+        messages.success(request, "Retried isolate revived successfully.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
     return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
