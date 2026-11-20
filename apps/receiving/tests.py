@@ -763,6 +763,92 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(label_response.status_code, 200)
 
 
+
+    def test_secretariat_default_tab_is_pending_endorsement(self):
+        self.create_receipt("PENDING-001", ReferralReceipt.Status.RECEIVED)
+        self.create_receipt("ENDORSED-001", ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.secretariat)
+        response = self.client.get(self.route("receiving_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["active_tab"], "pending")
+        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertContains(response, "PENDING-001")
+        self.assertNotContains(response, "ENDORSED-001")
+        self.assertContains(response, "Pending Endorsement")
+
+    def test_lab_encoder_default_tab_is_pending_lab_receipt(self):
+        self.create_receipt("PENDING-001", ReferralReceipt.Status.RECEIVED)
+        self.create_receipt("ENDORSED-001", ReferralReceipt.Status.ENDORSED)
+        self.create_receipt("LAB-001", ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(self.route("receiving_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["active_tab"], "pending")
+        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertContains(response, "ENDORSED-001")
+        self.assertNotContains(response, "PENDING-001")
+        self.assertNotContains(response, "LAB-001")
+        self.assertContains(response, "Confirm receipt")
+
+    def test_tabs_are_filtered_and_counts_are_not_search_dependent(self):
+        self.create_receipt("PENDING-001", ReferralReceipt.Status.RECEIVED)
+        self.create_receipt("ENDORSED-001", ReferralReceipt.Status.ENDORSED)
+        self.create_receipt("LAB-001", ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.secretariat)
+        response = self.client.get(self.route("receiving_dashboard"), {"tab": "endorsed", "q": "NO-MATCH"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].paginator.count, 0)
+        self.assertEqual(
+            {tab["key"]: tab["count"] for tab in response.context["receiving_tabs"]},
+            {"pending": 1, "endorsed": 1, "received": 1, "all": 3},
+        )
+
+    def test_legacy_status_filter_remains_supported(self):
+        matched = self.create_receipt("LEGACY-ENDORSED", ReferralReceipt.Status.ENDORSED)
+        self.create_receipt("LEGACY-RECEIVED", ReferralReceipt.Status.RECEIVED)
+        self.client.force_login(self.secretariat)
+
+        response = self.client.get(
+            self.route("receiving_dashboard"),
+            {"status": ReferralReceipt.Status.ENDORSED},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["page_obj"].object_list), [matched])
+        self.assertEqual(response.context["active_tab"], "endorsed")
+
+    def test_explicit_tab_takes_precedence_over_legacy_status(self):
+        matched = self.create_receipt("TAB-PENDING", ReferralReceipt.Status.RECEIVED)
+        self.create_receipt("TAB-ENDORSED", ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.secretariat)
+
+        response = self.client.get(
+            self.route("receiving_dashboard"),
+            {"tab": "pending", "status": ReferralReceipt.Status.ENDORSED},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["page_obj"].object_list), [matched])
+
+    def test_invalid_tab_falls_back_to_pending(self):
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(self.route("receiving_dashboard"), {"tab": "not-a-tab"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["active_tab"], "pending")
+
+    def test_sidebar_does_not_offer_settings_or_batch_creation_to_secretariat(self):
+        self.client.force_login(self.secretariat)
+        response = self.client.get(self.route("receiving_dashboard"))
+        self.assertNotContains(response, 'href="' + reverse("batch_create_view") + '"')
+        self.assertNotContains(response, 'href="' + reverse("settings_page") + '"')
+
+    def test_sidebar_does_not_offer_settings_to_lab_encoder(self):
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(self.route("receiving_dashboard"))
+        self.assertNotContains(response, 'href="' + reverse("settings_page") + '"')
+
+
 class ReceivingTemplateTests(TestCase):
     def setUp(self):
         self.site = SiteData.objects.create(SiteCode="VSM", SiteName="Vicente Sotto Medical Center")

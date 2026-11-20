@@ -160,7 +160,17 @@ def role_flags(user):
         "can_view_all": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
         "can_view_wgs": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_VERIFIER, ROLE_LAB_MANAGER, ROLE_LAB_ENCODER}) or bool(user and user.is_authenticated),
         "can_view_receiving": bool(roles & {ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_LAB_ENCODER}),
-        
+        # Sidebar visibility mirrors existing backend role boundaries.
+        "nav_can_add_batch": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER}),
+        "nav_can_view_raw": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER}),
+        "nav_can_view_final": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
+        "nav_can_view_wgs": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
+        "nav_can_upload_wgs": bool(roles & {ROLE_ADMIN, ROLE_CHECKER}),
+        "nav_can_view_reports": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_SECRETARIAT, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
+        "nav_can_view_concordance": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
+        "nav_can_view_verification": bool(roles & {ROLE_ADMIN, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
+        "nav_can_view_settings": bool(roles & SETTINGS_ROLES),
+        "nav_can_view_field_mapper": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_VERIFIER, ROLE_LAB_MANAGER}),
     }
 
 

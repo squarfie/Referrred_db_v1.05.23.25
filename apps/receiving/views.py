@@ -71,35 +71,80 @@ def receiving_dashboard(request):
         for row in all_receipts.values("status").annotate(total=Count("id"))
     }
 
-    q = (request.GET.get("q") or "").strip()
-    status = (request.GET.get("status") or "").strip()
-    valid_statuses = {choice for choice, _label in ReferralReceipt.Status.choices}
-    receipts = all_receipts
-    if q:
-        receipts = receipts.filter(
-            Q(tracking_number__icontains=q)
-            | Q(site__SiteCode__icontains=q)
-            | Q(site__SiteName__icontains=q)
-        )
-    if status in valid_statuses:
-        receipts = receipts.filter(status=status)
+    can_manage_secretariat = can_manage_secretariat_receiving(request.user)
+    can_confirm_lab = can_confirm_lab_receipt(request.user)
+    # Prefer the laboratory queue for users who have both responsibilities.
+    is_lab_worklist = can_confirm_lab
+    if is_lab_worklist:
+        tab_definitions = [
+            ("pending", "Pending Lab Receipt", ReferralReceipt.Status.ENDORSED),
+            ("received", "Received by Laboratory", ReferralReceipt.Status.LAB_RECEIVED),
+            ("all", "All Records", None),
+        ]
     else:
-        status = ""
+        tab_definitions = [
+            ("pending", "Pending Endorsement", ReferralReceipt.Status.RECEIVED),
+            ("endorsed", "Endorsed", ReferralReceipt.Status.ENDORSED),
+            ("received", "Lab Received", ReferralReceipt.Status.LAB_RECEIVED),
+            ("all", "All Records", None),
+        ]
 
-    page_obj = Paginator(receipts, 25).get_page(request.GET.get("page"))
+    tab_status = {key: value for key, _label, value in tab_definitions}
+    explicit_tab = (request.GET.get("tab") or "").strip()
+    legacy_status = (request.GET.get("status") or "").strip()
+    valid_statuses = {value for value, _label in ReferralReceipt.Status.choices}
+
+    # Keep old ?status=... links working. Explicit ?tab=... takes precedence.
+    # A legacy status without a corresponding role tab uses All Records.
+    selected_tab = explicit_tab or "pending"
+    if not explicit_tab and legacy_status in valid_statuses:
+        selected_tab = next(
+            (key for key, _label, value in tab_definitions if value == legacy_status),
+            "all",
+        )
+    if selected_tab not in tab_status:
+        selected_tab = "pending"
+
+    query = (request.GET.get("q") or "").strip()
+    receipts = all_receipts
+    if query:
+        receipts = receipts.filter(
+            Q(tracking_number__icontains=query)
+            | Q(site__SiteCode__icontains=query)
+            | Q(site__SiteName__icontains=query)
+        )
+
+    # Counts are for the full queue and do not change with search or pagination.
+    tabs = [
+        {
+            "key": key,
+            "label": label,
+            "count": sum(counts.values()) if tab_filter is None else counts.get(tab_filter, 0),
+            "active": key == selected_tab,
+        }
+        for key, label, tab_filter in tab_definitions
+    ]
+    selected_status = tab_status[selected_tab]
+    if not explicit_tab and legacy_status in valid_statuses:
+        receipts = receipts.filter(status=legacy_status)
+    elif selected_status is not None:
+        receipts = receipts.filter(status=selected_status)
+
+    page_obj = Paginator(receipts.order_by("-created_at", "-pk"), 25).get_page(request.GET.get("page"))
     return render(
         request,
         "receiving/dashboard.html",
         {
             "page_obj": page_obj,
-            "q": q,
-            "status": status,
-            "status_choices": ReferralReceipt.Status.choices,
+            "q": query,
+            "active_tab": selected_tab,
+            "active_tab_label": next(tab["label"] for tab in tabs if tab["active"]),
+            "receiving_tabs": tabs,
             "received_count": counts.get(ReferralReceipt.Status.RECEIVED, 0),
             "endorsed_count": counts.get(ReferralReceipt.Status.ENDORSED, 0),
             "lab_received_count": counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0),
-            "can_manage_secretariat": can_manage_secretariat_receiving(request.user),
-            "can_confirm_lab": can_confirm_lab_receipt(request.user),
+            "can_manage_secretariat": can_manage_secretariat,
+            "can_confirm_lab": can_confirm_lab,
         },
     )
 
