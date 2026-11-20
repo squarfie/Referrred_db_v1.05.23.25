@@ -644,6 +644,7 @@ def receiving_lab_confirm(request, receiving_id):
     if request.method == "POST":
         form = LabReceiptForm(request.POST, receipt=receipt)
         if form.is_valid():
+            confirmed = False
             try:
                 confirm_lab_receipt(
                     receipt_id=receipt.pk,
@@ -654,8 +655,9 @@ def receiving_lab_confirm(request, receiving_id):
             except InvalidReceivingTransition as exc:
                 messages.warning(request, str(exc))
             else:
+                confirmed = True
                 messages.success(request, "Laboratory receipt confirmed. Open the laboratory worksheet to record the manual acceptance decision.")
-            if receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
+            if confirmed:
                 return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
             return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     else:
