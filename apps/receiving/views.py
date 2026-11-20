@@ -247,7 +247,9 @@ def laboratory_receiving_workspace(request, receiving_id):
     workflow_rows = []
     for accession in ranges:
         isolates = list(accession.isolate_records.all())
-        stages = Counter(item.status for item in isolates)
+        # Counter returns zero for missing keys, so Django templates resolve
+        # stages.items as an integer instead of the dict.items method.
+        stages = dict(Counter(item.status for item in isolates))
         workflow_rows.append({
             "accession": accession, "stages": stages,
             "count": len(isolates), "expected": accession.isolate_count,
