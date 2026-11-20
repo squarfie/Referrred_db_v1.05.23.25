@@ -63,6 +63,7 @@
 }
 
 .receiving-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.15rem; }
+.receiving-stat-grid.is-laboratory { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 .receiving-stat { display: flex; align-items: center; gap: 0.9rem; padding: 1rem 1.1rem; }
 .receiving-stat-icon { width: 42px; height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 11px; color: var(--receiving-blue); background: #e9f4ff; }
 .receiving-stat.is-endorsed .receiving-stat-icon { color: #a36b00; background: #fff6d8; }

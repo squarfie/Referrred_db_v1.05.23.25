@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Case, CharField, Count, F, Q, Value, When
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -95,6 +95,31 @@ def laboratory_receiving_dashboard(request):
     return _render_receiving_dashboard(request, queue="laboratory")
 
 
+def _laboratory_workflow_receipts(receipts):
+    """Derived receipt queues; never advance the scientific or custody record."""
+    path = "laboratory_receiving__accession_ranges__isolate_records"
+    receipts = receipts.annotate(
+        workflow_isolates=Count(path, distinct=True),
+        workflow_closed=Count(path, filter=Q(**{path + "__status__in": ["biobanked", "non_viable"]}), distinct=True),
+        workflow_pending_id=Count(path, filter=Q(**{path + "__status__in": ["id_pending", "id_testing"]}), distinct=True),
+    )
+    complete = Q(
+        laboratory_receiving__total_isolates_received__gt=0,
+        laboratory_receiving__total_isolates_received=F("laboratory_receiving__isolates_accepted") + F("laboratory_receiving__isolates_rejected"),
+        workflow_isolates=F("laboratory_receiving__isolates_accepted"),
+        workflow_closed=F("laboratory_receiving__isolates_accepted"),
+    )
+    return receipts.annotate(lab_workflow=Case(
+        When(status=ReferralReceipt.Status.LAB_RECEIVED, then=Case(
+            When(complete, then=Value("complete")),
+            When(workflow_isolates=0, then=Value("received")),
+            When(workflow_pending_id__gt=0, then=Value("main_lab")),
+            default=Value("processing"), output_field=CharField(),
+        )),
+        default=Value("pending"), output_field=CharField(),
+    ))
+
+
 def _render_receiving_dashboard(request, queue=None):
     all_receipts = ReferralReceipt.objects.select_related("site", "received_by")
     counts = {
@@ -112,9 +137,13 @@ def _render_receiving_dashboard(request, queue=None):
         else "receiving_dashboard"
     )
     if is_lab_worklist:
+        all_receipts = _laboratory_workflow_receipts(all_receipts)
         tab_definitions = [
             ("pending", "Pending Lab Receipt", ReferralReceipt.Status.ENDORSED),
             ("received", "Received by Laboratory", ReferralReceipt.Status.LAB_RECEIVED),
+            ("main_lab", "Pending Main Lab Identification", "main_lab"),
+            ("processing", "Revival & Processing", "processing"),
+            ("complete", "Workflow Complete", "complete"),
             ("all", "All Records", None),
         ]
     else:
@@ -151,17 +180,23 @@ def _render_receiving_dashboard(request, queue=None):
         )
 
     # Counts are for the full queue and do not change with search or pagination.
+    lab_counts = {
+        key: all_receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow=key).count()
+        for key in ("received", "main_lab", "processing", "complete")
+    } if is_lab_worklist else {}
     tabs = [
         {
             "key": key,
             "label": label,
-            "count": sum(counts.values()) if tab_filter is None else counts.get(tab_filter, 0),
+            "count": lab_counts[key] if key in lab_counts else (sum(counts.values()) if tab_filter is None else counts.get(tab_filter, 0)),
             "active": key == selected_tab,
         }
         for key, label, tab_filter in tab_definitions
     ]
     selected_status = tab_status[selected_tab]
-    if not explicit_tab and legacy_status in valid_statuses:
+    if is_lab_worklist and selected_tab in lab_counts and not (not explicit_tab and legacy_status in valid_statuses):
+        receipts = receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow=selected_tab)
+    elif not explicit_tab and legacy_status in valid_statuses:
         receipts = receipts.filter(status=legacy_status)
     elif selected_status is not None and selected_tab != "returned":
         receipts = receipts.filter(status=selected_status)
@@ -184,6 +219,7 @@ def _render_receiving_dashboard(request, queue=None):
             "active_tab": selected_tab,
             "active_tab_label": next(tab["label"] for tab in tabs if tab["active"]),
             "receiving_tabs": tabs,
+            "lab_summary_cards": [tab for tab in tabs if tab["key"] != "all"] if is_lab_worklist else [],
             "received_count": counts.get(ReferralReceipt.Status.RECEIVED, 0),
             "endorsed_count": counts.get(ReferralReceipt.Status.ENDORSED, 0),
             "lab_received_count": counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0),

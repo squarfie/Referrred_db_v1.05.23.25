@@ -6,6 +6,8 @@ The sidebar separates Receiving & Accessioning, Identification Testing, Revival 
 
 No database migration is required. Existing rows, statuses, accession relationships and legacy action endpoints are retained. Batch creation remains an explicit, conflict-checked action because accessioning can be partial. Old receiving return bookmarks lead to processing history.
 
+Laboratory dashboard cards and tabs count receipts by current workflow: pending custody, received/accessioning before isolate handoff, pending Main Lab identification, revival/processing, and complete. A mixed receipt remains pending ID while any isolate is pending/testing. Completion requires a saved acceptance/rejection decision and all accepted isolates accounted for and biobanked or non-viable; an entirely rejected receipt is also closed. Failed revival and missing isolate records are not complete. These filters do not change custody status, and Secretariat retains its separate courier counters.
+
 ## Local walkthrough
 
 1. As LAB Encoder, confirm receipt and acceptance, assign a range, and use Create Batch. Verify the batch code and accession range before submission.
