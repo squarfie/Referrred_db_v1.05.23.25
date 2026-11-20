@@ -255,9 +255,10 @@ def laboratory_review_id(request, isolate_id):
     organism = (request.POST.get("final_organism") or "").strip()
     code = (request.POST.get("final_organism_code") or "").strip()
     # Only validate code/name when the review is at the correct workflow stage.
+    approved_code = ""
     if isolate.status == LaboratoryIsolate.Status.ID_RETURNED:
         try:
-            _, organism = resolve_organism(code=code, name=organism)
+            approved_code, organism = resolve_organism(code=code, name=organism)
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
             return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
@@ -267,10 +268,11 @@ def laboratory_review_id(request, isolate_id):
         messages.error(request, "An approved organism is required (maximum 255 characters).")
     else:
         isolate.final_organism = organism
+        isolate.approved_organism_code = approved_code
         isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
         isolate.reviewed_by = request.user
         isolate.reviewed_at = timezone.now()
-        isolate.save(update_fields=("final_organism", "status", "reviewed_by", "reviewed_at"))
+        isolate.save(update_fields=("final_organism", "approved_organism_code", "status", "reviewed_by", "reviewed_at"))
         messages.success(request, "Identification reviewed and approved.")
     return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
 
