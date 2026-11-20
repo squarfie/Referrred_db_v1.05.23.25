@@ -81,7 +81,22 @@
       }
     });
     picker.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") close();
+      if (event.key === "Escape") { close(); return; }
+      if (event.target === search && !results.hidden &&
+          (event.key === "Enter" || event.key === "ArrowDown")) {
+        const first = results.querySelector("button");
+        if (first) {
+          event.preventDefault();
+          if (event.key === "Enter") first.click();
+          else first.focus();
+        }
+      } else if ((event.key === "ArrowDown" || event.key === "ArrowUp") &&
+                 event.target.matches(".organism-picker-option")) {
+        const buttons = Array.from(results.querySelectorAll("button"));
+        const position = buttons.indexOf(event.target);
+        const next = buttons[position + (event.key === "ArrowDown" ? 1 : -1)];
+        if (next) { event.preventDefault(); next.focus(); }
+      }
     });
     picker.closest("form")?.addEventListener("submit", function (event) {
       if (!name.value || (!code.value && !allowUnlisted)) {
