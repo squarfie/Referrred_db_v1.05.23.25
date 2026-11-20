@@ -1253,3 +1253,78 @@ class SpecimenUploadNavigationTests(TestCase):
         self.assertRedirects(
             response, "/settings/?tab=specimen", fetch_redirect_response=False
         )
+
+class SpecimenUploadDataTests(TestCase):
+    """Specimen group codes are references, not new duplicate specimens."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "specimen-import-admin", "specimen-import@example.org", "test-password"
+        )
+        self.client.force_login(self.admin)
+
+    def upload_csv(self, csv_text):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from unittest.mock import patch
+        file = SimpleUploadedFile(
+            "specimens.csv", csv_text.encode("utf-8"), content_type="text/csv"
+        )
+        # Avoid writing uploaded files to the developer's MEDIA_ROOT.
+        with patch("apps.home.views.SpecimenUploadForm.save",
+                   return_value=SimpleNamespace(File_uploadSpec=file)):
+            return self.client.post(
+                reverse("upload_specimen_code"), {"File_uploadSpec": file}
+            )
+
+    def test_existing_bl_group_links_without_inserting_duplicate(self):
+        from apps.home.models import SpecimenTypeModel
+        existing = SpecimenTypeModel.objects.create(
+            Specimen_code="bl", Specimen_name="Blood"
+        )
+        response = self.upload_csv(
+            "Specimen_code,Specimen_name,Specimen_code_grp,Specimen_grp_name\\n"
+            "ab,Abscess,bl,Blood group\\n"
+            "bl,Blood,bl,Blood group\\n"
+        )
+        self.assertRedirects(response, reverse("specimen_list"), fetch_redirect_response=False)
+        self.assertEqual(SpecimenTypeModel.objects.filter(Specimen_code__iexact="bl").count(), 1)
+        self.assertEqual(
+            SpecimenTypeModel.objects.get(Specimen_code="ab").Specimen_Code_Grp_id,
+            existing.pk,
+        )
+
+    def test_group_code_row_later_in_file_is_reused(self):
+        from apps.home.models import SpecimenTypeModel
+        response = self.upload_csv(
+            "Specimen_code,Specimen_name,Specimen_code_grp\\n"
+            "ab,Abscess,bl\\n"
+            "bl,Blood,\\n"
+        )
+        self.assertRedirects(response, reverse("specimen_list"), fetch_redirect_response=False)
+        self.assertEqual(SpecimenTypeModel.objects.count(), 2)
+        self.assertEqual(
+            SpecimenTypeModel.objects.get(Specimen_code="ab").Specimen_Code_Grp_id,
+            SpecimenTypeModel.objects.get(Specimen_code="bl").pk,
+        )
+
+    def test_duplicate_file_codes_are_skipped(self):
+        from apps.home.models import SpecimenTypeModel
+        response = self.upload_csv(
+            "Specimen_code,Specimen_name\\n"
+            "bl,Blood\\n"
+            "BL,Duplicate blood\\n"
+        )
+        self.assertRedirects(response, reverse("specimen_list"), fetch_redirect_response=False)
+        self.assertEqual(SpecimenTypeModel.objects.count(), 1)
+        self.assertEqual(SpecimenTypeModel.objects.first().Specimen_name, "Blood")
+
+    def test_invalid_later_row_rolls_back_whole_import(self):
+        from apps.home.models import SpecimenTypeModel
+        response = self.upload_csv(
+            "Specimen_code,Specimen_name\\n"
+            "ab,Abscess\\n"
+            "toolong,Invalid\\n"
+        )
+        self.assertRedirects(response, "/settings/?tab=specimen", fetch_redirect_response=False)
+        self.assertFalse(SpecimenTypeModel.objects.filter(Specimen_code="ab").exists())
+
