@@ -170,4 +170,4 @@
 </div></main>
 {% endblock content %}
 
-{% block javascripts %}<script defer src="{% static 'assets/js/laboratory-organism-picker.js' %}"></script>{% endblock javascripts %}
+{% block javascripts %}{{ block.super }}<script defer src="{% static 'assets/js/laboratory-organism-picker.js' %}"></script>{% endblock javascripts %}
