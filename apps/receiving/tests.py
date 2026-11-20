@@ -1879,6 +1879,119 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             accession.isolate_count,
         )
 
+    def test_id_worklist_groups_isolates_by_accession_batch(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        response = self.client.get(reverse("laboratory_worklist"))
+        self.assertContains(response, "Open Batch")
+        self.assertContains(response, reverse("laboratory_batch_detail", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(len(response.context["batches"]), 1)
+        self.assertEqual(response.context["batches"][0]["count"], 5)
+        detail = self.client.get(reverse("laboratory_batch_detail", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(detail.status_code, 200)
+        for item in accession.isolate_records.all():
+            self.assertContains(detail, item.accession_number)
+
+    def test_isolate_detail_navigates_previous_and_next_within_own_batch(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        first, middle, last = list(accession.isolate_records.order_by("accession_number"))[0], list(accession.isolate_records.order_by("accession_number"))[2], list(accession.isolate_records.order_by("accession_number"))[-1]
+        response = self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": middle.pk}))
+        self.assertContains(response, "Previous Isolate")
+        self.assertContains(response, "Next Isolate")
+        first_response = self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": first.pk}))
+        self.assertNotContains(first_response, "Previous Isolate")
+        last_response = self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": last.pk}))
+        self.assertNotContains(last_response, "Next Isolate")
+
+    def test_one_returned_cassette_can_reach_biobank_while_siblings_wait_for_id(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.order_by("accession_number").first()
+        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+        isolate.returned_at = timezone.now()
+        isolate.returned_by = self.lab_user
+        isolate.save(update_fields=("status", "returned_at", "returned_by"))
+        LaboratoryIdentification.objects.create(
+            isolate=isolate, organism_reported="Klebsiella pneumoniae",
+            cassette_reference="CASSETTE-1", recorded_by=self.lab_user,
+        )
+        url = reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk})
+        self.assertContains(self.client.get(url), "Queue this isolate for revival")
+        for action, target in (
+            ("queue", LaboratoryIsolate.Status.REVIVAL_QUEUED),
+            ("start", LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS),
+            ("complete", LaboratoryIsolate.Status.REVIVED),
+        ):
+            self.client.post(reverse("laboratory_isolate_revival", kwargs={
+                "isolate_id": isolate.pk, "action": action,
+            }))
+            isolate.refresh_from_db()
+            self.assertEqual(isolate.status, target)
+        self.assertEqual(
+            accession.isolate_records.filter(status=LaboratoryIsolate.Status.ID_PENDING).count(), 4
+        )
+        self.assertContains(self.client.get(url), 'name="final_organism_code"')
+        self.client.post(reverse("laboratory_review_id", kwargs={"isolate_id": isolate.pk}), {
+            "final_organism": "Klebsiella pneumoniae", "final_organism_code": "KPN",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_REVIEWED)
+        self.client.post(reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}), {
+            "date_harvested": "2026-11-19",
+            "date_lyophilized": "2026-11-19",
+            "whonet_code": "KPN", "whonet_organism_name": "Klebsiella pneumoniae",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+        self.assertContains(self.client.get(url), "Save biobank inventory")
+        self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
+            "lyo_box_name": "Test storage", "lyo_position": "A1",
+        })
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.BIOBANKED)
+        self.assertEqual(isolate.biobank.lyo_position, "A1")
+
+    def test_per_isolate_revival_is_post_only_and_requires_cassette_and_role(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        target = reverse("laboratory_isolate_revival", kwargs={"isolate_id": isolate.pk, "action": "queue"})
+        self.assertEqual(self.client.get(target).status_code, 405)
+        self.client.post(target)
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_PENDING)
+        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
+        isolate.save(update_fields=("status",))
+        self.client.post(target)
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
+        isolate.returned_at = timezone.now()
+        isolate.returned_by = self.lab_user
+        isolate.save(update_fields=("returned_at", "returned_by"))
+        LaboratoryIdentification.objects.create(
+            isolate=isolate, organism_reported="Klebsiella pneumoniae",
+            cassette_reference="C1", recorded_by=self.lab_user,
+        )
+        staff = User.objects.create_user(username="per-isolate-staff", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
+        self.client.force_login(staff)
+        self.client.post(target)
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
+
+    def test_create_batch_remains_visible_after_isolates_handed_to_main_lab(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        response = self.client.get(reverse("laboratory_receiving_workspace", kwargs={
+            "receiving_id": self.receipt.receiving_id,
+        }))
+        self.assertContains(response, "Create Batch")
+        self.assertContains(response, reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
+        self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
+        accession.refresh_from_db()
+        self.assertIsNotNone(accession.batch_id)
+
     def test_id_handoff_and_review_follow_roles(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
