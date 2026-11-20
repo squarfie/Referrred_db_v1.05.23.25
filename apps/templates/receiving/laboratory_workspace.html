@@ -119,7 +119,7 @@
             {% for item in ranges %}
             <tr>
               <td data-label="Date referred">
-                {% if can_edit and not item.batch and not item.isolate_records.exists %}
+                {% if can_edit and not item.batch %}
                   <input aria-label="Date referred for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="date" name="date_referred" value="{{ item.date_referred|date:'Y-m-d' }}" required>
                 {% else %}{{ item.date_referred|date:"M j, Y" }}{% endif %}
               </td>
