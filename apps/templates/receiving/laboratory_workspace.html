@@ -289,7 +289,7 @@
                 {% else %}<span class="badge badge-warning">Pending</span>{% endif %}
               </td>
               <td data-label="Actions" class="receiving-actions">
-                {% if can_edit and not item.batch and not item.isolate_records.exists %}
+                {% if can_edit and not item.batch %}
                 <div class="receiving-batch-action">
                   {% if row.preview.blocked %}
                     <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Create Batch</button>
