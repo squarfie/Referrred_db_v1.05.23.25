@@ -2366,10 +2366,17 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate.status = LaboratoryIsolate.Status.ID_TESTING
         isolate.save(update_fields=("status",))
         url = reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk})
+        # The instrument ID form belongs to Main Laboratory staff, not LAB Encoder.
+        staff = User.objects.create_user(username="organism-picker-lab-staff", password="test-pass")
+        staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
+        self.client.force_login(staff)
         response = self.client.get(url)
         self.assertContains(response, "laboratory-organism-picker.js")
         self.assertContains(response, "data-organism-picker")
+        self.assertContains(response, 'name="organism_reported_code"')
         self.assertContains(response, reverse("laboratory_organism_search"))
+        # ID review and lyophilization are LAB Encoder responsibilities.
+        self.client.force_login(self.lab_user)
         isolate.status = LaboratoryIsolate.Status.REVIVED
         isolate.save(update_fields=("status",))
         response = self.client.get(url)
