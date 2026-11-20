@@ -196,7 +196,7 @@ def save_biobank(isolate_id, details, user):
         raise WorkflowError("Position in box is required before the isolate is biobanked.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
     # Scientific dates belong to lyophilization; storage edits must not rewrite them.
-    blocked = {"date_harvested", "date_lyophilized"}
+    blocked = {"date_harvested", "date_lyophilized", "whonet_code"}
     if blocked.intersection(details):
         raise WorkflowError("Harvest and lyophilization dates cannot be edited from storage.")
     for name, value in details.items():
