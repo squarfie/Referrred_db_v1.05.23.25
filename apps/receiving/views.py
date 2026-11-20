@@ -194,7 +194,7 @@ def laboratory_receiving_workspace(request, receiving_id):
         "receipt": receipt, "record": record, "form": form,
         "accession_form": LaboratoryAccessionForm(initial={"date_referred": record.date_accepted or receipt.lab_date_received}),
         "organism_form": LaboratoryOrganismCountForm(),
-        "ranges": ranges, "organism_rows": organism_rows, "can_edit": can_edit,
+        "ranges": ranges, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
     })
 
 
