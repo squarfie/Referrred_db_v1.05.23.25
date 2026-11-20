@@ -179,7 +179,7 @@ def laboratory_receiving_workspace(request, receiving_id):
             return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
     else:
         form = LaboratoryReceivingForm(instance=record)
-    ranges = list(record.accession_ranges.select_related("batch").prefetch_related("organism_counts"))
+    ranges = list(record.accession_ranges.select_related("batch").prefetch_related("organism_counts", "isolate_records"))
     organism_rows = []
     for accession in ranges:
         values = {count.organism_code: count.count for count in accession.organism_counts.all()}
@@ -273,6 +273,9 @@ def laboratory_accession_edit(request, accession_id):
         "laboratory_receiving_workspace",
         receiving_id=accession.laboratory_receiving.receipt.receiving_id,
     )
+    if accession.isolate_records.exists():
+        messages.error(request, "This range has been endorsed to ID testing and cannot be edited.")
+        return destination
     if accession.batch_id:
         messages.error(request, "Generated batches cannot be edited here. Contact an administrator for a reviewed correction.")
         return destination
@@ -321,6 +324,9 @@ def laboratory_accession_delete(request, accession_id):
         "laboratory_receiving_workspace",
         receiving_id=accession.laboratory_receiving.receipt.receiving_id,
     )
+    if accession.isolate_records.exists():
+        messages.error(request, "This range has ID laboratory records and cannot be deleted.")
+        return destination
     if accession.batch_id:
         messages.error(request, "This accession range has generated a batch and cannot be deleted here.")
         return destination
