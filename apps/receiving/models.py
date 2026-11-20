@@ -514,7 +514,7 @@ class LaboratoryIsolate(models.Model):
         LaboratoryAccession, on_delete=models.PROTECT, related_name="isolate_records"
     )
     accession_number = models.CharField(max_length=80, unique=True, db_index=True)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REVIVAL_QUEUED)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ID_PENDING)
     revival_queued_at = models.DateTimeField(null=True, blank=True)
     revival_queued_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
