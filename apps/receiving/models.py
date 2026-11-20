@@ -526,6 +526,12 @@ class LaboratoryIsolate(models.Model):
         related_name="lab_revival_started_isolates",
     )
     revival_failed_reason = models.TextField(blank=True, default="")
+    revival_retry_count = models.PositiveIntegerField(default=0)
+    revival_retried_at = models.DateTimeField(null=True, blank=True)
+    revival_retried_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="lab_revival_retried_isolates",
+    )
     revival_completed_at = models.DateTimeField(null=True, blank=True)
     revival_completed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
