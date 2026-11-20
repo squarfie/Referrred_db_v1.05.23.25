@@ -498,16 +498,36 @@ class LaboratoryOrganismCount(models.Model):
 class LaboratoryIsolate(models.Model):
     """One accepted isolate; accessions are assigned by Laboratory Receiving."""
     class Status(models.TextChoices):
-        PENDING = "pending", "Awaiting ID laboratory"
-        TESTING = "testing", "ID testing"
-        RETURNED = "returned", "Results returned"
-        REVIEWED = "reviewed", "ID reviewed"
+        REVIVAL_QUEUED = "revival_queued", "Queued for revival"
+        REVIVAL_IN_PROGRESS = "revival_in_progress", "Revival in progress"
+        REVIVED = "revived", "Revival completed"
+        ID_PENDING = "id_pending", "Awaiting Main Laboratory acknowledgment"
+        ID_TESTING = "id_testing", "ID testing"
+        ID_RETURNED = "id_returned", "ID results and cassette returned"
+        ID_REVIEWED = "id_reviewed", "Identification reviewed"
+        READY_FOR_BIOBANK = "ready_for_biobank", "Ready for biobank"
+        BIOBANKED = "biobanked", "Biobanked"
 
     accession_range = models.ForeignKey(
         LaboratoryAccession, on_delete=models.PROTECT, related_name="isolate_records"
     )
     accession_number = models.CharField(max_length=80, unique=True, db_index=True)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REVIVAL_QUEUED)
+    revival_queued_at = models.DateTimeField(null=True, blank=True)
+    revival_queued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="lab_revival_queued_isolates",
+    )
+    revival_started_at = models.DateTimeField(null=True, blank=True)
+    revival_started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="lab_revival_started_isolates",
+    )
+    revival_completed_at = models.DateTimeField(null=True, blank=True)
+    revival_completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="lab_revival_completed_isolates",
+    )
     endorsed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="isolates_endorsed_for_id",
@@ -519,12 +539,17 @@ class LaboratoryIsolate(models.Model):
     )
     acknowledged_at = models.DateTimeField(null=True, blank=True)
     returned_at = models.DateTimeField(null=True, blank=True)
+    returned_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_id_returned_isolates")
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="isolates_id_reviewed",
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     final_organism = models.CharField(max_length=255, blank=True, default="")
+    lyophilization_completed_at = models.DateTimeField(null=True, blank=True)
+    lyophilization_completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_lyophilization_completed_isolates")
+    biobanked_at = models.DateTimeField(null=True, blank=True)
+    biobanked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_biobanked_isolates")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -565,7 +590,7 @@ class LaboratoryIdentification(models.Model):
 
 
 class LaboratoryBiobank(models.Model):
-    """Storage information may be recorded before an identification is reviewed."""
+    """Preservation and storage details; stage checks are enforced by workflow services."""
     isolate = models.OneToOneField(
         LaboratoryIsolate, on_delete=models.PROTECT, related_name="biobank"
     )
