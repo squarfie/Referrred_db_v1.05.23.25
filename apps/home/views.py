@@ -8199,9 +8199,10 @@ def upload_specimen_code(request):
 
         messages.error(request, "Form is not valid.")
 
-    return render(request, "Settings.html", {
-        "specimen_upload": SpecimenUploadForm()
-    })
+    # The upload form is embedded in the Settings -> Specimen Types tab.
+    # Rendering a bare "Settings.html" raises TemplateDoesNotExist and would
+    # omit the settings context even if the template path were corrected.
+    return redirect("/settings/?tab=specimen")
 
 
 @login_required(login_url="login")
