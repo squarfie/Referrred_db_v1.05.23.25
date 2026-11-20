@@ -12,7 +12,7 @@
       </div>
     </div>
     <div class="receiving-hero-actions">
-      <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_register' %}"><i class="fas fa-file-alt mr-2"></i>Monthly Inventory</a>
+      {% if is_lab_worklist %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_register' %}"><i class="fas fa-file-alt mr-2"></i>Monthly Inventory</a>{% endif %}
       {% if can_manage_secretariat %}<a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>{% endif %}
     </div>
   </header>
