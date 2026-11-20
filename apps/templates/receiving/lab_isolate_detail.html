@@ -29,6 +29,14 @@
 {% if isolate.status == 'revival_failed' or isolate.status == 'non_viable' %}
 <div class="alert alert-warning"><strong>{{ isolate.get_status_display }}</strong> — {{ isolate.revival_failed_reason }}. This isolate is blocked from further processing until reconciled.</div>
 {% endif %}
+{% if can_review and isolate.status == 'revival_failed' %}
+<form method="post" action="{% url 'laboratory_revival_retry' isolate.pk %}" class="mb-3">{% csrf_token %}
+<button type="submit" class="btn btn-warning">Retry revival</button></form>
+{% endif %}
+{% if can_review and isolate.status == 'revival_in_progress' and isolate.revival_retry_count %}
+<form method="post" action="{% url 'laboratory_revival_retry_complete' isolate.pk %}" class="mb-3">{% csrf_token %}
+<button type="submit" class="btn btn-success">Mark retried isolate as revived</button></form>
+{% endif %}
 {% if can_test and isolate.status == 'id_pending' %}
 <form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}
 <button class="btn btn-success" type="submit">Acknowledge isolate for ID testing</button></form>
