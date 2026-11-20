@@ -97,6 +97,12 @@
                 <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Open worksheet</a>
               {% endif %}
               <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_worklist %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}">Open</a>
+              {% if receipt.can_delete_from_queue %}
+              <form method="post" action="{% url 'receiving_delete_permanently' receipt.receiving_id %}" class="d-inline" onsubmit="var typed = window.prompt('Delete this receiving record permanently? Type DELETE PERMANENTLY to confirm.'); if (typed !== 'DELETE PERMANENTLY') return false; this.querySelector('[name=confirmation]').value = typed; return true;">
+                {% csrf_token %}<input type="hidden" name="confirmation" value="">
+                <button type="submit" class="btn btn-sm btn-outline-danger mb-1"><i class="fas fa-trash-alt mr-1"></i>Delete</button>
+              </form>
+              {% endif %}
             </td>
           </tr>
         {% empty %}
