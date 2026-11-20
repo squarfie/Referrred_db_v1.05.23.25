@@ -160,6 +160,54 @@ def sync_batch_membership(batch, accession_numbers):
     return len(new_accessions), len(removed_accessions)
 
 
+def preview_referred_batch_conflicts(
+    *, site_code, referral_date, start_number, end_number, batch_number, total_batches,
+):
+    """Read-only preview of conflicts checked by create_referred_batch.
+
+    This is advisory: the atomic creation checks remain authoritative because
+    another user may create a conflicting accession after the page loads.
+    """
+    ref_no = f"{start_number:04d}-{end_number:04d}"
+    batch_code = build_batch_code(
+        site_code, referral_date, batch_number, total_batches, ref_no
+    )
+    accessions = build_batch_accessions(site_code, referral_date, ref_no)
+    warnings = []
+    existing = Batch_Table.objects.filter(bat_Batch_Code=batch_code).first()
+    orphan = None
+    if existing:
+        raw_count = Referred_Data.objects.filter(
+            Q(Batch_id=existing) | Q(Batch_Code=batch_code)
+        ).count()
+        final_count = Final_Data.objects.filter(
+            Q(f_Batch_id=existing) | Q(f_Batch_Code=batch_code)
+        ).count()
+        if raw_count or final_count or hasattr(existing, "laboratory_accession"):
+            warnings.append(f"Batch code already exists: {batch_code}.")
+        else:
+            orphan = existing
+
+    raw_conflicts = list(
+        Referred_Data.objects.filter(AccessionNo__in=accessions)
+        .exclude(Q(Batch_id__isnull=True) & Q(Batch_Code=""))
+        .exclude(Batch_id=orphan)
+        .values_list("AccessionNo", flat=True)
+    )
+    final_conflicts = list(
+        Final_Data.objects.filter(f_AccessionNo__in=accessions)
+        .values_list("f_AccessionNo", flat=True)
+    )
+    conflicting_accessions = sorted(set(raw_conflicts + final_conflicts))
+    if conflicting_accessions:
+        visible = ", ".join(conflicting_accessions[:5])
+        remaining = len(conflicting_accessions) - 5
+        suffix = f" and {remaining} more" if remaining else ""
+        warnings.append(f"Existing accession records: {visible}{suffix}.")
+
+    return warnings
+
+
 @transaction.atomic
 def create_referred_batch(
     *, site_code, referral_date, start_number, end_number, batch_number,
