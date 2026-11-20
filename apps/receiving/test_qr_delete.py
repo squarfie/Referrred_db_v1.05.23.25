@@ -134,14 +134,15 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         form = LabReceiptForm(receipt=self.receipt, now=timezone.make_aware(datetime(2026, 11, 12, 9, 30, 50)))
         self.assertEqual(form.initial["lab_time_received"], time(9, 31))
 
-    def test_secretariat_cannot_delete_and_post_is_required_to_mutate(self):
+    def test_secretariat_can_delete_unacknowledged_record_and_get_cannot_mutate(self):
         url = reverse("receiving_delete_permanently", kwargs={"receiving_id": self.receipt.receiving_id})
         self.client.force_login(self.secretariat)
-        self.assertEqual(self.client.post(url, {"confirmation": "DELETE PERMANENTLY"}).status_code, 302)
-        self.assertTrue(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
-        self.client.force_login(self.admin)
+        # GET must not perform deletion for any authorized user.
         self.assertEqual(self.client.get(url).status_code, 405)
         self.assertTrue(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
+        response = self.client.post(url, {"confirmation": "DELETE PERMANENTLY"})
+        self.assertRedirects(response, reverse("secretariat_receiving_dashboard"), fetch_redirect_response=False)
+        self.assertFalse(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
 
     def test_deletion_requires_exact_confirmation_phrase(self):
         url = reverse("receiving_delete_permanently", kwargs={"receiving_id": self.receipt.receiving_id})
@@ -168,12 +169,12 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         self.assertLess(html.lower().index("</head>"), html.index('id="deleteReceivingBatchModal"'))
         self.assertLess(html.index('id="deleteReceivingBatchModal"'), html.lower().index("</body>"))
 
-    def test_non_admin_cannot_see_permanent_delete_modal(self):
+    def test_secretariat_sees_delete_modal_for_unacknowledged_record(self):
         self.client.force_login(self.secretariat)
         response = self.client.get(reverse(
             "receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}
         ))
-        self.assertNotContains(response, 'id="deleteReceivingBatchModal"')
+        self.assertContains(response, 'id="deleteReceivingBatchModal"')
 
     def test_admin_permanently_deletes_receipt_and_events(self):
         url = reverse("receiving_delete_permanently", kwargs={"receiving_id": self.receipt.receiving_id})
@@ -183,7 +184,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         self.assertFalse(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
         self.assertFalse(ReceivingEvent.objects.filter(receipt_id=self.receipt.pk).exists())
 
-    def test_admin_cannot_permanently_delete_endorsed_custody_record(self):
+    def test_admin_can_delete_endorsed_record_before_laboratory_receipt(self):
         self.receipt.status = ReferralReceipt.Status.ENDORSED
         self.receipt.endorsed_at = timezone.make_aware(datetime(2026, 11, 12, 9, 30))
         self.receipt.endorsed_by = self.secretariat
@@ -198,6 +199,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
 
         self.assertRedirects(
             response,
-            reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}),
+            reverse("secretariat_receiving_dashboard"),
+            fetch_redirect_response=False,
         )
-        self.assertTrue(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
+        self.assertFalse(ReferralReceipt.objects.filter(pk=self.receipt.pk).exists())
