@@ -9,6 +9,7 @@ urlpatterns = [
     path("laboratory-worklist/<int:isolate_id>/revival/<str:action>/", views.laboratory_isolate_revival, name="laboratory_isolate_revival"),
     path("laboratory-organisms/search/", views.laboratory_organism_search, name="laboratory_organism_search"),
     path("biobank-inventory/", views.laboratory_biobank_list, name="laboratory_biobank_list"),
+    path("biobank-inventory/stickers/", views.laboratory_date_labels, name="laboratory_date_labels"),
     path("laboratory-worklist/upload/", views.laboratory_id_upload, name="laboratory_id_upload"),
     path("laboratory-worklist/<int:isolate_id>/", views.laboratory_isolate_detail, name="laboratory_isolate_detail"),
     path("laboratory-worklist/<int:isolate_id>/acknowledge/", views.laboratory_acknowledge_id, name="laboratory_acknowledge_id"),

@@ -54,7 +54,7 @@ class ReceivingPermissionTests(TestCase):
         self.client.force_login(user)
         response = self.client.get(reverse("secretariat_receiving_dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Secretariat Receiving")
+        self.assertContains(response, "Isolate Tracking")
         self.assertContains(response, "Pending Endorsement")
         self.assertContains(response, reverse("secretariat_receiving_dashboard") + "?tab=pending")
         self.assertNotContains(response, "Pending Lab Receipt")
@@ -70,8 +70,9 @@ class ReceivingPermissionTests(TestCase):
         self.assertContains(response, "Pending Lab Receipt")
         self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=pending")
         self.assertNotContains(response, "Pending Endorsement")
-        denied = self.client.get(reverse("secretariat_receiving_dashboard"))
-        self.assertEqual(denied.status_code, 302)
+        shared = self.client.get(reverse("secretariat_receiving_dashboard"))
+        self.assertEqual(shared.status_code, 200)
+        self.assertFalse(shared.context["can_manage_secretariat"])
 
     def test_admin_can_view_both_receiving_queues(self):
         user = self.create_user_with_roles("sidebar-admin", home_permissions.ROLE_ADMIN)
@@ -132,14 +133,14 @@ class ReceivingPermissionTests(TestCase):
         self.assertTrue(permissions.can_manage_secretariat_receiving(user))
         self.assertTrue(laboratory_permissions.can_confirm_lab_receipt(user))
 
-    def test_unrelated_role_has_no_receiving_access(self):
+    def test_verifier_has_read_only_receiving_access(self):
         permissions = self.receiving_permissions()
         user = self.create_user_with_roles(
             "verifier_permissions",
             home_permissions.ROLE_VERIFIER,
         )
 
-        self.assertFalse(permissions.can_read_receiving(user))
+        self.assertTrue(permissions.can_read_receiving(user))
         self.assertFalse(permissions.can_manage_secretariat_receiving(user))
         self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(user))
 
@@ -663,7 +664,7 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("login", response.url)
 
-    def test_unrelated_role_cannot_open_dashboard_or_detail(self):
+    def test_verifier_can_read_dashboard_and_detail_without_write_actions(self):
         receipt = self.create_receipt()
         self.client.force_login(self.verifier)
 
@@ -672,10 +673,12 @@ class ReceivingViewTests(TestCase):
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
 
-        self.assertEqual(dashboard.status_code, 302)
-        self.assertEqual(detail.status_code, 302)
-        self.assertEqual(dashboard.url, reverse("home"))
-        self.assertEqual(detail.url, reverse("home"))
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, receipt.tracking_number)
+        self.assertFalse(dashboard.context["can_manage_secretariat"])
+        self.assertFalse(detail.context["can_endorse"])
+        self.assertFalse(detail.context["can_permanently_delete"])
 
     def test_secretariat_create_uses_authenticated_user_and_received_status(self):
         self.client.force_login(self.secretariat)

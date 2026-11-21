@@ -101,3 +101,21 @@ class LaboratoryOrganismCountForm(forms.ModelForm):
 class LaboratoryRegisterFilterForm(forms.Form):
     month = forms.IntegerField(min_value=1, max_value=12, widget=forms.NumberInput(attrs={"class": "form-control"}))
     year = forms.IntegerField(min_value=2000, max_value=2100, widget=forms.NumberInput(attrs={"class": "form-control"}))
+
+
+class StickerDateRangeForm(forms.Form):
+    from_date = forms.DateField(
+        label="Harvest date - From",
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"class": "form-control", "type": "date"}),
+    )
+    to_date = forms.DateField(
+        label="Harvest date - To",
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"class": "form-control", "type": "date"}),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("from_date"), cleaned.get("to_date")
+        if start and end and start > end:
+            self.add_error("to_date", "To date must be on or after From date.")
+        return cleaned

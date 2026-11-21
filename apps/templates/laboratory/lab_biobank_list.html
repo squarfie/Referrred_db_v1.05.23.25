@@ -7,6 +7,30 @@
 <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-archive"></i></span><div><p class="receiving-eyebrow">Laboratory staff</p><h1>Biobank Inventory</h1><p class="receiving-hero-subtitle">Batch-based inventory with accession-level preservation, storage, and specimen tracking.</p></div></div>
 <div class="receiving-hero-actions">{% if user_access.is_admin or user_access.is_lab_encoder %}<a href="{% url 'laboratory_processing_worklist' %}" class="btn btn-outline-light">Revival &amp; Processing</a>{% endif %}{% if user_access.is_admin or user_access.is_lab_staff %}<a href="{% url 'laboratory_worklist' %}" class="btn btn-outline-light">Identification Testing</a>{% endif %}</div></header>
 <div class="receiving-content">
+<section class="receiving-surface mb-4" id="print-stickers-by-date">
+  <div class="receiving-card-header">
+    <h2>Print stickers by harvest date</h2>
+    <p>Print eligible stickers across all batches. Both dates are included; the filter uses the harvest date printed on each sticker.</p>
+  </div>
+  <div class="receiving-card-body">
+    <form method="get" action="{% url 'laboratory_date_labels' %}" target="_blank" class="form-row align-items-end">
+      {% if sticker_date_form.non_field_errors %}<div class="col-12 alert alert-danger" role="alert">{{ sticker_date_form.non_field_errors }}</div>{% endif %}
+      <!-- LaboratoryBiobank.date_harvested: inclusive lower bound -->
+      <div class="col-md-3 mb-2 receiving-field receiving-field--from_date" data-model="LaboratoryBiobank" data-field="date_harvested" data-filter-bound="from">
+        <label for="{{ sticker_date_form.from_date.id_for_label }}">{{ sticker_date_form.from_date.label }}</label>
+        {{ sticker_date_form.from_date }}
+        {% for error in sticker_date_form.from_date.errors %}<div class="text-danger small" role="alert">{{ error }}</div>{% endfor %}
+      </div>
+      <!-- LaboratoryBiobank.date_harvested: inclusive upper bound -->
+      <div class="col-md-3 mb-2 receiving-field receiving-field--to_date" data-model="LaboratoryBiobank" data-field="date_harvested" data-filter-bound="to">
+        <label for="{{ sticker_date_form.to_date.id_for_label }}">{{ sticker_date_form.to_date.label }}</label>
+        {{ sticker_date_form.to_date }}
+        {% for error in sticker_date_form.to_date.errors %}<div class="text-danger small" role="alert">{{ error }}</div>{% endfor %}
+      </div>
+      <div class="col-md-auto mb-2"><button type="submit" class="btn btn-info mb-0"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print stickers by date</button></div>
+    </form>
+  </div>
+</section>
 <section class="receiving-surface">
 <div class="receiving-card-header"><h2>Isolate storage ledger</h2><p>Storage is available after identification review and lyophilization. Stickers require an approved organism, WHONET code, and harvest date.</p></div>
 <div class="receiving-card-body">
@@ -15,7 +39,7 @@
 {% regroup isolates by accession_range as inventory_batches %}
 {% for inventory_batch in inventory_batches %}
 <tr><td colspan="9"><a href="{% url 'laboratory_batch_labels' inventory_batch.grouper.pk %}" target="_blank" class="btn btn-sm btn-info">Print batch stickers · {{ inventory_batch.grouper.reference_range }}</a></td></tr>
-<tr><th colspan="9" scope="rowgroup">Batch {{ inventory_batch.grouper.batch_number }} / {{ inventory_batch.grouper.total_batches }} · {{ inventory_batch.grouper.reference_range }} · {{ inventory_batch.grouper.laboratory_receiving.receipt.site.SiteCode }} <a href="{% url 'laboratory_batch_detail' inventory_batch.grouper.pk %}?area=biobank" class="btn btn-sm btn-outline-primary">Open Batch</a></th></tr>
+<tr><th colspan="9" scope="rowgroup">Batch {{ inventory_batch.grouper.batch_number }} / {{ inventory_batch.grouper.total_batches }} · {{ inventory_batch.grouper.reference_range }} · {{ inventory_batch.grouper.laboratory_receiving.receipt.site.SiteCode }} &nbsp; &nbsp;<a href="{% url 'laboratory_batch_detail' inventory_batch.grouper.pk %}?area=biobank" class="btn btn-sm btn-outline-primary">Open Batch</a></th></tr>
 {% for isolate in inventory_batch.list %}
 <tr>
 <td>{{ isolate.accession_number }}</td><td>{% if isolate.status == "biobanked" %}Stored{% elif isolate.status == "ready_for_biobank" %}Ready for storage{% else %}{{ isolate.get_status_display }}{% endif %}</td><td>{{ isolate.final_organism|default:"Pending review" }}</td>

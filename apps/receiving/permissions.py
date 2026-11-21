@@ -5,15 +5,14 @@ from django.shortcuts import redirect
 
 from apps.home.permissions import (
     ROLE_ADMIN,
-    ROLE_LAB_ENCODER,
-    ROLE_LAB_STAFF,
     ROLE_SECRETARIAT,
     get_user_roles,
 )
 
 
 def can_read_receiving(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_LAB_ENCODER, ROLE_LAB_STAFF})
+    """Shared custody records are visible to every signed-in account."""
+    return bool(user and user.is_authenticated)
 
 
 def can_manage_secretariat_receiving(user):

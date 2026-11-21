@@ -1,27 +1,27 @@
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% if batch %}Batch stickers · {{ batch.reference_range }}{% else %}Isolate sticker{% endif %}</title>
+<title>{% if date_range %}Harvest stickers · {{ from_date|date:"Y-m-d" }} to {{ to_date|date:"Y-m-d" }}{% elif batch %}Batch stickers · {{ batch.reference_range }}{% else %}Isolate sticker{% endif %}</title>
 <style>
 @page {size:A4; margin:8mm}
 *{box-sizing:border-box}
 body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}
 .toolbar{padding:10px 12px;background:#f2f5f9;margin-bottom:6mm}
 .toolbar button{font-size:14px;padding:7px 15px;cursor:pointer}
-.sheet{display:grid;grid-template-columns:repeat(4,46mm);gap:2mm;width:190mm;margin:0 auto}
-.sticker{width:46mm;height:20mm;padding:.6mm 1mm;border:.25pt solid #aaa;display:grid;grid-template-columns:14.5mm 1fr;grid-template-rows:4mm 8.5mm 5mm;column-gap:1mm;break-inside:avoid;page-break-inside:avoid;background:#fff;overflow:hidden}
-.sticker .code{grid-column:2;grid-row:2;align-self:center;justify-self:center;font-weight:800;font-size:11pt;line-height:1}
-.sticker .qr{grid-column:1;grid-row:2 / 4;align-self:center;justify-self:center;width:14.5mm;height:14.5mm;object-fit:contain}
-.sticker .accession{grid-column:1 / -1;grid-row:1;align-self:center;justify-self:center;font-size:7.5pt;font-weight:800;white-space:nowrap}
+.sheet{display:grid;grid-template-columns:repeat(5,38mm);gap:1mm;width:194mm;margin:0 auto}
+.sticker{width:38mm;height:17mm;padding:.6mm 1mm;border:.25pt solid #aaa;display:grid;grid-template-columns:12mm 1fr;grid-template-rows:3.5mm 7mm 5mm;column-gap:1mm;break-inside:avoid;page-break-inside:avoid;background:#fff;overflow:hidden}
+.sticker .code{grid-column:2;grid-row:2;align-self:center;justify-self:center;font-weight:800;font-size:13pt;line-height:1}
+.sticker .qr{grid-column:1;grid-row:2 / 4;align-self:center;justify-self:center;width:12mm;height:12mm;object-fit:contain}
+.sticker .accession{grid-column:1 / -1;grid-row:1;align-self:center;justify-self:center;font-size:8.5pt;font-weight:800;white-space:nowrap}
 .sticker .harvest{grid-column:2;grid-row:3;align-self:center;justify-self:center;font-size:7pt;white-space:nowrap}
 .warning{padding:12px;margin-top:10px;background:#fff4dc}
-@media print{.toolbar,.warning{display:none!important}.sticker{border:1px solid #bbb} .sheet{gap:2mm}}
+@media print{.toolbar,.warning{display:none!important}.sticker{border:.25pt solid #bbb} .sheet{gap:1mm}}
 </style></head>
 <body>
 <div class="toolbar"><button type="button" onclick="window.print()" {% if not labels %}disabled{% endif %}>Print {{ labels|length }} sticker{{ labels|length|pluralize }}</button>
-{% if labels %}<a href="?format=pdf" target="_blank">Download A4 PDF</a>{% endif %}
-{% if not batch %}<a href="{% url 'laboratory_batch_labels' accession.pk %}">Print whole batch</a>{% endif %}
-<span>46 &times; 20 mm &middot; A4 &middot; print at 100% / Actual size. Only eligible labels print.</span></div>
+{% if labels %}<a href="{% if date_range %}{{ pdf_url }}{% else %}?format=pdf{% endif %}" target="_blank">Download A4 PDF</a>{% endif %}
+{% if date_range %}<span>Harvest date: {{ from_date|date:"M j, Y" }} to {{ to_date|date:"M j, Y" }} (inclusive) &middot; All batches</span> <a href="{% url 'laboratory_biobank_list' %}#print-stickers-by-date">Change dates</a>{% elif not batch %}<a href="{% url 'laboratory_batch_labels' accession.pk %}">Print whole batch</a>{% endif %}
+<span>38 &times; 17 mm &middot; A4 &middot; print at 100% / Actual size. Only eligible labels print.</span></div>
 <div class="sheet">
 {% for label in labels %}
 <div class="sticker">

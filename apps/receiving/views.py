@@ -31,8 +31,9 @@ def receiving_dashboard(request):
 
 
 @login_required
-@secretariat_receiving_required
+@receiving_read_required
 def secretariat_receiving_dashboard(request):
+    """Shared receiving history; write actions remain role-restricted."""
     return _render_receiving_dashboard(request, queue="secretariat")
 
 

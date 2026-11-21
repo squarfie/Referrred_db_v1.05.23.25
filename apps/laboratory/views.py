@@ -5,6 +5,7 @@ from io import BytesIO, StringIO
 from itertools import islice
 from zipfile import BadZipFile
 from hashlib import sha256
+from urllib.parse import urlencode
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -15,10 +16,12 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .guidance import next_action
+from .forms import StickerDateRangeForm
 from apps.receiving.qr import render_qr_png
 from .workflow import (WorkflowError, transition_batch, transition_isolate_revival,
     record_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff)
@@ -46,16 +49,23 @@ UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "casset
 @login_required
 @lab_worklist_required
 def laboratory_biobank_list(request):
+    return render(request, "laboratory/lab_biobank_list.html", _biobank_inventory_context(request))
+
+
+def _biobank_inventory_context(request):
     search = (request.GET.get("q") or "").strip()
     isolates = LaboratoryIsolate.objects.select_related(
         "accession_range__laboratory_receiving__receipt__site", "biobank"
     ).filter(Q(status__in=(LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.BIOBANKED)) | Q(biobank__isnull=False)).order_by("accession_range_id", "accession_number")
     if search:
         isolates = isolates.filter(accession_number__icontains=search)
-    return render(request, "laboratory/lab_biobank_list.html", {
+    return {
         "isolates": isolates[:250], "query": search,
         "can_bank": can_manage_biobank(request.user),
-    })
+        "sticker_date_form": StickerDateRangeForm(initial={
+            "from_date": timezone.localdate(), "to_date": timezone.localdate(),
+        }),
+    }
 
 
 @login_required
@@ -426,7 +436,10 @@ def laboratory_biobank_save(request, isolate_id):
 
 def _label_item(isolate):
     """Render only fully identified/harvested isolates; QR is accession only."""
-    bank = LaboratoryBiobank.objects.filter(isolate=isolate).first()
+    try:
+        bank = isolate.biobank
+    except LaboratoryBiobank.DoesNotExist:
+        bank = None
     if not bank or not bank.date_harvested or not bank.whonet_code.strip() or not isolate.final_organism:
         return None
     if isolate.status not in {
@@ -480,6 +493,39 @@ def laboratory_batch_labels(request, accession_id):
     return render(request, "laboratory/lab_biobank_label.html", {
         "labels": labels, "unready": unready, "batch": accession,
         "accession": accession,
+    })
+
+
+@login_required
+@lab_worklist_required
+def laboratory_date_labels(request):
+    form = StickerDateRangeForm(request.GET)
+    if not form.is_valid():
+        context = _biobank_inventory_context(request)
+        context["sticker_date_form"] = form
+        return render(request, "laboratory/lab_biobank_list.html", context, status=400)
+
+    start, end = form.cleaned_data["from_date"], form.cleaned_data["to_date"]
+    # DateField range lookup includes both endpoints; no inventory display limit.
+    isolates = LaboratoryIsolate.objects.select_related("biobank").filter(
+        biobank__date_harvested__range=(start, end),
+    ).order_by("biobank__date_harvested", "accession_number", "pk")
+    labels, unready = [], []
+    for isolate in isolates:
+        label = _label_item(isolate)
+        if label:
+            labels.append(label)
+        else:
+            unready.append(isolate.accession_number)
+    params = {"from_date": start.isoformat(), "to_date": end.isoformat()}
+    if request.GET.get("format") == "pdf":
+        if not labels:
+            return redirect(reverse("laboratory_date_labels") + "?" + urlencode(params))
+        return _sticker_pdf_response(labels, f"harvest-{start.isoformat()}-to-{end.isoformat()}-stickers.pdf")
+    return render(request, "laboratory/lab_biobank_label.html", {
+        "labels": labels, "unready": unready, "date_range": True,
+        "from_date": start, "to_date": end,
+        "pdf_url": "?" + urlencode({**params, "format": "pdf"}),
     })
 
 
