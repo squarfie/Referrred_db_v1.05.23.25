@@ -22,9 +22,9 @@ from django.views.decorators.http import require_POST
 
 from .guidance import next_action
 from .forms import StickerDateRangeForm
-from apps.receiving.qr import render_qr_png
+from apps.receiving.qr import build_isolate_scan_url, render_qr_png
 from .workflow import (WorkflowError, transition_batch, transition_isolate_revival,
-    record_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff)
+    record_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff, acknowledge_id_receipt)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
 )
@@ -254,16 +254,12 @@ def laboratory_lyophilization_complete(request, isolate_id):
 @login_required
 @lab_staff_required
 @require_POST
-@transaction.atomic
 def laboratory_acknowledge_id(request, isolate_id):
-    isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
-    if isolate.status != LaboratoryIsolate.Status.ID_PENDING:
+    get_object_or_404(LaboratoryIsolate, pk=isolate_id)
+    isolate, received = acknowledge_id_receipt(isolate_id=isolate_id, user=request.user)
+    if not received:
         messages.error(request, "Only pending isolates may be acknowledged.")
     else:
-        isolate.status = LaboratoryIsolate.Status.ID_TESTING
-        isolate.acknowledged_by = request.user
-        isolate.acknowledged_at = timezone.now()
-        isolate.save(update_fields=("status", "acknowledged_by", "acknowledged_at"))
         messages.success(request, f"Received {isolate.accession_number} for ID testing.")
     return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
 
@@ -434,8 +430,8 @@ def laboratory_biobank_save(request, isolate_id):
     return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
 
 
-def _label_item(isolate):
-    """Render only fully identified/harvested isolates; QR is accession only."""
+def _label_item(isolate, request):
+    """Render eligible biobank stickers with an accession scan-and-receive link."""
     try:
         bank = isolate.biobank
     except LaboratoryBiobank.DoesNotExist:
@@ -446,7 +442,7 @@ def _label_item(isolate):
         LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.BIOBANKED
     }:
         return None
-    png = render_qr_png(isolate.accession_number)
+    png = render_qr_png(build_isolate_scan_url(isolate=isolate, request=request))
     return {
         "isolate": isolate,
         "code": bank.whonet_code.strip().upper(),
@@ -459,7 +455,7 @@ def _label_item(isolate):
 @lab_worklist_required
 def laboratory_biobank_label(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
-    label = _label_item(isolate)
+    label = _label_item(isolate, request)
     if not label:
         messages.error(request, "A reviewed organism, WHONET code, and harvest date are required for sticker printing.")
         return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
@@ -480,7 +476,7 @@ def laboratory_batch_labels(request, accession_id):
     )
     labels, unready = [], []
     for isolate in accession.isolate_records.order_by("accession_number"):
-        label = _label_item(isolate)
+        label = _label_item(isolate, request)
         if label:
             labels.append(label)
         else:
@@ -512,7 +508,7 @@ def laboratory_date_labels(request):
     ).order_by("biobank__date_harvested", "accession_number", "pk")
     labels, unready = [], []
     for isolate in isolates:
-        label = _label_item(isolate)
+        label = _label_item(isolate, request)
         if label:
             labels.append(label)
         else:

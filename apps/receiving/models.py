@@ -19,7 +19,7 @@ class ReferralReceipt(models.Model):
     """
 
     class Status(models.TextChoices):
-        RECEIVED = "received", "Received by Secretariat"
+        RECEIVED = "received", "Isolates Received"
         ENDORSED = "endorsed", "Endorsed to Laboratory"
         LAB_RECEIVED = "lab_received", "Received by Laboratory"
 
@@ -200,9 +200,10 @@ class ReceivingEvent(models.Model):
     """
 
     class EventType(models.TextChoices):
-        RECEIVED = "received", "Received by Secretariat"
+        RECEIVED = "received", "Isolates Received"
         ENDORSED = "endorsed", "Endorsed to Laboratory"
         LAB_RECEIVED = "lab_received", "Received by Laboratory"
+        ID_RECEIVED = "id_received", "Received for ID Testing"
         ACCESSION_ASSIGNED = "accession_assigned", "Accession Range Assigned"
         BATCH_CREATED = "batch_created", "Laboratory Batch Created"
         CORRECTED = "corrected", "Information Corrected"

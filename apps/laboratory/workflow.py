@@ -10,7 +10,8 @@ from .organism_lookup import resolve_organism
 from django.db import transaction
 from django.utils import timezone
 
-from .models import LaboratoryAccession, LaboratoryBiobank, LaboratoryIsolate
+from .models import LaboratoryAccession, LaboratoryBiobank, LaboratoryIsolate, ReceivingEvent
+from .permissions import can_manage_id_testing
 
 
 class WorkflowError(ValueError):
@@ -18,6 +19,29 @@ class WorkflowError(ValueError):
 
 
 S = LaboratoryIsolate.Status
+
+
+@transaction.atomic
+def acknowledge_id_receipt(*, isolate_id, user):
+    if not can_manage_id_testing(user):
+        raise WorkflowError("Only authorized Main Laboratory personnel may receive an isolate for ID testing.")
+    candidate = LaboratoryIsolate.objects.only("accession_range_id").get(pk=isolate_id)
+    accession = LaboratoryAccession.objects.select_for_update().get(pk=candidate.accession_range_id)
+    isolate = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
+    if isolate.status != S.ID_PENDING:
+        return isolate, False
+    received_at = timezone.now()
+    isolate.status = S.ID_TESTING
+    isolate.acknowledged_by = user
+    isolate.acknowledged_at = received_at
+    isolate.save(update_fields=("status", "acknowledged_by", "acknowledged_at"))
+    ReceivingEvent.objects.create(
+        receipt_id=accession.laboratory_receiving.receipt_id,
+        event_type=ReceivingEvent.EventType.ID_RECEIVED, performed_by=user,
+        occurred_at=received_at,
+        remarks=f"Received isolate {isolate.accession_number} for ID testing.",
+    )
+    return isolate, True
 
 
 @transaction.atomic

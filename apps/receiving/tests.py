@@ -969,7 +969,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertTemplateUsed(response, "layouts/base.html")
         self.assertTemplateUsed(response, "receiving/dashboard.html")
         self.assertContains(response, "Receiving")
-        self.assertContains(response, "Received by Secretariat")
+        self.assertContains(response, "Isolates Received")
         self.assertContains(response, "Endorsed to Laboratory")
         self.assertContains(response, "Received by Laboratory")
         # The sidebar now routes Secretariat users to their dedicated worklist.
@@ -980,7 +980,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, 'class="receiving-page"')
         self.assertContains(response, "receiving-hero")
         self.assertContains(response, "receiving-surface")
-        self.assertContains(response, "Courier batch receiving records")
+        self.assertContains(response, "Courier batch receiving isolates")
 
     def test_receiving_forms_share_responsive_page_shell(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
@@ -1111,7 +1111,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertNotContains(response, "Print batch label")
         self.assertNotContains(response, "Endorse to laboratory")
 
-    def test_admin_has_secretariat_actions_but_not_lab_confirmation(self):
+    def test_admin_has_secretariat_actions_and_lab_confirmation(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.admin)
 
@@ -1120,7 +1120,7 @@ class ReceivingTemplateTests(TestCase):
         )
 
         self.assertContains(response, "Print batch label")
-        self.assertNotContains(response, "Confirm laboratory receipt")
+        self.assertContains(response, "Confirm laboratory receipt")
 
     def test_terminal_lab_received_detail_has_no_transition_action(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
@@ -1162,7 +1162,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(laboratory_dashboard, "Confirm receipt")
         self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
-        self.assertNotContains(detail, "Confirm laboratory receipt")
+        self.assertContains(detail, "Confirm laboratory receipt")
         lab_detail = self.client.get(
             self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
         )
@@ -1192,7 +1192,7 @@ class ReceivingTemplateTests(TestCase):
         activity = content[content.index(">Activity<") :]
 
         self.assertLess(
-            activity.index("Received by Secretariat"),
+            activity.index("Isolates Received"),
             activity.index("Endorsed to Laboratory"),
         )
 
@@ -2457,7 +2457,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.BIOBANKED)
         self.assertEqual(self.client.get(reverse("laboratory_biobank_list")).status_code, 200)
 
-    def test_batch_sticker_qr_encodes_exact_accession_only(self):
+    @override_settings(RECEIVING_QR_BASE_URL="https://lab.example.org")
+    def test_batch_sticker_qr_encodes_accession_scan_link(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         first, second = list(accession.isolate_records.order_by("accession_number")[:2])
@@ -2476,9 +2477,11 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
                 kwargs={"accession_id": accession.pk}))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(qr.call_count, 2)
-        self.assertEqual([call.args[0] for call in qr.call_args_list],
-                         [first.accession_number, second.accession_number])
-        self.assertNotIn("https://", str(qr.call_args_list))
+        self.assertEqual([call.args[0] for call in qr.call_args_list], [
+            "https://lab.example.org" + reverse(
+                "laboratory_isolate_scan", args=[isolate.accession_number],
+            ) for isolate in (first, second)
+        ])
         self.assertEqual(len(response.context["labels"]), 2)
 
     def test_storage_cannot_rewrite_scientific_dates_or_whonet_code(self):

@@ -117,13 +117,13 @@ class ReceiptWorkflowTabsTests(TestCase):
         cards = response.context['lab_summary_cards']
         self.assertEqual([card['key'] for card in cards], ['pending', 'received', 'main_lab', 'processing', 'pending_batch', 'complete'])
         self.assertEqual(next(card['count'] for card in cards if card['key'] == 'received'), 1)
-        self.assertNotContains(response, '<div class="receiving-stat-label">Received by Secretariat</div>')
+        self.assertNotContains(response, '<div class="receiving-stat-label">Isolates Received</div>')
         user = User.objects.create_user('tab-secretariat')
         user.groups.add(Group.objects.get_or_create(name='Secretariat')[0])
         self.client.force_login(user)
         response = self.client.get(reverse('secretariat_receiving_dashboard'))
         self.assertEqual(response.context['lab_summary_cards'], [])
-        self.assertContains(response, '<div class="receiving-stat-label">Received by Secretariat</div>')
+        self.assertContains(response, '<div class="receiving-stat-label">Isolates Received</div>')
         self.assertNotContains(response, 'Pending Main Lab Identification')
 
     def test_mixed_id_and_returned_receipt_stays_pending_until_last_id_return(self):

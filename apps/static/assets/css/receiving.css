@@ -115,6 +115,18 @@
 .receiving-card { margin-bottom: 1.15rem; overflow: hidden; }
 .receiving-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .receiving-info-grid.is-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.receiving-batch-summary.has-qr { display: grid; grid-template-columns: minmax(0, 1fr) 190px; align-items: start; gap: 1.5rem; }
+.receiving-batch-summary .receiving-info-grid { min-width: 0; overflow-wrap: anywhere; }
+.receiving-batch-qr { margin: 0; padding: 0.6rem; border: 1px solid var(--receiving-border); border-radius: 10px; background: #fff; text-align: center; }
+.receiving-batch-qr img { display: block; width: 168px; max-width: 100%; height: auto; margin: 0 auto; }
+.receiving-batch-qr figcaption { color: var(--receiving-navy); font-size: 0.75rem; }
+.receiving-batch-qr figcaption strong, .receiving-batch-qr figcaption span { display: block; }
+.receiving-batch-qr figcaption span { margin-top: 0.2rem; color: var(--receiving-muted); font-size: 0.7rem; }
+.receiving-activity-card { height: 36.6rem; overflow-y: scroll; overscroll-behavior-y: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--receiving-teal) #edf6f9; overflow-wrap: anywhere; }
+.receiving-activity-card::-webkit-scrollbar { width: 8px; }
+.receiving-activity-card::-webkit-scrollbar-track { background: #edf6f9; }
+.receiving-activity-card::-webkit-scrollbar-thumb { background: var(--receiving-teal); border: 2px solid #edf6f9; border-radius: 8px; }
+.receiving-activity-card:focus-visible { outline: 2px solid var(--receiving-teal); outline-offset: -3px; }
 .receiving-info-label { display: block; margin-bottom: 0.25rem; color: var(--receiving-muted); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .receiving-info-value { color: var(--receiving-navy); font-weight: 700; }
 .receiving-info-secondary { margin-top: 0.15rem; color: var(--receiving-muted); font-size: 0.78rem; }
@@ -161,6 +173,9 @@
 }
 
 @media (max-width: 767.98px) {
+  .receiving-batch-summary.has-qr { grid-template-columns: 1fr; }
+  .receiving-batch-qr { width: 190px; justify-self: center; }
+  .receiving-activity-card { height: 26rem; }
   .receiving-hero { padding: 1.2rem 1rem; }
   .receiving-content { padding: 1rem 0.85rem 0; }
   .receiving-hero-actions { width: 100%; justify-content: stretch; }

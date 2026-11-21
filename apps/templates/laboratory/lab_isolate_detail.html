@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Isolate {{ isolate.accession_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261121-scan-flow"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page" data-page="laboratory-isolate">
 <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-vial"></i></span><div>
@@ -16,6 +16,12 @@
 {% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a href="{% url 'laboratory_biobank_label' isolate.pk %}" target="_blank" class="btn btn-info"><i class="fas fa-print mr-1"></i>Biobank Sticker</a>{% endif %}
 </div></header>
 <div class="receiving-content">
+<section class="receiving-surface receiving-card" aria-label="Accession QR">
+  <div class="receiving-card-body receiving-batch-summary has-qr">
+    <div><h2 class="h5">Accession QR</h2><p class="mb-2">Scan to receive for ID testing or resume the current process. The receiver and receipt time are recorded automatically when an authorized Main Laboratory user scans a pending isolate.</p><a class="btn btn-outline-primary" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank" rel="noopener"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print accession QR</a></div>
+    <figure class="receiving-batch-qr"><img src="{% url 'laboratory_isolate_qr' isolate.pk %}" width="168" height="168" alt="Scan accession {{ isolate.accession_number }}"><figcaption><strong>{{ isolate.accession_number }}</strong><span>Scan to receive or resume</span></figcaption></figure>
+  </div>
+</section>
 <section class="receiving-surface receiving-form-card mb-4" id="{{ next_action.section }}" aria-labelledby="current-stage-title">
 <div class="receiving-card-header"><p class="receiving-eyebrow">Current step &middot; {{ next_action.owner }}</p><h2 id="current-stage-title">{{ next_action.label }}</h2></div>
 <div class="receiving-card-body">

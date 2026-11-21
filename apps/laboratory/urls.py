@@ -1,7 +1,10 @@
 from django.urls import path
-from . import views, receiving_views
+from . import views, receiving_views, scan_views
 
 urlpatterns = [
+    path("laboratory-scan/<str:accession_number>/", scan_views.laboratory_isolate_scan, name="laboratory_isolate_scan"),
+    path("laboratory-worklist/<int:isolate_id>/qr.png", scan_views.laboratory_isolate_qr, name="laboratory_isolate_qr"),
+    path("laboratory-worklist/<int:isolate_id>/qr-label/", scan_views.laboratory_isolate_scan_label, name="laboratory_isolate_scan_label"),
     path("laboratory-processing/", views.laboratory_processing_worklist, name="laboratory_processing_worklist"),
     path("laboratory-worklist/<int:isolate_id>/revival-outcome/", views.laboratory_revival_outcome, name="laboratory_revival_outcome"),
     path("laboratory-worklist/", views.laboratory_worklist, name="laboratory_worklist"),
