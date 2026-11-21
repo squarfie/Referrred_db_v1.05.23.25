@@ -2,7 +2,7 @@
 {% block title %}Laboratory receiving{% endblock %}
 {% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-tooltip-layer">{% endblock stylesheets %}
 {% block content %}
-<main class="receiving-page">
+<main class="receiving-page" data-page="laboratory-accessioning">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span>
     <div><p class="receiving-eyebrow">Independent laboratory worksheet</p><h1>{{ receipt.tracking_number }}</h1>
     <p class="receiving-hero-subtitle">{{ receipt.site.SiteCode }} · custody received {{ receipt.lab_date_received|date:"M j, Y" }}</p>
@@ -24,22 +24,22 @@
         {% endif %}
 
         <div class="row">
-          <!-- Field: specimen_condition -->
-          <div class="col-md-4 mb-3">
+          <!-- LaboratoryReceiving.specimen_condition -->
+          <div class="col-md-4 mb-3 receiving-field receiving-field--specimen_condition" data-model="LaboratoryReceiving" data-field="specimen_condition">
             <label for="{{ form.specimen_condition.id_for_label }}">Condition on receipt</label>
             {{ form.specimen_condition }}
             {% for error in form.specimen_condition.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <!-- Field: discrepancies -->
-          <div class="col-md-4 mb-3">
+          <!-- LaboratoryReceiving.discrepancies -->
+          <div class="col-md-4 mb-3 receiving-field receiving-field--discrepancies" data-model="LaboratoryReceiving" data-field="discrepancies">
             <label for="{{ form.discrepancies.id_for_label }}">Discrepancies</label>
             {{ form.discrepancies }}
             {% for error in form.discrepancies.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <!-- Field: remarks -->
-          <div class="col-md-4 mb-3">
+          <!-- LaboratoryReceiving.remarks -->
+          <div class="col-md-4 mb-3 receiving-field receiving-field--remarks" data-model="LaboratoryReceiving" data-field="remarks">
             <label for="{{ form.remarks.id_for_label }}">Laboratory remarks</label>
             {{ form.remarks }}
             {% for error in form.remarks.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
@@ -47,36 +47,36 @@
         </div>
 
         <div class="row">
-          <!-- Field: total_isolates_received -->
-          <div class="col-md-2 mb-3">
+          <!-- LaboratoryReceiving.total_isolates_received -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--total_isolates_received" data-model="LaboratoryReceiving" data-field="total_isolates_received">
             <label for="{{ form.total_isolates_received.id_for_label }}">Total # of isolates received</label>
             {{ form.total_isolates_received }}
             {% for error in form.total_isolates_received.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <!-- Field: isolates_rejected -->
-          <div class="col-md-2 mb-3">
+          <!-- LaboratoryReceiving.isolates_rejected -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--isolates_rejected" data-model="LaboratoryReceiving" data-field="isolates_rejected">
             <label for="{{ form.isolates_rejected.id_for_label }}">No of Isolates Rejected</label>
             {{ form.isolates_rejected }}
             {% for error in form.isolates_rejected.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <!-- Field: isolates_accepted -->
-          <div class="col-md-2 mb-3">
+          <!-- LaboratoryReceiving.isolates_accepted -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--isolates_accepted" data-model="LaboratoryReceiving" data-field="isolates_accepted">
             <label for="{{ form.isolates_accepted.id_for_label }}">No of Isolates Accepted</label>
             {{ form.isolates_accepted }}
             {% for error in form.isolates_accepted.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <!-- Field: date_accepted -->
-          <div class="col-md-3 mb-3">
+          <!-- LaboratoryReceiving.date_accepted -->
+          <div class="col-md-3 mb-3 receiving-field receiving-field--date_accepted" data-model="LaboratoryReceiving" data-field="date_accepted">
             <label for="{{ form.date_accepted.id_for_label }}">DR</label>
             {{ form.date_accepted }}
             {% for error in form.date_accepted.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <!-- Field: total_isolates_processed -->
-          <div class="col-md-3 mb-3">
+          <!-- LaboratoryReceiving.total_isolates_processed -->
+          <div class="col-md-3 mb-3 receiving-field receiving-field--total_isolates_processed" data-model="LaboratoryReceiving" data-field="total_isolates_processed">
             <label for="{{ form.total_isolates_processed.id_for_label }}">Total # of isolates</label>
             {{ form.total_isolates_processed }}
             {% for error in form.total_isolates_processed.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
@@ -103,11 +103,42 @@
       {% if can_edit %}
       <form method="post" action="{% url 'laboratory_accession_add' receipt.receiving_id %}" class="row align-items-end mb-3">
         {% csrf_token %}
-        <div class="col-md mb-2"><label for="{{ accession_form.date_referred.id_for_label }}">Date referred</label>{{ accession_form.date_referred }}</div>
-        <div class="col-md mb-2"><label for="{{ accession_form.start_number.id_for_label }}">Start number</label>{{ accession_form.start_number }}</div>
-        <div class="col-md mb-2"><label for="{{ accession_form.end_number.id_for_label }}">End number</label>{{ accession_form.end_number }}</div>
-        <div class="col-md mb-2"><label for="{{ accession_form.batch_number.id_for_label }}">Batch number</label>{{ accession_form.batch_number }}</div>
-        <div class="col-md mb-2"><label for="{{ accession_form.total_batches.id_for_label }}">Total batches</label>{{ accession_form.total_batches }}</div>
+        {% if accession_form.non_field_errors %}<div class="col-12 alert alert-danger" role="alert">{{ accession_form.non_field_errors }}</div>{% endif %}
+          <!-- LaboratoryAccession.date_referred -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--date_referred" data-model="LaboratoryAccession" data-field="date_referred">
+            <label for="{{ accession_form.date_referred.id_for_label }}">{{ accession_form.date_referred.label }}</label>
+            {{ accession_form.date_referred }}
+            {% if accession_form.date_referred.help_text %}<small class="form-text text-muted">{{ accession_form.date_referred.help_text }}</small>{% endif %}
+            {% for error in accession_form.date_referred.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+          <!-- LaboratoryAccession.start_number -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--start_number" data-model="LaboratoryAccession" data-field="start_number">
+            <label for="{{ accession_form.start_number.id_for_label }}">{{ accession_form.start_number.label }}</label>
+            {{ accession_form.start_number }}
+            {% if accession_form.start_number.help_text %}<small class="form-text text-muted">{{ accession_form.start_number.help_text }}</small>{% endif %}
+            {% for error in accession_form.start_number.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+          <!-- LaboratoryAccession.end_number -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--end_number" data-model="LaboratoryAccession" data-field="end_number">
+            <label for="{{ accession_form.end_number.id_for_label }}">{{ accession_form.end_number.label }}</label>
+            {{ accession_form.end_number }}
+            {% if accession_form.end_number.help_text %}<small class="form-text text-muted">{{ accession_form.end_number.help_text }}</small>{% endif %}
+            {% for error in accession_form.end_number.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+          <!-- LaboratoryAccession.batch_number -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--batch_number" data-model="LaboratoryAccession" data-field="batch_number">
+            <label for="{{ accession_form.batch_number.id_for_label }}">{{ accession_form.batch_number.label }}</label>
+            {{ accession_form.batch_number }}
+            {% if accession_form.batch_number.help_text %}<small class="form-text text-muted">{{ accession_form.batch_number.help_text }}</small>{% endif %}
+            {% for error in accession_form.batch_number.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+          <!-- LaboratoryAccession.total_batches -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--total_batches" data-model="LaboratoryAccession" data-field="total_batches">
+            <label for="{{ accession_form.total_batches.id_for_label }}">{{ accession_form.total_batches.label }}</label>
+            {{ accession_form.total_batches }}
+            {% if accession_form.total_batches.help_text %}<small class="form-text text-muted">{{ accession_form.total_batches.help_text }}</small>{% endif %}
+            {% for error in accession_form.total_batches.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
         <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save new range</button></div>
       </form>
       {% endif %}
@@ -120,27 +151,27 @@
             <tr>
               <td data-label="Date referred">
                 {% if can_edit and not item.batch %}
-                  <input aria-label="Date referred for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="date" name="date_referred" value="{{ item.date_referred|date:'Y-m-d' }}" required>
+                  <input aria-label="Date referred for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="date" data-model="LaboratoryAccession" data-field="date_referred" name="date_referred" value="{{ item.date_referred|date:'Y-m-d' }}" required>
                 {% else %}{{ item.date_referred|date:"M j, Y" }}{% endif %}
               </td>
               <td data-label="Start">
                 {% if can_edit and not item.batch %}
-                  <input aria-label="Start accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="start_number" min="1" max="9999" value="{{ item.start_number }}" required>
+                  <input aria-label="Start accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" data-model="LaboratoryAccession" data-field="start_number" name="start_number" min="1" max="9999" value="{{ item.start_number }}" required>
                 {% else %}{{ item.start_number|stringformat:"04d" }}{% endif %}
               </td>
               <td data-label="End">
                 {% if can_edit and not item.batch and not item.isolate_records.exists %}
-                  <input aria-label="End accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="end_number" min="1" max="9999" value="{{ item.end_number }}" required>
+                  <input aria-label="End accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" data-model="LaboratoryAccession" data-field="end_number" name="end_number" min="1" max="9999" value="{{ item.end_number }}" required>
                 {% else %}{{ item.end_number|stringformat:"04d" }}{% endif %}
               </td>
               <td data-label="Batch number">
                 {% if can_edit and not item.batch and not item.isolate_records.exists %}
-                  <input aria-label="Batch number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="batch_number" min="1" value="{{ item.batch_number }}" required>
+                  <input aria-label="Batch number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" data-model="LaboratoryAccession" data-field="batch_number" name="batch_number" min="1" value="{{ item.batch_number }}" required>
                 {% else %}{{ item.batch_number }}{% endif %}
               </td>
               <td data-label="Total batches">
                 {% if can_edit and not item.batch and not item.isolate_records.exists %}
-                  <input aria-label="Total batches for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" name="total_batches" min="1" value="{{ item.total_batches }}" required>
+                  <input aria-label="Total batches for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" data-model="LaboratoryAccession" data-field="total_batches" name="total_batches" min="1" value="{{ item.total_batches }}" required>
                 {% else %}{{ item.total_batches }}{% endif %}
               </td>
               <td data-label="Isolates">{{ item.isolate_count }}</td>
@@ -210,6 +241,7 @@
                   <input aria-label="{{ cell.label }} count for {{ row.accession.reference_range }}"
                          form="organisms-save-{{ row.accession.pk }}"
                          class="form-control form-control-sm organism-grid-number"
+                         data-model="LaboratoryOrganismCount" data-field="count" data-organism-code="{{ cell.code }}"
                          type="number" name="organism_{{ cell.code }}" min="0" step="1"
                          value="{% if cell.count %}{{ cell.count }}{% endif %}">
                 {% else %}{% if cell.count %}{{ cell.count }}{% endif %}{% endif %}
