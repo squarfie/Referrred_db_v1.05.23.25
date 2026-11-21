@@ -1,0 +1,161 @@
+REFERRED DB - working project context
+Reviewed: 2026-11-20 (Asia/Singapore)
+Purpose: orientation and continuity for future work; not an operational SOP,
+approval record, exhaustive code audit, or deployment certification.
+
+WORKSPACE AND BASELINE
+- GitHub repository (confirmed by user and local origin fetch/push remote):
+  https://github.com/squarfie/Referrred_db_v1.05.23.25
+- Workspace: C:\REFERRED_DB\REFERRED_DB_052325
+- Actual application/Git repository: workspace\REFERRED_DB
+  Run Git and manage.py commands from that inner directory. Git commands at
+  the outer workspace returned "not a git repository" during this review.
+- Reviewed branch: main; HEAD short ID: 4198875
+  Subject: Merge Main Laboratory returns monitoring and guarded receiving deletion
+- Existing uncommitted changes before this review: core/settings.py,
+  AntibioticEntry_referred.xlsx, Final_Antibiotic_Entries.xlsx, and untracked
+  reference upload workbooks under media/uploads. Preserve these changes.
+- Existing Python environment: workspace\referred\Scripts\python.exe.
+- No AGENTS.md was found in the file inventory during this review.
+
+PURPOSE AND STACK
+Laboratory management of referred isolates, patient/specimen data, antimicrobial
+susceptibility testing (AST), review and release of reports, whole genome
+sequencing (WGS), concordance, and turnaround time (TAT).
+Server-rendered Django application with shared templates and Argon/Bootstrap
+assets. requirements.txt pins Django 5.0.12; Docker targets Python 3.12.2.
+Active settings select PostgreSQL. A db.sqlite3 file also exists, but is not
+the configured database backend. Pandas/OpenPyXL support spreadsheets;
+ReportLab/xhtml2pdf/pypdf support reporting. Gunicorn, WhiteNoise, Nginx and
+Docker Compose are included. Root package.json has no build/test scripts.
+
+APPLICATION MAP
+- core/settings.py and core/urls.py: runtime configuration and route composition.
+- apps/authentication: login, registration with pending approval, password reset.
+  Staff and account approval records also live in apps/home/models.py.
+- apps/home: Batch_Table, Referred_Data, AntibioticEntry, staff/roles, reference
+  tables, imports/exports, raw reports, TATform/TATStep and calendars.
+- apps/home/services/batch_creation.py: shared batch creation, personnel defaults,
+  reference-number handling and accession conflict checks; reuse for laboratory
+  and DMU batch creation rather than creating a separate competing path.
+- apps/home_final: Final_Data and Final_AntibioticEntry, emerging resistance,
+  classification, final reports and concordance.
+- apps/home_final/services/concordance.py: identification concordance, AST
+  deviation rules, options, summaries, saved report generation and dashboard.
+- apps/verification: VerificationCase, VerificationComment, correction handling,
+  raw/final editability and staged review/release gates.
+- apps/receiving: Secretariat receipts and custody, laboratory acceptance and
+  accession ranges, organism counts, isolate workflow, identification, biobank,
+  QR labels, laboratory register and exports.
+- apps/wgs_app: projects, built-in and custom pipelines, uploads, matching and
+  sequencing outputs. reconciliation.py conservatively relinks only unique
+  accession matches and preserves independent sequencing data.
+- apps/templates/layouts/base.html and shared includes: overall UI/navigation.
+  apps/static: source assets; staticfiles: collected assets.
+- apps/template_docs: reference/import templates. media and uploads: runtime data.
+
+ROUTES
+core/urls.py includes authentication and home at root, plus /receiving/,
+/verification/, /final/, /wgs/, and Django /admin/.
+Receiving has distinct Secretariat and Laboratory Receiving dashboards,
+a laboratory worksheet, accession actions, worklist, biobank inventory,
+monthly register/PDF, and receipt/isolate label endpoints.
+
+CURRENT CODE WORKFLOW (RECHECK WHEN EDITING)
+1. Secretariat creates a ReferralReceipt for a courier batch, with permanent
+   receipt UUID/QR and receiving history; endorses it to the laboratory.
+2. Receipt status proceeds received -> endorsed -> lab_received through explicit
+   authorized actions. A QR scan is navigation, not a custody mutation.
+3. LaboratoryReceiving records acceptance/rejection decisions;
+   LaboratoryAccession stores ranges, linked batches and derived exact accessions.
+   LaboratoryOrganismCount stores range-level organism inventory.
+4. Current isolate workflow puts Main Laboratory ID BEFORE revival:
+   id_pending -> id_testing -> id_returned -> revival_queued ->
+   revival_in_progress -> revived -> id_reviewed -> ready_for_biobank -> biobanked.
+   Revival failure/non-viable and retry paths also exist.
+   laboratory_workflow.py uses atomic transactions and row locks for transitions.
+   Identification/cassette return is required across the range before queueing
+   revival. Printing and uploads must not imply completed physical workflow.
+5. ID review, approved organism identity/code, harvest and lyophilization dates,
+   then validated storage position gate biobanking. Isolate stickers use the exact
+   accession and QR; these differ from courier receipt labels.
+6. DMU raw/final data follows batch and verification workflows. Verification
+   includes raw verification, final encoding/verification/printing, manager/head
+   review, corrections, withdrawal, signing and release. Check actual transition
+   functions rather than assuming every named status is a linear mandatory step.
+   Raw edits after copying to Final can require Final review flags.
+
+PERMISSIONS AND INTEGRITY
+- Central role normalization/flags: apps/home/permissions.py.
+  Roles: Admin, Secretariat, LAB Encoder, Laboratory Staff, DMU Encoder,
+  Checker, Verifier, Manager; legacy role aliases exist; roles can be combined.
+- Roles come from Django groups and ARSP staff profile. Current code treats
+  is_staff and is_superuser as Admin authority; preserve/assess this explicitly
+  if changing authorization. Navigation flags alone do not authorize an action.
+- Receiving permissions: apps/receiving/permissions.py. LAB Encoder handles
+  laboratory receipt/review; Laboratory Staff handles Main Laboratory ID;
+  both can use permitted biobank functions; Admin spans operational roles.
+- Current receipt deletion differs from older planning notes: Secretariat can
+  delete eligible pre-laboratory-custody receipts; Admin can also remove an empty
+  laboratory-received receipt. Any accession ranges block deletion for all roles.
+  Review services.py and typed-confirmation POST view together before changing.
+- WGS projects retain original accessions and survive Final deletion; automatic
+  reconciliation must not overwrite an existing project or ambiguous match.
+- home/signals.py and home_final/signals.py implement derived AST interpretation,
+  emerging/classification/report behavior and deletion-related side effects.
+  Review these when changing model saves, imports, bulk operations or deletion.
+- Keep schema changes paired with migrations. Do not reset or migrate a live
+  database just to orient yourself. Avoid exposing .env or patient/upload content.
+
+DOCUMENTATION AND VERSION CAUTIONS
+- README.md is a useful overview but omits newer receiving/verification depth.
+- docs/phase2/PHASE_2_LIVING_PROJECT_HISTORY.md records project history and
+  distinguishes proposed, approved, implemented, validated and deployed states.
+  Preserve its dated history when adding future workflow decisions.
+- docs/superpowers/specs and plans contain recent UI/laboratory work.
+- The 2026-11-20 revival/ID design describes revival before Main Laboratory ID;
+  current laboratory_workflow.py and receiving migration 0008 explicitly put ID
+  first. Treat this as documentation drift to reconcile with workflow owners,
+  not authorization to change the implemented process.
+- Phase 2 history also contains older deletion restrictions and local-only
+  implementation statuses. Do not infer current behavior or deployment from it
+  alone. CHANGELOG.md is inherited template history, not a current release log.
+- Highest migration filenames observed (application status not checked):
+  home 0045_arsstaff_laboratory_staff_role;
+  home_final 0028_final_raw_copy_review_flag;
+  receiving 0008_main_lab_id_before_revival;
+  verification 0006_verificationcomment_raw_accession_ref_sequence;
+  wgs_app 0024_wgs_project_original_accession;
+  authentication 0001_initial.
+
+LOCAL CHECK AND FUTURE VALIDATION
+- Ran from the actual repository:
+  ..\referred\Scripts\python.exe -B manage.py check
+  Result: exit 0; System check identified no issues (0 silenced).
+- This review did not run the test suite, check applied migrations, inspect live
+  records, verify browser behavior, or establish production deployment state.
+- Existing tests cover receiving permissions/custody/deletion/worksheets,
+  collaborative DMU roles and batch references, verification/corrections/release,
+  WGS preservation/reconciliation, concordance, template syntax, navigation,
+  import/export and destructive-action security, and password reset security.
+- For a future change, run relevant module tests using the existing environment
+  and an appropriate isolated test database; then broaden checks as warranted.
+  Do not present old documented test counts as fresh verification.
+
+CONFIGURATION WATCH POINTS (OBSERVED, NOT FIXED)
+- DEBUG = config('DEBUG') has no explicit boolean cast; inspect its runtime type
+  when addressing deployment settings. Other email settings use cast=bool.
+- ACCOUNT_APPROVAL_REQUIRE_STAFF_LINK is currently True, while an adjacent
+  comment describes keeping it disabled pending rollout. Confirm intended policy.
+- Dockerfile runs collectstatic and migrate at image build time. Compose web uses
+  /app plus a bind mount; Nginx uses separate static/media volumes at /code.
+  Check environment/database availability and asset/media sharing before relying
+  on this container deployment configuration.
+- Django TIME_ZONE is Asia/Manila. User-facing conversation dates use
+  Asia/Singapore per the current client context.
+
+NEXT-SESSION USE
+Read this note for orientation, then check current Git status and the specific
+code/tests before making changes. It is a dated snapshot, not a replacement for
+the repository or a guarantee of cross-chat memory. No application code, data,
+configuration, migrations or existing planning records were edited in this review.

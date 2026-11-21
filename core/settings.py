@@ -140,8 +140,12 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 STATIC_ROOT = config('STATIC_ROOT')
-STATICFILES_DIRS = [config('STATICFILES_DIRS')]
+# STATICFILES_DIRS = [config('STATICFILES_DIRS')]
 
+
+STATICFILES_DIRS = [
+    os.path.join(str(BASE_DIR), "apps", "static"),
+]
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = config('MEDIA_ROOT')
