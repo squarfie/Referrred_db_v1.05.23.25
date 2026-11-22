@@ -93,6 +93,37 @@ class RevivalBeforeIdentificationTests(TestCase):
                 queue_for_id(accession.pk, self.lab_user, isolate_id=item.pk)
         return create_id_handoff(accession.pk, self.lab_user)
 
+    def test_all_queued_still_requires_recorded_site_id_and_no_per_isolate_endorsement(self):
+        from apps.laboratory.workflow import queue_for_id
+        accession = self.prepare()
+        items = list(accession.isolate_records.all())
+        for item in items:
+            self.revive(item)
+            queue_for_id(accession.pk, self.lab_user, isolate_id=item.pk)
+        response = self.client.get(reverse('laboratory_receiving_workspace',
+                                           args=[self.receipt.receiving_id]))
+        row = next(row for row in response.context['ranges'] if row.pk == accession.pk)
+        self.assertFalse(row.can_endorse_id)
+        with self.assertRaises(WorkflowError):
+            create_id_handoff(accession.pk, self.lab_user)
+
+        self.client.post(reverse('laboratory_endorse_isolate', args=[items[0].pk]))
+        items[0].refresh_from_db()
+        self.assertEqual(items[0].status, 'id_queued')
+        self.assertIsNone(items[0].endorsed_at)
+
+        for item in items:
+            item.site_organism_code = 'KPN'
+            item.site_organism_name = 'Klebsiella pneumoniae'
+            item.save(update_fields=['site_organism_code', 'site_organism_name'])
+        response = self.client.get(reverse('laboratory_receiving_workspace',
+                                           args=[self.receipt.receiving_id]))
+        row = next(row for row in response.context['ranges'] if row.pk == accession.pk)
+        self.assertTrue(row.can_endorse_id)
+        self.assertTrue(create_id_handoff(accession.pk, self.lab_user))
+        self.assertEqual(accession.isolate_records.filter(status='id_pending').count(),
+                         accession.isolate_count)
+
     def test_returned_identification_proceeds_directly_to_review(self):
         accession = self.create_pending_accession()
         item = LaboratoryIsolate.objects.create(accession_range=accession,
@@ -177,7 +208,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         first.refresh_from_db()
         self.assertEqual(first.status, 'site_banked')
         receipt = _laboratory_workflow_receipts(ReferralReceipt.objects.filter(pk=self.receipt.pk)).get()
-        self.assertNotEqual(receipt.lab_workflow, 'complete')
+        self.assertEqual(receipt.lab_workflow, 'processing')
         self.assertEqual(next_action(first, self.lab_user)['section'], 'site_banked')
         self.assertContains(self.client.get(reverse('laboratory_isolate_detail', args=[first.pk])),
                             'Queue stored isolate for Main Lab ID')
