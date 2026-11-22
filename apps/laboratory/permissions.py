@@ -63,7 +63,8 @@ lab_worklist_required = _permission_required(can_access_laboratory_worklist)
 
 
 def can_read_laboratory_receiving(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_ENCODER, ROLE_LAB_STAFF})
+    """Bench A queue and custody pages are separate from Main Lab ID work."""
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_ENCODER})
 
 
 lab_receiving_read_required = _permission_required(can_read_laboratory_receiving)
