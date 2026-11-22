@@ -169,7 +169,8 @@ def role_flags(user):
         "can_view_receiving": bool(user and user.is_authenticated),
         # Shared courier Receiving is accessible to authenticated users; laboratory actions remain role-guarded.
         "nav_can_secretariat_receiving": bool(user and user.is_authenticated),
-        "nav_can_laboratory_receiving": bool(roles & {ROLE_ADMIN, ROLE_LAB_ENCODER, ROLE_LAB_STAFF}),
+        "nav_can_laboratory_receiving": bool(roles & {ROLE_ADMIN, ROLE_LAB_ENCODER}),
+        "nav_can_main_lab": bool(roles & {ROLE_ADMIN, ROLE_LAB_STAFF}),
         # Sidebar visibility mirrors existing backend role boundaries.
         "nav_can_add_batch": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER}),
         "nav_can_view_raw": bool(roles & {ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER}),
