@@ -59,7 +59,7 @@
           <tr>
             <td data-label="Tracking number"><span class="receiving-tracking">{{ receipt.tracking_number }}</span></td>
             <td data-label="Referring site"><strong>{{ receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ receipt.site.SiteName }}</span></td>
-            <td data-label="Secretariat received">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
+            <td data-label="Date received">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
             <td data-label="Received by">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</td>
             <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{{ receipt.get_status_display }}</span></td>
             <td class="receiving-actions text-right">
