@@ -124,13 +124,52 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertFalse(item.identifications.exists())
         bank = save_biobank(item.pk, {'storage_box': 'SITE-BOX', 'box_position': 'A1'}, self.lab_user)
         item.refresh_from_db()
-        self.assertEqual(item.status, 'biobanked')
+        self.assertEqual(item.status, 'site_banked')
+        self.assertIsNone(item.biobanked_at)
+        self.assertIsNotNone(item.site_banked_at)
+        self.assertEqual(item.site_bank_storage["storage_box"], "SITE-BOX")
         self.assertIsNone(bank.date_lyophilized)
         raw.Site_Org = 'ECO'
         raw.Site_OrgName = 'Escherichia coli'
         raw.save()
         item.refresh_from_db()
         self.assertEqual(item.final_organism, 'Klebsiella pneumoniae')
+
+    def test_site_banking_remains_pending_and_can_be_queued_for_main_lab_id(self):
+        from apps.home.models import Referred_Data
+        from apps.laboratory.workflow import save_biobank, queue_for_id
+        from apps.laboratory.receiving_views import _laboratory_workflow_receipts
+        from apps.receiving.models import ReferralReceipt
+
+        accession = self.prepare()
+        first = accession.isolate_records.first()
+        self.revive(first)
+        Referred_Data.objects.create(
+            AccessionNo=first.accession_number, SiteCode=self.site.SiteCode,
+            Site_Org='KPN', Site_OrgName='Klebsiella pneumoniae',
+        )
+        self.client.post(reverse('laboratory_bank_site_id', args=[first.pk]))
+        save_biobank(first.pk, {'storage_box': 'SITE-BOX', 'box_position': 'A1'}, self.lab_user)
+        first.refresh_from_db()
+        self.assertEqual(first.status, 'site_banked')
+        receipt = _laboratory_workflow_receipts(ReferralReceipt.objects.filter(pk=self.receipt.pk)).get()
+        self.assertNotEqual(receipt.lab_workflow, 'complete')
+        self.assertEqual(next_action(first, self.lab_user)['section'], 'site_banked')
+        self.assertContains(self.client.get(reverse('laboratory_isolate_detail', args=[first.pk])),
+                            'Queue stored isolate for Main Lab ID')
+        self.assertTrue(queue_for_id(accession.pk, self.lab_user, isolate_id=first.pk))
+        first.refresh_from_db()
+        self.assertEqual(first.status, 'id_queued')
+        self.assertEqual(first.identification_source, '')
+        self.assertEqual(first.site_organism_code, '')
+        self.assertEqual(first.site_bank_storage['storage_box'], 'SITE-BOX')
+        self.assertIsNotNone(first.site_banked_at)
+        self.assertFalse(queue_for_id(accession.pk, self.lab_user, isolate_id=first.pk))
+        self.assertTrue(create_id_handoff(accession.pk, self.lab_user, isolate_id=first.pk))
+        first.refresh_from_db()
+        self.assertEqual(first.status, 'id_pending')
+        self.assertIsNotNone(first.endorsed_at)
+        self.assertIsNone(first.biobanked_at)
 
     def test_direct_bank_requires_matching_site_id_and_successful_revival(self):
         from apps.home.models import Referred_Data
@@ -226,8 +265,9 @@ class RevivalBeforeIdentificationTests(TestCase):
             {'date_harvested': day, 'date_lyophilized': day})
         save_biobank(item.pk, {'storage_box': 'MAIN-BOX', 'box_position': 'A1'}, self.lab_user)
         item.refresh_from_db()
-        self.assertEqual(item.status, 'biobanked')
-        self.assertEqual(item.biobanked_by, self.lab_user)
+        self.assertEqual(item.status, 'site_banked')
+        self.assertEqual(item.site_banked_by, self.lab_user)
+        self.assertIsNone(item.biobanked_by)
 
     def test_harvest_is_recorded_with_lyophilization_and_preserved_at_final_banking(self):
         from apps.home.models import Referred_Data
