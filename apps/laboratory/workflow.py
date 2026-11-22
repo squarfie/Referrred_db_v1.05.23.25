@@ -230,10 +230,17 @@ def bank_using_site_id(isolate_id, user):
             or item.endorsed_at or item.returned_at or item.identifications.exists()):
         raise WorkflowError("Direct site-ID banking is available only after successful revival and before Main Laboratory handoff.")
     code, organism = site_identification(item)
+    # Persist the Site ID used at temporary banking time even when it was
+    # originally obtained from a matching raw-data row.
+    item.site_organism_code, item.site_organism_name = code, organism
+    if not item.site_identified_at:
+        item.site_identified_at, item.site_identified_by = timezone.now(), user
     item.identification_source = "site"
     item.final_organism, item.approved_organism_code = organism, code
     item.status = S.READY_FOR_BIOBANK
-    item.save(update_fields=["identification_source", "final_organism", "approved_organism_code", "status"])
+    item.save(update_fields=["site_organism_code", "site_organism_name", "site_identified_at",
+                             "site_identified_by", "identification_source", "final_organism",
+                             "approved_organism_code", "status"])
     bank, _ = LaboratoryBiobank.objects.get_or_create(isolate=item)
     bank.whonet_code, bank.recorded_by = code, user
     bank.save(update_fields=["whonet_code", "recorded_by"])
