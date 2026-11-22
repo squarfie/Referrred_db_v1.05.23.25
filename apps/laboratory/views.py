@@ -56,9 +56,30 @@ def laboratory_biobank_list(request):
 
 def _biobank_inventory_context(request):
     search = (request.GET.get("q") or "").strip()
+    S = LaboratoryIsolate.Status
+    final = Q(status=S.BIOBANKED, identification_source="main_lab",
+              returned_at__isnull=False, reviewed_at__isnull=False,
+              lyophilization_completed_at__isnull=False, biobanked_at__isnull=False)
+    temporary = Q(status=S.SITE_BANKED) | Q(status=S.READY_FOR_BIOBANK, identification_source="site")
+    continuing = (Q(site_banked_at__isnull=False) | Q(biobank__isnull=False)) & Q(status__in=(
+        S.ID_QUEUED, S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED, S.ID_REVIEWED,
+    )) | Q(status=S.READY_FOR_BIOBANK, identification_source="main_lab")
     isolates = LaboratoryIsolate.objects.select_related(
         "accession_range__laboratory_receiving__receipt__site", "biobank"
-    ).filter(status__in=(LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.SITE_BANKED, LaboratoryIsolate.Status.BIOBANKED)).order_by("accession_range_id", "accession_number")
+    ).filter(Q(status__in=(S.READY_FOR_BIOBANK, S.SITE_BANKED, S.BIOBANKED)) | continuing)
+    definitions = (
+        ("all", "All records", Q()),
+        ("temporary", "Temporary / awaiting Main Lab ID", temporary),
+        ("main_lab", "Main Lab ID / processing", continuing),
+        ("final", "Final banked", final),
+    )
+    selected_tab = request.GET.get("tab", "all")
+    if selected_tab not in {key for key, _, _ in definitions}:
+        selected_tab = "all"
+    tabs = [{"key": key, "label": label, "count": isolates.filter(condition).count(),
+             "active": key == selected_tab} for key, label, condition in definitions]
+    isolates = isolates.filter(next(condition for key, _, condition in definitions if key == selected_tab))
+    isolates = isolates.order_by("accession_range_id", "accession_number")
     if search:
         matches = Q(accession_number__icontains=search) | Q(
             accession_range__laboratory_receiving__receipt__site__SiteCode__icontains=search
@@ -79,8 +100,15 @@ def _biobank_inventory_context(request):
     page.object_list = page.object_list.prefetch_related(
         Prefetch("isolate_records", queryset=isolates, to_attr="inventory_isolates")
     )
+    for batch in page.object_list:
+        for item in batch.inventory_isolates:
+            item.inventory_final = bool(item.status == S.BIOBANKED and item.identification_source == "main_lab"
+                and item.returned_at and item.reviewed_at and item.lyophilization_completed_at and item.biobanked_at)
+            item.inventory_next_action = next_action(item, request.user)
     return {
         "inventory_batches": page.object_list, "page_obj": page, "query": search,
+        "inventory_tabs": tabs, "selected_tab": selected_tab,
+        "can_queue_inventory": can_review_id_results(request.user),
         "can_bank": can_manage_biobank(request.user),
         "sticker_date_form": StickerDateRangeForm(initial={
             "from_date": timezone.localdate(), "to_date": timezone.localdate(),
@@ -201,7 +229,7 @@ def laboratory_endorse_id(request, accession_id):
 
 
 @login_required
-@lab_worklist_required
+@lab_review_required
 @require_POST
 def laboratory_queue_id_batch(request, accession_id):
     accession = get_object_or_404(LaboratoryAccession, pk=accession_id)
@@ -215,7 +243,7 @@ def laboratory_queue_id_batch(request, accession_id):
 
 
 @login_required
-@lab_worklist_required
+@lab_review_required
 @require_POST
 def laboratory_queue_main_lab(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)

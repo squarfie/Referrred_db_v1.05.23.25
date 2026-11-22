@@ -125,6 +125,8 @@ def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
 
 @transaction.atomic
 def queue_for_id(accession_id, user, isolate_id=None):
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A personnel may queue isolates for Main Laboratory endorsement.")
     return _advance_id_handoff(accession_id, user, isolate_id, endorse=False)
 
 
