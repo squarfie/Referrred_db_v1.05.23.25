@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Main Laboratory{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-batch-accordions">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
@@ -28,12 +28,27 @@
         <button type="submit" class="btn btn-primary"><i class="fas fa-search mr-1" aria-hidden="true"></i>Search</button>
         {% if query %}<a class="btn btn-outline-secondary" href="?tab={{ selected_tab }}">Clear search</a>{% endif %}
       </form>
-      <div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession</th><th>Batch</th><th>Site</th><th>Main Lab status</th><th>Endorsed at</th><th>Action</th></tr></thead><tbody>
-      {% for item in page_obj %}
-      <tr><td data-label="Accession"><strong>{{ item.accession_number }}</strong></td><td data-label="Batch">{{ item.accession_range.reference_range }}</td><td data-label="Site">{{ item.accession_range.laboratory_receiving.receipt.site.SiteCode }}</td><td data-label="Main Lab status">{{ item.get_status_display }}</td><td data-label="Endorsed at">{{ item.endorsed_at|date:"M j, Y g:i A"|default:"Not recorded" }}</td><td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'main_lab_isolate_detail' item.pk %}">Open ID case</a></td></tr>
-      {% empty %}<tr><td colspan="6" class="text-muted text-center">No endorsed isolates in this Main Lab queue.</td></tr>{% endfor %}
-      </tbody></table></div>
-      <nav class="receiving-board-pagination" aria-label="Main Laboratory pages"><span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span><div class="receiving-action-group">{% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?tab={{ selected_tab }}&q={{ query|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}{% if page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?tab={{ selected_tab }}&q={{ query|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>{% endif %}</div></nav>
+      <div class="receiving-card-body">
+        <p class="small text-muted">Expand a site batch to view its matching accessions. Tab badges count isolates; pages contain complete batch groups.</p>
+        {% for batch in main_lab_batches %}
+        <details class="receiving-batch-accordion" id="main-lab-batch-{{ batch.pk }}" {% if query %}open{% endif %}>
+          <summary>
+            <span class="receiving-batch-site">{{ batch.laboratory_receiving.receipt.site.SiteCode }}</span>
+            <span class="receiving-batch-title"><strong>Batch {{ batch.batch_number }} / {{ batch.total_batches }} · {{ batch.reference_range }}</strong><span class="receiving-site-name">{{ batch.date_referred|date:"M j, Y" }} · Courier {{ batch.laboratory_receiving.receipt.tracking_number }}</span></span>
+            <span class="receiving-tab-count" aria-label="{{ batch.main_lab_isolates|length }} matching isolates">{{ batch.main_lab_isolates|length }}</span>
+            <span class="small">isolate{{ batch.main_lab_isolates|length|pluralize }}{% if query %} matching{% endif %}</span>
+          </summary>
+          <div class="table-responsive"><table class="table receiving-table">
+            <caption class="sr-only">Main Laboratory accessions for {{ batch.laboratory_receiving.receipt.site.SiteCode }} batch {{ batch.reference_range }}</caption>
+            <thead><tr><th>Accession</th><th>Main Lab status</th><th>Endorsed at</th><th>Action</th></tr></thead><tbody>
+            {% for item in batch.main_lab_isolates %}
+            <tr><td data-label="Accession"><strong>{{ item.accession_number }}</strong></td><td data-label="Main Lab status">{{ item.get_status_display }}</td><td data-label="Endorsed at">{{ item.endorsed_at|date:"M j, Y g:i A"|default:"Not recorded" }}</td><td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'main_lab_isolate_detail' item.pk %}">Open ID case</a></td></tr>
+            {% endfor %}
+            </tbody></table></div>
+        </details>
+        {% empty %}<p class="text-muted text-center">No endorsed isolates in this Main Lab queue.</p>{% endfor %}
+      </div>
+      <nav class="receiving-board-pagination" aria-label="Main Laboratory batch pages"><span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} batch{{ page_obj.paginator.count|pluralize:'es' }}</span><div class="receiving-action-group">{% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}{% if page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}</div></nav>
     </section>
   </div>
 </main>

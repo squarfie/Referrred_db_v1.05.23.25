@@ -1,9 +1,9 @@
 """Main Laboratory identification queue, separate from Bench A custody and processing."""
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Max, Prefetch, Q
 from django.shortcuts import get_object_or_404, render
 
-from .models import LaboratoryIsolate
+from .models import LaboratoryAccession, LaboratoryIsolate
 from .permissions import main_lab_required, can_access_main_lab
 
 
@@ -59,11 +59,21 @@ def main_lab_dashboard(request):
             Q(accession_range__laboratory_receiving__receipt__site__SiteCode__icontains=search)
         )
     from django.core.paginator import Paginator
-    page = Paginator(isolates.order_by("-endorsed_at", "accession_number"), 30).get_page(
+    batches = LaboratoryAccession.objects.filter(
+        pk__in=isolates.values("accession_range_id")
+    ).select_related("laboratory_receiving__receipt__site").annotate(
+        latest_endorsement=Max("isolate_records__endorsed_at")
+    ).order_by("-latest_endorsement", "-date_referred", "-pk")
+    page = Paginator(batches, 25).get_page(
         request.GET.get("page")
     )
+    page.object_list = page.object_list.prefetch_related(Prefetch(
+        "isolate_records", queryset=isolates.order_by("accession_number", "pk"),
+        to_attr="main_lab_isolates",
+    ))
     return render(request, "laboratory/main_lab_dashboard.html", {
-        "page_obj": page, "counts": counts, "selected_tab": tab,
+        "page_obj": page, "main_lab_batches": page.object_list,
+        "counts": counts, "selected_tab": tab,
         "tab_labels": tab_labels, "main_lab_tabs": tabs,
         "query": search, "can_test": can_access_main_lab(request.user),
         "area": "main_lab",
