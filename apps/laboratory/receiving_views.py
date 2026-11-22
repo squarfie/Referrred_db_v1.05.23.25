@@ -54,7 +54,7 @@ def _laboratory_workflow_receipts(receipts):
              Q(**{path + "__reviewed_at__isnull": False}) &
              Q(**{path + "__lyophilization_completed_at__isnull": False}) &
              Q(**{path + "__biobanked_at__isnull": False})), distinct=True),
-        workflow_pending_id=Count(path, filter=Q(**{path + "__status__in": ["id_queued", "id_pending", "id_testing", "site_banked"]}), distinct=True),
+        workflow_pending_id=Count(path, filter=Q(**{path + "__status__in": ["id_queued", "id_pending", "id_testing"]}), distinct=True),
     )
     complete = Q(
         laboratory_receiving__total_isolates_received__gt=0,
