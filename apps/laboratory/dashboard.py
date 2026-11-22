@@ -30,8 +30,8 @@ def render_laboratory_dashboard(request, queue=None):
         tab_definitions = [
             ("pending", "Pending Lab Receipt", ReferralReceipt.Status.ENDORSED),
             ("received", "Received by Laboratory Receiving", ReferralReceipt.Status.LAB_RECEIVED),
-            ("main_lab", "Pending Main Lab ID", "main_lab"),
-            ("processing", "Revival & Processing", "processing"),
+            ("main_lab", "Endorsed to Main Lab / Awaiting Return", "main_lab"),
+            ("processing", "Bench A Processing / Revival / Review", "processing"),
             ("pending_batch", "Pending Batch Creation", "pending_batch"),
             ("complete", "Workflow Complete", "complete"),
             ("all", "All Records", None),
