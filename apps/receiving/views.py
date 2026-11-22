@@ -112,7 +112,7 @@ def receiving_endorse(request, receiving_id):
 def receiving_delete_permanently(request, receiving_id):
     """Delete mistaken courier receipts with server-enforced custody safeguards.
 
-    Secretariat may correct records before Laboratory Receiving confirms
+    Authorized receiving users may correct records before Laboratory Receiving confirms
     custody. Admins may also clean up laboratory-received test records if no
     accession or other dependent laboratory work exists.
     """
