@@ -145,7 +145,7 @@
         <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save new range</button></div>
       </form>
       {% endif %}
-      <p class="small text-muted mb-2">Record revival first. After successful revival, choose to bank using the site's identification or queue for endorsement, then endorse to Main Laboratory for ID testing. Returned Main Laboratory isolates proceed to lyophilization before banking.</p>
+      <p class="small text-muted mb-2">First record actual revival outcomes and Site IDs for every viable isolate. You may temporarily bank using the Site ID or queue isolates as they become ready. Once all viable isolates are queued and all required Site IDs are encoded, endorse the whole batch once from Laboratory Receiving to Main Laboratory for ID testing. This is distinct from the initial Receiving handoff.</p>
       <div class="table-responsive">
         <table class="table receiving-table receiving-accession-edit-table">
           <thead><tr><th>Date referred</th><th>Start</th><th>End</th><th>Batch no.</th><th>Total batches</th><th>Isolates</th><th>Status</th><th>Actions</th></tr></thead>
@@ -188,8 +188,10 @@
                   {% if item.can_queue_id and user_access.can_view_lab_testing %}
                   <form method="post" action="{% url 'laboratory_queue_id_batch' item.pk %}" class="d-inline" onsubmit="return confirm('Queue the successfully revived isolates for endorsement? This does not endorse them yet.');">{% csrf_token %}<button class="btn btn-sm btn-info mb-1" type="submit">Queue revived isolates for endorsement</button></form>
                   {% endif %}
-                  {% if item.can_endorse_id and user_access.can_view_lab_testing %}
-                  <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse the queued isolates to Main Lab for ID testing?');">{% csrf_token %}<button class="btn btn-sm btn-primary mb-1" type="submit">Endorse queued isolates to Main Lab</button></form>
+                  {% if item.can_endorse_id and can_edit %}
+                  <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse this entire ready batch from Laboratory Receiving to Main Lab ID testing?');">{% csrf_token %}<button class="btn btn-sm btn-primary mb-1" type="submit">Endorse whole batch to Main Lab</button></form>
+                  {% elif can_edit and item.can_endorse_id == False %}
+                  <span class="small text-muted">Main Lab batch endorsement unlocks when every viable isolate is revived, Site ID encoded, and queued.</span>
                   {% endif %}
                 {% elif can_edit %}
                 {% if not item.batch %}
