@@ -32,7 +32,7 @@ from .models import (
 )
 from .permissions import (
     can_access_laboratory_worklist, can_manage_id_testing, can_manage_biobank,
-    can_review_id_results, lab_staff_required, lab_review_required, lab_worklist_required,
+    can_review_id_results, lab_staff_required, lab_review_required, lab_worklist_required, main_lab_required,
 )
 
 @login_required
@@ -328,7 +328,7 @@ def laboratory_lyophilization_complete(request, isolate_id):
 
 
 @login_required
-@lab_staff_required
+@main_lab_required
 @require_POST
 def laboratory_acknowledge_id(request, isolate_id):
     get_object_or_404(LaboratoryIsolate, pk=isolate_id)
@@ -337,7 +337,7 @@ def laboratory_acknowledge_id(request, isolate_id):
         messages.error(request, "Only pending isolates may be acknowledged.")
     else:
         messages.success(request, f"Received {isolate.accession_number} for ID testing.")
-    return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+    return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
 
 
 @login_required
@@ -380,29 +380,29 @@ def laboratory_isolate_detail(request, isolate_id):
 
 
 @login_required
-@lab_staff_required
+@main_lab_required
 @require_POST
 @transaction.atomic
 def laboratory_record_id(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
     if isolate.status != LaboratoryIsolate.Status.ID_TESTING:
         messages.error(request, "ID results may be added only while testing is in progress.")
-        return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+        return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
     organism = (request.POST.get("organism_reported") or "").strip()
     code = (request.POST.get("organism_reported_code") or "").strip()
     try:
         canonical_code, organism = resolve_organism(code=code, name=organism)
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
-        return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+        return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
     if not organism or len(organism) > 255:
         messages.error(request, "Enter an identified organism (maximum 255 characters).")
-        return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+        return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
     submit_return = request.POST.get("action") in ("submit_return", "save_and_return")
     cassette = (request.POST.get("cassette_reference") or "").strip()
     if submit_return and (not cassette or len(cassette) > 100):
         messages.error(request, "A cassette reference (maximum 100 characters) is required to return the cassette.")
-        return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+        return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
     LaboratoryIdentification.objects.create(
         isolate=isolate, organism_reported=organism, whonet_organism_code=canonical_code,
         instrument=(request.POST.get("instrument") or "").strip()[:100],
@@ -415,11 +415,11 @@ def laboratory_record_id(request, isolate_id):
         isolate.returned_by = request.user
         isolate.save(update_fields=("status", "returned_at", "returned_by"))
     messages.success(request, "Identification saved and cassette returned." if submit_return else "Instrument identification saved.")
-    return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+    return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
 
 
 @login_required
-@lab_staff_required
+@main_lab_required
 @require_POST
 @transaction.atomic
 def laboratory_return_id(request, isolate_id):
@@ -432,7 +432,7 @@ def laboratory_return_id(request, isolate_id):
         isolate.returned_by = request.user
         isolate.save(update_fields=("status", "returned_at", "returned_by"))
         messages.success(request, "Identification returned to Laboratory Receiving.")
-    return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+    return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
 
 
 @login_required
@@ -677,7 +677,7 @@ def _upload_rows(upload):
 
 
 @login_required
-@lab_staff_required
+@main_lab_required
 def laboratory_id_upload(request):
     if request.method != "POST":
         return render(request, "laboratory/lab_id_upload.html", {})
