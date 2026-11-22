@@ -437,6 +437,8 @@ def save_biobank(isolate_id, details, user):
         item.status = S.SITE_BANKED
         item.save(update_fields=["status", "site_banked_at", "site_banked_by", "site_bank_storage"])
     elif item.status == S.READY_FOR_BIOBANK:
+        if item.identification_source != "main_lab":
+            raise WorkflowError("Main Lab identification approval is required for final biobanking.")
         if not (item.returned_at and item.reviewed_at and item.lyophilization_completed_at):
             raise WorkflowError("Main Lab ID return, review and lyophilization are required for final banking.")
         item.status = S.BIOBANKED
