@@ -52,10 +52,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
         # Login preserves the scanned legacy destination. That route then
         # redirects lab-only users into the dedicated Laboratory Receiving page.
         self.assertRedirects(response, detail, fetch_redirect_response=False)
-        self.assertRedirects(
-            self.client.get(detail),
-            reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}),
-        )
+        self.assertEqual(self.client.get(detail).status_code, 200)
 
     @override_settings(ACCOUNT_APPROVAL_REQUIRE_STAFF_LINK=False)
     def test_login_rejects_external_next_redirect(self):
@@ -70,7 +67,7 @@ class QrAcknowledgmentAndDeletionTests(TestCase):
     def test_lab_confirmation_is_not_automatic_on_qr_scan(self):
         self.client.force_login(self.lab)
         detail = reverse("receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id})
-        self.assertRedirects(self.client.get(detail), reverse("laboratory_receiving_detail", kwargs={"receiving_id": self.receipt.receiving_id}))
+        self.assertEqual(self.client.get(detail).status_code, 200)
         self.receipt.refresh_from_db()
         self.assertEqual(self.receipt.status, ReferralReceipt.Status.RECEIVED)
         self.assertEqual(self.receipt.events.count(), 1)

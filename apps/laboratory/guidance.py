@@ -1,14 +1,14 @@
 """Role-aware guidance; authorization remains enforced at each POST endpoint."""
 from .models import LaboratoryIsolate
-from .permissions import can_manage_id_testing, can_review_id_results, can_manage_biobank
+from .permissions import can_manage_id_testing, can_review_id_results, can_manage_biobank, can_access_main_lab
 
 
 def next_action(isolate, user):
     S = LaboratoryIsolate.Status
     actions = {
         S.ID_QUEUED: ('Await whole-batch endorsement to Main Lab', 'Laboratory Receiving', can_review_id_results, 'endorsement'),
-        S.ID_PENDING: ('Receive for ID testing', 'Main Laboratory', can_manage_id_testing, 'handoff'),
-        S.ID_TESTING: ('Record ID and return cassette', 'Main Laboratory', can_manage_id_testing, 'identification'),
+        S.ID_PENDING: ('Receive for ID testing', 'Main Laboratory', can_access_main_lab, 'handoff'),
+        S.ID_TESTING: ('Record ID and return cassette', 'Main Laboratory', can_access_main_lab, 'identification'),
         S.ID_RETURNED: ('Confirm returned identification', 'Laboratory Receiving', can_review_id_results, 'review'),
         S.REVIVAL_PENDING: ('Record revival outcome', 'Laboratory Receiving', can_review_id_results, 'revival'),
         S.REVIVAL_QUEUED: ('Record revival outcome', 'Laboratory Receiving', can_review_id_results, 'revival'),

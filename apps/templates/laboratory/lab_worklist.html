@@ -47,7 +47,7 @@
                 <td data-label="Awaiting lyophilization">{{ row.awaiting_lyophilization_count }}</td>
                 <td data-label="Awaiting biobank">{{ row.awaiting_biobank_count }}</td>
                 <td data-label="Completed">{{ row.completed_count }}</td>
-                <td data-label="Action" class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}">Open Batch</a></td>
+                <td data-label="Action" class="receiving-actions"><div class="receiving-action-group"><a class="btn btn-sm btn-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}">Open Batch</a></div></td>
               </tr>
             {% empty %}<tr><td colspan="13" class="text-center text-muted">No isolate batches match the filters. Record revival first; only isolates endorsed to Main Lab appear in Identification Testing.</td></tr>{% endfor %}
             </tbody>

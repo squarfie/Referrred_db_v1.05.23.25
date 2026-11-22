@@ -139,14 +139,18 @@ def laboratory_worklist(request, area="identification"):
             "awaiting_review_count": sum(item.status == S.ID_RETURNED or (item.status == S.REVIVED and bool(item.returned_at)) for item in isolates),
             "awaiting_lyophilization_count": counts.get(S.ID_REVIEWED, 0),
             "awaiting_biobank_count": counts.get(S.READY_FOR_BIOBANK, 0),
-            "completed_count": sum(item.status == S.NON_VIABLE or (item.status == S.BIOBANKED and item.identification_source == "main_lab" and item.returned_at and item.reviewed_at and item.lyophilization_completed_at and item.biobanked_at) for item in isolates),
+            "completed_count": sum(bool(item.status == S.NON_VIABLE or (
+                item.status == S.BIOBANKED and item.identification_source == "main_lab"
+                and item.returned_at and item.reviewed_at
+                and item.lyophilization_completed_at and item.biobanked_at
+            )) for item in isolates),
         })
     return render(request, "laboratory/lab_worklist.html", {
         "batches": rows, "query": query, "selected_status": status,
         "area": area, "show_history": show_history,
         "worklist_url": "laboratory_processing_worklist" if area == "processing" else "laboratory_worklist",
         "statuses": LaboratoryIsolate.Status.choices,
-        "can_test": can_manage_id_testing(request.user),
+        "can_test": can_access_main_lab(request.user),
         "can_review": can_review_id_results(request.user),
         "can_bank": can_manage_biobank(request.user),
     })
@@ -177,7 +181,7 @@ def laboratory_batch_detail(request, accession_id):
         "show_history": request.GET.get("history") == "1",
         "area": request.GET.get("area") if request.GET.get("area") in ("identification", "processing", "biobank") else ("processing" if any(item.status not in ("id_pending", "id_testing") for item in isolates) else "identification"),
         "can_review": can_review_id_results(request.user),
-        "can_test": can_manage_id_testing(request.user),
+        "can_test": can_access_main_lab(request.user),
     })
 
 @login_required
@@ -381,7 +385,7 @@ def laboratory_isolate_detail(request, isolate_id):
         "can_edit_site_id": can_edit_site_id,
         "previous_isolate_id": sibling_ids[index - 1] if index else None,
         "next_isolate_id": sibling_ids[index + 1] if index + 1 < len(sibling_ids) else None,
-        "can_test": can_manage_id_testing(request.user),
+        "can_test": can_access_main_lab(request.user),
         "can_queue_id": can_manage_id_testing(request.user) or can_review_id_results(request.user),
         "can_review": can_review_id_results(request.user),
         "can_bank": can_manage_biobank(request.user),
@@ -523,7 +527,10 @@ def laboratory_biobank_save(request, isolate_id):
     details["tsbg"] = request.POST.get("tsbg") == "on"
     try:
         save_biobank(isolate_id, details, request.user)
-        messages.success(request, "Identification and banking map finalized.")
+        item = LaboratoryIsolate.objects.get(pk=isolate_id)
+        messages.success(request, "Temporary Site ID storage saved; Main Lab confirmation is still required."
+                         if item.status == LaboratoryIsolate.Status.SITE_BANKED
+                         else "Identification and banking map finalized.")
     except (WorkflowError, ValueError) as exc:
         messages.error(request, str(exc))
     return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
@@ -538,7 +545,7 @@ def _label_item(isolate, request):
     if not bank or not bank.date_harvested or not bank.whonet_code.strip() or not isolate.final_organism:
         return None
     if isolate.status not in {
-        LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.BIOBANKED
+        LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.SITE_BANKED, LaboratoryIsolate.Status.BIOBANKED
     }:
         return None
     png = render_qr_png(build_isolate_scan_url(isolate=isolate, request=request))

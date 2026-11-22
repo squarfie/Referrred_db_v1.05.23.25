@@ -64,10 +64,15 @@ class SiteInventoryTests(TestCase):
         self.assertEqual(site_identification(item), ('KPN', 'Klebsiella pneumoniae'))
         self.assertFalse(item.identifications.exists())
         self.client.post(reverse('laboratory_queue_main_lab', args=[item.pk]))
-        self.client.post(reverse('laboratory_endorse_isolate', args=[item.pk]))
+        from apps.laboratory.workflow import record_revival_outcome, record_site_identification, queue_for_id, create_id_handoff
+        for sibling in item.accession_range.isolate_records.exclude(pk=item.pk):
+            record_revival_outcome(sibling.pk, 'revived', (now-timedelta(hours=2)).isoformat(), (now-timedelta(hours=1)).isoformat(), '', self.lab_user)
+            record_site_identification(sibling.pk, 'KPN', 'Klebsiella pneumoniae', self.lab_user)
+        queue_for_id(item.accession_range_id, self.lab_user)
+        create_id_handoff(item.accession_range_id, self.lab_user)
         self.lab_user.groups.set([Group.objects.get_or_create(name='Laboratory Staff')[0]])
-        page = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
-        self.assertContains(page, 'Site-reported identification')
+        page = self.client.get(reverse('main_lab_isolate_detail', args=[item.pk]))
+        self.assertContains(page, 'Site-reported organism')
         self.assertContains(page, 'Klebsiella pneumoniae')
         self.assertContains(page, 'KPN')
         self.assertNotContains(page, 'name="site_organism_code"')

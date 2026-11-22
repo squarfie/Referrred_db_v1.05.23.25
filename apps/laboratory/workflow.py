@@ -30,6 +30,8 @@ def acknowledge_id_receipt(*, isolate_id, user):
     isolate = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
     if isolate.status != S.ID_PENDING:
         return isolate, False
+    if not isolate.endorsed_at and not (isolate.acknowledged_at or isolate.returned_at or isolate.identifications.exists()):
+        return isolate, False
     received_at = timezone.now()
     isolate.status = S.ID_TESTING
     isolate.acknowledged_by = user
@@ -107,6 +109,8 @@ def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
         # The original Site ID and storage history remain recorded separately.
         # Site ID is provisional and must not be mistaken for approved Main Lab ID.
         if not endorse and item.identification_source == "site":
+            item.site_organism_code = item.site_organism_code or item.approved_organism_code
+            item.site_organism_name = item.site_organism_name or item.final_organism
             item.identification_source = ""
             item.final_organism = ""
             item.approved_organism_code = ""
@@ -114,7 +118,7 @@ def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
         setattr(item, actor_field, user)
     LaboratoryIsolate.objects.bulk_update(
         ready, ["status", at_field, actor_field, "identification_source",
-                "final_organism", "approved_organism_code"]
+                "final_organism", "approved_organism_code", "site_organism_code", "site_organism_name"]
     )
     return True
 
@@ -445,6 +449,14 @@ def save_biobank(isolate_id, details, user):
     item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
     if item.status not in (S.READY_FOR_BIOBANK, S.SITE_BANKED, S.BIOBANKED):
         raise WorkflowError("Choose temporary Site ID storage, or complete Main Laboratory ID and lyophilization, before saving storage.")
+    if (not item.identification_source and item.status == S.READY_FOR_BIOBANK
+            and item.returned_at and item.reviewed_at and item.lyophilization_completed_at
+            and item.final_organism and item.approved_organism_code
+            and item.identifications.exists()):
+        # Earlier schemas had no source marker. Existing review evidence is
+        # sufficient; never manufacture a return, review or physical-work date.
+        item.identification_source = "main_lab"
+        item.save(update_fields=["identification_source"])
     if item.identification_source and not (item.final_organism and item.approved_organism_code):
         raise WorkflowError("An organism identification is required to finalize banking.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)

@@ -66,7 +66,7 @@ class ReceivingPermissionTests(TestCase):
         self.client.force_login(user)
         response = self.client.get(reverse("laboratory_receiving_dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Receiving &amp; Accessioning")
+        self.assertContains(response, "Laboratory Receiving")
         self.assertContains(response, "Pending Lab Receipt")
         self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=pending")
         self.assertNotContains(response, "Pending Endorsement")
@@ -451,19 +451,17 @@ class ReceivingServiceTests(TestCase):
             1,
         )
 
-    def test_direct_service_calls_reject_unrelated_role(self):
+    def test_direct_courier_service_calls_allow_authenticated_accounts(self):
         services = self.services()
         unrelated = User.objects.create_user("service_unrelated", password="test-pass")
         receipt = self.create_receipt()
 
-        with self.assertRaises(services.ReceivingPermissionDenied):
-            services.create_receipt(form=self.valid_receipt_form("DENIED-CREATE"), user=unrelated)
-        with self.assertRaises(services.ReceivingPermissionDenied):
-            services.endorse_receipt(receipt_id=receipt.pk, user=unrelated)
-
-        self.assertFalse(ReferralReceipt.objects.filter(tracking_number="DENIED-CREATE").exists())
+        # Shared courier intake is available to all authenticated accounts.
+        services.create_receipt(form=self.valid_receipt_form("SHARED-CREATE"), user=unrelated)
+        services.endorse_receipt(receipt_id=receipt.pk, user=unrelated)
+        self.assertTrue(ReferralReceipt.objects.filter(tracking_number="SHARED-CREATE").exists())
         receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
 
     def test_direct_lab_service_rejects_future_timestamp(self):
         services = self.services()
@@ -1027,7 +1025,7 @@ class ReceivingTemplateTests(TestCase):
         )
 
         self.assertContains(response, "Print batch label")
-        self.assertContains(response, "Endorse to laboratory")
+        self.assertContains(response, "Endorse to Laboratory Receiving")
         self.assertNotContains(response, "Confirm laboratory receipt")
 
     def test_secretariat_receipt_links_never_expose_laboratory_worksheet(self):
@@ -1075,22 +1073,17 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
         self.assertNotContains(response, 'href="' + self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
 
-    def test_lab_staff_legacy_receiving_url_and_detail_use_laboratory_views(self):
-        lab_staff = self.create_user("template_laboratory_staff", home_permissions.ROLE_LAB_STAFF)
+    def test_main_lab_staff_receiving_links_keep_shared_intake_separate_from_bench_a(self):
+        staff = self.create_user("template_laboratory_staff", home_permissions.ROLE_LAB_STAFF)
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
-        self.client.force_login(lab_staff)
+        self.client.force_login(staff)
         dashboard = self.client.get(self.route("receiving_dashboard"))
         self.assertEqual(dashboard.status_code, 200)
-        self.assertContains(dashboard, "Pending Lab Receipt")
-        self.assertNotContains(dashboard, "New receipt")
-        legacy = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
-        self.assertRedirects(legacy, self.route(
-            "laboratory_receiving_detail", receiving_id=receipt.receiving_id
-        ), fetch_redirect_response=False)
-        lab_detail = self.client.get(self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id))
-        self.assertContains(lab_detail, "Open laboratory worksheet")
-        self.assertNotContains(lab_detail, "Print batch label")
-        self.assertNotContains(lab_detail, "Endorse to laboratory")
+        self.assertContains(dashboard, "Pending Endorsement")
+        shared = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertEqual(shared.status_code, 200)
+        self.assertNotContains(shared, "Confirm laboratory receipt")
+        self.assertEqual(self.client.get(self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)).status_code, 302)
 
     def test_monthly_register_back_and_access_remain_laboratory_only(self):
         self.client.force_login(self.lab_encoder)
@@ -1981,8 +1974,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         staff = User.objects.create_user(username="id-laboratory-staff", password="test-pass")
         staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
         self.client.force_login(staff)
-        self.assertEqual(self.client.get(reverse("laboratory_worklist")).status_code, 200)
-        self.assertEqual(self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk})).status_code, 200)
+        self.assertRedirects(self.client.get(reverse("laboratory_worklist")), reverse("main_lab_dashboard"), fetch_redirect_response=False)
+        self.assertEqual(self.client.get(reverse("main_lab_isolate_detail", kwargs={"isolate_id": isolate.pk})).status_code, 200)
 
         denial = self.client.post(reverse("laboratory_accession_add",
             kwargs={"receiving_id": self.receipt.receiving_id}), {})
@@ -2225,7 +2218,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
         self.client.force_login(staff)
         self.assertEqual(self.client.get(reverse("laboratory_receiving_workspace",
-            kwargs={"receiving_id": self.receipt.receiving_id})).status_code, 200)
+            kwargs={"receiving_id": self.receipt.receiving_id})).status_code, 302)
         self.client.post(reverse("laboratory_batch_transition",
             kwargs={"accession_id": accession.pk, "action": "start"}))
         self.client.post(reverse("laboratory_revival_failed", kwargs={"isolate_id": isolate.pk}),
@@ -2428,7 +2421,11 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate = accession.isolate_records.first()
         isolate.final_organism = "Escherichia coli"
         isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
-        isolate.save(update_fields=("final_organism", "status"))
+        isolate.approved_organism_code = "ECO"
+        isolate.identification_source = "main_lab"
+        isolate.returned_at = timezone.now()
+        isolate.reviewed_at = timezone.now()
+        isolate.save()
         self.client.post(reverse("laboratory_lyophilization_complete",
             kwargs={"isolate_id": isolate.pk}), {
                 "date_harvested": "2026-11-19",
@@ -2608,11 +2605,11 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate.status = LaboratoryIsolate.Status.ID_TESTING
         isolate.save(update_fields=("status",))
         url = reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk})
-        # Main Laboratory staff and LAB Encoder can both enter instrument ID results.
+        # Main Laboratory enters instrument results; Bench A reviews the returned ID.
         staff = User.objects.create_user(username="organism-picker-lab-staff", password="test-pass")
         staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
         self.client.force_login(staff)
-        response = self.client.get(url)
+        response = self.client.get(reverse("main_lab_isolate_detail", args=[isolate.pk]))
         self.assertContains(response, "laboratory-organism-picker.js")
         self.assertContains(response, "data-organism-picker")
         self.assertContains(response, 'name="organism_reported_code"')

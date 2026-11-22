@@ -71,7 +71,7 @@
             <td data-label="Secretariat received">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
             <td data-label="Received by">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</td>
             <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if is_lab_worklist and receipt.status == 'lab_received' %}{% if receipt.lab_workflow == 'complete' %}Workflow Complete{% elif receipt.lab_workflow == 'main_lab' %}Pending Main Lab Identification{% elif receipt.lab_workflow == 'processing' %}Revival &amp; Processing{% else %}Receiving / Accessioning{% endif %}{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
-            <td class="receiving-actions text-right">
+            <td class="receiving-actions text-right"><div class="receiving-action-group">
               {% if can_manage_secretariat and receipt.status == 'received' %}
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Endorse / Open</a>
               {% endif %}
@@ -87,7 +87,7 @@
                 <button type="submit" class="btn btn-sm btn-outline-danger mb-1"><i class="fas fa-trash-alt mr-1"></i>Delete</button>
               </form>
               {% endif %}
-            </td>
+            </div></td>
           </tr>
         {% empty %}
           <tr><td colspan="6" class="receiving-empty"><i class="fas fa-box-open" aria-hidden="true"></i>No receiving isolates found in this tab.</td></tr>

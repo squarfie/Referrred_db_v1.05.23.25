@@ -151,7 +151,7 @@ class ScanReceiveFlowTests(ScanReceiptFixtures, TestCase):
         received_at = timezone.now()
         with patch("apps.laboratory.workflow.timezone.now", return_value=received_at):
             response = self.client.post(self.isolate_url())
-        self.assertRedirects(response, reverse("laboratory_isolate_detail", args=[self.isolate.pk]) + "#identification", fetch_redirect_response=False)
+        self.assertRedirects(response, reverse("main_lab_isolate_detail", args=[self.isolate.pk]) + "#identification", fetch_redirect_response=False)
         self.isolate.refresh_from_db()
         self.assertEqual(self.isolate.status, LaboratoryIsolate.Status.ID_TESTING)
         self.assertEqual(self.isolate.acknowledged_by, self.staff)
@@ -167,13 +167,13 @@ class ScanReceiveFlowTests(ScanReceiptFixtures, TestCase):
         self.assertEqual(self.isolate.acknowledged_at, received_at)
         self.assertEqual(self.received_batch.events.filter(event_type="id_received").count(), 1)
 
-    def test_lab_encoder_can_acknowledge_id_by_scan(self):
+    def test_bench_a_encoder_cannot_acknowledge_main_lab_id_by_scan(self):
         self.client.force_login(self.receiver)
-        self.assertEqual(self.client.get(self.isolate_url()).status_code, 200)
+        self.assertEqual(self.client.get(self.isolate_url()).status_code, 302)
         self.client.post(self.isolate_url())
         self.isolate.refresh_from_db()
-        self.assertEqual(self.isolate.status, LaboratoryIsolate.Status.ID_TESTING)
-        self.assertEqual(self.isolate.acknowledged_by, self.receiver)
+        self.assertEqual(self.isolate.status, LaboratoryIsolate.Status.ID_PENDING)
+        self.assertIsNone(self.isolate.acknowledged_by)
 
     def test_user_without_laboratory_role_cannot_acknowledge_id(self):
         self.receiver.groups.clear()
@@ -192,7 +192,7 @@ class ScanReceiveFlowTests(ScanReceiptFixtures, TestCase):
                 self.isolate.status = status
                 self.isolate.save(update_fields=["status"])
                 for method in (self.client.get, self.client.post):
-                    self.assertRedirects(method(self.isolate_url()), reverse("laboratory_isolate_detail", args=[self.isolate.pk]) + "#" + section, fetch_redirect_response=False)
+                    self.assertRedirects(method(self.isolate_url()), reverse("main_lab_isolate_detail", args=[self.isolate.pk]) + "#" + section, fetch_redirect_response=False)
                 self.isolate.refresh_from_db()
                 self.assertEqual(self.isolate.status, status)
         self.assertFalse(self.received_batch.events.exists())
@@ -232,7 +232,7 @@ class ScanReceiveFlowTests(ScanReceiptFixtures, TestCase):
 
     def test_isolate_page_exposes_qr_before_biobank_eligibility(self):
         self.client.force_login(self.staff)
-        response = self.client.get(reverse("laboratory_isolate_detail", args=[self.isolate.pk]))
+        response = self.client.get(reverse("main_lab_isolate_detail", args=[self.isolate.pk]))
         self.assertContains(response, reverse("laboratory_isolate_qr", args=[self.isolate.pk]))
         label = self.client.get(reverse("laboratory_isolate_scan_label", args=[self.isolate.pk]))
         self.assertContains(label, self.isolate.accession_number)

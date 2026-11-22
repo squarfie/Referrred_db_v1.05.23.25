@@ -42,7 +42,7 @@ class QrReceiveActionTests(SimpleTestCase):
                 receipt.save.assert_not_called()
                 receipt.events.create.assert_not_called()
 
-    def test_lab_only_scanner_keeps_dedicated_laboratory_destination(self):
+    def test_shared_receipt_view_never_exposes_laboratory_confirmation(self):
         receipt = Mock(status=ReferralReceipt.Status.ENDORSED, receiving_id=uuid4())
         request = RequestFactory().get(reverse("receiving_detail", args=[receipt.receiving_id]))
         request.user = SimpleNamespace(is_authenticated=True)
@@ -50,9 +50,12 @@ class QrReceiveActionTests(SimpleTestCase):
             patch("apps.receiving.views._receipt_or_404", return_value=receipt),
             patch("apps.receiving.permissions.get_user_roles", return_value={"LAB Encoder"}),
             patch("apps.laboratory.permissions.get_user_roles", return_value={"LAB Encoder"}),
+            patch("apps.receiving.views.can_delete_receipt_safely", return_value=False),
+            patch("apps.receiving.views.render", side_effect=lambda req, name, context: context),
         ):
             response = receiving_detail(request, receipt.receiving_id)
-        self.assertEqual(response.url, reverse("laboratory_receiving_detail", args=[receipt.receiving_id]))
+        self.assertFalse(response["can_confirm_lab"])
+        self.assertFalse(response["laboratory_detail"])
 
 
 class QrOriginConfigurationTests(SimpleTestCase):

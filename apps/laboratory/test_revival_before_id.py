@@ -132,6 +132,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         LaboratoryIdentification.objects.create(isolate=item, organism_reported='Klebsiella pneumoniae',
             whonet_organism_code='KPN', cassette_reference='C1')
         self.assertEqual(next_action(item, self.lab_user)['section'], 'review')
+        self.client.force_login(self.lab_user)
         self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
         item.refresh_from_db()
         self.assertEqual(item.status, 'id_reviewed')
@@ -265,7 +266,10 @@ class RevivalBeforeIdentificationTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.status, 'id_queued')
         queued_at = item.id_queued_at
-        _, received = acknowledge_id_receipt(isolate_id=item.pk, user=self.lab_user)
+        from django.contrib.auth.models import User, Group
+        main_lab = User.objects.create_user('handoff-main-lab')
+        main_lab.groups.add(Group.objects.get_or_create(name='Laboratory Staff')[0])
+        _, received = acknowledge_id_receipt(isolate_id=item.pk, user=main_lab)
         self.assertFalse(received)
         with self.assertRaises(WorkflowError):
             create_id_handoff(accession.pk, self.lab_user)
@@ -276,7 +280,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertIsNotNone(item.endorsed_at)
         self.assertEqual(len(self.client.get(reverse('laboratory_worklist')).context['batches']), 1)
 
-    def test_batch_queue_works_for_lab_staff_without_granting_revival_updates(self):
+    def test_main_lab_staff_cannot_open_bench_a_queue_controls(self):
         from django.contrib.auth.models import Group
         accession = self.prepare()
         item = accession.isolate_records.first()
@@ -284,13 +288,8 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.lab_user.groups.set([Group.objects.get_or_create(name='Laboratory Staff')[0]])
         url = reverse('laboratory_queue_id_batch', args=[accession.pk])
         page = self.client.get(reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id]))
-        self.assertContains(page, f'action="{url}"')
-        response = self.client.post(url)
-        self.assertRedirects(response, reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id]), fetch_redirect_response=False)
-        item.refresh_from_db()
-        self.assertEqual(item.status, 'id_queued')
+        self.assertEqual(page.status_code, 302)
         self.assertIsNone(item.endorsed_at)
-        self.assertEqual(self.client.get(url).status_code, 405)
 
     def test_main_lab_path_requires_lyophilization_before_storage(self):
         from apps.laboratory.workflow import save_biobank
@@ -299,11 +298,16 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.revive(item)
         original = (item.revival_started_at, item.revival_completed_at)
         self.prepare_complete_id_batch(accession)
+        from django.contrib.auth.models import User, Group
+        main_lab = User.objects.create_user('final-path-main-lab')
+        main_lab.groups.add(Group.objects.get_or_create(name='Laboratory Staff')[0])
+        self.client.force_login(main_lab)
         self.client.post(reverse('laboratory_acknowledge_id', args=[item.pk]))
         self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
             'action': 'submit_return', 'organism_reported_code': 'KPN',
             'organism_reported': 'Klebsiella pneumoniae', 'cassette_reference': 'C1',
         })
+        self.client.force_login(self.lab_user)
         self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
         item.refresh_from_db()
         self.assertEqual(item.status, 'id_reviewed')
@@ -370,6 +374,7 @@ class RevivalBeforeIdentificationTests(TestCase):
             whonet_organism_code='KPN', cassette_reference='C1')
         old_return = item.returned_at
         self.assertEqual(next_action(item, self.lab_user)['section'], 'revival')
+        self.client.force_login(self.lab_user)
         self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
         item.refresh_from_db()
         self.assertEqual(item.status, 'id_returned')
@@ -377,6 +382,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertEqual(item.returned_at, old_return)
         self.assertEqual(item.identifications.get().pk, result.pk)
         self.assertEqual(next_action(item, self.lab_user)['section'], 'review')
+        self.client.force_login(self.lab_user)
         self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
         item.refresh_from_db()
         self.assertEqual(item.status, 'id_reviewed')

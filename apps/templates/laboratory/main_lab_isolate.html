@@ -9,10 +9,16 @@
 <p class="receiving-hero-subtitle">Batch {{ isolate.accession_range.reference_range }} · {{ isolate.get_status_display }}</p>
 </div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'main_lab_dashboard' %}">Back to Main Lab</a><a class="btn btn-info" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank">Print accession QR</a></div></header>
 <div class="receiving-content">
-<section class="receiving-surface receiving-form-card mb-4">
+<section class="receiving-surface receiving-card" aria-label="Accession QR">
+  <div class="receiving-card-body receiving-batch-summary has-qr">
+    <div><h2 class="h5">Accession QR</h2><p>Use this accession identifier to receive or resume Main Laboratory ID testing.</p></div>
+    <figure class="receiving-batch-qr"><img src="{% url 'laboratory_isolate_qr' isolate.pk %}" width="168" height="168" alt="Scan accession {{ isolate.accession_number }}"><figcaption><strong>{{ isolate.accession_number }}</strong><span>Scan to receive or resume</span></figcaption></figure>
+  </div>
+</section>
+<section id="identification" class="receiving-surface receiving-form-card mb-4">
 <div class="receiving-card-header"><h2>Main Laboratory ID testing</h2><p>Endorsed from Bench A. This page does not change revival, Site ID, lyophilization or storage records.</p></div>
 <div class="receiving-card-body">
-<p><strong>Site-reported organism:</strong> {{ isolate.site_organism_code|default:"—" }} {{ isolate.site_organism_name }}</p>
+<div class="receiving-help-panel mb-3"><strong>Site-reported organism:</strong> {{ isolate.site_organism_code|default:"—" }} {{ isolate.site_organism_name }}</div>
 {% if isolate.status == 'id_pending' %}
 <p>Waiting for Main Laboratory acknowledgment.</p>
 {% if can_test %}<form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary">Acknowledge ID testing receipt</button></form>{% endif %}
@@ -25,10 +31,14 @@
 <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
 <div class="organism-picker-pair"><input data-organism-code name="organism_reported_code" type="text" readonly class="form-control" placeholder="WHONET code"><input data-organism-name name="organism_reported" type="text" readonly class="form-control" placeholder="Organism name"></div>
 </div>
-<div class="form-group"><label>Instrument</label><input class="form-control" name="instrument" maxlength="100"></div>
-<div class="form-group"><label>Cassette / slot reference</label><input class="form-control" name="cassette_reference" maxlength="100"></div>
+<div class="receiving-info-grid mt-3">
+<div class="form-group"><label for="mainlab-instrument">Instrument</label><input id="mainlab-instrument" class="form-control" name="instrument" maxlength="100"></div>
+<div class="form-group"><label for="mainlab-cassette">Cassette / slot reference</label><input id="mainlab-cassette" class="form-control" name="cassette_reference" maxlength="100"></div>
+</div>
+<div class="receiving-form-actions">
 <button class="btn btn-outline-primary" type="submit" name="action" value="save">Save another ID result</button>
 <button class="btn btn-primary" type="submit" name="action" value="submit_return">Save ID result and return cassette to Bench A</button>
+</div>
 </form>
 {% if isolate.identifications.exists %}
 <form method="post" action="{% url 'laboratory_return_id' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-info">Return saved results and cassette to Bench A</button></form>

@@ -48,20 +48,22 @@ class WorkflowUXTests(TestCase):
         item = self.isolate()
         guidance = next_action(item, self.lab_user)
         self.assertEqual(guidance['section'], 'identification')
-        self.assertTrue(guidance['allowed'])
+        self.assertFalse(guidance['allowed'])
+        self.staff()
+        self.assertTrue(next_action(item, self.lab_user)['allowed'])
 
-    def test_both_laboratory_roles_can_receive_record_and_return_id_results(self):
+    def test_main_lab_role_can_receive_record_and_return_id_results(self):
         accession = self.create_pending_accession()
-        for index, role in enumerate(('LAB Encoder', 'Laboratory Staff')):
+        for index, role in enumerate(('Laboratory Staff',)):
             with self.subTest(role=role):
                 self.lab_user.groups.set([Group.objects.get_or_create(name=role)[0]])
                 item = LaboratoryIsolate.objects.create(accession_range=accession,
-                    accession_number=f'ROLE-ID-{index}', status='id_pending')
+                    accession_number=f'ROLE-ID-{index}', status='id_pending', endorsed_at=timezone.now())
                 self.client.post(reverse('laboratory_acknowledge_id', args=[item.pk]))
                 item.refresh_from_db()
                 self.assertEqual(item.status, 'id_testing')
-                page = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
-                self.assertContains(page, 'Save result and return cassette')
+                page = self.client.get(reverse('main_lab_isolate_detail', args=[item.pk]))
+                self.assertContains(page, 'Save ID result and return cassette to Bench A')
                 self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
                     'organism_reported': 'Klebsiella pneumoniae',
                     'organism_reported_code': 'KPN', 'cassette_reference': 'C1',

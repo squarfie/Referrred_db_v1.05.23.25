@@ -181,7 +181,7 @@
               <td data-label="Status">
                 {% if item.batch %}<span class="badge badge-success">Generated</span>{% else %}<span class="badge badge-warning">Pending</span>{% endif %}
               </td>
-              <td data-label="Actions" class="receiving-actions">
+              <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 {% if item.isolate_records.exists %}
                   <span class="badge badge-info">Revival / Bank or Main Lab ID</span>
                   <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_batch_detail' item.pk %}?area=processing">Open Batch</a>
@@ -210,7 +210,7 @@
                 {% else %}
                   <span class="text-muted small">Locked after ID handoff or batch generation</span>
                 {% endif %}
-              </td>
+              </div></td>
             </tr>
             {% empty %}<tr><td colspan="8" class="text-center text-muted">No accession ranges yet. Use the form above to add one.</td></tr>{% endfor %}
           </tbody>
@@ -308,7 +308,7 @@
                 <div class="small">{{ item.batch.bat_Batch_Code }}</div>
                 {% else %}<span class="badge badge-warning">Pending</span>{% endif %}
               </td>
-              <td data-label="Actions" class="receiving-actions">
+              <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 {% if can_edit and not item.batch %}
                 <div class="receiving-batch-action">
                   {% if row.preview.blocked %}
@@ -328,7 +328,7 @@
                 {% elif item.batch %}
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>
                 {% endif %}
-              </td>
+              </div></td>
             </tr>
             {% endwith %}
             {% empty %}<tr><td colspan="7" class="text-center text-muted">No accession ranges have been saved yet.</td></tr>{% endfor %}
