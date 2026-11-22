@@ -53,6 +53,7 @@ def main_lab_dashboard(request):
     )
     return render(request, "laboratory/main_lab_dashboard.html", {
         "page_obj": page, "counts": counts, "selected_tab": tab,
+        "tab_labels": (("awaiting", "Awaiting acknowledgment"), ("testing", "Testing in progress"), ("returned", "Returned to Bench A"), ("all", "All endorsed")),
         "query": search, "can_test": can_manage_id_testing(request.user),
         "area": "main_lab",
     })
