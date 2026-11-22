@@ -193,7 +193,7 @@ def laboratory_endorse_id(request, accession_id):
 
 
 @login_required
-@lab_staff_required
+@lab_worklist_required
 @require_POST
 def laboratory_queue_id_batch(request, accession_id):
     accession = get_object_or_404(LaboratoryAccession, pk=accession_id)
@@ -207,7 +207,7 @@ def laboratory_queue_id_batch(request, accession_id):
 
 
 @login_required
-@lab_staff_required
+@lab_worklist_required
 @require_POST
 def laboratory_queue_main_lab(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
@@ -376,6 +376,7 @@ def laboratory_isolate_detail(request, isolate_id):
         "previous_isolate_id": sibling_ids[index - 1] if index else None,
         "next_isolate_id": sibling_ids[index + 1] if index + 1 < len(sibling_ids) else None,
         "can_test": can_manage_id_testing(request.user),
+        "can_queue_id": can_manage_id_testing(request.user) or can_review_id_results(request.user),
         "can_review": can_review_id_results(request.user),
         "can_bank": can_manage_biobank(request.user),
     })
