@@ -185,7 +185,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         first.refresh_from_db()
         self.assertEqual(first.status, 'id_queued')
         self.assertEqual(first.identification_source, '')
-        self.assertEqual(first.site_organism_code, '')
+        self.assertEqual(first.site_organism_code, 'KPN')
         self.assertEqual(first.site_bank_storage['storage_box'], 'SITE-BOX')
         self.assertIsNotNone(first.site_banked_at)
         self.assertFalse(queue_for_id(accession.pk, self.lab_user, isolate_id=first.pk))
