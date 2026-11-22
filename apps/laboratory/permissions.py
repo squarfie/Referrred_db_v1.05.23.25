@@ -45,6 +45,14 @@ def can_access_laboratory_worklist(user):
     return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_STAFF, ROLE_LAB_ENCODER})
 
 
+def can_access_main_lab(user):
+    """Main Laboratory is a distinct workstation, not an extension of Bench A."""
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_STAFF})
+
+
+main_lab_required = _permission_required(can_access_main_lab)
+
+
 lab_staff_required = _permission_required(can_manage_id_testing)
 
 
