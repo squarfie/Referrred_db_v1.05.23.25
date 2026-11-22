@@ -47,8 +47,13 @@ def _laboratory_workflow_receipts(receipts):
     path = "laboratory_receiving__accession_ranges__isolate_records"
     receipts = receipts.annotate(
         workflow_isolates=Count(path, distinct=True),
-        workflow_closed=Count(path, filter=Q(**{path + "__status__in": ["biobanked", "non_viable"]}), distinct=True),
-        workflow_pending_id=Count(path, filter=Q(**{path + "__status__in": ["id_pending", "id_testing"]}), distinct=True),
+        workflow_closed=Count(path, filter=Q(**{path + "__status__in": ["non_viable"]}) |
+            (Q(**{path + "__status": "biobanked"}) &
+             Q(**{path + "__identification_source": "main_lab"}) &
+             Q(**{path + "__returned_at__isnull": False}) &
+             Q(**{path + "__reviewed_at__isnull": False}) &
+             Q(**{path + "__lyophilization_completed_at__isnull": False})), distinct=True),
+        workflow_pending_id=Count(path, filter=Q(**{path + "__status__in": ["id_queued", "id_pending", "id_testing", "site_banked"]}), distinct=True),
     )
     complete = Q(
         laboratory_receiving__total_isolates_received__gt=0,
@@ -141,7 +146,7 @@ def laboratory_receiving_workspace(request, receiving_id):
         # Counter returns zero for missing keys, so Django templates resolve
         # stages.items as an integer instead of the dict.items method.
         stages = dict(Counter(item.status for item in isolates))
-        accession.can_queue_id = any(item.status == "revived" and not item.returned_at for item in isolates)
+        accession.can_queue_id = any(item.status in ("revived", "site_banked", "ready_for_biobank") and not item.returned_at for item in isolates)
         accession.can_endorse_id = any(item.status == "id_queued" for item in isolates)
         workflow_rows.append({
             "accession": accession, "stages": stages,
