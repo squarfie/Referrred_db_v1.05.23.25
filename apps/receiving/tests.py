@@ -1118,11 +1118,8 @@ class ReceivingTemplateTests(TestCase):
         legacy = self.client.get(
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
-        self.assertRedirects(
-            legacy,
-            self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id),
-            fetch_redirect_response=False,
-        )
+        self.assertEqual(legacy.status_code, 200)
+        self.assertContains(legacy, receipt.tracking_number)
         response = self.client.get(
             self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
         )
@@ -1836,6 +1833,9 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
                 timezone.make_aware(datetime.combine(accession.date_referred, time(9))).isoformat(),
                 timezone.make_aware(datetime.combine(accession.date_referred, time(10))).isoformat(),
                 "", self.lab_user)
+            isolate.site_organism_code = "KPN"
+            isolate.site_organism_name = "Klebsiella pneumoniae"
+            isolate.save(update_fields=["site_organism_code", "site_organism_name"])
         transition_batch(accession.pk, "queue", self.lab_user)
         self.assertEqual(self.client.post(
             reverse("laboratory_endorse_id", kwargs={"accession_id": accession.pk})
