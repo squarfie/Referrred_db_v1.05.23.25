@@ -180,7 +180,7 @@ def bank_using_site_id(isolate_id, user):
     item = LaboratoryIsolate.objects.select_for_update().select_related(
         "accession_range__laboratory_receiving__receipt__site"
     ).get(pk=isolate_id)
-    if item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.BIOBANKED):
+    if item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.SITE_BANKED):
         return item
     if (item.status != S.REVIVED or not item.revival_started_at or not item.revival_completed_at
             or item.endorsed_at or item.returned_at or item.identifications.exists()):
@@ -339,7 +339,7 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
     item = LaboratoryIsolate.objects.select_for_update().select_related(
         "accession_range__laboratory_receiving__receipt"
     ).get(pk=isolate_id)
-    site_banking = item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.BIOBANKED)
+    site_banking = item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.SITE_BANKED)
     if (item.status != S.ID_REVIEWED and not site_banking) or not item.final_organism:
         raise WorkflowError("Confirm Main Laboratory identification or select site-ID banking before recording lyophilization.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
@@ -380,7 +380,7 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
     bank.whonet_code = code
     bank.recorded_by = user
     bank.save()
-    if item.status != S.BIOBANKED:
+    if item.status not in (S.BIOBANKED, S.SITE_BANKED):
         item.status = S.READY_FOR_BIOBANK
     if not item.lyophilization_completed_at:
         item.lyophilization_completed_at = timezone.now()
