@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}New receiving record{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page" data-page="receiving-intake">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-clipboard-check"></i></span><div><p class="receiving-eyebrow">Receiving intake</p><h1>Receive courier batch</h1><p class="receiving-hero-subtitle">Create the permanent custody record before endorsement to the laboratory.</p></div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'secretariat_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-2"></i>Back to Receiving</a></div></header>

@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}Biobank inventory{% endblock %}
 {% block stylesheets %}
-<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">
+<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">
 <style>
   .inventory-batch { border: 1px solid #cfe4ed; border-radius: .5rem; margin-bottom: .75rem; overflow: hidden; }
   .inventory-batch summary { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; padding: 1rem; background: #edf8fc; color: #173f50; cursor: pointer; list-style: none; }
@@ -70,8 +70,8 @@
 <td>{{ isolate.biobank.storage_location|default:isolate.biobank.lyo_location|default:isolate.biobank.supplementary_location|default:"—" }}</td>
 <td>{% if isolate.biobank.storage_box %}{{ isolate.biobank.storage_box }}{% elif isolate.biobank.lyo_box_name or isolate.biobank.lyo_box_number %}{{ isolate.biobank.lyo_box_name }} {{ isolate.biobank.lyo_box_number }}{% elif isolate.biobank.supplementary_box_name or isolate.biobank.supplementary_box_number %}{{ isolate.biobank.supplementary_box_name }} {{ isolate.biobank.supplementary_box_number }}{% else %}—{% endif %}</td>
 <td>{{ isolate.biobank.box_position|default:isolate.biobank.lyo_position|default:isolate.biobank.supplementary_position|default:"—" }}</td>
-<td><a href="{% url 'laboratory_isolate_detail' isolate.pk %}?area=biobank#biobank" class="btn btn-sm btn-primary">{% if can_bank %}Update{% else %}View{% endif %}</a>
-{% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a target="_blank" href="{% url 'laboratory_biobank_label' isolate.pk %}" class="btn btn-sm btn-outline-info">Sticker</a>{% endif %}</td>
+<td class="receiving-actions"><div class="receiving-action-group"><a href="{% url 'laboratory_isolate_detail' isolate.pk %}?area=biobank#biobank" class="btn btn-sm btn-primary">{% if can_bank %}Update{% else %}View{% endif %}</a>
+{% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a target="_blank" href="{% url 'laboratory_biobank_label' isolate.pk %}" class="btn btn-sm btn-outline-info">Sticker</a>{% endif %}</div></td>
 </tr>{% endfor %}
 </tbody></table></div></details>
 {% empty %}<p class="text-muted text-center">No isolate records found.</p>{% endfor %}

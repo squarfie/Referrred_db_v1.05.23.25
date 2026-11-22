@@ -1932,6 +1932,41 @@ select.form-control {
 
 
 /* ---- make header controls align exactly with page content ---- */
+/* Shared action bars use gaps rather than button margins so wrapped rows stay apart. */
+.header-actions,
+.batch-header-actions,
+.form-actions,
+.settings-action-bar,
+.btn-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+.header-actions > .btn,
+.header-actions > form > .btn,
+.batch-header-actions > .btn,
+.batch-header-actions > form > .btn,
+.form-actions > .btn,
+.form-actions > form > .btn,
+.settings-action-bar > .btn,
+.settings-action-bar > form > .btn,
+.btn-toolbar > .btn {
+  margin: 0 !important;
+  max-width: 100%;
+  white-space: normal;
+}
+.header-actions > form,
+.batch-header-actions > form,
+.form-actions > form,
+.settings-action-bar > form {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+
 .aligned-row {
   max-width: 1188px; /* match your content width / card container — tweak if needed */
   margin: 0 auto;
