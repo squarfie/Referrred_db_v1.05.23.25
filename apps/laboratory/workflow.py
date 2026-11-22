@@ -140,7 +140,7 @@ def create_id_handoff(accession_id, user, isolate_id=None):
         "laboratory_receiving__receipt"
     ).get(pk=accession_id)
     if accession.laboratory_receiving.receipt.status != "lab_received":
-        raise WorkflowError("Laboratory Receiving must acknowledge Secretariat custody first.")
+        raise WorkflowError("Laboratory Receiving must acknowledge the original Receiving handoff first.")
     items = list(LaboratoryIsolate.objects.select_for_update()
                  .filter(accession_range=accession).order_by("pk"))
     if len(items) != accession.isolate_count or not items:
