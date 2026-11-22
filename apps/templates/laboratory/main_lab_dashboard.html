@@ -18,8 +18,8 @@
     <section class="receiving-surface receiving-table-card">
       <div class="receiving-board-toolbar"><h2 class="receiving-board-title">Main Lab Worklist</h2></div>
       <nav class="receiving-tabs" aria-label="Main Laboratory monitoring tabs">
-      {% for key, label in tab_labels %}
-      <a class="receiving-tab {% if selected_tab == key %}active{% endif %}" href="?tab={{ key }}{% if query %}&q={{ query|urlencode }}{% endif %}">{{ label }}</a>
+      {% for tab in main_lab_tabs %}
+      <a class="receiving-tab {% if selected_tab == tab.key %}active{% endif %}" {% if selected_tab == tab.key %}aria-current="page"{% endif %} href="?tab={{ tab.key }}{% if query %}&amp;q={{ query|urlencode }}{% endif %}">{{ tab.label }} <span class="receiving-tab-count" aria-label="{{ tab.count }} isolate{{ tab.count|pluralize }}">{{ tab.count }}</span></a>
       {% endfor %}
       </nav>
       <form method="get" class="receiving-main-lab-search">

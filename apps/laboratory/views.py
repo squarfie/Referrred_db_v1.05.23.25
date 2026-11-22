@@ -143,6 +143,13 @@ def laboratory_worklist(request, area="identification"):
         S.ID_RETURNED, S.ID_QUEUED, S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED,
         S.REVIVED, S.ID_REVIEWED, S.READY_FOR_BIOBANK, S.SITE_BANKED,
     )
+    # Scope badges count isolates across the complete queue, before filters and
+    # the batch display limit. Returned history can overlap active processing.
+    scope_counts = {
+        "active": LaboratoryIsolate.objects.filter(status__in=active).count(),
+        "history": (LaboratoryIsolate.objects.filter(returned_at__isnull=False).count()
+                    if area == "processing" else LaboratoryIsolate.objects.count()),
+    }
     if show_history and area == "processing":
         batches = batches.filter(isolate_records__returned_at__isnull=False).distinct()
     if not show_history:
@@ -175,7 +182,7 @@ def laboratory_worklist(request, area="identification"):
         })
     return render(request, "laboratory/lab_worklist.html", {
         "batches": rows, "query": query, "selected_status": status,
-        "area": area, "show_history": show_history,
+        "area": area, "show_history": show_history, "scope_counts": scope_counts,
         "worklist_url": "laboratory_processing_worklist" if area == "processing" else "laboratory_worklist",
         "statuses": LaboratoryIsolate.Status.choices,
         "can_test": can_access_main_lab(request.user),

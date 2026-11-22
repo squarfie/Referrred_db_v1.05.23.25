@@ -17,9 +17,10 @@
       <div class="receiving-card-header"><h2>Batch worklist</h2><p>Open a batch to see each accession, its next action and the responsible role. Active work is shown by default.</p></div>
       <div class="receiving-card-body">
         <nav class="receiving-tabs" aria-label="Worklist scope">
-          <a class="receiving-tab {% if not show_history %}active{% endif %}" {% if not show_history %}aria-current="page"{% endif %} href="?area={{ area }}">Active work</a>
-          <a class="receiving-tab {% if show_history %}active{% endif %}" {% if show_history %}aria-current="page"{% endif %} href="?area={{ area }}&history=1">{% if area == 'processing' %}Returned from Main Lab / history{% else %}History{% endif %}</a>
+          <a class="receiving-tab {% if not show_history %}active{% endif %}" {% if not show_history %}aria-current="page"{% endif %} href="?area={{ area }}">Active work <span class="receiving-tab-count" aria-label="{{ scope_counts.active }} isolate{{ scope_counts.active|pluralize }}">{{ scope_counts.active }}</span></a>
+          <a class="receiving-tab {% if show_history %}active{% endif %}" {% if show_history %}aria-current="page"{% endif %} href="?area={{ area }}&history=1">{% if area == 'processing' %}Returned from Main Lab / history{% else %}History{% endif %} <span class="receiving-tab-count" aria-label="{{ scope_counts.history }} isolate{{ scope_counts.history|pluralize }}">{{ scope_counts.history }}</span></a>
         </nav>
+        <p class="small text-muted mt-2">Tab badges count isolates across the full queue. The table groups accessions by batch; returned isolates can still have active processing.</p>
         <form method="get" class="form-row align-items-end mb-3">
           <input type="hidden" name="area" value="{{ area }}">{% if show_history %}<input type="hidden" name="history" value="1">{% endif %}
           <div class="col-md-5 mb-2"><label for="id-q">Accession number</label><input id="id-q" name="q" value="{{ query }}" class="form-control" placeholder="e.g. 26ARS_RI0001"></div>

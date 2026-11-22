@@ -42,6 +42,9 @@ def main_lab_dashboard(request):
         "returned": base.filter(returned_at__isnull=False).count(),
         "all": base.count(),
     }
+    tab_labels = (("awaiting", "Awaiting acknowledgment"), ("testing", "Testing in progress"),
+                  ("returned", "Returned to Bench A"), ("all", "All endorsed"))
+    tabs = [{"key": key, "label": label, "count": counts[key]} for key, label in tab_labels]
     isolates = base
     if tab == "awaiting":
         isolates = isolates.filter(status=LaboratoryIsolate.Status.ID_PENDING)
@@ -61,7 +64,7 @@ def main_lab_dashboard(request):
     )
     return render(request, "laboratory/main_lab_dashboard.html", {
         "page_obj": page, "counts": counts, "selected_tab": tab,
-        "tab_labels": (("awaiting", "Awaiting acknowledgment"), ("testing", "Testing in progress"), ("returned", "Returned to Bench A"), ("all", "All endorsed")),
+        "tab_labels": tab_labels, "main_lab_tabs": tabs,
         "query": search, "can_test": can_access_main_lab(request.user),
         "area": "main_lab",
     })
