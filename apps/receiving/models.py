@@ -552,7 +552,8 @@ class LaboratoryIsolate(models.Model):
         ID_RETURNED = "id_returned", "ID results and cassette returned"
         ID_REVIEWED = "id_reviewed", "Identification reviewed"
         READY_FOR_BIOBANK = "ready_for_biobank", "Ready for biobank"
-        BIOBANKED = "biobanked", "Biobanked"
+        SITE_BANKED = "site_banked", "Temporarily banked using Site ID"
+        BIOBANKED = "biobanked", "Final biobank complete"
 
     accession_range = models.ForeignKey(
         LaboratoryAccession, on_delete=models.PROTECT, related_name="isolate_records"
@@ -616,6 +617,10 @@ class LaboratoryIsolate(models.Model):
     approved_organism_code = models.CharField(max_length=20, blank=True, default="")
     lyophilization_completed_at = models.DateTimeField(null=True, blank=True)
     lyophilization_completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_lyophilization_completed_isolates")
+    site_banked_at = models.DateTimeField(null=True, blank=True)
+    site_banked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="lab_site_banked_isolates")
+    site_bank_storage = models.JSONField(default=dict, blank=True)
     biobanked_at = models.DateTimeField(null=True, blank=True)
     biobanked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_biobanked_isolates")
     created_at = models.DateTimeField(auto_now_add=True)
