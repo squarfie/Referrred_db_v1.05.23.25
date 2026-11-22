@@ -126,7 +126,7 @@
           </li>
           {% endif %}
 
-          {% if user_access.nav_can_laboratory_receiving or user_access.can_view_lab_testing %}
+          {% if user_access.nav_can_laboratory_receiving or user_access.nav_can_main_lab or user_access.can_view_lab_testing %}
           <li class="nav-item sidenav-workspace" data-group-container="laboratory-operations">
           <button type="button" class="nav-link sidenav-workspace-toggle"
                   id="sidebarLaboratoryOperationsToggle" data-sidebar-group="laboratory-operations"
@@ -141,7 +141,7 @@
             <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_receiving_dashboard' or current_url == 'laboratory_receiving_detail' or current_url == 'receiving_lab_confirm' or current_url == 'laboratory_receiving_workspace' or current_url == 'laboratory_accession_add' or current_url == 'laboratory_accession_edit' or current_url == 'laboratory_accession_delete' or current_url == 'laboratory_batch_create' or current_url == 'laboratory_receiving_register' or current_url == 'laboratory_receiving_register_pdf' or current_url == 'laboratory_worklist' or current_url == 'laboratory_processing_worklist' or current_url == 'laboratory_batch_detail' or current_url == 'laboratory_isolate_detail' %}active{% endif %}" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-box-open text-primary" aria-hidden="true"></i><span class="nav-link-text">Bench A / Laboratory Receiving</span></a></li>
             {% endif %}
 
-            {% if user_access.is_lab_staff or user_access.is_admin %}
+            {% if user_access.nav_can_main_lab %}
             <li class="nav-item"><a class="nav-link {% if current_url == 'main_lab_dashboard' or current_url == 'main_lab_isolate_detail' %}active{% endif %}" href="{% url 'main_lab_dashboard' %}"><i class="fas fa-microscope text-primary" aria-hidden="true"></i><span class="nav-link-text">Main Laboratory</span></a></li>
             {% endif %}
             {% if user_access.can_view_lab_testing %}
