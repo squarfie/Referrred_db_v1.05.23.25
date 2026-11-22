@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("received", "Isolates Received"),
                     ("endorsed", "Endorsed to Laboratory Receiving"),
-                    ("lab_received", "Received by Laboratory"),
+                    ("lab_received", "Received by Laboratory Receiving"),
                 ],
                 db_index=True, default="received", max_length=20,
             ),
@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("received", "Isolates Received"),
                     ("endorsed", "Endorsed to Laboratory Receiving"),
-                    ("lab_received", "Received by Laboratory"),
+                    ("lab_received", "Received by Laboratory Receiving"),
                     ("id_received", "Received for ID Testing"),
                     ("accession_assigned", "Accession Range Assigned"),
                     ("batch_created", "Laboratory Batch Created"),
