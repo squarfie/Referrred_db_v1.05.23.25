@@ -367,5 +367,6 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertEqual(item.status, 'ready_for_biobank')
         save_biobank(item.pk, {'storage_box': 'BOX', 'box_position': 'A1'}, self.lab_user)
         item.refresh_from_db()
-        self.assertEqual(item.status, 'biobanked')
-        self.assertEqual(item.biobanked_by, self.lab_user)
+        self.assertEqual(item.status, 'site_banked')
+        self.assertEqual(item.site_banked_by, self.lab_user)
+        self.assertIsNone(item.biobanked_at)
