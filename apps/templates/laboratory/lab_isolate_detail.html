@@ -1,9 +1,9 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Isolate {{ isolate.accession_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261121-scan-flow"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
 {% block content %}
-<main class="receiving-page">
+<main class="receiving-page" data-page="laboratory-isolate">
 <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-vial"></i></span><div>
 <p class="receiving-eyebrow">Isolate identification &amp; biobank record</p>
 <h1>{{ isolate.accession_number }}</h1>
@@ -16,9 +16,19 @@
 {% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a href="{% url 'laboratory_biobank_label' isolate.pk %}" target="_blank" class="btn btn-info"><i class="fas fa-print mr-1"></i>Biobank Sticker</a>{% endif %}
 </div></header>
 <div class="receiving-content">
+<section class="receiving-surface receiving-card" aria-label="Accession QR">
+  <div class="receiving-card-body receiving-batch-summary has-qr">
+    <div><h2 class="h5">Accession QR</h2><p class="mb-2">Scan to receive for ID testing or resume the current process. The receiver and receipt time are recorded automatically when an authorized Main Laboratory user scans a pending isolate.</p><a class="btn btn-outline-primary" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank" rel="noopener"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print accession QR</a></div>
+    <figure class="receiving-batch-qr"><img src="{% url 'laboratory_isolate_qr' isolate.pk %}" width="168" height="168" alt="Scan accession {{ isolate.accession_number }}"><figcaption><strong>{{ isolate.accession_number }}</strong><span>Scan to receive or resume</span></figcaption></figure>
+  </div>
+</section>
 <section class="receiving-surface receiving-form-card mb-4" id="{{ next_action.section }}" aria-labelledby="current-stage-title">
 <div class="receiving-card-header"><p class="receiving-eyebrow">Current step &middot; {{ next_action.owner }}</p><h2 id="current-stage-title">{{ next_action.label }}</h2></div>
 <div class="receiving-card-body">
+<div class="mb-3 p-3 border rounded"><strong>Site-reported identification:</strong> {% if site_id %}{{ site_id.0 }} &mdash; {{ site_id.1 }}{% else %}<span class="text-muted">Not yet recorded</span>{% endif %}<div class="small text-muted">Reference for confirmatory ID/AST. Main Laboratory results are recorded separately.</div></div>
+{% if can_edit_site_id and next_action.section != 'revival' %}
+<details class="mb-3"><summary>Record or correct the site-reported ID before endorsement</summary><form method="post" action="{% url 'laboratory_site_id_save' isolate.pk %}" class="mt-3">{% csrf_token %}{% include 'laboratory/_site_id_fields.html' %}<button class="btn btn-sm btn-primary" type="submit">Save site identification</button></form></details>
+{% endif %}
 {% if next_action.section == 'closed' %}
 <p class="mb-0">{% if isolate.status == 'non_viable' %}This isolate is non-viable. The scientific record is preserved below.{% else %}Processing is complete. The scientific record and storage details are available below.{% endif %}</p>
 {% elif not next_action.allowed %}
@@ -34,11 +44,11 @@
 <input id="id-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
 <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
 <div class="organism-picker-pair">
-<input name="organism_reported_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
-<input name="organism_reported" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
+<input data-model="LaboratoryIdentification" data-field="whonet_organism_code" name="organism_reported_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
+<input data-model="LaboratoryIdentification" data-field="organism_reported" name="organism_reported" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
 </div></div></div>
-<div class="col-md-3 mb-2"><label for="instrument">Instrument</label><input id="instrument" name="instrument" class="form-control" maxlength="100"></div>
-<div class="col-md-3 mb-2"><label for="cassette">Cassette/slot reference</label><input id="cassette" name="cassette_reference" class="form-control" maxlength="100" required></div>
+<div class="col-md-3 mb-2"><label for="instrument">Instrument</label><input id="instrument" data-model="LaboratoryIdentification" data-field="instrument" name="instrument" class="form-control" maxlength="100"></div>
+<div class="col-md-3 mb-2"><label for="cassette">Cassette/slot reference</label><input id="cassette" data-model="LaboratoryIdentification" data-field="cassette_reference" name="cassette_reference" class="form-control" maxlength="100" required></div>
 <div class="col-md-auto mb-2"><button type="submit" name="action" value="submit_return" class="btn btn-primary mb-0">Save result and return cassette</button> <button type="submit" name="action" value="save" class="btn btn-outline-secondary mb-0">Save and add another result</button></div>
 </form>
 {% if isolate.identifications.exists %}<details class="mb-3"><summary>Previously saved instrument results</summary>{% include 'laboratory/_lab_isolate_results.html' %}</details>
@@ -47,15 +57,30 @@
 {% if isolate.status == 'revival_failed' %}
 <div class="alert alert-warning">{{ isolate.revival_failed_reason }}</div><form method="post" action="{% url 'laboratory_revival_retry' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-warning">Retry revival</button></form>
 {% else %}
-<p>Record the scientific start and completion times and the observed revival outcome.</p>
+<p>Record the actual revival start, completion and outcome. Harvest date is recorded with lyophilization.</p>
 <form method="post" action="{% url 'laboratory_revival_outcome' isolate.pk %}">{% csrf_token %}
-<div class="row"><div class="col-md-4 mb-3"><label for="revival-started">Revival started</label><input id="revival-started" name="started_at" type="datetime-local" step="1" value="{{ revival_attempt_start|date:'Y-m-d\TH:i:s' }}" class="form-control" required></div>
-<div class="col-md-4 mb-3"><label for="revival-completed">Revival completed</label><input id="revival-completed" name="completed_at" type="datetime-local" step="1" class="form-control" required></div>
-<div class="col-md-4 mb-3"><label for="revival-outcome">Outcome</label><select id="revival-outcome" name="status" class="form-control" required><option value="">Choose outcome</option><option value="revived">Revived</option><option value="revival_failed">Revival failed</option><option value="non_viable">Non-viable</option></select></div></div>
-<div class="mb-3"><label for="revival-reason">Reason / observations (required for unsuccessful outcomes)</label><textarea id="revival-reason" name="reason" class="form-control" maxlength="1000"></textarea></div>
+{% if can_edit_site_id %}{% include 'laboratory/_site_id_fields.html' %}{% endif %}
+<div class="row"><div class="col-md-4 mb-3"><label for="revival-started">Revival started</label><input id="revival-started" data-model="LaboratoryIsolate" data-field="revival_started_at" name="started_at" type="datetime-local" step="1" value="{{ revival_attempt_start|date:'Y-m-d\TH:i:s' }}" class="form-control" required></div>
+<div class="col-md-4 mb-3"><label for="revival-completed">Revival completed</label><input id="revival-completed" data-model="LaboratoryIsolate" data-field="revival_completed_at" name="completed_at" type="datetime-local" step="1" class="form-control" required></div>
+<div class="col-md-4 mb-3"><label for="revival-outcome">Outcome</label><select id="revival-outcome" data-model="LaboratoryIsolate" data-field="status" name="status" class="form-control" required><option value="">Choose outcome</option><option value="revived">Revived</option><option value="revival_failed">Revival failed</option><option value="non_viable">Non-viable</option></select></div></div>
+<div class="mb-3"><label for="revival-reason">Reason / observations (required for unsuccessful outcomes)</label><textarea id="revival-reason" data-model="LaboratoryIsolate" data-field="revival_failed_reason" name="reason" class="form-control" maxlength="1000"></textarea></div>
 <button class="btn btn-primary" type="submit">Record revival outcome</button></form>
 {% endif %}
-{% elif next_action.section == 'review' and can_review and isolate.status == 'revived' %}
+{% elif next_action.section == 'disposition' %}
+<p>Revival is complete. Choose the identification route before final banking.</p>
+{% if can_test %}
+<form method="post" action="{% url 'laboratory_queue_main_lab' isolate.pk %}" class="mb-3">{% csrf_token %}<button class="btn btn-primary" type="submit">Queue for endorsement to Main Lab</button><p class="small text-muted">Queue first, then endorse to Main Lab for ID testing. After return, the Lab Encoder confirms the final ID and records lyophilization before banking.</p></form>
+{% endif %}
+{% if can_bank %}
+{% if site_id %}
+<p><strong>Site identification:</strong> {{ site_id.0 }} &mdash; {{ site_id.1 }}</p>
+<form method="post" action="{% url 'laboratory_bank_site_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-info" type="submit">Bank directly using site ID</button><p class="small text-muted">Uses this accession's referring-site ID. Complete the storage map on the next step to finalize ID and banking.</p></form>
+{% else %}<p class="alert alert-warning">{{ site_id_error }} You can still queue for endorsement to Main Lab.</p>{% endif %}
+{% endif %}
+{% elif next_action.section == 'endorsement' and can_test %}
+<p>This isolate is queued for endorsement. Main Lab ID testing begins only after it is endorsed and received.</p>
+<form method="post" action="{% url 'laboratory_endorse_isolate' isolate.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Endorse to Main Lab for ID testing</button></form>
+{% elif next_action.section == 'review' and can_review %}
 {% with latest=isolate.identifications.first %}
 <p><strong>Latest instrument report:</strong> {% if latest.whonet_organism_code %}{{ latest.whonet_organism_code }} &mdash; {% endif %}{{ latest.organism_reported }} <span class="text-muted">{{ latest.instrument }} &middot; {{ latest.cassette_reference }}</span></p>
 <form method="post" action="{% url 'laboratory_review_id' isolate.pk %}" class="mb-3">{% csrf_token %}<button type="submit" name="review_choice" value="accept_reported" class="btn btn-primary">Accept reported identification</button></form>
@@ -66,30 +91,16 @@
 <input id="review-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
 <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
 <div class="organism-picker-pair">
-<input name="final_organism_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
-<input name="final_organism" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
+<input data-model="LaboratoryIsolate" data-field="approved_organism_code" name="final_organism_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
+<input data-model="LaboratoryIsolate" data-field="final_organism" name="final_organism" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
 </div></div></div>
 <div class="col-md-auto mb-2"><button class="btn btn-primary mb-0" type="submit">Approve changed identification</button></div></form></details>
 {% elif next_action.section == 'lyophilization' and can_review and isolate.status == 'id_reviewed' %}
-<p>Record harvest and lyophilization dates. Harvest must be on or before lyophilization.</p>
-<form method="post" action="{% url 'laboratory_lyophilization_complete' isolate.pk %}" class="row align-items-end">
-{% csrf_token %}
-<div class="col-md-3 mb-2"><label for="lyo-harvest">Date harvested</label><input id="lyo-harvest" name="date_harvested" type="date" class="form-control" required></div>
-<div class="col-md-3 mb-2"><label for="lyo-date">Date lyophilized</label><input id="lyo-date" name="date_lyophilized" type="date" class="form-control" required></div>
-{% if isolate.approved_organism_code %}
-<div class="col-md-6 mb-2"><label>Approved organism for sticker</label><p class="form-control-plaintext">{{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}</p><input type="hidden" name="whonet_code" value="{{ isolate.approved_organism_code }}"><input type="hidden" name="whonet_organism_name" value="{{ isolate.final_organism }}"></div>
-{% else %}<div class="col-md-6 mb-2"><div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
-<label for="lyo-organism-search">WHONET organism for sticker</label>
-<input id="lyo-organism-search" type="search" data-organism-search value="{% if isolate.approved_organism_code %}{{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}{% endif %}" class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
-<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
-<div class="organism-picker-pair">
-<input name="whonet_code" data-organism-code type="text" value="{{ isolate.approved_organism_code }}" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
-<input name="whonet_organism_name" data-organism-name type="text" value="{% if isolate.approved_organism_code %}{{ isolate.final_organism }}{% endif %}" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
-</div></div></div>
-{% endif %}
-<div class="col-md-12 mb-2"><button class="btn btn-primary mb-0" type="submit">Complete lyophilization / harvest</button></div>
-</form>
+{% include 'laboratory/_lab_lyophilization_form.html' %}
 {% elif next_action.section == 'biobank' and can_bank and isolate.status == 'ready_for_biobank' %}
+{% if isolate.identification_source == 'site' and can_review %}
+<details class="mb-3"><summary>Record harvest and lyophilization (if performed)</summary><div class="mt-3">{% include 'laboratory/_lab_lyophilization_form.html' %}</div></details>
+{% endif %}
 {% include 'laboratory/_lab_isolate_storage_form.html' %}
 {% endif %}
 </div></section>
@@ -98,8 +109,10 @@
 <div class="receiving-card-body">
 <h2 class="h5">Instrument results</h2>{% include 'laboratory/_lab_isolate_results.html' %}
 <h2 class="h5 mt-4">Workflow audit</h2><dl class="row">
+{% if isolate.site_identified_at %}<dt class="col-md-4">Site ID recorded</dt><dd class="col-md-8">{{ isolate.site_identified_at|date:"M j, Y g:i A" }} &middot; {{ isolate.site_identified_by|default:"&mdash;" }}</dd>{% endif %}
 {% if isolate.created_at %}<dt class="col-md-4">Accession created</dt><dd class="col-md-8">{{ isolate.created_at|date:"M j, Y g:i A" }}</dd>{% endif %}
-{% if isolate.endorsed_at %}<dt class="col-md-4">Endorsed</dt><dd class="col-md-8">{{ isolate.endorsed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.endorsed_by|default:"&mdash;" }}</dd>{% endif %}
+{% if isolate.id_queued_at %}<dt class="col-md-4">Queued for endorsement</dt><dd class="col-md-8">{{ isolate.id_queued_at|date:"M j, Y g:i A" }} &middot; {{ isolate.id_queued_by|default:"&mdash;" }}</dd>{% endif %}
+{% if isolate.endorsed_at %}<dt class="col-md-4">Endorsed to Main Lab</dt><dd class="col-md-8">{{ isolate.endorsed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.endorsed_by|default:"&mdash;" }}</dd>{% endif %}
 {% if isolate.acknowledged_at %}<dt class="col-md-4">Acknowledged</dt><dd class="col-md-8">{{ isolate.acknowledged_at|date:"M j, Y g:i A" }} &middot; {{ isolate.acknowledged_by|default:"&mdash;" }}</dd>{% endif %}
 {% if isolate.returned_at %}<dt class="col-md-4">Results and cassette returned</dt><dd class="col-md-8">{{ isolate.returned_at|date:"M j, Y g:i A" }} &middot; {{ isolate.returned_by|default:"&mdash;" }}</dd>{% endif %}
 {% if isolate.revival_queued_at %}<dt class="col-md-4">Revival queued</dt><dd class="col-md-8">{{ isolate.revival_queued_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_queued_by|default:"&mdash;" }}</dd>{% endif %}
@@ -111,7 +124,7 @@
 {% if isolate.biobanked_at %}<dt class="col-md-4">Biobanked</dt><dd class="col-md-8">{{ isolate.biobanked_at|date:"M j, Y g:i A" }} &middot; {{ isolate.biobanked_by|default:"&mdash;" }}</dd>{% endif %}
 </dl>
 {% if isolate.revival_retry_count or isolate.revival_failed_reason %}<h3 class="h6">Revival observations and retries</h3><p>Retry count: {{ isolate.revival_retry_count }}<br>{{ isolate.revival_failed_reason|linebreaksbr }}</p>{% endif %}
-{% if isolate.final_organism %}<h3 class="h6">Approved organism</h3><p>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}</p>{% endif %}
+{% if isolate.final_organism %}<h3 class="h6">Organism identification</h3><p>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}{% if isolate.identification_source %}<br>Source: {{ isolate.get_identification_source_display }}{% endif %}</p>{% endif %}
 {% if biobank %}{% include 'laboratory/_lab_isolate_storage_record.html' %}{% endif %}
 </div></details>
 {% if can_bank and isolate.status == 'biobanked' %}<details class="receiving-surface receiving-form-card mb-4"><summary class="p-3"><strong>Edit completed biobank storage</strong></summary><div class="receiving-card-body">{% include 'laboratory/_lab_isolate_storage_form.html' %}</div></details>{% endif %}

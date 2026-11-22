@@ -1,13 +1,13 @@
 {% extends "layouts/base.html" %}
 {% load static %}
-{% block title %}Receiving{% endblock %}
+{% block title %}Receiving {% endblock %}
 {% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
     <div class="receiving-hero-main">
       <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-      <div><p class="receiving-eyebrow">Isolate custody</p><h1>Secretariat Receiving</h1>
+      <div><p class="receiving-eyebrow">Isolate custody</p><h1>Isolate Tracking</h1>
         <p class="receiving-hero-subtitle">Record courier arrivals and endorse received isolates to Laboratory Receiving.</p>
       </div>
     </div>
@@ -18,7 +18,7 @@
 
   <div class="receiving-content">
     <section class="receiving-stat-grid" aria-label="Receiving status summary">
-      <article class="receiving-surface receiving-stat"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span><div><div class="receiving-stat-label">Received by Secretariat</div><div class="receiving-stat-value">{{ received_count }}</div></div></article>
+      <article class="receiving-surface receiving-stat"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span><div><div class="receiving-stat-label">Isolates Received</div><div class="receiving-stat-value">{{ received_count }}</div></div></article>
       <article class="receiving-surface receiving-stat is-endorsed"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-paper-plane"></i></span><div><div class="receiving-stat-label">Endorsed to Laboratory</div><div class="receiving-stat-value">{{ endorsed_count }}</div></div></article>
       <article class="receiving-surface receiving-stat is-complete"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-check-circle"></i></span><div><div class="receiving-stat-label">Received by Laboratory</div><div class="receiving-stat-value">{{ lab_received_count }}</div></div></article>
     </section>
@@ -26,11 +26,11 @@
     <section class="receiving-surface receiving-table-card" aria-label="Receiving worklist">
       <div class="receiving-board-toolbar">
         <div><h2 class="receiving-board-title">{{ active_tab_label }}</h2>
-          <p class="receiving-board-subtitle">Choose a tab to view courier receiving records. Counts represent all records.</p>
+          <p class="receiving-board-subtitle">Choose a tab to view courier receiving isolates. Counts represent all isolates.</p>
         </div>
         <form method="get" class="receiving-board-search">
           <input type="hidden" name="tab" value="{{ active_tab }}">
-          <label class="form-control-label" for="receiving-search">Search records</label>
+          <label class="form-control-label" for="receiving-search">Search isolate</label>
           <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
             <div class="receiving-search-wrap"><i class="fas fa-search" aria-hidden="true"></i>
               <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Tracking number, site code or name">
@@ -52,8 +52,8 @@
       </nav>
 
       <div class="table-responsive"><table class="table receiving-table">
-        <caption class="sr-only">Courier batch receiving records</caption>
-        <thead><tr><th scope="col">Tracking number</th><th scope="col">Referring site</th><th scope="col">Secretariat received</th><th scope="col">Received by</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+        <caption class="sr-only">Courier batch receiving isolates</caption>
+        <thead><tr><th scope="col">Tracking number</th><th scope="col">Referring site</th><th scope="col">Isolates received</th><th scope="col">Received by</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
         <tbody>
         {% for receipt in page_obj %}
           <tr>
@@ -76,14 +76,14 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="receiving-empty"><i class="fas fa-box-open" aria-hidden="true"></i>No receiving records found in this tab.</td></tr>
+          <tr><td colspan="6" class="receiving-empty"><i class="fas fa-box-open" aria-hidden="true"></i>No isolatesfound in this tab.</td></tr>
         {% endfor %}
         </tbody>
       </table></div>
       <div class="receiving-board-pagination">
-        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} record{{ page_obj.paginator.count|pluralize }}</span>
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} isolate{{ page_obj.paginator.count|pluralize }}</span>
         {% if page_obj.paginator.num_pages > 1 %}
-          <nav class="receiving-pagination" aria-label="Receiving records pages">
+          <nav class="receiving-pagination" aria-label="Receiving isolates page">
             {% if page_obj.has_previous %}
               <a href="?tab={{ active_tab }}&q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}">&larr; Previous</a>
             {% else %}<span></span>{% endif %}

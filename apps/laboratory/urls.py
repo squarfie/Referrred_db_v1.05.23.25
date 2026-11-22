@@ -1,7 +1,11 @@
 from django.urls import path
-from . import views, receiving_views
+from . import views, receiving_views, scan_views, inventory_views
 
 urlpatterns = [
+    path("laboratory-worklist/<int:isolate_id>/site-id/", views.laboratory_site_id_save, name="laboratory_site_id_save"),
+    path("laboratory-scan/<str:accession_number>/", scan_views.laboratory_isolate_scan, name="laboratory_isolate_scan"),
+    path("laboratory-worklist/<int:isolate_id>/qr.png", scan_views.laboratory_isolate_qr, name="laboratory_isolate_qr"),
+    path("laboratory-worklist/<int:isolate_id>/qr-label/", scan_views.laboratory_isolate_scan_label, name="laboratory_isolate_scan_label"),
     path("laboratory-processing/", views.laboratory_processing_worklist, name="laboratory_processing_worklist"),
     path("laboratory-worklist/<int:isolate_id>/revival-outcome/", views.laboratory_revival_outcome, name="laboratory_revival_outcome"),
     path("laboratory-worklist/", views.laboratory_worklist, name="laboratory_worklist"),
@@ -9,6 +13,7 @@ urlpatterns = [
     path("laboratory-worklist/<int:isolate_id>/revival/<str:action>/", views.laboratory_isolate_revival, name="laboratory_isolate_revival"),
     path("laboratory-organisms/search/", views.laboratory_organism_search, name="laboratory_organism_search"),
     path("biobank-inventory/", views.laboratory_biobank_list, name="laboratory_biobank_list"),
+    path("biobank-inventory/stickers/", views.laboratory_date_labels, name="laboratory_date_labels"),
     path("laboratory-worklist/upload/", views.laboratory_id_upload, name="laboratory_id_upload"),
     path("laboratory-worklist/<int:isolate_id>/", views.laboratory_isolate_detail, name="laboratory_isolate_detail"),
     path("laboratory-worklist/<int:isolate_id>/acknowledge/", views.laboratory_acknowledge_id, name="laboratory_acknowledge_id"),
@@ -16,8 +21,12 @@ urlpatterns = [
     path("laboratory-worklist/<int:isolate_id>/return/", views.laboratory_return_id, name="laboratory_return_id"),
     path("laboratory-worklist/<int:isolate_id>/review/", views.laboratory_review_id, name="laboratory_review_id"),
     path("laboratory-worklist/<int:isolate_id>/biobank/", views.laboratory_biobank_save, name="laboratory_biobank_save"),
+    path("laboratory-worklist/<int:isolate_id>/bank-site-id/", views.laboratory_bank_site_id, name="laboratory_bank_site_id"),
+    path("laboratory-worklist/<int:isolate_id>/queue-main-lab/", views.laboratory_queue_main_lab, name="laboratory_queue_main_lab"),
+    path("laboratory-worklist/<int:isolate_id>/endorse-main-lab/", views.laboratory_endorse_isolate, name="laboratory_endorse_isolate"),
     path("laboratory-worklist/<int:isolate_id>/sticker/", views.laboratory_biobank_label, name="laboratory_biobank_label"),
     path("laboratory/accessions/<int:accession_id>/endorse-id/", views.laboratory_endorse_id, name="laboratory_endorse_id"),
+    path("laboratory/accessions/<int:accession_id>/queue-id/", views.laboratory_queue_id_batch, name="laboratory_queue_id_batch"),
     path("laboratory/accessions/<int:accession_id>/stickers/", views.laboratory_batch_labels, name="laboratory_batch_labels"),
     path("laboratory/accessions/<int:accession_id>/<str:action>/transition/", views.laboratory_batch_transition, name="laboratory_batch_transition"),
     path("laboratory-worklist/<int:isolate_id>/revival-failed/", views.laboratory_revival_failed, name="laboratory_revival_failed"),
@@ -39,5 +48,10 @@ urlpatterns = [
     path("laboratory/accessions/<int:accession_id>/delete/", receiving_views.laboratory_accession_delete, name="laboratory_accession_delete"),
     path("laboratory/accessions/<int:accession_id>/organisms/save/", receiving_views.laboratory_organism_matrix_save, name="laboratory_organism_matrix_save"),
     path("laboratory/accessions/<int:accession_id>/organisms/add/", receiving_views.laboratory_organism_add, name="laboratory_organism_add"),
+    path("laboratory/accessions/<int:accession_id>/organisms/extra/", inventory_views.additional_organism_save, name="laboratory_extra_organism_add"),
+    path("laboratory/accessions/<int:accession_id>/organisms/rows/", inventory_views.inventory_row_save, name="laboratory_inventory_row_add"),
+    path("laboratory/organisms/rows/<int:row_id>/save/", inventory_views.inventory_row_save, name="laboratory_inventory_row_save"),
+    path("laboratory/organisms/extra/<int:row_id>/save/", inventory_views.additional_organism_save, name="laboratory_extra_organism_save"),
+    path("laboratory/organisms/extra/<int:row_id>/remove/", inventory_views.additional_organism_remove, name="laboratory_extra_organism_remove"),
     path("laboratory/accessions/<int:accession_id>/create-batch/", receiving_views.laboratory_batch_create, name="laboratory_batch_create"),
 ]

@@ -8,7 +8,7 @@ from .dashboard import render_receiving_dashboard as _render_receiving_dashboard
 from .forms import ReferralReceiptForm
 from .models import ReferralReceipt
 from .permissions import (can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
-from .qr import build_receipt_detail_url, render_qr_png
+from .qr import build_receipt_scan_url, render_qr_png
 from .services import (InvalidReceivingTransition, create_receipt, delete_receipt_permanently, can_delete_receipt_safely, endorse_receipt)
 
 def _receipt_or_404(receiving_id):
@@ -31,8 +31,9 @@ def receiving_dashboard(request):
 
 
 @login_required
-@secretariat_receiving_required
+@receiving_read_required
 def secretariat_receiving_dashboard(request):
+    """Shared receiving history; write actions remain role-restricted."""
     return _render_receiving_dashboard(request, queue="secretariat")
 
 
@@ -85,9 +86,9 @@ def receiving_detail(request, receiving_id):
 @secretariat_receiving_required
 def receiving_qr(request, receiving_id):
     receipt = _receipt_or_404(receiving_id)
-    payload = build_receipt_detail_url(receipt=receipt, request=request)
+    payload = build_receipt_scan_url(receipt=receipt, request=request)
     response = HttpResponse(render_qr_png(payload), content_type="image/png")
-    response["Cache-Control"] = "private, max-age=3600"
+    response["Cache-Control"] = "private, no-cache"
     return response
 
 

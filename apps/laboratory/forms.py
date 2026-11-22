@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from django import forms
 from django.utils import timezone
-from .models import LaboratoryAccession, LaboratoryOrganismCount, LaboratoryReceiving
+from .models import LaboratoryAccession, LaboratoryOrganismCount, LaboratoryReceiving, LaboratoryAdditionalOrganismCount
 
 class LabReceiptForm(forms.Form):
     lab_date_received = forms.DateField(
@@ -98,6 +98,41 @@ class LaboratoryOrganismCountForm(forms.ModelForm):
         }
 
 
+class AdditionalOrganismForm(forms.ModelForm):
+    whonet_code = forms.CharField(max_length=20)
+    register_category = forms.ChoiceField(choices=LaboratoryOrganismCount.OrganismCode.choices)
+    count = forms.IntegerField(min_value=1)
+    class Meta:
+        model = LaboratoryAdditionalOrganismCount
+        fields = ("whonet_code", "register_category", "count")
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("whonet_code"):
+            from .organism_lookup import resolve_organism
+            cleaned["whonet_code"], self.instance.organism_name = resolve_organism(
+                code=cleaned["whonet_code"], require_code=True)
+        return cleaned
+
+
 class LaboratoryRegisterFilterForm(forms.Form):
     month = forms.IntegerField(min_value=1, max_value=12, widget=forms.NumberInput(attrs={"class": "form-control"}))
     year = forms.IntegerField(min_value=2000, max_value=2100, widget=forms.NumberInput(attrs={"class": "form-control"}))
+
+
+class StickerDateRangeForm(forms.Form):
+    from_date = forms.DateField(
+        label="Harvest date - From",
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"class": "form-control", "type": "date"}),
+    )
+    to_date = forms.DateField(
+        label="Harvest date - To",
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"class": "form-control", "type": "date"}),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("from_date"), cleaned.get("to_date")
+        if start and end and start > end:
+            self.add_error("to_date", "To date must be on or after From date.")
+        return cleaned

@@ -48,19 +48,40 @@ class WorkflowUXTests(TestCase):
         item = self.isolate()
         guidance = next_action(item, self.lab_user)
         self.assertEqual(guidance['section'], 'identification')
-        self.assertFalse(guidance['allowed'])
+        self.assertTrue(guidance['allowed'])
+
+    def test_both_laboratory_roles_can_receive_record_and_return_id_results(self):
+        accession = self.create_pending_accession()
+        for index, role in enumerate(('LAB Encoder', 'Laboratory Staff')):
+            with self.subTest(role=role):
+                self.lab_user.groups.set([Group.objects.get_or_create(name=role)[0]])
+                item = LaboratoryIsolate.objects.create(accession_range=accession,
+                    accession_number=f'ROLE-ID-{index}', status='id_pending')
+                self.client.post(reverse('laboratory_acknowledge_id', args=[item.pk]))
+                item.refresh_from_db()
+                self.assertEqual(item.status, 'id_testing')
+                page = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
+                self.assertContains(page, 'Save result and return cassette')
+                self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
+                    'organism_reported': 'Klebsiella pneumoniae',
+                    'organism_reported_code': 'KPN', 'cassette_reference': 'C1',
+                })
+                self.assertEqual(item.identifications.get().recorded_by_id, self.lab_user.pk)
+                self.client.post(reverse('laboratory_return_id', args=[item.pk]))
+                item.refresh_from_db()
+                self.assertEqual(item.status, 'id_returned')
 
     def test_worklists_separate_active_and_history(self):
         item = self.isolate('revived')
         self.assertEqual(len(self.client.get(reverse('laboratory_worklist')).context['batches']), 0)
         response = self.client.get(reverse('laboratory_processing_worklist'))
         self.assertEqual(response.context['area'], 'processing')
-        self.assertEqual(response.context['batches'][0]['awaiting_review_count'], 1)
+        self.assertEqual(response.context['batches'][0]['awaiting_disposition_count'], 1)
         self.assertEqual(len(self.client.get(reverse('laboratory_worklist')+'?history=1').context['batches']), 1)
 
     def test_record_revival_actual_dates_and_preserve_start(self):
         from apps.laboratory.workflow import record_revival_outcome
-        item = self.isolate('id_returned')
+        item = self.isolate('revival_pending')
         now = timezone.now()
         item.returned_at = now - timedelta(days=3)
         item.returned_by = self.lab_user
@@ -75,7 +96,9 @@ class WorkflowUXTests(TestCase):
         self.assertEqual(item.status, 'revived')
 
     def test_accept_reported_reuses_latest_validated_result(self):
-        item = self.isolate('revived')
+        item = self.isolate('id_returned')
+        item.revival_completed_at = timezone.now() - timedelta(hours=1)
+        item.save(update_fields=['revival_completed_at'])
         LaboratoryIdentification.objects.create(isolate=item, organism_reported='Klebsiella pneumoniae', whonet_organism_code='KPN')
         self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action':'accept_reported'})
         item.refresh_from_db()

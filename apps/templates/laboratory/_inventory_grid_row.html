@@ -1,0 +1,15 @@
+<tr data-inventory-row data-accession="{{ row.accession.pk }}" {% if fresh %}data-unsaved-inventory-row{% endif %}>
+  <th scope="row" class="organism-grid-sticky" {% if entry.item.organism_name and not fresh %}title="{{ entry.item.organism_name }}"{% endif %}>{{ row.accession.reference_range }}</th>
+  <td>{{ row.accession.isolate_count }}</td>
+  {% for cell in cells %}
+  <td>{% if can_edit %}
+    <input form="inventory-row-{{ row.accession.pk }}-{% if fresh %}__ROW__{% else %}{{ entry.item.pk }}{% endif %}" aria-label="{{ cell.label }} count for {{ row.accession.reference_range }} added row" class="form-control form-control-sm organism-grid-number" data-organism-code="{{ cell.code }}" type="number" name="organism_{{ cell.code }}" min="0" max="{{ row.accession.isolate_count }}" step="1" value="{% if not fresh and cell.count %}{{ cell.count }}{% endif %}">
+  {% else %}{% if cell.count %}{{ cell.count }}{% endif %}{% endif %}</td>
+  {% endfor %}
+  <td><strong data-inventory-row-total>{% if fresh %}0{% else %}{{ entry.item.count }}{% endif %}</strong></td>
+  {% if can_edit %}<td>
+    <form method="post" id="inventory-row-{{ row.accession.pk }}-{% if fresh %}__ROW__{% else %}{{ entry.item.pk }}{% endif %}" action="{% if fresh %}{% url 'laboratory_inventory_row_add' row.accession.pk %}{% else %}{% url 'laboratory_inventory_row_save' entry.item.pk %}{% endif %}">{% csrf_token %}</form>
+    <button type="submit" form="inventory-row-{{ row.accession.pk }}-{% if fresh %}__ROW__{% else %}{{ entry.item.pk }}{% endif %}" class="btn btn-sm btn-primary mb-1">Save counts</button>
+    {% if fresh %}<button type="button" data-discard-inventory-row class="btn btn-sm btn-outline-danger mb-0">Remove</button>{% else %}<button type="submit" form="inventory-row-{{ row.accession.pk }}-{{ entry.item.pk }}" formaction="{% url 'laboratory_extra_organism_remove' entry.item.pk %}" formnovalidate class="btn btn-sm btn-outline-danger mb-0" onclick="return confirm('Remove this inventory row and its counts?');">Remove</button>{% endif %}
+  </td>{% endif %}
+</tr>

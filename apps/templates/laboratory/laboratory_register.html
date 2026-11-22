@@ -6,7 +6,7 @@
 <style>.register-table{font-size:.68rem;white-space:nowrap}.register-table th,.register-table td{padding:.3rem;text-align:center;vertical-align:middle}.register-wrap{overflow:auto}.register-table thead th{background:#d9eef2;color:#123d55}</style>
 {% endblock stylesheets %}
 {% block content %}
-<main class="receiving-page">
+<main class="receiving-page" data-page="laboratory-register">
   <header class="receiving-hero">
     <div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-file-alt"></i></span><div>
       <p class="receiving-eyebrow">Monthly laboratory register</p><h1>Receiving and Inventory of Referred Isolates</h1>
@@ -15,7 +15,28 @@
       <a class="btn btn-info" target="_blank" href="{% url 'laboratory_receiving_register_pdf' %}?month={{ month }}&year={{ year }}"><i class="fas fa-file-pdf mr-1"></i>Print PDF</a></div>
   </header>
   <div class="receiving-content">
-    <section class="receiving-surface mb-4"><div class="receiving-card-body"><form class="form-row align-items-end" method="get">{% for field in form %}<div class="col-md-2"><label>{{ field.label }}</label>{{ field }}</div>{% endfor %}<div class="col-md-auto"><button class="btn btn-primary" type="submit">Load register</button></div></form></div></section>
+    <section class="receiving-surface mb-4" id="register-filters">
+      <div class="receiving-card-body">
+        <form class="form-row align-items-end" method="get">
+          {% if form.non_field_errors %}<div class="col-12 alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+          <!-- Filter: month -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--month" data-field="month">
+            <label for="{{ form.month.id_for_label }}">{{ form.month.label }}</label>
+            {{ form.month }}
+            {% if form.month.help_text %}<small class="form-text text-muted">{{ form.month.help_text }}</small>{% endif %}
+            {% for error in form.month.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+          <!-- Filter: year -->
+          <div class="col-md-2 mb-3 receiving-field receiving-field--year" data-field="year">
+            <label for="{{ form.year.id_for_label }}">{{ form.year.label }}</label>
+            {{ form.year }}
+            {% if form.year.help_text %}<small class="form-text text-muted">{{ form.year.help_text }}</small>{% endif %}
+            {% for error in form.year.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+          <div class="col-md-auto"><button class="btn btn-primary" type="submit">Load register</button></div>
+        </form>
+      </div>
+    </section>
     <section class="receiving-surface">
       <div class="receiving-card-header"><h2>{{ month|stringformat:"02d" }}/{{ year }}</h2><p>Accepted and rejected values are the LAB Encoder's saved decisions.</p></div>
       <div class="register-wrap"><table class="table table-bordered register-table mb-0">

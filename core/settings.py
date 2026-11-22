@@ -4,6 +4,7 @@ Django settings
 """
 
 import os
+from urllib.parse import urlsplit
 from decouple import config
 from unipath import Path as Unipath
 
@@ -140,8 +141,12 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 STATIC_ROOT = config('STATIC_ROOT')
-STATICFILES_DIRS = [config('STATICFILES_DIRS')]
+# STATICFILES_DIRS = [config('STATICFILES_DIRS')]
 
+
+STATICFILES_DIRS = [
+    os.path.join(str(BASE_DIR), "apps", "static"),
+]
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = config('MEDIA_ROOT')
@@ -163,6 +168,11 @@ PHONENUMBER_DEFAULT_REGION = 'PH'
 # Canonical public origin used by printable receiving QR labels. Configure this
 # in production so labels remain stable regardless of the host used to print.
 RECEIVING_QR_BASE_URL = config("RECEIVING_QR_BASE_URL", default="").rstrip("/")
+# Scans must be accepted on the explicitly configured QR origin as well as
+# the address used on the printing workstation.
+_receiving_qr_hostname = urlsplit(RECEIVING_QR_BASE_URL).hostname
+if _receiving_qr_hostname and _receiving_qr_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_receiving_qr_hostname)
 
 # # logout automatically after 15 minutes of inactivity
 # SESSION_COOKIE_AGE = 900

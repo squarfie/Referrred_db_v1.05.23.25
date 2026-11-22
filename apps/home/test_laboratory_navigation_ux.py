@@ -33,7 +33,7 @@ class LaboratoryNavigationUXTests(SimpleTestCase):
     def test_role_oriented_laboratory_areas(self):
         cases = {
             ROLE_ADMIN: set(self.areas),
-            ROLE_LAB_ENCODER: {"receiving", "processing", "biobank"},
+            ROLE_LAB_ENCODER: {"receiving", "identification", "processing", "biobank"},
             ROLE_LAB_STAFF: {"identification", "biobank"},
             ROLE_SECRETARIAT: set(),
         }

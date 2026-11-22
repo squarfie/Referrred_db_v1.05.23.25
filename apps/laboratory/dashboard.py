@@ -6,6 +6,7 @@ from .models import ReferralReceipt
 from apps.receiving.permissions import can_manage_secretariat_receiving
 from .permissions import can_confirm_lab_receipt, can_read_laboratory_receiving
 from apps.receiving.services import can_delete_receipt_safely
+from .batch_status import pending_batch_accessions
 
 def render_laboratory_dashboard(request, queue=None):
     all_receipts = ReferralReceipt.objects.select_related("site", "received_by")
@@ -29,8 +30,9 @@ def render_laboratory_dashboard(request, queue=None):
         tab_definitions = [
             ("pending", "Pending Lab Receipt", ReferralReceipt.Status.ENDORSED),
             ("received", "Received by Laboratory", ReferralReceipt.Status.LAB_RECEIVED),
-            ("main_lab", "Pending Main Lab Identification", "main_lab"),
+            ("main_lab", "Pending Main Lab ID", "main_lab"),
             ("processing", "Revival & Processing", "processing"),
+            ("pending_batch", "Pending Batch Creation", "pending_batch"),
             ("complete", "Workflow Complete", "complete"),
             ("all", "All Records", None),
         ]
@@ -72,6 +74,14 @@ def render_laboratory_dashboard(request, queue=None):
         key: all_receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow=key).count()
         for key in ("received", "main_lab", "processing", "complete")
     } if is_lab_worklist else {}
+    if is_lab_worklist:
+        # Independent task queue: a scientifically completed receipt may still
+        # have an accession range whose Raw Data batch has not been generated.
+        pending_batch_filter = Q(
+            status=ReferralReceipt.Status.LAB_RECEIVED,
+            pk__in=pending_batch_accessions().values("laboratory_receiving__receipt_id"),
+        )
+        lab_counts["pending_batch"] = all_receipts.filter(pending_batch_filter).distinct().count()
     tabs = [
         {
             "key": key,
@@ -82,7 +92,9 @@ def render_laboratory_dashboard(request, queue=None):
         for key, label, tab_filter in tab_definitions
     ]
     selected_status = tab_status[selected_tab]
-    if is_lab_worklist and selected_tab in lab_counts and not (not explicit_tab and legacy_status in valid_statuses):
+    if is_lab_worklist and selected_tab == "pending_batch":
+        receipts = receipts.filter(pending_batch_filter).distinct()
+    elif is_lab_worklist and selected_tab in lab_counts and not (not explicit_tab and legacy_status in valid_statuses):
         receipts = receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow=selected_tab)
     elif not explicit_tab and legacy_status in valid_statuses:
         receipts = receipts.filter(status=legacy_status)

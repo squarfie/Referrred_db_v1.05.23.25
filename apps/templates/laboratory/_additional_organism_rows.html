@@ -1,0 +1,10 @@
+{% for entry in row.additional_rows %}
+{% include 'laboratory/_inventory_grid_row.html' with cells=entry.cells fresh=False %}
+{% endfor %}
+{% if can_edit %}
+<template id="inventory-row-template-{{ row.accession.pk }}">{% include 'laboratory/_inventory_grid_row.html' with cells=row.cells fresh=True %}</template>
+{% endif %}
+<tr data-inventory-footer="{{ row.accession.pk }}">
+  <th class="organism-grid-sticky">{% if can_edit %}<button type="button" class="btn btn-sm btn-outline-info mb-0" data-add-inventory-row data-template="inventory-row-template-{{ row.accession.pk }}"><i class="fas fa-plus mr-1" aria-hidden="true"></i>Add row</button>{% else %}{{ row.accession.reference_range }}{% endif %}</th>
+  <td colspan="{% if can_edit %}21{% else %}20{% endif %}" class="text-left"><span class="small text-muted">{{ row.accession.reference_range }} &middot; <span data-accession-count-total="{{ row.accession.pk }}">{{ row.total }}</span> / {{ row.accession.isolate_count }} counted across all rows</span></td>
+</tr>

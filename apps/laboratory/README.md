@@ -7,6 +7,7 @@ Laboratory receipt, accessioning, identification, revival, approval, lyophilizat
 - `receiving_views.py`: laboratory custody, accession ranges, batch creation and register endpoints.
 - `views.py`: identification, isolate processing, inventory, uploads and stickers.
 - `dashboard.py`: laboratory workflow tabs and summary counters.
+- `batch_status.py`: pending batch task detection, including matching DMU-created batches without a laboratory link; creator roles do not affect this check.
 - `urls.py`: laboratory route declarations; included under the existing `/receiving/` prefix to preserve bookmarks and URL names.
 - `forms.py`, `permissions.py`: laboratory validation and server-side role enforcement.
 - `workflow.py`, `guidance.py`: audited scientific transitions and next-action presentation.

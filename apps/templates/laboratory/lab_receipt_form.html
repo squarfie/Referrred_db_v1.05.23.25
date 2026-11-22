@@ -3,7 +3,7 @@
 {% block title %}Confirm laboratory receipt{% endblock %}
 {% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
 {% block content %}
-<main class="receiving-page">
+<main class="receiving-page" data-page="laboratory-custody">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-microscope"></i></span>
     <div><p class="receiving-eyebrow">Laboratory custody</p><h1>Confirm laboratory receipt</h1><p class="receiving-hero-subtitle">{{ receipt.tracking_number }} · {{ receipt.site.SiteCode }}</p></div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}"><i class="fas fa-arrow-left mr-2"></i>Back to record</a></div></header>
   <div class="receiving-content"><div class="receiving-form-wrap"><section class="receiving-surface receiving-form-card">
@@ -11,7 +11,31 @@
     <div class="receiving-card-body">
       <div class="receiving-help-panel mb-4"><i class="fas fa-qrcode mr-2" aria-hidden="true"></i>Scan-to-acknowledge: verify the physical batch label and courier tracking number. This confirms laboratory custody only, not isolate acceptance or rejection.</div>
       <div class="receiving-info-grid mb-4"><div><span class="receiving-info-label">Referring site</span><span class="receiving-info-value">{{ receipt.site.SiteCode }}</span><div class="receiving-info-secondary">{{ receipt.site.SiteName }}</div></div><div><span class="receiving-info-label">Endorsed at</span><span class="receiving-info-value">{{ receipt.endorsed_at|date:"M j, Y g:i:s A" }}</span><div class="receiving-info-secondary">Acknowledging staff: {{ request.user.get_full_name|default:request.user.username }}</div></div></div>
-      <form method="post" novalidate>{% csrf_token %}{% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}<div class="row">{% for field in form %}<div class="col-md-6 mb-3"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}</div>{% endfor %}</div><p class="text-muted small">Enter the actual time the laboratory took custody. It cannot precede endorsement or be later than the current time.</p><div class="receiving-form-actions"><a class="btn btn-outline-secondary" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}">Cancel</a><button class="btn btn-primary" type="submit"><i class="fas fa-check-circle mr-2"></i>Confirm laboratory receipt</button></div></form>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="row">
+          <!-- ReferralReceipt.lab_date_received -->
+          <div class="col-md-6 mb-3 receiving-field receiving-field--lab_date_received" data-model="ReferralReceipt" data-field="lab_date_received">
+            <label for="{{ form.lab_date_received.id_for_label }}">{{ form.lab_date_received.label }}</label>
+            {{ form.lab_date_received }}
+            {% if form.lab_date_received.help_text %}<small class="form-text text-muted">{{ form.lab_date_received.help_text }}</small>{% endif %}
+            {% for error in form.lab_date_received.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+          <!-- ReferralReceipt.lab_time_received -->
+          <div class="col-md-6 mb-3 receiving-field receiving-field--lab_time_received" data-model="ReferralReceipt" data-field="lab_time_received">
+            <label for="{{ form.lab_time_received.id_for_label }}">{{ form.lab_time_received.label }}</label>
+            {{ form.lab_time_received }}
+            {% if form.lab_time_received.help_text %}<small class="form-text text-muted">{{ form.lab_time_received.help_text }}</small>{% endif %}
+            {% for error in form.lab_time_received.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+        </div>
+        <p class="text-muted small">Enter the actual time the laboratory took custody. It cannot precede endorsement or be later than the current time.</p>
+        <div class="receiving-form-actions">
+          <a class="btn btn-outline-secondary" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}">Cancel</a>
+          <button class="btn btn-primary" type="submit"><i class="fas fa-check-circle mr-2"></i>Confirm laboratory receipt</button>
+        </div>
+      </form>
     </div>
   </section></div></div>
 </main>

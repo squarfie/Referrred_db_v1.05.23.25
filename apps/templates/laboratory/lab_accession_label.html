@@ -1,0 +1,12 @@
+{% load static %}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Accession QR {{ isolate.accession_number }}</title><link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}"></head>
+<body class="receiving-label-page">
+  <div class="receiving-label-toolbar screen-only"><button type="button" onclick="window.print()">Print accession QR</button></div>
+  <main class="receiving-label">
+    <div class="receiving-label-mark">Laboratory accession</div>
+    <img src="{% url 'laboratory_isolate_qr' isolate.pk %}" alt="QR code for accession {{ isolate.accession_number }}">
+    <div class="receiving-label-tracking">{{ isolate.accession_number }}</div>
+    <div class="receiving-label-meta">Scan to receive or resume</div>
+  </main>
+</body></html>

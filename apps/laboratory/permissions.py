@@ -30,7 +30,7 @@ lab_receiving_required = _permission_required(can_confirm_lab_receipt)
 
 
 def can_manage_id_testing(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_STAFF})
+    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_LAB_ENCODER, ROLE_LAB_STAFF})
 
 
 def can_review_id_results(user):

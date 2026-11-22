@@ -42,7 +42,7 @@ def _reject_future_timestamp(value, message):
 def create_receipt(*, form, user):
     _require_permission(
         can_manage_secretariat_receiving(user),
-        "Only Secretariat or Admin users may create receiving records.",
+        "Only authorize users may create receiving records.",
     )
     receipt = form.save(commit=False)
     receipt.received_by = user
@@ -71,7 +71,7 @@ def create_receipt(*, form, user):
 def endorse_receipt(*, receipt_id, user):
     _require_permission(
         can_manage_secretariat_receiving(user),
-        "Only Secretariat or Admin users may endorse receiving records.",
+        "Only authorize users may endorse receiving records.",
     )
     receipt = ReferralReceipt.objects.select_for_update().get(pk=receipt_id)
     if receipt.status != ReferralReceipt.Status.RECEIVED:
