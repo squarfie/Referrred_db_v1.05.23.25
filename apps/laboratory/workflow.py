@@ -84,11 +84,16 @@ def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
     if isolate_id is not None:
         items = items.filter(pk=isolate_id)
     items = list(items)
-    expected = S.ID_QUEUED if endorse else S.REVIVED
-    ready = [item for item in items if item.status == expected and not item.returned_at and not item.identifications.exists()]
+    expected = (S.ID_QUEUED,) if endorse else (S.REVIVED, S.READY_FOR_BIOBANK, S.SITE_BANKED)
+    ready = [
+        item for item in items
+        if item.status in expected and not item.returned_at
+        and not item.endorsed_at and not item.identifications.exists()
+        and (item.status == S.REVIVED or item.identification_source == "site" or endorse)
+    ]
     if not ready:
         if items and (any(item.endorsed_at for item in items) or all(item.status in ((S.ID_QUEUED,) if not endorse else ()) + (S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED,
-                        S.ID_REVIEWED, S.READY_FOR_BIOBANK, S.BIOBANKED) for item in items)):
+                        S.ID_REVIEWED, S.BIOBANKED) for item in items)):
             return False
         raise WorkflowError("Queue revived isolates before endorsement to Main Laboratory." if endorse else
                             "Complete revival successfully before queueing for Main Laboratory endorsement.")
@@ -98,9 +103,18 @@ def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
     actor_field, at_field = ("endorsed_by", "endorsed_at") if endorse else ("id_queued_by", "id_queued_at")
     for item in ready:
         item.status = S.ID_PENDING if endorse else S.ID_QUEUED
+        # The original Site ID and storage history remain recorded separately.
+        # Site ID is provisional and must not be mistaken for approved Main Lab ID.
+        if not endorse and item.identification_source == "site":
+            item.identification_source = ""
+            item.final_organism = ""
+            item.approved_organism_code = ""
         setattr(item, at_field, now)
         setattr(item, actor_field, user)
-    LaboratoryIsolate.objects.bulk_update(ready, ["status", at_field, actor_field])
+    LaboratoryIsolate.objects.bulk_update(
+        ready, ["status", at_field, actor_field, "identification_source",
+                "final_organism", "approved_organism_code"]
+    )
     return True
 
 
@@ -378,8 +392,8 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
 @transaction.atomic
 def save_biobank(isolate_id, details, user):
     item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
-    if item.status not in (S.READY_FOR_BIOBANK, S.BIOBANKED):
-        raise WorkflowError("Choose direct banking using site ID, or complete Main Laboratory ID and lyophilization, before saving storage.")
+    if item.status not in (S.READY_FOR_BIOBANK, S.SITE_BANKED, S.BIOBANKED):
+        raise WorkflowError("Choose temporary Site ID storage, or complete Main Laboratory ID and lyophilization, before saving storage.")
     if item.identification_source and not (item.final_organism and item.approved_organism_code):
         raise WorkflowError("An organism identification is required to finalize banking.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
@@ -405,7 +419,25 @@ def save_biobank(isolate_id, details, user):
     bank.recorded_by = user
     bank.full_clean()
     bank.save()
-    if item.status == S.READY_FOR_BIOBANK:
+    if item.identification_source == "site":
+        # Site storage is a holding state, even after a box/position is assigned.
+        # It does not satisfy the Main Lab identification requirement.
+        if not item.site_banked_at:
+            item.site_banked_at = timezone.now()
+            item.site_banked_by = user
+            item.site_bank_storage = {
+                "storage_box": bank.storage_box, "box_position": bank.box_position,
+                "lyo_box_name": bank.lyo_box_name, "lyo_box_number": bank.lyo_box_number,
+                "lyo_position": bank.lyo_position,
+                "supplementary_box_name": bank.supplementary_box_name,
+                "supplementary_box_number": bank.supplementary_box_number,
+                "supplementary_position": bank.supplementary_position,
+            }
+        item.status = S.SITE_BANKED
+        item.save(update_fields=["status", "site_banked_at", "site_banked_by", "site_bank_storage"])
+    elif item.status == S.READY_FOR_BIOBANK:
+        if not (item.returned_at and item.reviewed_at and item.lyophilization_completed_at):
+            raise WorkflowError("Main Lab ID return, review and lyophilization are required for final banking.")
         item.status = S.BIOBANKED
         item.biobanked_at = timezone.now()
         item.biobanked_by = user
