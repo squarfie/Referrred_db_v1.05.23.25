@@ -49,25 +49,49 @@ class RevivalBeforeIdentificationTests(TestCase):
             create_id_handoff(accession.pk, self.lab_user)
         self.assertFalse(accession.isolate_records.exists())
 
-    def test_revived_isolate_is_endorsed_while_failed_and_queued_siblings_stay(self):
+    def test_endorsement_is_blocked_until_entire_batch_is_revived_identified_and_queued(self):
+        from apps.laboratory.workflow import queue_for_id
         accession = self.prepare()
-        success, failed, queued = list(accession.isolate_records.all())[:3]
-        self.revive(success)
-        self.revive(failed, 'revival_failed')
-        self.assertEqual(next_action(success, self.lab_user)['section'], 'disposition')
-        old_dates = (success.revival_started_at, success.revival_completed_at)
-        transition_batch(accession.pk, 'queue', self.lab_user)
+        first, second, third = list(accession.isolate_records.all())[:3]
+        self.revive(first)
+        first.site_organism_code = 'KPN'
+        first.site_organism_name = 'Klebsiella pneumoniae'
+        first.save(update_fields=['site_organism_code', 'site_organism_name'])
+        self.assertTrue(queue_for_id(accession.pk, self.lab_user, isolate_id=first.pk))
+        with self.assertRaises(WorkflowError):
+            create_id_handoff(accession.pk, self.lab_user)
+        first.refresh_from_db()
+        self.assertEqual(first.status, 'id_queued')
+        self.assertIsNone(first.endorsed_at)
+
+        # Every remaining viable isolate must be ready; a single pending one
+        # blocks the atomic batch handoff.
+        for item in accession.isolate_records.exclude(pk=first.pk):
+            self.revive(item)
+            item.site_organism_code = 'KPN'
+            item.site_organism_name = 'Klebsiella pneumoniae'
+            item.save(update_fields=['site_organism_code', 'site_organism_name'])
+            queue_for_id(accession.pk, self.lab_user, isolate_id=item.pk)
         self.assertTrue(create_id_handoff(accession.pk, self.lab_user))
-        for item in (success, failed, queued):
-            item.refresh_from_db()
-        self.assertEqual(success.status, 'id_pending')
-        self.assertEqual((success.revival_started_at, success.revival_completed_at), old_dates)
-        self.assertEqual(failed.status, 'revival_failed')
-        self.assertEqual(queued.status, 'revival_pending')
-        endorsed = success.endorsed_at
+        timestamps = set()
+        for item in accession.isolate_records.all():
+            self.assertEqual(item.status, 'id_pending')
+            self.assertIsNotNone(item.endorsed_at)
+            timestamps.add(item.endorsed_at)
+        self.assertEqual(len(timestamps), 1)
         self.assertFalse(create_id_handoff(accession.pk, self.lab_user))
-        success.refresh_from_db()
-        self.assertEqual(success.endorsed_at, endorsed)
+
+    def prepare_complete_id_batch(self, accession):
+        from apps.laboratory.workflow import queue_for_id
+        for item in accession.isolate_records.all():
+            if item.status == 'revival_pending':
+                self.revive(item)
+            item.site_organism_code = 'KPN'
+            item.site_organism_name = 'Klebsiella pneumoniae'
+            item.save(update_fields=['site_organism_code', 'site_organism_name'])
+            if item.status != 'id_queued':
+                queue_for_id(accession.pk, self.lab_user, isolate_id=item.pk)
+        return create_id_handoff(accession.pk, self.lab_user)
 
     def test_returned_identification_proceeds_directly_to_review(self):
         accession = self.create_pending_accession()
@@ -165,7 +189,10 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertEqual(first.site_bank_storage['storage_box'], 'SITE-BOX')
         self.assertIsNotNone(first.site_banked_at)
         self.assertFalse(queue_for_id(accession.pk, self.lab_user, isolate_id=first.pk))
-        self.assertTrue(create_id_handoff(accession.pk, self.lab_user, isolate_id=first.pk))
+        # The batch must wait for the remaining isolates.
+        with self.assertRaises(WorkflowError):
+            create_id_handoff(accession.pk, self.lab_user, isolate_id=first.pk)
+        self.assertTrue(self.prepare_complete_id_batch(accession))
         first.refresh_from_db()
         self.assertEqual(first.status, 'id_pending')
         self.assertIsNotNone(first.endorsed_at)
@@ -198,26 +225,20 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertEqual(second.status, 'revived')
         self.assertIsNone(first.endorsed_at)
 
-    def test_queue_requires_separate_endorsement_before_main_lab_can_receive(self):
+    def test_queue_requires_whole_batch_endorsement_before_main_lab_can_receive(self):
         from apps.laboratory.workflow import acknowledge_id_receipt
         accession = self.prepare()
         item = accession.isolate_records.first()
         self.revive(item)
-        with self.assertRaises(WorkflowError):
-            create_id_handoff(accession.pk, self.lab_user, isolate_id=item.pk)
         self.client.post(reverse('laboratory_queue_main_lab', args=[item.pk]))
         item.refresh_from_db()
         self.assertEqual(item.status, 'id_queued')
-        self.assertIsNone(item.endorsed_at)
-        self.assertIsNotNone(item.id_queued_at)
         queued_at = item.id_queued_at
         _, received = acknowledge_id_receipt(isolate_id=item.pk, user=self.lab_user)
         self.assertFalse(received)
-        self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
-            'organism_reported_code': 'KPN', 'organism_reported': 'Klebsiella pneumoniae', 'cassette_reference': 'C1'})
-        self.assertFalse(item.identifications.exists())
-        self.assertEqual(len(self.client.get(reverse('laboratory_worklist')).context['batches']), 0)
-        create_id_handoff(accession.pk, self.lab_user, isolate_id=item.pk)
+        with self.assertRaises(WorkflowError):
+            create_id_handoff(accession.pk, self.lab_user)
+        self.assertTrue(self.prepare_complete_id_batch(accession))
         item.refresh_from_db()
         self.assertEqual(item.status, 'id_pending')
         self.assertEqual(item.id_queued_at, queued_at)
@@ -246,8 +267,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         item = accession.isolate_records.first()
         self.revive(item)
         original = (item.revival_started_at, item.revival_completed_at)
-        self.client.post(reverse('laboratory_queue_main_lab', args=[item.pk]))
-        self.client.post(reverse('laboratory_endorse_isolate', args=[item.pk]))
+        self.prepare_complete_id_batch(accession)
         self.client.post(reverse('laboratory_acknowledge_id', args=[item.pk]))
         self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
             'action': 'submit_return', 'organism_reported_code': 'KPN',
@@ -265,9 +285,8 @@ class RevivalBeforeIdentificationTests(TestCase):
             {'date_harvested': day, 'date_lyophilized': day})
         save_biobank(item.pk, {'storage_box': 'MAIN-BOX', 'box_position': 'A1'}, self.lab_user)
         item.refresh_from_db()
-        self.assertEqual(item.status, 'site_banked')
-        self.assertEqual(item.site_banked_by, self.lab_user)
-        self.assertIsNone(item.biobanked_by)
+        self.assertEqual(item.status, 'biobanked')
+        self.assertEqual(item.biobanked_by, self.lab_user)
 
     def test_harvest_is_recorded_with_lyophilization_and_preserved_at_final_banking(self):
         from apps.home.models import Referred_Data
@@ -290,7 +309,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertEqual(item.biobank.whonet_code, 'KPN')
         self.assertEqual(item.biobank.storage_box, 'SITE-BOX')
         self.assertEqual(item.biobank.box_position, 'C2')
-        self.assertEqual(item.status, 'biobanked')
+        self.assertEqual(item.status, 'site_banked')
 
     def test_disposition_actions_require_post_and_a_laboratory_role(self):
         from django.contrib.auth.models import Group
