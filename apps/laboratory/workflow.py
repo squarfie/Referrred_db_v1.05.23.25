@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import LaboratoryAccession, LaboratoryBiobank, LaboratoryIsolate, ReceivingEvent
-from .permissions import can_manage_id_testing, can_manage_biobank, can_review_id_results
+from .permissions import can_manage_id_testing, can_manage_biobank, can_review_id_results, can_access_main_lab
 
 
 class WorkflowError(ValueError):
@@ -23,7 +23,7 @@ S = LaboratoryIsolate.Status
 
 @transaction.atomic
 def acknowledge_id_receipt(*, isolate_id, user):
-    if not can_manage_id_testing(user):
+    if not can_access_main_lab(user):
         raise WorkflowError("Only authorized Main Laboratory personnel may receive an isolate for ID testing.")
     candidate = LaboratoryIsolate.objects.only("accession_range_id").get(pk=isolate_id)
     accession = LaboratoryAccession.objects.select_for_update().get(pk=candidate.accession_range_id)
