@@ -9,6 +9,7 @@ from apps.receiving.models import (
     LaboratoryReceiving,
     LaboratoryAccession,
     LaboratoryOrganismCount,
+    LaboratoryAdditionalOrganismCount,
     LaboratoryIsolate,
     LaboratoryIdentification,
     LaboratoryBiobank,

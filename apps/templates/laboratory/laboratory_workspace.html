@@ -1,6 +1,9 @@
 {% extends "layouts/base.html" %}{% load static %}
 {% block title %}Laboratory receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-tooltip-layer">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261120-tooltip-layer"><style>
+.receiving-organism-grid input[type="number"] {appearance:auto;-moz-appearance:auto;}
+.receiving-organism-grid input[type="number"]::-webkit-inner-spin-button {opacity:1;}
+</style>{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page" data-page="laboratory-accessioning">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span>
@@ -142,7 +145,7 @@
         <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save new range</button></div>
       </form>
       {% endif %}
-      <p class="small text-muted mb-2">After accessioning, endorse the full range to Main Laboratory for ID testing. Revival can begin only when Main Laboratory returns the identification results and cassette for each isolate.</p>
+      <p class="small text-muted mb-2">Record revival first. After successful revival, choose to bank using the site's identification or queue for endorsement, then endorse to Main Laboratory for ID testing. Returned Main Laboratory isolates proceed to lyophilization before banking.</p>
       <div class="table-responsive">
         <table class="table receiving-table receiving-accession-edit-table">
           <thead><tr><th>Date referred</th><th>Start</th><th>End</th><th>Batch no.</th><th>Total batches</th><th>Isolates</th><th>Status</th><th>Actions</th></tr></thead>
@@ -150,12 +153,12 @@
             {% for item in ranges %}
             <tr>
               <td data-label="Date referred">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.isolate_records.exists %}
                   <input aria-label="Date referred for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="date" data-model="LaboratoryAccession" data-field="date_referred" name="date_referred" value="{{ item.date_referred|date:'Y-m-d' }}" required>
                 {% else %}{{ item.date_referred|date:"M j, Y" }}{% endif %}
               </td>
               <td data-label="Start">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.isolate_records.exists %}
                   <input aria-label="Start accession number for {{ item.reference_range }}" form="accession-edit-{{ item.pk }}" class="form-control form-control-sm" type="number" data-model="LaboratoryAccession" data-field="start_number" name="start_number" min="1" max="9999" value="{{ item.start_number }}" required>
                 {% else %}{{ item.start_number|stringformat:"04d" }}{% endif %}
               </td>
@@ -180,18 +183,28 @@
               </td>
               <td data-label="Actions" class="receiving-actions">
                 {% if item.isolate_records.exists %}
-                  <span class="badge badge-info">ID testing / cassette return / revival</span>
+                  <span class="badge badge-info">Revival / Bank or Main Lab ID</span>
                   <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_batch_detail' item.pk %}?area=processing">Open Batch</a>
-                {% elif can_edit and not item.batch %}
+                  {% if item.can_queue_id and user_access.can_view_lab_testing %}
+                  <form method="post" action="{% url 'laboratory_queue_id_batch' item.pk %}" class="d-inline" onsubmit="return confirm('Queue the successfully revived isolates for endorsement? This does not endorse them yet.');">{% csrf_token %}<button class="btn btn-sm btn-info mb-1" type="submit">Queue revived isolates for endorsement</button></form>
+                  {% endif %}
+                  {% if item.can_endorse_id and user_access.can_view_lab_testing %}
+                  <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse the queued isolates to Main Lab for ID testing?');">{% csrf_token %}<button class="btn btn-sm btn-primary mb-1" type="submit">Endorse queued isolates to Main Lab</button></form>
+                  {% endif %}
+                {% elif can_edit %}
+                {% if not item.batch %}
                 <form id="accession-edit-{{ item.pk }}" method="post" action="{% url 'laboratory_accession_edit' item.pk %}">{% csrf_token %}</form>
                 <button type="submit" form="accession-edit-{{ item.pk }}" class="btn btn-sm btn-outline-primary mb-1">Save edits</button>
-                <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse {{ item.isolate_count }} accessioned isolates to Main Laboratory for ID testing? The range will be locked against further edits.');">
-                  {% csrf_token %}<button class="btn btn-sm btn-info mb-1" type="submit">Endorse to Main Lab</button>
+                {% endif %}
+                <form method="post" action="{% url 'laboratory_batch_transition' item.pk 'prepare' %}" class="d-inline">
+                  {% csrf_token %}<button class="btn btn-sm btn-info mb-1" type="submit">Record revival</button>
                 </form>
+                {% if not item.batch %}
                 <form method="post" action="{% url 'laboratory_accession_delete' item.pk %}" class="d-inline" onsubmit="return confirm('Delete accession range {{ item.reference_range }} and its recorded organism counts?');">
                   {% csrf_token %}<input type="hidden" name="confirmation" value="DELETE">
                   <button type="submit" class="btn btn-sm btn-outline-danger mb-1">Delete</button>
                 </form>
+                {% endif %}
                 {% else %}
                   <span class="text-muted small">Locked after ID handoff or batch generation</span>
                 {% endif %}
@@ -207,12 +220,12 @@
   <section class="receiving-surface receiving-form-card mb-4" id="organism-inventory">
     <div class="receiving-card-header">
       <h2>Step 3: Organism inventory</h2>
-      <p>The organism headings are fixed like the paper register. Enter only the number of isolates for each accession range, then save that row.</p>
+      <p>Add organisms within each accession range. All counts share that range's isolate total. Record the site-reported organism for each individual accession during revival.</p>
     </div>
     <div class="receiving-card-body">
       {% if organism_rows %}
       <div class="receiving-organism-grid-wrap" role="region" tabindex="0" aria-label="Organism inventory spreadsheet">
-        <table class="receiving-organism-grid">
+        <table class="receiving-organism-grid" data-inventory-grid>
           <thead>
             <tr>
               <th rowspan="2" class="organism-grid-sticky">Accession range</th><th rowspan="2">Isolates</th>
@@ -232,7 +245,7 @@
           </thead>
           <tbody>
             {% for row in organism_rows %}
-            <tr>
+            <tr data-inventory-row data-accession="{{ row.accession.pk }}">
               <th scope="row" class="organism-grid-sticky">{{ row.accession.reference_range }}</th>
               <td>{{ row.accession.isolate_count }}</td>
               {% for cell in row.cells %}
@@ -247,7 +260,7 @@
                 {% else %}{% if cell.count %}{{ cell.count }}{% endif %}{% endif %}
               </td>
               {% endfor %}
-              <td><strong>{{ row.total }}</strong></td>
+              <td><strong data-inventory-row-total>{{ row.fixed_total }}</strong></td>
               {% if can_edit %}
               <td>
                 <form method="post" id="organisms-save-{{ row.accession.pk }}" action="{% url 'laboratory_organism_matrix_save' row.accession.pk %}">{% csrf_token %}</form>
@@ -255,6 +268,7 @@
               </td>
               {% endif %}
             </tr>
+            {% include 'laboratory/_additional_organism_rows.html' %}
             {% endfor %}
           </tbody>
         </table>
@@ -267,7 +281,7 @@
   </section>
 
   <section class="receiving-surface receiving-form-card mb-4" id="revival">
-    <div class="receiving-card-header"><h2>Step 4: Revival &amp; Processing</h2><p>After Main Laboratory returns ID results and cassettes, continue in the batch processing queue. Each accession shows its current stage and next action.</p></div>
+    <div class="receiving-card-header"><h2>Step 4: Revival &amp; Processing</h2><p>Record revival dates and outcomes per accession. Then bank using the site's ID or queue for endorsement, then endorse to Main Laboratory for ID testing. Returned Main Laboratory isolates continue to lyophilization and final banking.</p></div>
     <div class="receiving-card-body"><a class="btn btn-primary" href="{% url 'laboratory_processing_worklist' %}">Open Revival &amp; Processing</a></div>
   </section>
   <section class="receiving-surface receiving-form-card mb-4" id="batch-generation">
@@ -338,3 +352,4 @@
   });
 </script>
 {% endblock content %}
+{% block javascripts %}{{ block.super }}<script defer src="{% static 'assets/js/laboratory-inventory-grid.js' %}"></script>{% endblock javascripts %}

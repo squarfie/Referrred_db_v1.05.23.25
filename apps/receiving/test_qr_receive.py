@@ -1,4 +1,4 @@
-"""QR landing pages must offer receipt to every authorized laboratory role."""
+"""Legacy receipt links keep laboratory confirmation in Laboratory Receiving."""
 from types import SimpleNamespace
 from pathlib import Path
 import os
@@ -14,10 +14,10 @@ from apps.receiving.views import receiving_detail
 
 
 class QrReceiveActionTests(SimpleTestCase):
-    def test_qr_landing_receive_action_obeys_role_and_batch_status(self):
+    def test_secretariat_landing_keeps_lab_confirmation_in_laboratory_module(self):
         cases = [
-            ({"Admin"}, "endorsed", True),
-            ({"Secretariat", "LAB Encoder"}, "endorsed", True),
+            ({"Admin"}, "endorsed", False),
+            ({"Secretariat", "LAB Encoder"}, "endorsed", False),
             ({"Secretariat"}, "endorsed", False),
             ({"Admin"}, "received", False),
             ({"Admin"}, "lab_received", False),

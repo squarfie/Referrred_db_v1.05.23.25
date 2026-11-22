@@ -40,6 +40,10 @@ def build_register_rows(records):
                 for item in accession.organism_counts.all():
                     counts[item.organism_code] = item.count
                     organism_totals[item.organism_code] += item.count
+                for item in accession.additional_organism_counts.all():
+                    for code, count in item.inventory_values.items():
+                        counts[code] += count
+                        organism_totals[code] += count
                 totals["batch"] += accession.isolate_count
             rows.append({
                 "record": record,

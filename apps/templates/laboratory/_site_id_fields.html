@@ -1,0 +1,10 @@
+<div class="lab-organism-picker mb-3" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
+  <label for="site-organism-search">Site-reported organism for {{ isolate.accession_number }}</label>
+  <input id="site-organism-search" data-organism-search type="search" autocomplete="off" maxlength="255" class="form-control" value="{% if site_id %}{{ site_id.0 }} {{ site_id.1 }}{% endif %}" placeholder="Search the organism name or WHONET code from the site's report">
+  <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
+  <div class="organism-picker-pair">
+    <input data-organism-code name="site_organism_code" value="{{ site_id.0|default:'' }}" class="form-control" readonly aria-label="Site WHONET code" placeholder="Site code">
+    <input data-organism-name name="site_organism_name" value="{{ site_id.1|default:'' }}" class="form-control" readonly aria-label="Site organism name" placeholder="Site organism">
+  </div>
+  <small class="text-muted">Copy the sentinel site's identification. Main Lab records its confirmatory ID separately.</small>
+</div>

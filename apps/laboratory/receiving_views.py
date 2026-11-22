@@ -95,7 +95,7 @@ def laboratory_receiving_workspace(request, receiving_id):
             return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
     else:
         form = LaboratoryReceivingForm(instance=record)
-    ranges = list(record.accession_ranges.select_related("batch").prefetch_related("organism_counts", "isolate_records"))
+    ranges = list(record.accession_ranges.select_related("batch").prefetch_related("organism_counts", "additional_organism_counts", "isolate_records"))
     organism_rows = []
     for accession in ranges:
         values = {count.organism_code: count.count for count in accession.organism_counts.all()}
@@ -105,7 +105,12 @@ def laboratory_receiving_workspace(request, receiving_id):
                 {"code": code, "short": short, "label": label, "count": values.get(code, 0)}
                 for code, short, label in REGISTER_COLUMNS
             ],
-            "total": sum(values.values()),
+            "total": sum(values.values()) + sum(item.count for item in accession.additional_organism_counts.all()),
+            "fixed_total": sum(values.values()),
+            "additional_rows": [{"item": item, "cells": [
+                {"code": code, "label": label, "count": item.inventory_values.get(code, 0)}
+                for code, _short, label in REGISTER_COLUMNS
+            ]} for item in accession.additional_organism_counts.all()],
         })
     batch_previews = {}
     if can_edit:
@@ -136,11 +141,14 @@ def laboratory_receiving_workspace(request, receiving_id):
         # Counter returns zero for missing keys, so Django templates resolve
         # stages.items as an integer instead of the dict.items method.
         stages = dict(Counter(item.status for item in isolates))
+        accession.can_queue_id = any(item.status == "revived" and not item.returned_at for item in isolates)
+        accession.can_endorse_id = any(item.status == "id_queued" for item in isolates)
         workflow_rows.append({
             "accession": accession, "stages": stages,
             "count": len(isolates), "expected": accession.isolate_count,
-            "can_handoff": can_edit and not isolates,
-            "can_queue": can_edit and len(isolates) == accession.isolate_count and all(i.status == "id_returned" and i.returned_at and i.returned_by_id and i.identifications.filter(cassette_reference__gt="").exists() for i in isolates),
+            "can_handoff": can_edit and accession.can_endorse_id,
+            "can_prepare": can_edit and not isolates,
+            "can_queue": can_edit and accession.can_queue_id,
             "can_start": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revival_queued" for i in isolates),
             "can_complete": can_edit and len(isolates) == accession.isolate_count and any(i.status == "revival_in_progress" for i in isolates) and all(i.status in {"revival_in_progress", "revived"} for i in isolates),
 
@@ -221,7 +229,7 @@ def laboratory_accession_edit(request, accession_id):
     changed = form.save(commit=False)
     recorded_total = sum(
         changed.organism_counts.values_list("count", flat=True)
-    )
+    ) + sum(changed.additional_organism_counts.values_list("count", flat=True))
     if recorded_total > changed.isolate_count:
         messages.error(request, "The new range is smaller than its recorded organism counts.")
         return destination
@@ -269,6 +277,7 @@ def laboratory_accession_delete(request, accession_id):
     receipt = accession.laboratory_receiving.receipt
     # These rows are exclusively attached to the ungenerated range.
     accession.organism_counts.all().delete()
+    accession.additional_organism_counts.all().delete()
     accession.delete()
     ReceivingEvent.objects.create(
         receipt=receipt,
@@ -304,7 +313,8 @@ def laboratory_organism_matrix_save(request, accession_id):
             return destination
         else:
             counts[code] = int(raw)
-    if sum(counts.values()) > accession.isolate_count:
+    additional = sum(accession.additional_organism_counts.values_list("count", flat=True))
+    if sum(counts.values()) + additional > accession.isolate_count:
         messages.error(request, "The total organism count cannot exceed the accession-range isolate count.")
         return destination
 
@@ -402,7 +412,7 @@ def _register_context(request):
         receipt__lab_date_received__month=month,
         receipt__lab_date_received__year=year,
     ).select_related("receipt__site", "receipt__lab_received_by").prefetch_related(
-        "accession_ranges__batch", "accession_ranges__organism_counts"
+        "accession_ranges__batch", "accession_ranges__organism_counts", "accession_ranges__additional_organism_counts"
     )
     rows, totals, organism_totals = build_register_rows(records)
     return form, month, year, records, rows, totals, organism_totals

@@ -20,22 +20,23 @@
   <div class="receiving-content">
     <section class="receiving-surface">
       <div class="receiving-card-header"><h2>Isolates in this batch</h2>
-      <p>Open an accession to record Main Laboratory identification or complete Laboratory Receiving revival, approval, and storage. Each isolate moves independently after cassette return.</p></div>
+      <p>Record revival per accession, then bank directly using site ID or queue for endorsement to Main Lab, then endorse for ID testing. After Main Lab return, confirm identification, record lyophilization and finalize banking.</p></div>
       <div class="receiving-card-body">
         <div class="table-responsive"><table class="table receiving-table">
-        <thead><tr><th>Accession</th><th>Workflow status</th><th>Identification results</th><th>ID returned / by</th><th>Approved organism</th><th>Next action / owner</th><th>Action</th></tr></thead>
+        <thead><tr><th>Accession</th><th>Workflow status</th><th>Site-reported ID</th><th>Main Lab results</th><th>ID returned / by</th><th>Banking ID / source</th><th>Next action / owner</th><th>Action</th></tr></thead>
         <tbody>
         {% for isolate in isolates %}
         <tr>
           <td><strong>{{ isolate.accession_number }}</strong></td>
           <td>{{ isolate.get_status_display }}</td>
+          <td>{% if isolate.reported_site_id %}{{ isolate.reported_site_id.0 }} &middot; {{ isolate.reported_site_id.1 }}{% else %}<span class="text-muted">Not recorded</span>{% endif %}</td>
           <td>{{ isolate.identifications.count }}</td>
           <td>{% if isolate.returned_at %}{{ isolate.returned_at|date:"M j, Y g:i A" }}<span class="receiving-site-name">{{ isolate.returned_by.get_full_name|default:isolate.returned_by.username|default:"—" }}</span>{% else %}Pending{% endif %}</td>
-          <td>{{ isolate.final_organism|default:"Pending review" }}</td>
+          <td>{{ isolate.final_organism|default:"Pending identification" }}{% if isolate.identification_source %}<span class="receiving-site-name">{{ isolate.get_identification_source_display }}</span>{% endif %}</td>
           <td><strong>{{ isolate.next_action.label }}</strong><span class="receiving-site-name">{{ isolate.next_action.owner }}</span>{% if not isolate.next_action.allowed %}<span class="small text-muted">Assigned to another role</span>{% endif %}</td>
           <td><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}#{{ isolate.next_action.section }}">{% if isolate.next_action.allowed %}Open Isolate{% else %}View Isolate{% endif %}</a></td>
         </tr>
-        {% empty %}<tr><td colspan="7" class="text-muted text-center">No isolates have been endorsed to Main Laboratory for this range.</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="8" class="text-muted text-center">Open the Receiving Worksheet to record revival for this accession range.</td></tr>{% endfor %}
         </tbody></table></div>
       </div>
     </section>

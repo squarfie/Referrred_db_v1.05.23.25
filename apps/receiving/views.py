@@ -1,4 +1,4 @@
-from apps.laboratory.permissions import can_confirm_lab_receipt, can_read_laboratory_receiving
+from apps.laboratory.permissions import can_read_laboratory_receiving
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
@@ -75,10 +75,7 @@ def receiving_detail(request, receiving_id):
             "can_print_label": can_manage,
             "can_permanently_delete": can_delete_receipt_safely(receipt, request.user),
             "can_endorse": can_manage and receipt.status == ReferralReceipt.Status.RECEIVED,
-            "can_confirm_lab": (
-                can_confirm_lab_receipt(request.user)
-                and receipt.status == ReferralReceipt.Status.ENDORSED
-            ),
+            "can_confirm_lab": False,
             "can_work_lab": False,
             "laboratory_detail": False,
         },

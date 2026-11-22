@@ -485,7 +485,8 @@ class LaboratoryOrganismCount(models.Model):
         existing = type(self).objects.filter(accession_range_id=self.accession_range_id)
         if self.pk:
             existing = existing.exclude(pk=self.pk)
-        if sum(existing.values_list("count", flat=True)) + self.count > self.accession_range.isolate_count:
+        additional = sum(self.accession_range.additional_organism_counts.values_list("count", flat=True))
+        if sum(existing.values_list("count", flat=True)) + additional + self.count > self.accession_range.isolate_count:
             raise ValidationError({"count": "Organism counts cannot exceed the accession-range isolate count."})
 
     @property
@@ -496,14 +497,56 @@ class LaboratoryOrganismCount(models.Model):
         return f"{self.get_organism_code_display()}: {self.count}"
 
 
+class LaboratoryAdditionalOrganismCount(models.Model):
+    accession_range = models.ForeignKey(LaboratoryAccession, on_delete=models.PROTECT,
+        related_name="additional_organism_counts")
+    whonet_code = models.CharField(max_length=20, blank=True, default="")
+    organism_name = models.CharField(max_length=255, blank=True, default="")
+    register_category = models.CharField(max_length=20, blank=True, default="", choices=LaboratoryOrganismCount.OrganismCode.choices)
+    inventory_counts = models.JSONField(default=dict, blank=True)
+    count = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)])
+
+    class Meta:
+        ordering = ("accession_range", "organism_name", "pk")
+        constraints = [models.UniqueConstraint(fields=("accession_range", "whonet_code"),
+            condition=~Q(whonet_code=""),
+            name="lab_additional_organism_per_range")]
+
+    def clean(self):
+        super().clean()
+        if self.inventory_counts:
+            allowed = set(LaboratoryOrganismCount.OrganismCode.values)
+            if not isinstance(self.inventory_counts, dict) or any(
+                key not in allowed or type(value) is not int or value < 0
+                for key, value in self.inventory_counts.items()
+            ):
+                raise ValidationError({"inventory_counts": "Enter non-negative whole counts in the original organism columns."})
+            self.count = sum(self.inventory_counts.values())
+        if not self.accession_range_id or not self.count:
+            return
+        fixed = sum(self.accession_range.organism_counts.values_list("count", flat=True))
+        extra = sum(type(self).objects.filter(accession_range_id=self.accession_range_id)
+                    .exclude(pk=self.pk).values_list("count", flat=True))
+        if fixed + extra + self.count > self.accession_range.isolate_count:
+            raise ValidationError({"count": "All organism rows together cannot exceed the accession-range isolate count."})
+
+    @property
+    def inventory_values(self):
+        if self.inventory_counts:
+            return self.inventory_counts
+        return {self.register_category: self.count} if self.register_category else {}
+
+
 class LaboratoryIsolate(models.Model):
     """One accepted isolate; accessions are assigned by Laboratory Receiving."""
     class Status(models.TextChoices):
+        REVIVAL_PENDING = "revival_pending", "Awaiting revival"
         REVIVAL_QUEUED = "revival_queued", "Queued for revival"
         REVIVAL_IN_PROGRESS = "revival_in_progress", "Revival in progress"
         REVIVED = "revived", "Revival completed"
         REVIVAL_FAILED = "revival_failed", "Revival failed"
         NON_VIABLE = "non_viable", "Non-viable"
+        ID_QUEUED = "id_queued", "Queued for Main Laboratory endorsement"
         ID_PENDING = "id_pending", "Awaiting Main Laboratory acknowledgment"
         ID_TESTING = "id_testing", "ID testing"
         ID_RETURNED = "id_returned", "ID results and cassette returned"
@@ -515,7 +558,21 @@ class LaboratoryIsolate(models.Model):
         LaboratoryAccession, on_delete=models.PROTECT, related_name="isolate_records"
     )
     accession_number = models.CharField(max_length=80, unique=True, db_index=True)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ID_PENDING)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REVIVAL_PENDING)
+    identification_source = models.CharField(
+        max_length=10, blank=True, default="",
+        choices=(("site", "Referring site"), ("main_lab", "Main Laboratory")),
+    )
+    site_organism_code = models.CharField(max_length=20, blank=True, default="")
+    site_organism_name = models.CharField(max_length=255, blank=True, default="")
+    site_identified_at = models.DateTimeField(null=True, blank=True)
+    site_identified_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="laboratory_site_identifications")
+    id_queued_at = models.DateTimeField(null=True, blank=True)
+    id_queued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="isolates_queued_for_id",
+    )
     revival_queued_at = models.DateTimeField(null=True, blank=True)
     revival_queued_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,

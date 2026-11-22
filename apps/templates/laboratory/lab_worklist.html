@@ -6,7 +6,7 @@
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
     <p class="receiving-eyebrow">{% if area == "processing" %}LAB Encoder{% else %}Laboratory staff{% endif %}</p><h1>{% if area == "processing" %}Revival &amp; Processing{% else %}Identification Testing{% endif %}</h1>
-    <p class="receiving-hero-subtitle">{% if area == "processing" %}Returned cassettes, revival, review, lyophilization and biobank preparation, grouped by accession batch.{% else %}Record identification results and return cassettes to Laboratory Receiving, grouped by accession batch.{% endif %}</p>
+    <p class="receiving-hero-subtitle">{% if area == "processing" %}Revival, direct banking using site ID, or Main Lab ID followed by lyophilization and banking, grouped by accession batch.{% else %}Record identification results and return cassettes to Laboratory Receiving, grouped by accession batch.{% endif %}</p>
   </div></div>
   <div class="receiving-hero-actions">
     {% if can_test and area != "processing" %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}"><i class="fas fa-file-upload mr-1"></i> Upload ID Results</a>{% endif %}
@@ -31,23 +31,25 @@
         <div class="table-responsive">
           <table class="table receiving-table">
             <caption class="sr-only">Accession batches and workflow stage counts</caption>
-            <thead><tr><th scope="col">Batch / accession range</th><th scope="col">Referring site / tracking</th><th scope="col">Isolates</th><th scope="col">Awaiting ID</th><th scope="col">Returned</th><th scope="col">Awaiting revival</th><th scope="col">Awaiting review</th><th scope="col">Awaiting lyophilization</th><th scope="col">Awaiting biobank</th><th scope="col">Completed</th><th scope="col">Action</th></tr></thead>
+            <thead><tr><th scope="col">Batch / accession range</th><th scope="col">Referring site / tracking</th><th scope="col">Isolates</th><th scope="col">Awaiting revival</th><th scope="col">Bank or queue</th><th scope="col">Queued for endorsement</th><th scope="col">Awaiting Main Lab ID</th><th scope="col">Returned</th><th scope="col">Awaiting ID confirmation</th><th scope="col">Awaiting lyophilization</th><th scope="col">Awaiting biobank</th><th scope="col">Completed</th><th scope="col">Action</th></tr></thead>
             <tbody>
             {% for row in batches %}
               <tr>
                 <td data-label="Batch"><strong>Batch {{ row.accession.batch_number }} / {{ row.accession.total_batches }}</strong><span class="receiving-site-name">{{ row.accession.reference_range }}{% if row.accession.batch %} · {{ row.accession.batch.bat_Batch_Code }}{% endif %}</span></td>
                 <td data-label="Site">{{ row.accession.laboratory_receiving.receipt.site.SiteCode }}<span class="receiving-site-name">{{ row.accession.laboratory_receiving.receipt.tracking_number }}</span></td>
                 <td data-label="Isolates">{{ row.count }} / {{ row.accession.isolate_count }}</td>
+                <td data-label="Awaiting revival">{{ row.awaiting_revival_count }}</td>
+                <td data-label="Bank or queue">{{ row.awaiting_disposition_count }}</td>
+                <td data-label="Queued for endorsement">{{ row.awaiting_endorsement_count }}</td>
                 <td data-label="Awaiting ID">{{ row.awaiting_id_count }}</td>
                 <td data-label="Returned">{{ row.returned_count }}</td>
-                <td data-label="Awaiting revival">{{ row.awaiting_revival_count }}</td>
                 <td data-label="Awaiting review">{{ row.awaiting_review_count }}</td>
                 <td data-label="Awaiting lyophilization">{{ row.awaiting_lyophilization_count }}</td>
                 <td data-label="Awaiting biobank">{{ row.awaiting_biobank_count }}</td>
                 <td data-label="Completed">{{ row.completed_count }}</td>
                 <td data-label="Action" class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}">Open Batch</a></td>
               </tr>
-            {% empty %}<tr><td colspan="11" class="text-center text-muted">No isolate batches match the filters. Laboratory Receiving must endorse accession ranges first.</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="13" class="text-center text-muted">No isolate batches match the filters. Record revival first; only isolates endorsed to Main Lab appear in Identification Testing.</td></tr>{% endfor %}
             </tbody>
           </table>
         </div>

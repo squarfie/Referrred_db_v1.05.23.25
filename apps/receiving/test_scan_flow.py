@@ -57,6 +57,9 @@ class ScanReceiptFixtures:
         )
         cls.isolate = LaboratoryIsolate.objects.create(
             accession_range=cls.accession, accession_number="26ARS_SCN0001",
+            status=LaboratoryIsolate.Status.ID_PENDING,
+            revival_started_at=timezone.now() - timedelta(hours=4),
+            revival_completed_at=timezone.now() - timedelta(hours=3),
             endorsed_by=cls.receiver, endorsed_at=cls.endorsed_at,
         )
 
@@ -164,7 +167,16 @@ class ScanReceiveFlowTests(ScanReceiptFixtures, TestCase):
         self.assertEqual(self.isolate.acknowledged_at, received_at)
         self.assertEqual(self.received_batch.events.filter(event_type="id_received").count(), 1)
 
-    def test_receiver_without_main_lab_role_cannot_acknowledge_id(self):
+    def test_lab_encoder_can_acknowledge_id_by_scan(self):
+        self.client.force_login(self.receiver)
+        self.assertEqual(self.client.get(self.isolate_url()).status_code, 200)
+        self.client.post(self.isolate_url())
+        self.isolate.refresh_from_db()
+        self.assertEqual(self.isolate.status, LaboratoryIsolate.Status.ID_TESTING)
+        self.assertEqual(self.isolate.acknowledged_by, self.receiver)
+
+    def test_user_without_laboratory_role_cannot_acknowledge_id(self):
+        self.receiver.groups.clear()
         self.client.force_login(self.receiver)
         for method in (self.client.get, self.client.post):
             self.assertEqual(method(self.isolate_url()).status_code, 302)
@@ -174,7 +186,7 @@ class ScanReceiveFlowTests(ScanReceiptFixtures, TestCase):
 
     def test_later_accession_stages_open_current_step_without_advancing(self):
         self.client.force_login(self.staff)
-        for status, section in (("id_testing", "identification"), ("id_returned", "revival"),
+        for status, section in (("id_testing", "identification"), ("id_returned", "review"),
                                 ("ready_for_biobank", "biobank"), ("biobanked", "closed")):
             with self.subTest(status=status):
                 self.isolate.status = status

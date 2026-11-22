@@ -1,0 +1,312 @@
+from datetime import timedelta
+from unittest.mock import patch
+
+from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
+
+from apps.receiving import tests as fixtures
+from apps.laboratory.models import LaboratoryIsolate, LaboratoryIdentification
+from apps.laboratory.guidance import next_action
+from apps.laboratory.workflow import (
+    WorkflowError, transition_batch, create_id_handoff, record_revival_outcome,
+)
+
+
+class RevivalBeforeIdentificationTests(TestCase):
+    setUp = fixtures.LaboratoryReceivingWorkspaceTests.setUp
+    create_pending_accession = fixtures.LaboratoryReceivingWorkspaceTests.create_pending_accession
+
+    def prepare(self):
+        accession = self.create_pending_accession()
+        self.receipt.lab_date_received = timezone.localdate() - timedelta(days=2)
+        self.receipt.save()
+        with patch('apps.laboratory.workflow.timezone.now', return_value=timezone.now() - timedelta(hours=3)):
+            transition_batch(accession.pk, 'prepare', self.lab_user)
+        return accession
+
+    def revive(self, item, outcome='revived'):
+        now = timezone.now()
+        record_revival_outcome(item.pk, outcome, (now - timedelta(hours=2)).isoformat(),
+            (now - timedelta(hours=1)).isoformat(), '' if outcome == 'revived' else 'No growth', self.lab_user)
+        item.refresh_from_db()
+
+    def test_prepare_creates_isolates_without_queueing_or_inventing_revival_dates(self):
+        accession = self.prepare()
+        items = list(accession.isolate_records.all())
+        self.assertEqual(len(items), accession.isolate_count)
+        for item in items:
+            self.assertEqual(item.status, 'revival_pending')
+            self.assertIsNone(item.revival_queued_at)
+            self.assertIsNone(item.revival_started_at)
+            self.assertIsNone(item.revival_completed_at)
+            self.assertIsNone(item.endorsed_at)
+        self.assertFalse(transition_batch(accession.pk, 'prepare', self.lab_user))
+
+    def test_endorsement_without_revival_does_not_create_id_work(self):
+        accession = self.create_pending_accession()
+        with self.assertRaises(WorkflowError):
+            create_id_handoff(accession.pk, self.lab_user)
+        self.assertFalse(accession.isolate_records.exists())
+
+    def test_revived_isolate_is_endorsed_while_failed_and_queued_siblings_stay(self):
+        accession = self.prepare()
+        success, failed, queued = list(accession.isolate_records.all())[:3]
+        self.revive(success)
+        self.revive(failed, 'revival_failed')
+        self.assertEqual(next_action(success, self.lab_user)['section'], 'disposition')
+        old_dates = (success.revival_started_at, success.revival_completed_at)
+        transition_batch(accession.pk, 'queue', self.lab_user)
+        self.assertTrue(create_id_handoff(accession.pk, self.lab_user))
+        for item in (success, failed, queued):
+            item.refresh_from_db()
+        self.assertEqual(success.status, 'id_pending')
+        self.assertEqual((success.revival_started_at, success.revival_completed_at), old_dates)
+        self.assertEqual(failed.status, 'revival_failed')
+        self.assertEqual(queued.status, 'revival_pending')
+        endorsed = success.endorsed_at
+        self.assertFalse(create_id_handoff(accession.pk, self.lab_user))
+        success.refresh_from_db()
+        self.assertEqual(success.endorsed_at, endorsed)
+
+    def test_returned_identification_proceeds_directly_to_review(self):
+        accession = self.create_pending_accession()
+        item = LaboratoryIsolate.objects.create(accession_range=accession,
+            accession_number='RETURNED-ID', status='id_returned', returned_at=timezone.now(), returned_by=self.lab_user,
+            revival_started_at=timezone.now() - timedelta(hours=2), revival_completed_at=timezone.now() - timedelta(hours=1))
+        LaboratoryIdentification.objects.create(isolate=item, organism_reported='Klebsiella pneumoniae',
+            whonet_organism_code='KPN', cassette_reference='C1')
+        self.assertEqual(next_action(item, self.lab_user)['section'], 'review')
+        self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_reviewed')
+        self.assertIsNotNone(item.revival_completed_at)
+
+    def test_actual_revival_dates_must_follow_laboratory_receipt(self):
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        with self.assertRaises(WorkflowError):
+            record_revival_outcome(item.pk, 'revived',
+                (timezone.now() - timedelta(days=4)).isoformat(), timezone.now().isoformat(), '', self.lab_user)
+
+    def test_worksheet_and_worklist_expose_revival_before_handoff(self):
+        accession = self.create_pending_accession()
+        page = self.client.get(reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id]))
+        self.assertContains(page, 'Record revival')
+        self.assertNotContains(page, 'Revival can begin only when Main Laboratory returns')
+        self.client.post(reverse('laboratory_batch_transition', args=[accession.pk, 'prepare']))
+        page = self.client.get(reverse('laboratory_processing_worklist'))
+        self.assertEqual(page.context['batches'][0]['accession'].pk, accession.pk)
+        self.assertEqual(len(self.client.get(reverse('laboratory_worklist')).context['batches']), 0)
+
+    def test_historical_completed_revival_with_returned_id_still_goes_to_review(self):
+        accession = self.create_pending_accession()
+        item = LaboratoryIsolate.objects.create(accession_range=accession,
+            accession_number='HISTORICAL', status='revived', returned_at=timezone.now())
+        self.assertEqual(next_action(item, self.lab_user)['section'], 'review')
+
+    def test_direct_bank_uses_site_identification_without_main_lab_or_lyophilization(self):
+        from apps.home.models import Referred_Data
+        from apps.laboratory.workflow import save_biobank
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        self.revive(item)
+        raw = Referred_Data.objects.create(AccessionNo=item.accession_number, SiteCode=self.site.SiteCode,
+            Site_Org='KPN', Site_OrgName='Klebsiella pneumoniae')
+        response = self.client.post(reverse('laboratory_bank_site_id', args=[item.pk]))
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.identification_source, 'site')
+        self.assertEqual(item.final_organism, 'Klebsiella pneumoniae')
+        self.assertEqual(item.status, 'ready_for_biobank')
+        self.assertIsNone(item.endorsed_at)
+        self.assertIsNone(item.reviewed_at)
+        self.assertFalse(item.identifications.exists())
+        bank = save_biobank(item.pk, {'storage_box': 'SITE-BOX', 'box_position': 'A1'}, self.lab_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'biobanked')
+        self.assertIsNone(bank.date_lyophilized)
+        raw.Site_Org = 'ECO'
+        raw.Site_OrgName = 'Escherichia coli'
+        raw.save()
+        item.refresh_from_db()
+        self.assertEqual(item.final_organism, 'Klebsiella pneumoniae')
+
+    def test_direct_bank_requires_matching_site_id_and_successful_revival(self):
+        from apps.home.models import Referred_Data
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        url = reverse('laboratory_bank_site_id', args=[item.pk])
+        self.client.post(url)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'revival_pending')
+        self.revive(item)
+        Referred_Data.objects.create(AccessionNo=item.accession_number, SiteCode='OTHER', Site_Org='KPN')
+        self.client.post(url)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'revived')
+        self.assertFalse(hasattr(item, 'biobank'))
+
+    def test_queue_targets_only_selected_revived_isolate(self):
+        accession = self.prepare()
+        first, second = list(accession.isolate_records.all())[:2]
+        self.revive(first)
+        self.revive(second)
+        self.client.post(reverse('laboratory_queue_main_lab', args=[first.pk]))
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, 'id_queued')
+        self.assertEqual(second.status, 'revived')
+        self.assertIsNone(first.endorsed_at)
+
+    def test_queue_requires_separate_endorsement_before_main_lab_can_receive(self):
+        from apps.laboratory.workflow import acknowledge_id_receipt
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        self.revive(item)
+        with self.assertRaises(WorkflowError):
+            create_id_handoff(accession.pk, self.lab_user, isolate_id=item.pk)
+        self.client.post(reverse('laboratory_queue_main_lab', args=[item.pk]))
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_queued')
+        self.assertIsNone(item.endorsed_at)
+        self.assertIsNotNone(item.id_queued_at)
+        queued_at = item.id_queued_at
+        _, received = acknowledge_id_receipt(isolate_id=item.pk, user=self.lab_user)
+        self.assertFalse(received)
+        self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
+            'organism_reported_code': 'KPN', 'organism_reported': 'Klebsiella pneumoniae', 'cassette_reference': 'C1'})
+        self.assertFalse(item.identifications.exists())
+        self.assertEqual(len(self.client.get(reverse('laboratory_worklist')).context['batches']), 0)
+        create_id_handoff(accession.pk, self.lab_user, isolate_id=item.pk)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_pending')
+        self.assertEqual(item.id_queued_at, queued_at)
+        self.assertIsNotNone(item.endorsed_at)
+        self.assertEqual(len(self.client.get(reverse('laboratory_worklist')).context['batches']), 1)
+
+    def test_batch_queue_works_for_lab_staff_without_granting_revival_updates(self):
+        from django.contrib.auth.models import Group
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        self.revive(item)
+        self.lab_user.groups.set([Group.objects.get_or_create(name='Laboratory Staff')[0]])
+        url = reverse('laboratory_queue_id_batch', args=[accession.pk])
+        page = self.client.get(reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id]))
+        self.assertContains(page, f'action="{url}"')
+        response = self.client.post(url)
+        self.assertRedirects(response, reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id]), fetch_redirect_response=False)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_queued')
+        self.assertIsNone(item.endorsed_at)
+        self.assertEqual(self.client.get(url).status_code, 405)
+
+    def test_main_lab_path_requires_lyophilization_before_storage(self):
+        from apps.laboratory.workflow import save_biobank
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        self.revive(item)
+        original = (item.revival_started_at, item.revival_completed_at)
+        self.client.post(reverse('laboratory_queue_main_lab', args=[item.pk]))
+        self.client.post(reverse('laboratory_endorse_isolate', args=[item.pk]))
+        self.client.post(reverse('laboratory_acknowledge_id', args=[item.pk]))
+        self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
+            'action': 'submit_return', 'organism_reported_code': 'KPN',
+            'organism_reported': 'Klebsiella pneumoniae', 'cassette_reference': 'C1',
+        })
+        self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_reviewed')
+        self.assertEqual(item.identification_source, 'main_lab')
+        self.assertEqual((item.revival_started_at, item.revival_completed_at), original)
+        with self.assertRaises(WorkflowError):
+            save_biobank(item.pk, {'storage_box': 'MAIN-BOX', 'box_position': 'A1'}, self.lab_user)
+        day = timezone.localdate().isoformat()
+        self.client.post(reverse('laboratory_lyophilization_complete', args=[item.pk]),
+            {'date_harvested': day, 'date_lyophilized': day})
+        save_biobank(item.pk, {'storage_box': 'MAIN-BOX', 'box_position': 'A1'}, self.lab_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'biobanked')
+        self.assertEqual(item.biobanked_by, self.lab_user)
+
+    def test_harvest_is_recorded_with_lyophilization_and_preserved_at_final_banking(self):
+        from apps.home.models import Referred_Data
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        page = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
+        self.assertNotContains(page, 'name="date_harvested"')
+        self.revive(item)
+        self.assertFalse(hasattr(item, 'biobank'))
+        Referred_Data.objects.create(AccessionNo=item.accession_number, SiteCode=self.site.SiteCode,
+            Site_Org='KPN', Site_OrgName='Klebsiella pneumoniae')
+        self.client.post(reverse('laboratory_bank_site_id', args=[item.pk]))
+        day = timezone.localdate().isoformat()
+        self.client.post(reverse('laboratory_lyophilization_complete', args=[item.pk]),
+            {'date_harvested': day, 'date_lyophilized': day})
+        self.client.post(reverse('laboratory_biobank_save', args=[item.pk]),
+            {'storage_box': 'SITE-BOX', 'box_position': 'C2', 'date_harvested': '2000-01-01', 'whonet_code': 'ECO'})
+        item.refresh_from_db()
+        self.assertEqual(item.biobank.date_harvested.isoformat(), day)
+        self.assertEqual(item.biobank.whonet_code, 'KPN')
+        self.assertEqual(item.biobank.storage_box, 'SITE-BOX')
+        self.assertEqual(item.biobank.box_position, 'C2')
+        self.assertEqual(item.status, 'biobanked')
+
+    def test_disposition_actions_require_post_and_a_laboratory_role(self):
+        from django.contrib.auth.models import Group
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        self.revive(item)
+        bank_url = reverse('laboratory_bank_site_id', args=[item.pk])
+        queue_url = reverse('laboratory_queue_main_lab', args=[item.pk])
+        for url in (bank_url, queue_url):
+            self.assertEqual(self.client.get(url).status_code, 405)
+        self.lab_user.groups.set([Group.objects.get_or_create(name='Secretariat')[0]])
+        for url in (bank_url, queue_url):
+            self.client.post(url)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'revived')
+        self.assertIsNone(item.endorsed_at)
+        self.assertFalse(hasattr(item, 'biobank'))
+
+    def test_historical_return_without_revival_preserves_id_and_records_missing_work(self):
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        item.status = 'id_returned'
+        item.returned_at = timezone.now() - timedelta(hours=3)
+        item.returned_by = self.lab_user
+        item.save()
+        result = LaboratoryIdentification.objects.create(isolate=item, organism_reported='Klebsiella pneumoniae',
+            whonet_organism_code='KPN', cassette_reference='C1')
+        old_return = item.returned_at
+        self.assertEqual(next_action(item, self.lab_user)['section'], 'revival')
+        self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_returned')
+        self.revive(item)
+        self.assertEqual(item.returned_at, old_return)
+        self.assertEqual(item.identifications.get().pk, result.pk)
+        self.assertEqual(next_action(item, self.lab_user)['section'], 'review')
+        self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_reviewed')
+
+    def test_final_banking_requires_a_box_and_position_in_the_same_section(self):
+        from apps.home.models import Referred_Data
+        from apps.laboratory.workflow import save_biobank
+        accession = self.prepare()
+        item = accession.isolate_records.first()
+        self.revive(item)
+        Referred_Data.objects.create(AccessionNo=item.accession_number, SiteCode=self.site.SiteCode,
+            Site_Org='KPN', Site_OrgName='Klebsiella pneumoniae')
+        self.client.post(reverse('laboratory_bank_site_id', args=[item.pk]))
+        for details in ({'box_position': 'A1'}, {'storage_box': 'BOX'},
+                        {'storage_box': 'BOX', 'supplementary_position': 'A1'}):
+            with self.subTest(details=details), self.assertRaises(WorkflowError):
+                save_biobank(item.pk, details, self.lab_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'ready_for_biobank')
+        save_biobank(item.pk, {'storage_box': 'BOX', 'box_position': 'A1'}, self.lab_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'biobanked')
+        self.assertEqual(item.biobanked_by, self.lab_user)

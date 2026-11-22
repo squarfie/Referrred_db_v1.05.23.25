@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from django import forms
 from django.utils import timezone
-from .models import LaboratoryAccession, LaboratoryOrganismCount, LaboratoryReceiving
+from .models import LaboratoryAccession, LaboratoryOrganismCount, LaboratoryReceiving, LaboratoryAdditionalOrganismCount
 
 class LabReceiptForm(forms.Form):
     lab_date_received = forms.DateField(
@@ -96,6 +96,23 @@ class LaboratoryOrganismCountForm(forms.ModelForm):
             "organism_code": forms.Select(attrs={"class": "form-control"}),
             "count": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
         }
+
+
+class AdditionalOrganismForm(forms.ModelForm):
+    whonet_code = forms.CharField(max_length=20)
+    register_category = forms.ChoiceField(choices=LaboratoryOrganismCount.OrganismCode.choices)
+    count = forms.IntegerField(min_value=1)
+    class Meta:
+        model = LaboratoryAdditionalOrganismCount
+        fields = ("whonet_code", "register_category", "count")
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("whonet_code"):
+            from .organism_lookup import resolve_organism
+            cleaned["whonet_code"], self.instance.organism_name = resolve_organism(
+                code=cleaned["whonet_code"], require_code=True)
+        return cleaned
 
 
 class LaboratoryRegisterFilterForm(forms.Form):

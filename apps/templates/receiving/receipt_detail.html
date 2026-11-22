@@ -10,7 +10,7 @@
       <a class="btn btn-outline-light" href="{% if laboratory_detail %}{% url 'laboratory_receiving_dashboard' %}{% else %}{% url 'secretariat_receiving_dashboard' %}{% endif %}"><i class="fas fa-arrow-left mr-1"></i>{% if laboratory_detail %}Laboratory Receiving{% else %}Isolate Receiving{% endif %}</a>
       {% if can_print_label %}<a class="btn btn-outline-light" target="_blank" rel="noopener" href="{% url 'receiving_label' receipt.receiving_id %}"><i class="fas fa-print mr-1"></i>Print batch label</a>{% endif %}
       {% if can_endorse %}<form method="post" action="{% url 'receiving_endorse' receipt.receiving_id %}">{% csrf_token %}<button class="btn btn-info" type="submit"><i class="fas fa-paper-plane mr-1"></i>Endorse to laboratory</button></form>{% endif %}
-      {% if can_confirm_lab and receipt.status == "endorsed" %}<a class="btn btn-success" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm laboratory receipt</a>{% endif %}
+      {% if laboratory_detail and can_confirm_lab and receipt.status == "endorsed" %}<a class="btn btn-success" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm laboratory receipt</a>{% endif %}
       {% if can_work_lab %}<a class="btn btn-info" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Open laboratory worksheet</a>{% endif %}
       {% if can_permanently_delete %}<button type="button" class="btn btn-outline-danger" data-toggle="modal" data-target="#deleteReceivingBatchModal"><i class="fas fa-trash-alt mr-1"></i>Delete permanently</button>{% endif %}
     </div>
