@@ -14,8 +14,6 @@ from apps.home.permissions import (
 class LaboratoryNavigationUXTests(SimpleTestCase):
     areas = {
         "receiving": "Receiving &amp; Accessioning",
-        "identification": "Identification Testing",
-        "processing": "Revival &amp; Processing",
         "biobank": "Biobank Inventory",
     }
 
@@ -32,9 +30,9 @@ class LaboratoryNavigationUXTests(SimpleTestCase):
 
     def test_role_oriented_laboratory_areas(self):
         cases = {
-            ROLE_ADMIN: set(self.areas),
-            ROLE_LAB_ENCODER: {"receiving", "identification", "processing", "biobank"},
-            ROLE_LAB_STAFF: {"identification", "biobank"},
+            ROLE_ADMIN: {"receiving", "biobank"},
+            ROLE_LAB_ENCODER: {"receiving", "biobank"},
+            ROLE_LAB_STAFF: {"biobank"},
             ROLE_SECRETARIAT: set(),
         }
         for role, visible in cases.items():
@@ -45,16 +43,21 @@ class LaboratoryNavigationUXTests(SimpleTestCase):
                         self.assertIn(label, rendered)
                     else:
                         self.assertNotIn(label, rendered)
+                self.assertNotIn(">Identification Testing</span>", rendered)
+                self.assertNotIn(">Revival &amp; Processing</span>", rendered)
+                if role == ROLE_LAB_STAFF:
+                    self.assertIn("Laboratory Cases", rendered)
 
-    def test_batch_and_isolate_pages_keep_area_active(self):
-        for area, route in (
-            ("identification", "laboratory_worklist"),
-            ("processing", "laboratory_processing_worklist"),
-            ("biobank", "laboratory_biobank_list"),
-        ):
-            with self.subTest(area=area):
-                rendered = self.render_sidebar(ROLE_ADMIN, area, "laboratory_isolate_detail")
-                self.assertRegex(rendered, r'class="nav-link active" href="' + reverse(route) + '"')
+    def test_stage_pages_keep_single_laboratory_navigation_active(self):
+        for route in ("laboratory_worklist", "laboratory_processing_worklist",
+                      "laboratory_batch_detail", "laboratory_isolate_detail"):
+            with self.subTest(route=route):
+                rendered = self.render_sidebar(ROLE_ADMIN, "processing", route)
+                self.assertIn("Receiving &amp; Accessioning", rendered)
+                self.assertRegex(
+                    rendered,
+                    r'class="nav-link active" href="' + reverse("laboratory_receiving_dashboard") + '"',
+                )
 
     def test_laboratory_templates_compile(self):
         for template in (
