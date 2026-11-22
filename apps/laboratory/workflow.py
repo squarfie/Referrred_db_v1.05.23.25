@@ -126,7 +126,48 @@ def queue_for_id(accession_id, user, isolate_id=None):
 
 @transaction.atomic
 def create_id_handoff(accession_id, user, isolate_id=None):
-    return _advance_id_handoff(accession_id, user, isolate_id, endorse=True)
+    """Endorse the entire accession batch, never selected individual isolates.
+
+    Queueing an individual isolate is allowed while the receiving team completes
+    revival and Site ID encoding. The actual custody handoff is one atomic action.
+    Non-viable isolates are documented terminal outcomes, not testing candidates.
+    """
+    if isolate_id is not None:
+        raise WorkflowError("Main Laboratory endorsement must be performed for the entire batch.")
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Laboratory Receiving can endorse a prepared batch to Main Laboratory.")
+    accession = LaboratoryAccession.objects.select_for_update().select_related(
+        "laboratory_receiving__receipt"
+    ).get(pk=accession_id)
+    if accession.laboratory_receiving.receipt.status != "lab_received":
+        raise WorkflowError("Laboratory Receiving must acknowledge Secretariat custody first.")
+    items = list(LaboratoryIsolate.objects.select_for_update()
+                 .filter(accession_range=accession).order_by("pk"))
+    if len(items) != accession.isolate_count or not items:
+        raise WorkflowError("Every isolate in the batch must be accessioned before Main Lab endorsement.")
+    if all(item.status in (S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED, S.ID_REVIEWED,
+                           S.READY_FOR_BIOBANK, S.BIOBANKED, S.NON_VIABLE) for item in items):
+        return False
+    if any(item.status not in (S.ID_QUEUED, S.NON_VIABLE) for item in items):
+        raise WorkflowError("All viable isolates must be revived, assigned a Site ID, and queued before the whole batch can be endorsed.")
+    queued = [item for item in items if item.status == S.ID_QUEUED]
+    if not queued:
+        raise WorkflowError("No viable queued isolates to endorse to Main Laboratory.")
+    for item in queued:
+        if not (item.revival_started_at and item.revival_completed_at):
+            raise WorkflowError("Every queued isolate needs actual revival start and completion times.")
+        site_code, site_name = site_identification(item)
+        if not site_code or not site_name:
+            raise WorkflowError("Every queued isolate needs a recorded Site ID.")
+        if item.endorsed_at or item.returned_at or item.identifications.exists():
+            raise WorkflowError("Previously endorsed isolates cannot be re-endorsed.")
+    now = timezone.now()
+    for item in queued:
+        item.status = S.ID_PENDING
+        item.endorsed_at = now
+        item.endorsed_by = user
+    LaboratoryIsolate.objects.bulk_update(queued, ["status", "endorsed_at", "endorsed_by"])
+    return True
 
 
 def site_identification(isolate, *, require_code=True):
