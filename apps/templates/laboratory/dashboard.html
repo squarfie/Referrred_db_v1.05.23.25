@@ -7,7 +7,7 @@
   <header class="receiving-hero">
     <div class="receiving-hero-main">
       <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-      <div><p class="receiving-eyebrow">Isolate custody</p><h1>{% if is_lab_worklist %}Receiving &amp; Accessioning{% else %}Secretariat Receiving{% endif %}</h1>
+      <div><p class="receiving-eyebrow">Isolate custody</p><h1>{% if is_lab_worklist %}Bench A / Laboratory Receiving{% else %}Receiving{% endif %}</h1>
         <p class="receiving-hero-subtitle">{% if is_lab_worklist %}Review endorsed courier batches and confirm laboratory custody before accessioning.{% else %}Record courier arrivals and endorse received isolates to Laboratory Receiving.{% endif %}</p>
       </div>
     </div>
@@ -26,9 +26,9 @@
       </a>
       {% endfor %}
       {% else %}
-      <article class="receiving-surface receiving-stat"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span><div><div class="receiving-stat-label">Received by Secretariat</div><div class="receiving-stat-value">{{ received_count }}</div></div></article>
-      <article class="receiving-surface receiving-stat is-endorsed"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-paper-plane"></i></span><div><div class="receiving-stat-label">Endorsed to Laboratory</div><div class="receiving-stat-value">{{ endorsed_count }}</div></div></article>
-      <article class="receiving-surface receiving-stat is-complete"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-check-circle"></i></span><div><div class="receiving-stat-label">Received by Laboratory</div><div class="receiving-stat-value">{{ lab_received_count }}</div></div></article>
+      <article class="receiving-surface receiving-stat"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span><div><div class="receiving-stat-label">Received at Receiving</div><div class="receiving-stat-value">{{ received_count }}</div></div></article>
+      <article class="receiving-surface receiving-stat is-endorsed"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-paper-plane"></i></span><div><div class="receiving-stat-label">Endorsed to Laboratory Receiving</div><div class="receiving-stat-value">{{ endorsed_count }}</div></div></article>
+      <article class="receiving-surface receiving-stat is-complete"><span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-check-circle"></i></span><div><div class="receiving-stat-label">Received by Laboratory Receiving</div><div class="receiving-stat-value">{{ lab_received_count }}</div></div></article>
       {% endif %}
     </section>
 
