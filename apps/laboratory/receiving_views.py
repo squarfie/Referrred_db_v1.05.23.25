@@ -155,7 +155,7 @@ def laboratory_receiving_workspace(request, receiving_id):
         queued = [i for i in isolates if i.status == "id_queued"]
         accession.can_endorse_id = bool(queued) and all_disposed and all(
             i.revival_started_at and i.revival_completed_at
-            and (i.site_organism_code or i.site_organism_name) for i in queued
+            and i.site_organism_code.strip() and i.site_organism_name.strip() for i in queued
         )
         workflow_rows.append({
             "accession": accession, "stages": stages,
