@@ -68,7 +68,7 @@
 {% endif %}
 {% elif next_action.section == 'disposition' %}
 <p>Revival is complete. Choose the identification route before final banking.</p>
-{% if can_test %}
+{% if can_queue_id %}
 <form method="post" action="{% url 'laboratory_queue_main_lab' isolate.pk %}" class="mb-3">{% csrf_token %}<button class="btn btn-primary" type="submit">Queue for endorsement to Main Lab</button><p class="small text-muted">Queue first, then endorse to Main Lab for ID testing. After return, the Lab Encoder confirms the final ID and records lyophilization before banking.</p></form>
 {% endif %}
 {% if can_bank %}
@@ -108,7 +108,7 @@
 <details class="mb-3"><summary>Record harvest and lyophilization (if performed)</summary><div class="mt-3">{% include 'laboratory/_lab_lyophilization_form.html' %}</div></details>
 {% endif %}
 {% include 'laboratory/_lab_isolate_storage_form.html' %}
-{% if isolate.identification_source == 'site' and can_test %}
+{% if isolate.identification_source == 'site' and can_queue_id %}
 <form method="post" action="{% url 'laboratory_queue_main_lab' isolate.pk %}" class="mt-3">{% csrf_token %}<button type="submit" class="btn btn-outline-primary">Queue for Main Lab ID instead</button></form>
 {% endif %}
 {% endif %}
