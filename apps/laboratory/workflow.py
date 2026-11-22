@@ -145,20 +145,39 @@ def create_id_handoff(accession_id, user, isolate_id=None):
     accession = LaboratoryAccession.objects.select_for_update().select_related(
         "laboratory_receiving__receipt"
     ).get(pk=accession_id)
-    if accession.laboratory_receiving.receipt.status != "lab_received":
-        raise WorkflowError("Laboratory Receiving must acknowledge the original Receiving handoff first.")
     items = list(LaboratoryIsolate.objects.select_for_update()
                  .filter(accession_range=accession).order_by("pk"))
+    queued = _id_handoff_candidates(accession, items)
+    if not queued:
+        return False
+    now = timezone.now()
+    for item in queued:
+        item.status = S.ID_PENDING
+        item.endorsed_at = now
+        item.endorsed_by = user
+    LaboratoryIsolate.objects.bulk_update(queued, ["status", "endorsed_at", "endorsed_by"])
+    return True
+
+
+def _id_handoff_candidates(accession, items):
+    """Validate remaining batch work while preserving earlier recorded handoffs."""
+    if accession.laboratory_receiving.receipt.status != "lab_received":
+        raise WorkflowError("Laboratory Receiving must acknowledge the original Receiving handoff first.")
     if len(items) != accession.isolate_count or not items:
         raise WorkflowError("Every isolate in the batch must be accessioned before Main Lab endorsement.")
-    if all(item.status in (S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED, S.ID_REVIEWED,
-                           S.READY_FOR_BIOBANK, S.BIOBANKED, S.NON_VIABLE) for item in items):
-        return False
-    if any(item.status not in (S.ID_QUEUED, S.NON_VIABLE) for item in items):
-        raise WorkflowError("All viable isolates must be revived, assigned a Site ID, and queued before the whole batch can be endorsed.")
+    handed_off_stages = (S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED, S.ID_REVIEWED,
+                         S.READY_FOR_BIOBANK, S.BIOBANKED)
+    # Some older cases have receipt/result evidence without an endorsement
+    # timestamp. Recognize that history without fabricating missing custody dates.
+    blockers = [item.accession_number for item in items
+                if item.status not in (S.ID_QUEUED, S.NON_VIABLE)
+                and not (item.status in handed_off_stages and (
+                    item.endorsed_at or item.acknowledged_at or item.returned_at
+                    or item.identifications.exists()
+                ))]
+    if blockers:
+        raise WorkflowError("Complete revival, Site ID encoding and queueing for: " + ", ".join(blockers) + ".")
     queued = [item for item in items if item.status == S.ID_QUEUED]
-    if not queued:
-        raise WorkflowError("No viable queued isolates to endorse to Main Laboratory.")
     for item in queued:
         if not (item.revival_started_at and item.revival_completed_at):
             raise WorkflowError("Every queued isolate needs actual revival start and completion times.")
@@ -169,13 +188,17 @@ def create_id_handoff(accession_id, user, isolate_id=None):
             raise WorkflowError("Every queued isolate needs a valid Site ID.")
         if item.endorsed_at or item.returned_at or item.identifications.exists():
             raise WorkflowError("Previously endorsed isolates cannot be re-endorsed.")
-    now = timezone.now()
-    for item in queued:
-        item.status = S.ID_PENDING
-        item.endorsed_at = now
-        item.endorsed_by = user
-    LaboratoryIsolate.objects.bulk_update(queued, ["status", "endorsed_at", "endorsed_by"])
-    return True
+    return queued
+
+
+def id_handoff_readiness(accession, items):
+    """Use the same validation for the worksheet, isolate page and POST service."""
+    try:
+        queued = _id_handoff_candidates(accession, items)
+    except WorkflowError as exc:
+        return {"ready": False, "reason": str(exc),
+                "queued_count": sum(item.status == S.ID_QUEUED for item in items)}
+    return {"ready": bool(queued), "reason": "", "queued_count": len(queued)}
 
 
 def site_identification(isolate, *, require_code=True):

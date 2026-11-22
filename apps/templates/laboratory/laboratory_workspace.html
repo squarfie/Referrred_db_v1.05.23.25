@@ -190,7 +190,7 @@
                   {% if item.can_endorse_id and can_edit %}
                   <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse this entire ready batch from Laboratory Receiving to Main Lab ID testing?');">{% csrf_token %}<button class="btn btn-sm btn-primary mb-1" type="submit">Endorse whole batch to Main Lab</button></form>
                   {% elif can_edit and item.can_endorse_id == False %}
-                  <span class="small text-muted receiving-action-note">Main Lab batch endorsement unlocks when every viable isolate is revived, Site ID encoded, and queued.</span>
+                  <span class="small text-muted receiving-action-note">{{ item.id_handoff_reason|default:"No new queued isolates are ready for endorsement." }}</span>
                   {% endif %}
                 {% elif can_edit %}
                 {% if not item.batch %}

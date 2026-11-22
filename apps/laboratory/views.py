@@ -26,7 +26,7 @@ from .forms import StickerDateRangeForm
 from apps.receiving.qr import build_isolate_scan_url, render_qr_png
 from .workflow import (WorkflowError, transition_batch, transition_isolate_revival,
     record_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff, acknowledge_id_receipt,
-    bank_using_site_id, site_identification, record_site_identification, queue_for_id)
+    bank_using_site_id, site_identification, record_site_identification, queue_for_id, id_handoff_readiness)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
 )
@@ -210,6 +210,7 @@ def laboratory_batch_detail(request, accession_id):
         "area": request.GET.get("area") if request.GET.get("area") in ("identification", "processing", "biobank") else ("processing" if any(item.status not in ("id_pending", "id_testing") for item in isolates) else "identification"),
         "can_review": can_review_id_results(request.user),
         "can_test": can_access_main_lab(request.user),
+        "id_handoff": id_handoff_readiness(accession, isolates),
     })
 
 @login_required
@@ -249,7 +250,7 @@ def laboratory_queue_main_lab(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
     try:
         queue_for_id(isolate.accession_range_id, request.user, isolate_id=isolate.pk)
-        messages.success(request, "Isolate queued for endorsement. Main Laboratory receives it only after endorsement.")
+        messages.success(request, "Queued at Bench A, not yet endorsed. Endorse the ready batch below to make it appear in Main Laboratory's awaiting ID acknowledgment queue.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
     return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
@@ -390,9 +391,10 @@ def laboratory_isolate_detail(request, isolate_id):
         ).prefetch_related("identifications__recorded_by"), pk=isolate_id,
     )
     biobank = LaboratoryBiobank.objects.filter(isolate=isolate).first()
-    sibling_ids = list(isolate.accession_range.isolate_records.order_by(
+    siblings = list(isolate.accession_range.isolate_records.order_by(
         "accession_number", "pk"
-    ).values_list("pk", flat=True))
+    ))
+    sibling_ids = [item.pk for item in siblings]
     index = sibling_ids.index(isolate.pk)
     attempt_start = isolate.revival_retried_at if isolate.revival_retry_count else isolate.revival_started_at
     if isolate.revival_retry_count and attempt_start and attempt_start.microsecond:
@@ -417,6 +419,8 @@ def laboratory_isolate_detail(request, isolate_id):
         "can_queue_id": can_manage_id_testing(request.user) or can_review_id_results(request.user),
         "can_review": can_review_id_results(request.user),
         "can_bank": can_manage_biobank(request.user),
+        "id_handoff": id_handoff_readiness(isolate.accession_range, siblings)
+            if isolate.status == LaboratoryIsolate.Status.ID_QUEUED else None,
     })
 
 

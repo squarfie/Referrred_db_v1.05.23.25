@@ -16,6 +16,7 @@ from .models import LaboratoryAccession, LaboratoryIsolate, LaboratoryOrganismCo
 from .permissions import can_confirm_lab_receipt, lab_receiving_required, can_read_laboratory_receiving, lab_receiving_read_required
 from apps.receiving.permissions import receiving_read_required
 from .reports import REGISTER_COLUMNS, build_register_rows, render_register_pdf
+from .workflow import id_handoff_readiness
 
 def _receipt_or_404(receiving_id):
     return get_object_or_404(
@@ -150,13 +151,9 @@ def laboratory_receiving_workspace(request, receiving_id):
         accession.can_queue_id = any(item.status in ("revived", "site_banked", "ready_for_biobank") and not item.returned_at for item in isolates)
         # A custody handoff to Main Lab is one batch-level decision; partial queues
         # remain pending until all viable isolates have revival and Site ID data.
-        all_present = bool(isolates) and len(isolates) == accession.isolate_count
-        all_disposed = all_present and all(i.status in ("id_queued", "non_viable") for i in isolates)
-        queued = [i for i in isolates if i.status == "id_queued"]
-        accession.can_endorse_id = bool(queued) and all_disposed and all(
-            i.revival_started_at and i.revival_completed_at
-            and i.site_organism_code.strip() and i.site_organism_name.strip() for i in queued
-        )
+        readiness = id_handoff_readiness(accession, isolates)
+        accession.can_endorse_id = readiness["ready"]
+        accession.id_handoff_reason = readiness["reason"]
         workflow_rows.append({
             "accession": accession, "stages": stages,
             "count": len(isolates), "expected": accession.isolate_count,

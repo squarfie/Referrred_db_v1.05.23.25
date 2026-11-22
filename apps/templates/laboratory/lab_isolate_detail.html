@@ -67,8 +67,12 @@
 {% endif %}
 {% if can_bank %}<details class="mt-3"><summary>Edit temporary storage details</summary><div class="mt-3">{% include 'laboratory/_lab_isolate_storage_form.html' %}</div></details>{% endif %}
 {% elif next_action.section == 'endorsement' and can_review %}
-<p>This isolate is queued for endorsement. Main Lab ID testing begins only after it is endorsed and received.</p>
-<p class="mb-0">This isolate is queued. Main Lab endorsement is submitted once for the entire batch from <a href="{% url 'laboratory_receiving_workspace' isolate.accession_range.laboratory_receiving.receipt.receiving_id %}">Receiving &amp; Accessioning</a>, after all revival and Site ID records are complete.</p>
+<div class="alert alert-info">Queued at Bench A, <strong>not yet endorsed</strong>. It will appear in Main Laboratory's pending ID queue after batch endorsement.</div>
+{% if id_handoff.ready %}
+<p>{{ id_handoff.queued_count }} queued accession{{ id_handoff.queued_count|pluralize }} ready for handoff. Previously endorsed or completed isolates keep their existing records.</p>
+<form method="post" action="{% url 'laboratory_endorse_id' isolate.accession_range.pk %}" class="receiving-form-actions">{% csrf_token %}<button type="submit" class="btn btn-primary">Endorse whole batch to Main Lab</button></form>
+{% else %}<p class="alert alert-warning">{{ id_handoff.reason }}</p>{% endif %}
+<p class="mt-3 mb-0"><a class="btn btn-outline-primary" href="{% url 'laboratory_receiving_workspace' isolate.accession_range.laboratory_receiving.receipt.receiving_id %}#accessioning">Review batch readiness</a></p>
 {% elif next_action.section == 'review' and can_review %}
 {% with latest=isolate.identifications.first %}
 <p><strong>Latest instrument report:</strong> {% if latest.whonet_organism_code %}{{ latest.whonet_organism_code }} &mdash; {% endif %}{{ latest.organism_reported }} <span class="text-muted">{{ latest.instrument }} &middot; {{ latest.cassette_reference }}</span></p>
