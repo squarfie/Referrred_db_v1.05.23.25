@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from apps.receiving import tests as fixtures
 from apps.receiving.models import LaboratoryIsolate
 from django.contrib.auth.models import Group, User
@@ -8,6 +9,14 @@ from django.contrib.auth.models import Group, User
 class ReceiptWorkflowTabsTests(TestCase):
     setUp = fixtures.LaboratoryReceivingWorkspaceTests.setUp
     create_pending_accession = fixtures.LaboratoryReceivingWorkspaceTests.create_pending_accession
+
+    def completed_fields(self):
+        now = timezone.now()
+        return {
+            'status': 'biobanked', 'identification_source': 'main_lab',
+            'returned_at': now, 'reviewed_at': now,
+            'lyophilization_completed_at': now,
+        }
 
     def ids(self, tab):
         response = self.client.get(reverse('laboratory_receiving_dashboard'), {'tab': tab})
@@ -18,7 +27,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         from apps.home.models import Batch_Table
         accession = self.create_pending_accession()
         for number in accession.accession_numbers:
-            LaboratoryIsolate.objects.create(accession_range=accession, accession_number=number, status='biobanked')
+            LaboratoryIsolate.objects.create(accession_range=accession, accession_number=number, **self.completed_fields())
         self.assertIn(self.receipt.pk, self.ids('pending_batch'))
         response = self.client.get(reverse('laboratory_receiving_dashboard'), {'tab': 'pending_batch', 'q': 'no-match'})
         self.assertEqual(next(t['count'] for t in response.context['receiving_tabs'] if t['key'] == 'pending_batch'), 1)
@@ -84,7 +93,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         LaboratoryIsolate.objects.filter(pk__in=[i.pk for i in items]).update(status='id_returned')
         self.assertNotIn(self.receipt.pk, self.ids('main_lab'))
         self.assertIn(self.receipt.pk, self.ids('processing'))
-        LaboratoryIsolate.objects.filter(pk__in=[i.pk for i in items]).update(status='biobanked')
+        LaboratoryIsolate.objects.filter(pk__in=[i.pk for i in items]).update(**self.completed_fields())
         self.assertIn(self.receipt.pk, self.ids('complete'))
         self.assertNotIn(self.receipt.pk, self.ids('processing'))
         self.receipt.refresh_from_db()
@@ -93,7 +102,7 @@ class ReceiptWorkflowTabsTests(TestCase):
     def test_partial_accessioning_and_failed_revival_are_not_complete(self):
         accession = self.create_pending_accession()
         for number in accession.accession_numbers[:-1]:
-            LaboratoryIsolate.objects.create(accession_range=accession, accession_number=number, status='biobanked')
+            LaboratoryIsolate.objects.create(accession_range=accession, accession_number=number, **self.completed_fields())
         self.assertNotIn(self.receipt.pk, self.ids('complete'))
         item = LaboratoryIsolate.objects.create(accession_range=accession, accession_number=accession.accession_numbers[-1], status='revival_failed')
         self.assertNotIn(self.receipt.pk, self.ids('complete'))
@@ -104,7 +113,7 @@ class ReceiptWorkflowTabsTests(TestCase):
     def test_tab_counts_ignore_search_and_completed_badge_is_clear(self):
         accession = self.create_pending_accession()
         for number in accession.accession_numbers:
-            LaboratoryIsolate.objects.create(accession_range=accession, accession_number=number, status='biobanked')
+            LaboratoryIsolate.objects.create(accession_range=accession, accession_number=number, **self.completed_fields())
         response = self.client.get(reverse('laboratory_receiving_dashboard'), {'tab': 'complete', 'q': 'not-matching'})
         self.assertEqual(next(t['count'] for t in response.context['receiving_tabs'] if t['key'] == 'complete'), 1)
         self.assertEqual(response.context['page_obj'].paginator.count, 0)
