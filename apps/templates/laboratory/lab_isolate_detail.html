@@ -74,9 +74,15 @@
 {% if can_bank %}
 {% if site_id %}
 <p><strong>Site identification:</strong> {{ site_id.0 }} &mdash; {{ site_id.1 }}</p>
-<form method="post" action="{% url 'laboratory_bank_site_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-info" type="submit">Bank directly using site ID</button><p class="small text-muted">Uses this accession's referring-site ID. Complete the storage map on the next step to finalize ID and banking.</p></form>
+<form method="post" action="{% url 'laboratory_bank_site_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-info" type="submit">Temporarily bank using Site ID</button><p class="small text-muted">Records temporary Site ID storage. Main Lab identification and the remaining workflow are still required.</p></form>
 {% else %}<p class="alert alert-warning">{{ site_id_error }} You can still queue for endorsement to Main Lab.</p>{% endif %}
 {% endif %}
+{% elif next_action.section == 'site_banked' %}
+<div class="alert alert-info">Temporarily stored using Site ID. This isolate is <strong>not workflow complete</strong>. Queue it for Main Laboratory identification.</div>
+{% if can_test %}
+<form method="post" action="{% url 'laboratory_queue_main_lab' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary">Queue stored isolate for Main Lab ID</button></form>
+{% endif %}
+{% if can_bank %}<details class="mt-3"><summary>Edit temporary storage details</summary><div class="mt-3">{% include 'laboratory/_lab_isolate_storage_form.html' %}</div></details>{% endif %}
 {% elif next_action.section == 'endorsement' and can_test %}
 <p>This isolate is queued for endorsement. Main Lab ID testing begins only after it is endorsed and received.</p>
 <form method="post" action="{% url 'laboratory_endorse_isolate' isolate.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Endorse to Main Lab for ID testing</button></form>
@@ -102,6 +108,9 @@
 <details class="mb-3"><summary>Record harvest and lyophilization (if performed)</summary><div class="mt-3">{% include 'laboratory/_lab_lyophilization_form.html' %}</div></details>
 {% endif %}
 {% include 'laboratory/_lab_isolate_storage_form.html' %}
+{% if isolate.identification_source == 'site' and can_test %}
+<form method="post" action="{% url 'laboratory_queue_main_lab' isolate.pk %}" class="mt-3">{% csrf_token %}<button type="submit" class="btn btn-outline-primary">Queue for Main Lab ID instead</button></form>
+{% endif %}
 {% endif %}
 </div></section>
 <details class="receiving-surface receiving-form-card mb-4">
@@ -121,7 +130,8 @@
 {% if isolate.revival_retried_at %}<dt class="col-md-4">Revival retried</dt><dd class="col-md-8">{{ isolate.revival_retried_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_retried_by|default:"&mdash;" }}</dd>{% endif %}
 {% if isolate.reviewed_at %}<dt class="col-md-4">Identification reviewed</dt><dd class="col-md-8">{{ isolate.reviewed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.reviewed_by|default:"&mdash;" }}</dd>{% endif %}
 {% if isolate.lyophilization_completed_at %}<dt class="col-md-4">Lyophilization completed</dt><dd class="col-md-8">{{ isolate.lyophilization_completed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.lyophilization_completed_by|default:"&mdash;" }}</dd>{% endif %}
-{% if isolate.biobanked_at %}<dt class="col-md-4">Biobanked</dt><dd class="col-md-8">{{ isolate.biobanked_at|date:"M j, Y g:i A" }} &middot; {{ isolate.biobanked_by|default:"&mdash;" }}</dd>{% endif %}
+{% if isolate.site_banked_at %}<dt class="col-md-4">Temporary Site ID banking</dt><dd class="col-md-8">{{ isolate.site_banked_at|date:"M j, Y g:i A" }} &middot; {{ isolate.site_banked_by|default:"&mdash;" }}</dd>{% endif %}
+{% if isolate.biobanked_at %}<dt class="col-md-4">Final biobanking</dt><dd class="col-md-8">{{ isolate.biobanked_at|date:"M j, Y g:i A" }} &middot; {{ isolate.biobanked_by|default:"&mdash;" }}</dd>{% endif %}
 </dl>
 {% if isolate.revival_retry_count or isolate.revival_failed_reason %}<h3 class="h6">Revival observations and retries</h3><p>Retry count: {{ isolate.revival_retry_count }}<br>{{ isolate.revival_failed_reason|linebreaksbr }}</p>{% endif %}
 {% if isolate.final_organism %}<h3 class="h6">Organism identification</h3><p>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}{% if isolate.identification_source %}<br>Source: {{ isolate.get_identification_source_display }}{% endif %}</p>{% endif %}
