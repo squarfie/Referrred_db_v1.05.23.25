@@ -168,7 +168,7 @@ def can_delete_receipt_safely(receipt, user):
 def delete_receipt_permanently(*, receipt_id, user):
     _require_permission(
         can_permanently_delete_receipt(user),
-        "Only Admin or Secretariat users may delete receiving records.",
+        "You do not have permission to delete this receiving record.",
     )
     receipt = ReferralReceipt.objects.select_for_update().get(pk=receipt_id)
     try:
