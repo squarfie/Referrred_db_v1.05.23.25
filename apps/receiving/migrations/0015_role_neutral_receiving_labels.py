@@ -9,6 +9,33 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AlterField(
             model_name="referralreceipt",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("received", "Isolates Received"),
+                    ("endorsed", "Endorsed to Laboratory Receiving"),
+                    ("lab_received", "Received by Laboratory"),
+                ],
+                db_index=True, default="received", max_length=20,
+            ),
+        ),
+        migrations.AlterField(
+            model_name="receivingevent",
+            name="event_type",
+            field=models.CharField(
+                choices=[
+                    ("received", "Isolates Received"),
+                    ("endorsed", "Endorsed to Laboratory Receiving"),
+                    ("lab_received", "Received by Laboratory"),
+                    ("id_received", "Received for ID Testing"),
+                    ("accession_assigned", "Accession Range Assigned"),
+                    ("batch_created", "Laboratory Batch Created"),
+                    ("corrected", "Information Corrected"),
+                ], max_length=20,
+            ),
+        ),
+        migrations.AlterField(
+            model_name="referralreceipt",
             name="date_received",
             field=models.DateField(verbose_name="Date Received"),
         ),
