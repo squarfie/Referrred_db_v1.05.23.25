@@ -148,7 +148,15 @@ def laboratory_receiving_workspace(request, receiving_id):
         # stages.items as an integer instead of the dict.items method.
         stages = dict(Counter(item.status for item in isolates))
         accession.can_queue_id = any(item.status in ("revived", "site_banked", "ready_for_biobank") and not item.returned_at for item in isolates)
-        accession.can_endorse_id = any(item.status == "id_queued" for item in isolates)
+        # A custody handoff to Main Lab is one batch-level decision; partial queues
+        # remain pending until all viable isolates have revival and Site ID data.
+        all_present = bool(isolates) and len(isolates) == accession.isolate_count
+        all_disposed = all_present and all(i.status in ("id_queued", "non_viable") for i in isolates)
+        queued = [i for i in isolates if i.status == "id_queued"]
+        accession.can_endorse_id = bool(queued) and all_disposed and all(
+            i.revival_started_at and i.revival_completed_at
+            and (i.site_organism_code or i.site_organism_name) for i in queued
+        )
         workflow_rows.append({
             "accession": accession, "stages": stages,
             "count": len(isolates), "expected": accession.isolate_count,
