@@ -5,7 +5,7 @@
 {% block content %}
 <main class="receiving-page" data-page="laboratory-isolate">
 <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-vial"></i></span><div>
-<p class="receiving-eyebrow">Isolate identification &amp; biobank record</p>
+<p class="receiving-eyebrow">Bench A / Laboratory Receiving</p>
 <h1>{{ isolate.accession_number }}</h1>
 <p class="receiving-hero-subtitle">Batch {{ isolate.accession_range.batch_number }} / {{ isolate.accession_range.total_batches }} &middot; Range {{ isolate.accession_range.reference_range }}{% if isolate.accession_range.batch %} &middot; {{ isolate.accession_range.batch.bat_Batch_Code }}{% endif %}</p>
 <p class="receiving-hero-subtitle">{{ isolate.accession_range.laboratory_receiving.receipt.site.SiteCode }} &middot; {{ isolate.get_status_display }}</p>
@@ -18,7 +18,7 @@
 <div class="receiving-content">
 <section class="receiving-surface receiving-card" aria-label="Accession QR">
   <div class="receiving-card-body receiving-batch-summary has-qr">
-    <div><h2 class="h5">Accession QR</h2><p class="mb-2">Scan to receive for ID testing or resume the current process. The receiver and receipt time are recorded automatically when an authorized Main Laboratory user scans a pending isolate.</p><a class="btn btn-outline-primary" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank" rel="noopener"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print accession QR</a></div>
+    <div><h2 class="h5">Accession QR</h2><p class="mb-2">Print this accession identifier for the Main Laboratory handoff. Main Laboratory acknowledgment and ID testing take place in their separate workspace.</p><a class="btn btn-outline-primary" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank" rel="noopener"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print accession QR</a></div>
     <figure class="receiving-batch-qr"><img src="{% url 'laboratory_isolate_qr' isolate.pk %}" width="168" height="168" alt="Scan accession {{ isolate.accession_number }}"><figcaption><strong>{{ isolate.accession_number }}</strong><span>Scan to receive or resume</span></figcaption></figure>
   </div>
 </section>
@@ -33,26 +33,9 @@
 <p class="mb-0">{% if isolate.status == 'non_viable' %}This isolate is non-viable. The scientific record is preserved below.{% else %}Processing is complete. The scientific record and storage details are available below.{% endif %}</p>
 {% elif not next_action.allowed %}
 <p class="mb-0">Waiting for {{ next_action.owner }} to {{ next_action.label|lower }}.</p>
-{% elif next_action.section == 'handoff' and can_test and isolate.status == 'id_pending' %}
-<p>Acknowledge the isolate before entering instrument identification results.</p>
-<form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Acknowledge isolate for ID testing</button></form>
-{% elif next_action.section == 'identification' and can_test and isolate.status == 'id_testing' %}
-<p>Record the instrument result and cassette/slot reference, then return them to Laboratory Receiving. Save separately when additional instrument results are needed.</p>
-<form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="form-row align-items-end mb-3">{% csrf_token %}
-<div class="col-md-5 mb-2"><div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
-<label for="id-organism-search">Instrument-reported organism</label>
-<input id="id-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
-<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
-<div class="organism-picker-pair">
-<input data-model="LaboratoryIdentification" data-field="whonet_organism_code" name="organism_reported_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
-<input data-model="LaboratoryIdentification" data-field="organism_reported" name="organism_reported" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
-</div></div></div>
-<div class="col-md-3 mb-2"><label for="instrument">Instrument</label><input id="instrument" data-model="LaboratoryIdentification" data-field="instrument" name="instrument" class="form-control" maxlength="100"></div>
-<div class="col-md-3 mb-2"><label for="cassette">Cassette/slot reference</label><input id="cassette" data-model="LaboratoryIdentification" data-field="cassette_reference" name="cassette_reference" class="form-control" maxlength="100" required></div>
-<div class="col-md-auto mb-2"><button type="submit" name="action" value="submit_return" class="btn btn-primary mb-0">Save result and return cassette</button> <button type="submit" name="action" value="save" class="btn btn-outline-secondary mb-0">Save and add another result</button></div>
-</form>
-{% if isolate.identifications.exists %}<details class="mb-3"><summary>Previously saved instrument results</summary>{% include 'laboratory/_lab_isolate_results.html' %}</details>
-<form method="post" action="{% url 'laboratory_return_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-outline-primary" type="submit">Return saved results and cassette</button></form>{% endif %}
+{% elif next_action.section == 'handoff' or next_action.section == 'identification' %}
+<p class="alert alert-info">This isolate has been endorsed to Main Laboratory. Bench A can monitor its handoff and subsequent return, but instrument ID testing is recorded only in the separate Main Laboratory workspace.</p>
+{% if user_access.is_lab_staff or user_access.is_admin %}<a class="btn btn-outline-primary" href="{% url 'main_lab_isolate_detail' isolate.pk %}">Open Main Laboratory ID case</a>{% endif %}
 {% elif next_action.section == 'revival' and can_review %}
 {% if isolate.status == 'revival_failed' %}
 <div class="alert alert-warning">{{ isolate.revival_failed_reason }}</div><form method="post" action="{% url 'laboratory_revival_retry' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-warning">Retry revival</button></form>
