@@ -59,11 +59,11 @@ class ReferralReceipt(models.Model):
     # --------------------------------------------------
 
     date_received = models.DateField(
-        verbose_name="Date Received by Secretariat",
+        verbose_name="Date Received",
     )
 
     time_received = models.TimeField(
-        verbose_name="Time Received by Secretariat",
+        verbose_name="Time Received",
     )
 
     received_by = models.ForeignKey(
@@ -258,7 +258,7 @@ class ReceivingEvent(models.Model):
 
 
 class LaboratoryReceiving(models.Model):
-    """Laboratory sorting decision for one Secretariat courier receipt."""
+    """Laboratory sorting decision for one receiving custody record."""
 
     receipt = models.OneToOneField(
         ReferralReceipt,
