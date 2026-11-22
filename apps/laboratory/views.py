@@ -32,7 +32,7 @@ from .models import (
 )
 from .permissions import (
     can_access_laboratory_worklist, can_manage_id_testing, can_manage_biobank,
-    can_review_id_results, lab_staff_required, lab_review_required, lab_worklist_required, main_lab_required,
+    can_review_id_results, lab_staff_required, lab_review_required, lab_worklist_required, main_lab_required, can_access_main_lab,
 )
 
 @login_required
@@ -91,7 +91,9 @@ def _biobank_inventory_context(request):
 @login_required
 @lab_worklist_required
 def laboratory_worklist(request, area="identification"):
-    """Batch-first ID worklist; status and accession search remain available."""
+    """Legacy worklist: route Main Lab-only users into their own dashboard."""
+    if can_access_main_lab(request.user) and not can_review_id_results(request.user):
+        return redirect("main_lab_dashboard")
     query = (request.GET.get("q") or "").strip()
     status = (request.GET.get("status") or "").strip()
     batches = LaboratoryAccession.objects.select_related(
@@ -153,6 +155,8 @@ def laboratory_worklist(request, area="identification"):
 @login_required
 @lab_worklist_required
 def laboratory_batch_detail(request, accession_id):
+    if can_access_main_lab(request.user) and not can_review_id_results(request.user):
+        return redirect("main_lab_dashboard")
     accession = get_object_or_404(
         LaboratoryAccession.objects.select_related(
             "laboratory_receiving__receipt__site", "batch"
@@ -343,6 +347,11 @@ def laboratory_acknowledge_id(request, isolate_id):
 @login_required
 @lab_worklist_required
 def laboratory_isolate_detail(request, isolate_id):
+    if can_access_main_lab(request.user) and not can_review_id_results(request.user):
+        isolate_for_redirect = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
+        if isolate_for_redirect.endorsed_at:
+            return redirect("main_lab_isolate_detail", isolate_id=isolate_id)
+        return redirect("main_lab_dashboard")
     isolate = get_object_or_404(
         LaboratoryIsolate.objects.select_related(
             "accession_range__laboratory_receiving__receipt__site", "reviewed_by"
