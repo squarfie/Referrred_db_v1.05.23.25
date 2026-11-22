@@ -55,7 +55,7 @@ class ReferralReceipt(models.Model):
     )
 
     # --------------------------------------------------
-    # SECRETARIAT RECEIVING
+    # INITIAL COURIER RECEIVING
     # --------------------------------------------------
 
     date_received = models.DateField(
