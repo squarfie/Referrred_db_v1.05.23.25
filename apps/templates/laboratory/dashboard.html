@@ -35,7 +35,7 @@
     <section class="receiving-surface receiving-table-card" aria-label="Receiving worklist">
       <div class="receiving-board-toolbar">
         <div><h2 class="receiving-board-title">{{ active_tab_label }}</h2>
-          <p class="receiving-board-subtitle">{% if active_tab == "pending_batch" %}Receipts with one or more accession ranges awaiting batch generation. Open the worksheet at Batch generation. A receipt can also appear in its scientific workflow tab.{% elif is_lab_worklist %}Receipts move between workflow tabs as their isolates progress. Completion requires every accepted isolate to be biobanked or closed as non-viable. Counts are receipts, not isolates.{% else %}Choose a tab to view courier receiving isolates. Counts represent all isolates.{% endif %}</p>
+          <p class="receiving-board-subtitle">{% if active_tab == "pending_batch" %}Receipts with one or more accession ranges awaiting batch generation. Open the worksheet at Batch generation. A receipt can also appear in its scientific workflow tab.{% elif is_lab_worklist %}Receipts move between workflow tabs as their isolates progress. Completion requires all mandatory Main Lab ID, review, lyophilization and final banking steps, except properly closed non-viable isolates. Counts are receipts, not isolates.{% else %}Choose a tab to view courier receiving isolates. Counts represent all isolates.{% endif %}</p>
         </div>
         <form method="get" class="receiving-board-search">
           <input type="hidden" name="tab" value="{{ active_tab }}">
@@ -62,7 +62,7 @@
 
       <div class="table-responsive"><table class="table receiving-table">
         <caption class="sr-only">Courier batch receiving records</caption>
-        <thead><tr><th scope="col">Tracking number</th><th scope="col">Referring site</th><th scope="col">Secretariat received</th><th scope="col">Received by</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+        <thead><tr><th scope="col">Tracking number</th><th scope="col">Referring site</th><th scope="col">Receiving date</th><th scope="col">Received by</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
         <tbody>
         {% for receipt in page_obj %}
           <tr>
