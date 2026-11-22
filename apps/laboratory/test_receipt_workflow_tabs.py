@@ -15,7 +15,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         return {
             'status': 'biobanked', 'identification_source': 'main_lab',
             'returned_at': now, 'reviewed_at': now,
-            'lyophilization_completed_at': now,
+            'lyophilization_completed_at': now, 'biobanked_at': now,
         }
 
     def ids(self, tab):
