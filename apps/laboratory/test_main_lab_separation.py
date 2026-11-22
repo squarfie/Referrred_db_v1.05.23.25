@@ -50,6 +50,33 @@ class MainLabSeparationTests(TestCase):
         self.assertNotContains(detail, "Temporarily bank using Site ID")
         self.assertEqual(self.client.get(reverse("laboratory_receiving_dashboard")).status_code, 302)
 
+    def test_bench_a_cannot_steal_main_lab_receipt_action(self):
+        item = self.endorsed_isolate()
+        self.client.force_login(self.lab_user)
+        response = self.client.post(reverse("laboratory_acknowledge_id", args=[item.pk]))
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.status, LaboratoryIsolate.Status.ID_PENDING)
+        self.assertIsNone(item.acknowledged_at)
+
+    def test_main_lab_acknowledgment_returns_to_main_lab_case(self):
+        item = self.endorsed_isolate()
+        self.client.force_login(self.main_lab_user())
+        response = self.client.post(reverse("laboratory_acknowledge_id", args=[item.pk]))
+        self.assertRedirects(response, reverse("main_lab_isolate_detail", args=[item.pk]),
+                             fetch_redirect_response=False)
+        item.refresh_from_db()
+        self.assertEqual(item.status, LaboratoryIsolate.Status.ID_TESTING)
+        self.assertIsNotNone(item.acknowledged_at)
+
+    def test_legacy_isolate_page_routes_main_lab_staff_to_main_lab(self):
+        item = self.endorsed_isolate()
+        self.client.force_login(self.main_lab_user())
+        self.assertRedirects(
+            self.client.get(reverse("laboratory_isolate_detail", args=[item.pk])),
+            reverse("main_lab_isolate_detail", args=[item.pk]), fetch_redirect_response=False,
+        )
+
     def test_non_endorsed_isolate_never_enters_main_lab_queue(self):
         accession = self.create_pending_accession()
         item = LaboratoryIsolate.objects.create(
