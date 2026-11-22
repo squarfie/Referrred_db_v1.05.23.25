@@ -137,7 +137,7 @@ def laboratory_worklist(request, area="identification"):
             "awaiting_review_count": sum(item.status == S.ID_RETURNED or (item.status == S.REVIVED and bool(item.returned_at)) for item in isolates),
             "awaiting_lyophilization_count": counts.get(S.ID_REVIEWED, 0),
             "awaiting_biobank_count": counts.get(S.READY_FOR_BIOBANK, 0),
-            "completed_count": sum(item.status == S.NON_VIABLE or (item.status == S.BIOBANKED and item.identification_source == "main_lab" and item.returned_at and item.reviewed_at and item.lyophilization_completed_at) for item in isolates),
+            "completed_count": sum(item.status == S.NON_VIABLE or (item.status == S.BIOBANKED and item.identification_source == "main_lab" and item.returned_at and item.reviewed_at and item.lyophilization_completed_at and item.biobanked_at) for item in isolates),
         })
     return render(request, "laboratory/lab_worklist.html", {
         "batches": rows, "query": query, "selected_status": status,
