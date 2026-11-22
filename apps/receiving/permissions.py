@@ -16,7 +16,8 @@ def can_read_receiving(user):
 
 
 def can_manage_secretariat_receiving(user):
-    return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_SECRETARIAT})
+    """All authenticated roles may record and endorse initial courier custody."""
+    return bool(user and user.is_authenticated)
 
 
 def can_permanently_delete_receipt(user):

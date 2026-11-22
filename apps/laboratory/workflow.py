@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import LaboratoryAccession, LaboratoryBiobank, LaboratoryIsolate, ReceivingEvent
-from .permissions import can_manage_id_testing, can_manage_biobank, can_review_id_results
+from .permissions import can_manage_id_testing, can_manage_biobank, can_review_id_results, can_access_main_lab
 
 
 class WorkflowError(ValueError):
@@ -23,7 +23,7 @@ S = LaboratoryIsolate.Status
 
 @transaction.atomic
 def acknowledge_id_receipt(*, isolate_id, user):
-    if not can_manage_id_testing(user):
+    if not can_access_main_lab(user):
         raise WorkflowError("Only authorized Main Laboratory personnel may receive an isolate for ID testing.")
     candidate = LaboratoryIsolate.objects.only("accession_range_id").get(pk=isolate_id)
     accession = LaboratoryAccession.objects.select_for_update().get(pk=candidate.accession_range_id)
@@ -71,8 +71,9 @@ def prepare_revival(accession_id, user):
 
 def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
     """Keep queue selection separate from physical endorsement to Main Lab."""
-    if not can_manage_id_testing(user):
-        raise WorkflowError("You do not have permission to queue Main Laboratory ID testing.")
+    if not (can_manage_id_testing(user) if endorse else
+            (can_manage_id_testing(user) or can_review_id_results(user))):
+        raise WorkflowError("You do not have permission to perform this Main Laboratory handoff action.")
     accession = LaboratoryAccession.objects.select_for_update().select_related(
         "laboratory_receiving__receipt"
     ).get(pk=accession_id)
@@ -84,11 +85,16 @@ def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
     if isolate_id is not None:
         items = items.filter(pk=isolate_id)
     items = list(items)
-    expected = S.ID_QUEUED if endorse else S.REVIVED
-    ready = [item for item in items if item.status == expected and not item.returned_at and not item.identifications.exists()]
+    expected = (S.ID_QUEUED,) if endorse else (S.REVIVED, S.READY_FOR_BIOBANK, S.SITE_BANKED)
+    ready = [
+        item for item in items
+        if item.status in expected and not item.returned_at
+        and not item.endorsed_at and not item.identifications.exists()
+        and (item.status == S.REVIVED or item.identification_source == "site" or endorse)
+    ]
     if not ready:
         if items and (any(item.endorsed_at for item in items) or all(item.status in ((S.ID_QUEUED,) if not endorse else ()) + (S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED,
-                        S.ID_REVIEWED, S.READY_FOR_BIOBANK, S.BIOBANKED) for item in items)):
+                        S.ID_REVIEWED, S.BIOBANKED) for item in items)):
             return False
         raise WorkflowError("Queue revived isolates before endorsement to Main Laboratory." if endorse else
                             "Complete revival successfully before queueing for Main Laboratory endorsement.")
@@ -98,9 +104,18 @@ def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
     actor_field, at_field = ("endorsed_by", "endorsed_at") if endorse else ("id_queued_by", "id_queued_at")
     for item in ready:
         item.status = S.ID_PENDING if endorse else S.ID_QUEUED
+        # The original Site ID and storage history remain recorded separately.
+        # Site ID is provisional and must not be mistaken for approved Main Lab ID.
+        if not endorse and item.identification_source == "site":
+            item.identification_source = ""
+            item.final_organism = ""
+            item.approved_organism_code = ""
         setattr(item, at_field, now)
         setattr(item, actor_field, user)
-    LaboratoryIsolate.objects.bulk_update(ready, ["status", at_field, actor_field])
+    LaboratoryIsolate.objects.bulk_update(
+        ready, ["status", at_field, actor_field, "identification_source",
+                "final_organism", "approved_organism_code"]
+    )
     return True
 
 
@@ -111,7 +126,50 @@ def queue_for_id(accession_id, user, isolate_id=None):
 
 @transaction.atomic
 def create_id_handoff(accession_id, user, isolate_id=None):
-    return _advance_id_handoff(accession_id, user, isolate_id, endorse=True)
+    """Endorse the entire accession batch, never selected individual isolates.
+
+    Queueing an individual isolate is allowed while the receiving team completes
+    revival and Site ID encoding. The actual custody handoff is one atomic action.
+    Non-viable isolates are documented terminal outcomes, not testing candidates.
+    """
+    if isolate_id is not None:
+        raise WorkflowError("Main Laboratory endorsement must be performed for the entire batch.")
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Laboratory Receiving can endorse a prepared batch to Main Laboratory.")
+    accession = LaboratoryAccession.objects.select_for_update().select_related(
+        "laboratory_receiving__receipt"
+    ).get(pk=accession_id)
+    if accession.laboratory_receiving.receipt.status != "lab_received":
+        raise WorkflowError("Laboratory Receiving must acknowledge the original Receiving handoff first.")
+    items = list(LaboratoryIsolate.objects.select_for_update()
+                 .filter(accession_range=accession).order_by("pk"))
+    if len(items) != accession.isolate_count or not items:
+        raise WorkflowError("Every isolate in the batch must be accessioned before Main Lab endorsement.")
+    if all(item.status in (S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED, S.ID_REVIEWED,
+                           S.READY_FOR_BIOBANK, S.BIOBANKED, S.NON_VIABLE) for item in items):
+        return False
+    if any(item.status not in (S.ID_QUEUED, S.NON_VIABLE) for item in items):
+        raise WorkflowError("All viable isolates must be revived, assigned a Site ID, and queued before the whole batch can be endorsed.")
+    queued = [item for item in items if item.status == S.ID_QUEUED]
+    if not queued:
+        raise WorkflowError("No viable queued isolates to endorse to Main Laboratory.")
+    for item in queued:
+        if not (item.revival_started_at and item.revival_completed_at):
+            raise WorkflowError("Every queued isolate needs actual revival start and completion times.")
+        if not (item.site_organism_code.strip() and item.site_organism_name.strip()):
+            raise WorkflowError("Every viable isolate must have its Site ID explicitly encoded before whole-batch endorsement.")
+        site_code, site_name = site_identification(item)
+        if not site_code or not site_name:
+            raise WorkflowError("Every queued isolate needs a valid Site ID.")
+        if item.endorsed_at or item.returned_at or item.identifications.exists():
+            raise WorkflowError("Previously endorsed isolates cannot be re-endorsed.")
+    now = timezone.now()
+    for item in queued:
+        item.status = S.ID_PENDING
+        item.endorsed_at = now
+        item.endorsed_by = user
+    LaboratoryIsolate.objects.bulk_update(queued, ["status", "endorsed_at", "endorsed_by"])
+    return True
 
 
 def site_identification(isolate, *, require_code=True):
@@ -166,16 +224,23 @@ def bank_using_site_id(isolate_id, user):
     item = LaboratoryIsolate.objects.select_for_update().select_related(
         "accession_range__laboratory_receiving__receipt__site"
     ).get(pk=isolate_id)
-    if item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.BIOBANKED):
+    if item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.SITE_BANKED):
         return item
     if (item.status != S.REVIVED or not item.revival_started_at or not item.revival_completed_at
             or item.endorsed_at or item.returned_at or item.identifications.exists()):
         raise WorkflowError("Direct site-ID banking is available only after successful revival and before Main Laboratory handoff.")
     code, organism = site_identification(item)
+    # Persist the Site ID used at temporary banking time even when it was
+    # originally obtained from a matching raw-data row.
+    item.site_organism_code, item.site_organism_name = code, organism
+    if not item.site_identified_at:
+        item.site_identified_at, item.site_identified_by = timezone.now(), user
     item.identification_source = "site"
     item.final_organism, item.approved_organism_code = organism, code
     item.status = S.READY_FOR_BIOBANK
-    item.save(update_fields=["identification_source", "final_organism", "approved_organism_code", "status"])
+    item.save(update_fields=["site_organism_code", "site_organism_name", "site_identified_at",
+                             "site_identified_by", "identification_source", "final_organism",
+                             "approved_organism_code", "status"])
     bank, _ = LaboratoryBiobank.objects.get_or_create(isolate=item)
     bank.whonet_code, bank.recorded_by = code, user
     bank.save(update_fields=["whonet_code", "recorded_by"])
@@ -325,7 +390,7 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
     item = LaboratoryIsolate.objects.select_for_update().select_related(
         "accession_range__laboratory_receiving__receipt"
     ).get(pk=isolate_id)
-    site_banking = item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.BIOBANKED)
+    site_banking = item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.SITE_BANKED)
     if (item.status != S.ID_REVIEWED and not site_banking) or not item.final_organism:
         raise WorkflowError("Confirm Main Laboratory identification or select site-ID banking before recording lyophilization.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
@@ -366,7 +431,7 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
     bank.whonet_code = code
     bank.recorded_by = user
     bank.save()
-    if item.status != S.BIOBANKED:
+    if item.status not in (S.BIOBANKED, S.SITE_BANKED):
         item.status = S.READY_FOR_BIOBANK
     if not item.lyophilization_completed_at:
         item.lyophilization_completed_at = timezone.now()
@@ -378,8 +443,8 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
 @transaction.atomic
 def save_biobank(isolate_id, details, user):
     item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
-    if item.status not in (S.READY_FOR_BIOBANK, S.BIOBANKED):
-        raise WorkflowError("Choose direct banking using site ID, or complete Main Laboratory ID and lyophilization, before saving storage.")
+    if item.status not in (S.READY_FOR_BIOBANK, S.SITE_BANKED, S.BIOBANKED):
+        raise WorkflowError("Choose temporary Site ID storage, or complete Main Laboratory ID and lyophilization, before saving storage.")
     if item.identification_source and not (item.final_organism and item.approved_organism_code):
         raise WorkflowError("An organism identification is required to finalize banking.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
@@ -405,7 +470,27 @@ def save_biobank(isolate_id, details, user):
     bank.recorded_by = user
     bank.full_clean()
     bank.save()
-    if item.status == S.READY_FOR_BIOBANK:
+    if item.identification_source == "site":
+        # Site storage is a holding state, even after a box/position is assigned.
+        # It does not satisfy the Main Lab identification requirement.
+        if not item.site_banked_at:
+            item.site_banked_at = timezone.now()
+            item.site_banked_by = user
+            item.site_bank_storage = {
+                "storage_box": bank.storage_box, "box_position": bank.box_position,
+                "lyo_box_name": bank.lyo_box_name, "lyo_box_number": bank.lyo_box_number,
+                "lyo_position": bank.lyo_position,
+                "supplementary_box_name": bank.supplementary_box_name,
+                "supplementary_box_number": bank.supplementary_box_number,
+                "supplementary_position": bank.supplementary_position,
+            }
+        item.status = S.SITE_BANKED
+        item.save(update_fields=["status", "site_banked_at", "site_banked_by", "site_bank_storage"])
+    elif item.status == S.READY_FOR_BIOBANK:
+        if item.identification_source != "main_lab":
+            raise WorkflowError("Main Lab identification approval is required for final biobanking.")
+        if not (item.returned_at and item.reviewed_at and item.lyophilization_completed_at):
+            raise WorkflowError("Main Lab ID return, review and lyophilization are required for final banking.")
         item.status = S.BIOBANKED
         item.biobanked_at = timezone.now()
         item.biobanked_by = user

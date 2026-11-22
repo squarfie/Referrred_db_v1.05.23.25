@@ -33,7 +33,7 @@ def receiving_dashboard(request):
 @login_required
 @receiving_read_required
 def secretariat_receiving_dashboard(request):
-    """Shared receiving history; write actions remain role-restricted."""
+    """Shared receiving history and intake for all authenticated users."""
     return _render_receiving_dashboard(request, queue="secretariat")
 
 
@@ -54,14 +54,7 @@ def receiving_create(request):
 @login_required
 @receiving_read_required
 def receiving_detail(request, receiving_id):
-    # This legacy URL is Secretariat-facing. Laboratory personnel have
-    # a separate receipt detail that does not expose Secretariat actions.
     receipt = _receipt_or_404(receiving_id)
-    # Preserve existing QR/bookmark links but route laboratory-only accounts
-    # to their dedicated detail page rather than Secretariat controls.
-    if (can_read_laboratory_receiving(request.user)
-            and not can_manage_secretariat_receiving(request.user)):
-        return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     events = receipt.events.select_related("performed_by").order_by(
         "occurred_at", "recorded_at", "id"
     )
@@ -119,7 +112,7 @@ def receiving_endorse(request, receiving_id):
 def receiving_delete_permanently(request, receiving_id):
     """Delete mistaken courier receipts with server-enforced custody safeguards.
 
-    Secretariat may correct records before Laboratory Receiving confirms
+    Authorized receiving users may correct records before Laboratory Receiving confirms
     custody. Admins may also clean up laboratory-received test records if no
     accession or other dependent laboratory work exists.
     """

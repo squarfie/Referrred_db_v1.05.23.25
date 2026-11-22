@@ -41,20 +41,21 @@ class SharedReceivingAccessTests(TestCase):
                 self.assertContains(detail, self.secretariat.username)
         self.assertEqual(ReceivingEvent.objects.get(pk=event.pk).remarks, "Shared custody history entry")
 
-    def test_new_readers_cannot_create_endorse_delete_or_confirm_receipts(self):
+    def test_all_roles_can_use_shared_receiving_without_laboratory_custody_or_delete(self):
         receipt = self.create_receipt()
         for index, role in enumerate([home_permissions.ROLE_CHECKER, home_permissions.ROLE_ENCODER,
                                       home_permissions.ROLE_VERIFIER, home_permissions.ROLE_LAB_MANAGER]):
             with self.subTest(role=role):
-                self.client.force_login(self.create_user(f"read-only-{index}", role))
+                user = self.create_user(f"shared-writer-{index}", role)
+                self.client.force_login(user)
+                self.assertTrue(permissions.can_manage_secretariat_receiving(user))
                 queue = self.client.get(reverse("secretariat_receiving_dashboard"))
-                self.assertNotContains(queue, "New receipt")
+                self.assertContains(queue, "New receipt")
                 detail = self.client.get(reverse("receiving_detail", args=[receipt.receiving_id]))
-                self.assertNotContains(detail, "Endorse to laboratory")
+                self.assertContains(detail, "Endorse to Laboratory Receiving")
                 self.assertNotContains(detail, "Delete permanently")
                 self.assertNotContains(detail, "Confirm laboratory receipt")
-                self.assertEqual(self.client.post(reverse("receiving_create"), {}).status_code, 302)
-                self.assertEqual(self.client.post(reverse("receiving_endorse", args=[receipt.receiving_id])).status_code, 302)
+                self.assertEqual(self.client.get(reverse("receiving_create")).status_code, 200)
                 self.assertEqual(self.client.post(reverse("receiving_delete_permanently", args=[receipt.receiving_id]), {
                     "confirmation": "DELETE PERMANENTLY",
                 }).status_code, 302)
@@ -78,7 +79,7 @@ class SharedReceivingAccessTests(TestCase):
         self.client.force_login(user)
         self.assertTrue(permissions.can_read_receiving(user))
         self.assertEqual(self.client.get(reverse("secretariat_receiving_dashboard")).status_code, 200)
-        self.assertFalse(permissions.can_manage_secretariat_receiving(user))
+        self.assertTrue(permissions.can_manage_secretariat_receiving(user))
 
     def test_anonymous_visitors_still_need_to_sign_in(self):
         self.assertFalse(permissions.can_read_receiving(AnonymousUser()))

@@ -1,7 +1,9 @@
 from django.urls import path
-from . import views, receiving_views, scan_views, inventory_views
+from . import views, receiving_views, scan_views, inventory_views, main_lab_views
 
 urlpatterns = [
+    path("main-laboratory/", main_lab_views.main_lab_dashboard, name="main_lab_dashboard"),
+    path("main-laboratory/isolate/<int:isolate_id>/", main_lab_views.main_lab_isolate_detail, name="main_lab_isolate_detail"),
     path("laboratory-worklist/<int:isolate_id>/site-id/", views.laboratory_site_id_save, name="laboratory_site_id_save"),
     path("laboratory-scan/<str:accession_number>/", scan_views.laboratory_isolate_scan, name="laboratory_isolate_scan"),
     path("laboratory-worklist/<int:isolate_id>/qr.png", scan_views.laboratory_isolate_qr, name="laboratory_isolate_qr"),

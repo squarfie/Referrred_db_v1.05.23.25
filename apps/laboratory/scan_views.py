@@ -10,12 +10,12 @@ from django.views.decorators.http import require_GET, require_http_methods
 from apps.receiving.qr import build_isolate_scan_url, render_qr_png
 from .guidance import next_action
 from .models import LaboratoryIsolate
-from .permissions import can_manage_id_testing, lab_worklist_required
+from .permissions import can_access_main_lab, lab_worklist_required
 from .workflow import acknowledge_id_receipt
 
 
 def _current_step(isolate, user):
-    url = reverse("laboratory_isolate_detail", args=[isolate.pk])
+    url = reverse("main_lab_isolate_detail" if can_access_main_lab(user) and isolate.endorsed_at else "laboratory_isolate_detail", args=[isolate.pk])
     return redirect(url + "#" + next_action(isolate, user)["section"])
 
 
@@ -27,7 +27,7 @@ def laboratory_isolate_scan(request, accession_number):
     isolate = get_object_or_404(LaboratoryIsolate, accession_number=accession_number)
     if isolate.status != LaboratoryIsolate.Status.ID_PENDING:
         return _current_step(isolate, request.user)
-    if not can_manage_id_testing(request.user):
+    if not can_access_main_lab(request.user):
         messages.warning(request, "Only authorized Main Laboratory personnel may receive this isolate for ID testing.")
         return _current_step(isolate, request.user)
     if request.method == "POST":

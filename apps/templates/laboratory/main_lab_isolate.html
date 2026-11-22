@@ -1,0 +1,44 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Main Lab ID — {{ isolate.accession_number }}{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+<header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
+<p class="receiving-eyebrow">Main Laboratory · Identification</p><h1>{{ isolate.accession_number }}</h1>
+<p class="receiving-hero-subtitle">Batch {{ isolate.accession_range.reference_range }} · {{ isolate.get_status_display }}</p>
+</div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'main_lab_dashboard' %}">Back to Main Lab</a><a class="btn btn-info" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank">Print accession QR</a></div></header>
+<div class="receiving-content">
+<section class="receiving-surface receiving-form-card mb-4">
+<div class="receiving-card-header"><h2>Main Laboratory ID testing</h2><p>Endorsed from Bench A. This page does not change revival, Site ID, lyophilization or storage records.</p></div>
+<div class="receiving-card-body">
+<p><strong>Site-reported organism:</strong> {{ isolate.site_organism_code|default:"—" }} {{ isolate.site_organism_name }}</p>
+{% if isolate.status == 'id_pending' %}
+<p>Waiting for Main Laboratory acknowledgment.</p>
+{% if can_test %}<form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary">Acknowledge ID testing receipt</button></form>{% endif %}
+{% elif isolate.status == 'id_testing' %}
+{% if can_test %}
+<form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="mb-3">{% csrf_token %}
+<div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
+<label for="mainlab-organism-search">Instrument organism</label>
+<input id="mainlab-organism-search" class="form-control" type="search" data-organism-search placeholder="Search organism name or code">
+<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
+<div class="organism-picker-pair"><input data-organism-code name="organism_reported_code" type="text" readonly class="form-control" placeholder="WHONET code"><input data-organism-name name="organism_reported" type="text" readonly class="form-control" placeholder="Organism name"></div>
+</div>
+<div class="form-group"><label>Instrument</label><input class="form-control" name="instrument" maxlength="100"></div>
+<div class="form-group"><label>Cassette / slot reference</label><input class="form-control" name="cassette_reference" maxlength="100"></div>
+<button class="btn btn-outline-primary" type="submit" name="action" value="save">Save another ID result</button>
+<button class="btn btn-primary" type="submit" name="action" value="submit_return">Save ID result and return cassette to Bench A</button>
+</form>
+{% if isolate.identifications.exists %}
+<form method="post" action="{% url 'laboratory_return_id' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-info">Return saved results and cassette to Bench A</button></form>
+{% endif %}
+{% endif %}
+{% else %}
+<p class="alert alert-info">Main Laboratory processing has been handed back to Bench A, or this case has progressed to a later stage. No further Main Lab edits are required here.</p>
+{% endif %}
+</div></section>
+<section class="receiving-surface receiving-card"><div class="receiving-card-header"><h2>Instrument result history</h2></div><div class="receiving-card-body">{% include "laboratory/_lab_isolate_results.html" %}</div></section>
+</div></main>
+{% endblock content %}
+{% block javascripts %}{{ block.super }}<script defer src="{% static 'assets/js/laboratory-organism-picker.js' %}"></script>{% endblock javascripts %}

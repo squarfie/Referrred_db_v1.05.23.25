@@ -1,0 +1,35 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Main Laboratory{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
+    <p class="receiving-eyebrow">Main Laboratory</p><h1>Identification Testing</h1>
+    <p class="receiving-hero-subtitle">Only batches endorsed by Bench A appear here. Acknowledge ID handoff, perform identification, and return results and cassettes to Bench A.</p>
+  </div></div>
+  <div class="receiving-hero-actions">{% if can_test %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}">Upload ID Results</a>{% endif %}</div></header>
+  <div class="receiving-content">
+    <section class="receiving-stat-grid" aria-label="Main Laboratory identification counts">
+      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Awaiting ID acknowledgment</span><div class="receiving-stat-value">{{ counts.awaiting }}</div></article>
+      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Testing in progress</span><div class="receiving-stat-value">{{ counts.testing }}</div></article>
+      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Results returned to Bench A</span><div class="receiving-stat-value">{{ counts.returned }}</div></article>
+    </section>
+    <section class="receiving-surface receiving-table-card">
+      <div class="receiving-board-toolbar"><h2 class="receiving-board-title">Main Lab Worklist</h2></div>
+      <nav class="receiving-tabs" aria-label="Main Laboratory monitoring tabs">
+      {% for key, label in tab_labels %}
+      <a class="receiving-tab {% if selected_tab == key %}active{% endif %}" href="?tab={{ key }}{% if query %}&q={{ query|urlencode }}{% endif %}">{{ label }}</a>
+      {% endfor %}
+      </nav>
+      <form method="get" class="form-inline mb-3 p-3"><input type="hidden" name="tab" value="{{ selected_tab }}"><input class="form-control mr-2" name="q" value="{{ query }}" placeholder="Accession / site / tracking"><button type="submit" class="btn btn-primary mb-0">Search</button></form>
+      <div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession</th><th>Batch</th><th>Site</th><th>Main Lab status</th><th>Endorsed at</th><th>Action</th></tr></thead><tbody>
+      {% for item in page_obj %}
+      <tr><td><strong>{{ item.accession_number }}</strong></td><td>{{ item.accession_range.reference_range }}</td><td>{{ item.accession_range.laboratory_receiving.receipt.site.SiteCode }}</td><td>{{ item.get_status_display }}</td><td>{{ item.endorsed_at|date:"M j, Y g:i A" }}</td><td><a class="btn btn-sm btn-primary" href="{% url 'main_lab_isolate_detail' item.pk %}">Open ID case</a></td></tr>
+      {% empty %}<tr><td colspan="6" class="text-muted text-center">No endorsed isolates in this Main Lab queue.</td></tr>{% endfor %}
+      </tbody></table></div>
+      <div class="p-3">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} {% if page_obj.has_previous %}<a href="?tab={{ selected_tab }}&q={{ query|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>{% endif %} {% if page_obj.has_next %}<a href="?tab={{ selected_tab }}&q={{ query|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>{% endif %}</div>
+    </section>
+  </div>
+</main>
+{% endblock content %}

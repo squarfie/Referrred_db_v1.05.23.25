@@ -54,7 +54,7 @@ def create_receipt(*, form, user):
     receipt.lab_received_by = None
     _reject_future_timestamp(
         _aware_datetime(receipt.date_received, receipt.time_received),
-        "Secretariat receipt cannot be later than the current time.",
+        "Receiving date and time cannot be later than the current time.",
     )
     receipt.save()
     ReceivingEvent.objects.create(
@@ -71,7 +71,7 @@ def create_receipt(*, form, user):
 def endorse_receipt(*, receipt_id, user):
     _require_permission(
         can_manage_secretariat_receiving(user),
-        "Only authorize users may endorse receiving records.",
+        "Only authenticated users may endorse receiving records.",
     )
     receipt = ReferralReceipt.objects.select_for_update().get(pk=receipt_id)
     if receipt.status != ReferralReceipt.Status.RECEIVED:
@@ -146,7 +146,7 @@ def confirm_lab_receipt(
 
 
 def can_delete_receipt_safely(receipt, user):
-    """Allow Secretariat corrections before lab custody, or Admin test cleanup.
+    """Allow receiving corrections before lab custody, or Admin test cleanup.
 
     No role can delete a receipt once accession ranges exist. Protecting the
     range prevents removal of isolate, batch, identification and biobank work.
@@ -168,7 +168,7 @@ def can_delete_receipt_safely(receipt, user):
 def delete_receipt_permanently(*, receipt_id, user):
     _require_permission(
         can_permanently_delete_receipt(user),
-        "Only Admin or Secretariat users may delete receiving records.",
+        "You do not have permission to delete this receiving record.",
     )
     receipt = ReferralReceipt.objects.select_for_update().get(pk=receipt_id)
     try:

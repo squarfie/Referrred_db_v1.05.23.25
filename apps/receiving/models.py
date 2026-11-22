@@ -20,8 +20,8 @@ class ReferralReceipt(models.Model):
 
     class Status(models.TextChoices):
         RECEIVED = "received", "Isolates Received"
-        ENDORSED = "endorsed", "Endorsed to Laboratory"
-        LAB_RECEIVED = "lab_received", "Received by Laboratory"
+        ENDORSED = "endorsed", "Endorsed to Laboratory Receiving"
+        LAB_RECEIVED = "lab_received", "Received by Laboratory Receiving"
 
     # --------------------------------------------------
     # RECEIVING IDENTIFICATION
@@ -55,15 +55,15 @@ class ReferralReceipt(models.Model):
     )
 
     # --------------------------------------------------
-    # SECRETARIAT RECEIVING
+    # INITIAL COURIER RECEIVING
     # --------------------------------------------------
 
     date_received = models.DateField(
-        verbose_name="Date Received by Secretariat",
+        verbose_name="Date Received",
     )
 
     time_received = models.TimeField(
-        verbose_name="Time Received by Secretariat",
+        verbose_name="Time Received",
     )
 
     received_by = models.ForeignKey(
@@ -201,8 +201,8 @@ class ReceivingEvent(models.Model):
 
     class EventType(models.TextChoices):
         RECEIVED = "received", "Isolates Received"
-        ENDORSED = "endorsed", "Endorsed to Laboratory"
-        LAB_RECEIVED = "lab_received", "Received by Laboratory"
+        ENDORSED = "endorsed", "Endorsed to Laboratory Receiving"
+        LAB_RECEIVED = "lab_received", "Received by Laboratory Receiving"
         ID_RECEIVED = "id_received", "Received for ID Testing"
         ACCESSION_ASSIGNED = "accession_assigned", "Accession Range Assigned"
         BATCH_CREATED = "batch_created", "Laboratory Batch Created"
@@ -258,7 +258,7 @@ class ReceivingEvent(models.Model):
 
 
 class LaboratoryReceiving(models.Model):
-    """Laboratory sorting decision for one Secretariat courier receipt."""
+    """Laboratory sorting decision for one receiving custody record."""
 
     receipt = models.OneToOneField(
         ReferralReceipt,
@@ -552,7 +552,8 @@ class LaboratoryIsolate(models.Model):
         ID_RETURNED = "id_returned", "ID results and cassette returned"
         ID_REVIEWED = "id_reviewed", "Identification reviewed"
         READY_FOR_BIOBANK = "ready_for_biobank", "Ready for biobank"
-        BIOBANKED = "biobanked", "Biobanked"
+        SITE_BANKED = "site_banked", "Temporarily banked using Site ID"
+        BIOBANKED = "biobanked", "Final biobank complete"
 
     accession_range = models.ForeignKey(
         LaboratoryAccession, on_delete=models.PROTECT, related_name="isolate_records"
@@ -616,6 +617,10 @@ class LaboratoryIsolate(models.Model):
     approved_organism_code = models.CharField(max_length=20, blank=True, default="")
     lyophilization_completed_at = models.DateTimeField(null=True, blank=True)
     lyophilization_completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_lyophilization_completed_isolates")
+    site_banked_at = models.DateTimeField(null=True, blank=True)
+    site_banked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="lab_site_banked_isolates")
+    site_bank_storage = models.JSONField(default=dict, blank=True)
     biobanked_at = models.DateTimeField(null=True, blank=True)
     biobanked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_biobanked_isolates")
     created_at = models.DateTimeField(auto_now_add=True)

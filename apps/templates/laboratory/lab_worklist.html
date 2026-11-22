@@ -5,12 +5,12 @@
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
-    <p class="receiving-eyebrow">{% if area == "processing" %}LAB Encoder{% else %}Laboratory staff{% endif %}</p><h1>{% if area == "processing" %}Revival &amp; Processing{% else %}Identification Testing{% endif %}</h1>
+    <p class="receiving-eyebrow">{% if area == "processing" %}Bench A{% else %}Main Laboratory{% endif %}</p><h1>{% if area == "processing" %}Revival &amp; Processing{% else %}Identification Testing{% endif %}</h1>
     <p class="receiving-hero-subtitle">{% if area == "processing" %}Revival, direct banking using site ID, or Main Lab ID followed by lyophilization and banking, grouped by accession batch.{% else %}Record identification results and return cassettes to Laboratory Receiving, grouped by accession batch.{% endif %}</p>
   </div></div>
   <div class="receiving-hero-actions">
     {% if can_test and area != "processing" %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}"><i class="fas fa-file-upload mr-1"></i> Upload ID Results</a>{% endif %}
-    {% if user_access.is_admin or user_access.is_lab_encoder %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}">Receiving &amp; Accessioning</a>{% endif %}
+    {% if area == 'identification' %}<a class="btn btn-outline-light" href="{% url 'main_lab_dashboard' %}">Main Laboratory</a>{% else %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}">Bench A Dashboard</a>{% endif %}
   </div></header>
   <div class="receiving-content">
     <section class="receiving-surface">

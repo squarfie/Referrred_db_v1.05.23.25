@@ -41,7 +41,7 @@ class ReferralReceiptForm(forms.ModelForm):
         if date_sent and date_received and date_sent > date_received:
             self.add_error(
                 "date_sent",
-                "Date sent by courier cannot be later than the Secretariat received date.",
+                "Date sent by courier cannot be later than the actual receiving date.",
             )
         received_time = cleaned_data.get("time_received")
         if date_received and received_time:
@@ -52,6 +52,6 @@ class ReferralReceiptForm(forms.ModelForm):
             if received_at > self.local_now:
                 self.add_error(
                     "time_received",
-                    "Secretariat receipt cannot be later than the current time.",
+                    "Receiving date and time cannot be later than the current time.",
                 )
         return cleaned_data
