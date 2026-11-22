@@ -72,7 +72,7 @@ class ReceivingPermissionTests(TestCase):
         self.assertNotContains(response, "Pending Endorsement")
         shared = self.client.get(reverse("secretariat_receiving_dashboard"))
         self.assertEqual(shared.status_code, 200)
-        self.assertFalse(shared.context["can_manage_secretariat"])
+        self.assertTrue(shared.context["can_manage_secretariat"])
 
     def test_admin_can_view_both_receiving_queues(self):
         user = self.create_user_with_roles("sidebar-admin", home_permissions.ROLE_ADMIN)
@@ -114,7 +114,7 @@ class ReceivingPermissionTests(TestCase):
         self.assertTrue(permissions.can_manage_secretariat_receiving(user))
         self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(user))
 
-    def test_lab_encoder_can_read_and_confirm_but_not_manage_secretariat_receiving(self):
+    def test_lab_encoder_can_read_and_confirm_and_manage_shared_receiving(self):
         permissions = self.receiving_permissions()
         user = self.create_user_with_roles(
             "lab_encoder_permissions",
@@ -122,7 +122,7 @@ class ReceivingPermissionTests(TestCase):
         )
 
         self.assertTrue(permissions.can_read_receiving(user))
-        self.assertFalse(permissions.can_manage_secretariat_receiving(user))
+        self.assertTrue(permissions.can_manage_secretariat_receiving(user))
         self.assertTrue(laboratory_permissions.can_confirm_lab_receipt(user))
 
     def test_admin_can_manage_secretariat_and_confirm_laboratory_receipt(self):
@@ -133,7 +133,7 @@ class ReceivingPermissionTests(TestCase):
         self.assertTrue(permissions.can_manage_secretariat_receiving(user))
         self.assertTrue(laboratory_permissions.can_confirm_lab_receipt(user))
 
-    def test_verifier_has_read_only_receiving_access(self):
+    def test_verifier_can_use_shared_receiving_but_not_laboratory_confirmation(self):
         permissions = self.receiving_permissions()
         user = self.create_user_with_roles(
             "verifier_permissions",
@@ -141,7 +141,7 @@ class ReceivingPermissionTests(TestCase):
         )
 
         self.assertTrue(permissions.can_read_receiving(user))
-        self.assertFalse(permissions.can_manage_secretariat_receiving(user))
+        self.assertTrue(permissions.can_manage_secretariat_receiving(user))
         self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(user))
 
     def test_multiple_roles_grant_union_of_receiving_permissions(self):
@@ -664,7 +664,7 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("login", response.url)
 
-    def test_verifier_can_read_dashboard_and_detail_without_write_actions(self):
+    def test_verifier_can_read_dashboard_and_create_initial_receiving_records(self):
         receipt = self.create_receipt()
         self.client.force_login(self.verifier)
 
@@ -676,8 +676,8 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(dashboard.status_code, 200)
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, receipt.tracking_number)
-        self.assertFalse(dashboard.context["can_manage_secretariat"])
-        self.assertFalse(detail.context["can_endorse"])
+        self.assertTrue(dashboard.context["can_manage_secretariat"])
+        self.assertTrue(detail.context["can_endorse"])
         self.assertFalse(detail.context["can_permanently_delete"])
 
     def test_secretariat_create_uses_authenticated_user_and_received_status(self):
@@ -804,14 +804,14 @@ class ReceivingViewTests(TestCase):
             1,
         )
 
-    def test_qr_and_label_are_secretariat_or_admin_only(self):
+    def test_qr_and_label_are_available_to_all_authenticated_roles(self):
         receipt = self.create_receipt()
         qr_url = self.route("receiving_qr", receiving_id=receipt.receiving_id)
         label_url = self.route("receiving_label", receiving_id=receipt.receiving_id)
 
         self.client.force_login(self.lab_encoder)
-        self.assertEqual(self.client.get(qr_url).status_code, 302)
-        self.assertEqual(self.client.get(label_url).status_code, 302)
+        self.assertEqual(self.client.get(qr_url).status_code, 200)
+        self.assertEqual(self.client.get(label_url).status_code, 200)
 
         self.client.force_login(self.secretariat)
         qr_response = self.client.get(qr_url)
