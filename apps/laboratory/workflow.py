@@ -71,8 +71,9 @@ def prepare_revival(accession_id, user):
 
 def _advance_id_handoff(accession_id, user, isolate_id, *, endorse):
     """Keep queue selection separate from physical endorsement to Main Lab."""
-    if not can_manage_id_testing(user):
-        raise WorkflowError("You do not have permission to queue Main Laboratory ID testing.")
+    if not (can_manage_id_testing(user) if endorse else
+            (can_manage_id_testing(user) or can_review_id_results(user))):
+        raise WorkflowError("You do not have permission to perform this Main Laboratory handoff action.")
     accession = LaboratoryAccession.objects.select_for_update().select_related(
         "laboratory_receiving__receipt"
     ).get(pk=accession_id)
