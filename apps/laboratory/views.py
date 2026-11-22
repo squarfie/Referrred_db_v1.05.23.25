@@ -177,14 +177,14 @@ def laboratory_batch_detail(request, accession_id):
     })
 
 @login_required
-@lab_staff_required
+@lab_review_required
 @require_POST
 def laboratory_endorse_id(request, accession_id):
     """Endorse only isolates previously queued for Main Laboratory ID testing."""
     try:
         created = create_id_handoff(accession_id, request.user)
-        messages.success(request, "Queued isolates endorsed to Main Laboratory for ID testing." if created else
-                         "No new isolates require endorsement.")
+        messages.success(request, "The entire ready batch was endorsed from Laboratory Receiving to Main Laboratory for ID testing." if created else
+                         "The batch has already been endorsed or closed.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
     accession = get_object_or_404(LaboratoryAccession, pk=accession_id)
@@ -224,12 +224,9 @@ def laboratory_queue_main_lab(request, isolate_id):
 @require_POST
 def laboratory_endorse_isolate(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
-    try:
-        create_id_handoff(isolate.accession_range_id, request.user, isolate_id=isolate.pk)
-        messages.success(request, "Queued isolate endorsed to Main Laboratory for ID testing.")
-    except WorkflowError as exc:
-        messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
+    messages.warning(request, "Individual Main Lab endorsement is disabled. Finish revival and Site ID encoding for the batch, then endorse the entire batch from Receiving & Accessioning.")
+    return redirect("laboratory_receiving_workspace",
+                    receiving_id=isolate.accession_range.laboratory_receiving.receipt.receiving_id)
 
 
 @login_required
