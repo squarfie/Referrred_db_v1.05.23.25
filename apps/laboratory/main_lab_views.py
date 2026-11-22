@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
 from .models import LaboratoryAccession, LaboratoryIsolate
-from .permissions import lab_worklist_required, can_manage_id_testing
+from .permissions import main_lab_required, can_access_main_lab
 
 
 MAIN_LAB_STAGES = (
@@ -16,7 +16,7 @@ MAIN_LAB_STAGES = (
 
 
 @login_required
-@lab_worklist_required
+@main_lab_required
 def main_lab_dashboard(request):
     """Isolate-level Main Lab metrics: never count Bench A revival as ID testing."""
     search = (request.GET.get("q") or "").strip()
@@ -54,13 +54,13 @@ def main_lab_dashboard(request):
     return render(request, "laboratory/main_lab_dashboard.html", {
         "page_obj": page, "counts": counts, "selected_tab": tab,
         "tab_labels": (("awaiting", "Awaiting acknowledgment"), ("testing", "Testing in progress"), ("returned", "Returned to Bench A"), ("all", "All endorsed")),
-        "query": search, "can_test": can_manage_id_testing(request.user),
+        "query": search, "can_test": can_access_main_lab(request.user),
         "area": "main_lab",
     })
 
 
 @login_required
-@lab_worklist_required
+@main_lab_required
 def main_lab_isolate_detail(request, isolate_id):
     """ID work only: no revival, Site ID banking, final review or lyophilization controls."""
     isolate = get_object_or_404(
@@ -71,6 +71,6 @@ def main_lab_isolate_detail(request, isolate_id):
     )
     return render(request, "laboratory/main_lab_isolate.html", {
         "isolate": isolate,
-        "can_test": can_manage_id_testing(request.user),
+        "can_test": can_access_main_lab(request.user),
         "area": "main_lab",
     })
