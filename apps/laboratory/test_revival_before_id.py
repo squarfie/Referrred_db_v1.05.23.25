@@ -212,7 +212,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertEqual(receipt.lab_workflow, 'processing')
         self.assertEqual(next_action(first, self.lab_user)['section'], 'site_banked')
         self.assertContains(self.client.get(reverse('laboratory_isolate_detail', args=[first.pk])),
-                            'Queue stored isolate for Main Lab ID')
+                            'Queue for endorsement')
         self.assertTrue(queue_for_id(accession.pk, self.lab_user, isolate_id=first.pk))
         first.refresh_from_db()
         self.assertEqual(first.status, 'id_queued')

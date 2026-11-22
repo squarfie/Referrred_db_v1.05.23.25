@@ -40,12 +40,15 @@ class HandoffContinuationTests(TestCase):
             self.assertIsNotNone(item.endorsed_at)
         self.assertFalse(create_id_handoff(accession.pk, self.lab_user))
 
-    def test_queued_page_exposes_batch_endorsement_and_dashboard_receives_the_handoff(self):
+    def test_isolate_stays_queued_and_batch_page_endorsement_reaches_main_lab(self):
         accession, done, queued = self.mixed_batch()
         action = reverse('laboratory_endorse_id', args=[accession.pk])
         page = self.client.get(reverse('laboratory_isolate_detail', args=[queued[0].pk]))
-        self.assertContains(page, f'action="{action}"')
-        self.assertContains(page, 'Endorse whole batch to Main Lab')
+        self.assertNotContains(page, f'action="{action}"')
+        self.assertNotContains(page, 'Endorse whole batch to Main Lab')
+        self.assertContains(page, 'Go to batch')
+        self.assertContains(page, 'Queued—awaiting batch endorsement')
+        self.assertNotContains(page, f'action="{reverse("laboratory_queue_main_lab", args=[queued[0].pk])}"')
         batch_page = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
         self.assertContains(batch_page, f'action="{action}"')
         workspace = self.client.get(reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id]))
@@ -69,15 +72,25 @@ class HandoffContinuationTests(TestCase):
         page = self.client.get(reverse('laboratory_isolate_detail', args=[queued[0].pk]))
         self.assertNotContains(page, 'Endorse whole batch to Main Lab')
         self.assertContains(page, queued[-1].accession_number)
+        batch_page = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
+        self.assertNotContains(batch_page, 'Endorse whole batch to Main Lab')
 
     def test_queue_confirmation_identifies_missing_endorsement(self):
         accession, done, queued = self.mixed_batch()
         item = queued[0]
         item.status = 'revived'
         item.save()
+        isolate_page = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
+        self.assertContains(isolate_page, f'action="{reverse("laboratory_queue_main_lab", args=[item.pk])}"')
+        self.assertNotContains(isolate_page, 'Endorse whole batch to Main Lab')
+        batch_page = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
+        self.assertNotContains(batch_page, 'Endorse whole batch to Main Lab')
         response = self.client.post(reverse('laboratory_queue_main_lab', args=[item.pk]), follow=True)
         self.assertContains(response, 'not yet endorsed')
-        self.assertContains(response, 'Endorse whole batch to Main Lab')
+        self.assertNotContains(response, 'Endorse whole batch to Main Lab')
+        self.assertContains(response, 'Go to batch')
+        batch_page = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
+        self.assertContains(batch_page, 'Endorse whole batch to Main Lab')
         item.refresh_from_db()
         self.assertIsNone(item.endorsed_at)
 

@@ -45,11 +45,11 @@ class InventoryWorkflowTabsTests(TestCase):
         temporary = self.page('temporary')
         self.assertContains(temporary, item.accession_number)
         self.assertNotContains(temporary, final.accession_number)
-        self.assertContains(temporary, 'Queue for Main Lab ID')
+        self.assertContains(temporary, 'Queue for endorsement')
         stored = self.page('final')
         self.assertContains(stored, final.accession_number)
         self.assertNotContains(stored, item.accession_number)
-        self.assertNotContains(stored, 'Queue for Main Lab ID')
+        self.assertNotContains(stored, 'Queue for endorsement')
 
     def test_queued_temporary_storage_remains_visible_without_another_revival(self):
         item = self.temporary()
@@ -86,7 +86,7 @@ class InventoryWorkflowTabsTests(TestCase):
         staff = User.objects.create_user('inventory-main-lab')
         staff.groups.add(Group.objects.get_or_create(name='Laboratory Staff')[0])
         self.client.force_login(staff)
-        self.assertNotContains(self.page('temporary'), 'Queue for Main Lab ID')
+        self.assertNotContains(self.page('temporary'), 'Queue for endorsement')
         self.client.post(reverse('laboratory_queue_main_lab', args=[item.pk]))
         item.refresh_from_db()
         self.assertEqual(item.status, 'site_banked')

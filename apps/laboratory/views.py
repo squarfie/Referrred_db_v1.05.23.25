@@ -250,7 +250,7 @@ def laboratory_queue_main_lab(request, isolate_id):
     isolate = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
     try:
         queue_for_id(isolate.accession_range_id, request.user, isolate_id=isolate.pk)
-        messages.success(request, "Queued at Bench A, not yet endorsed. Endorse the ready batch below to make it appear in Main Laboratory's awaiting ID acknowledgment queue.")
+        messages.success(request, "Queued for endorsement at Bench A, not yet endorsed. Open the batch to endorse all ready accessions together; they will then appear in Main Laboratory's awaiting ID acknowledgment queue.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
     return redirect("laboratory_isolate_detail", isolate_id=isolate.pk)
