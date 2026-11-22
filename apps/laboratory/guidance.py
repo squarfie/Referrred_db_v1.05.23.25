@@ -15,9 +15,9 @@ def next_action(isolate, user):
         S.REVIVAL_IN_PROGRESS: ('Record revival outcome', 'Laboratory Receiving', can_review_id_results, 'revival'),
         S.REVIVAL_FAILED: ('Retry revival', 'Laboratory Receiving', can_review_id_results, 'revival'),
         S.REVIVED: ('Bank using site ID or queue for endorsement', 'Laboratory Receiving',
-                    lambda user: can_manage_id_testing(user) or can_manage_biobank(user), 'disposition'),
+                    lambda user: can_review_id_results(user) or can_manage_id_testing(user) or can_manage_biobank(user), 'disposition'),
         S.SITE_BANKED: ('Queue temporarily banked isolate for Main Lab ID', 'Laboratory Receiving',
-                        can_manage_id_testing, 'site_banked'),
+                        lambda user: can_manage_id_testing(user) or can_review_id_results(user), 'site_banked'),
         S.ID_REVIEWED: ('Record lyophilization', 'Laboratory Receiving', can_review_id_results, 'lyophilization'),
         S.READY_FOR_BIOBANK: ('Record biobank storage', 'Biobank staff', can_manage_biobank, 'biobank'),
     }
