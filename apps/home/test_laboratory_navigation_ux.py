@@ -13,7 +13,8 @@ from apps.home.permissions import (
 
 class LaboratoryNavigationUXTests(SimpleTestCase):
     areas = {
-        "receiving": "Receiving &amp; Accessioning",
+        "receiving": "Bench A / Laboratory Receiving",
+        "main_lab": "Main Laboratory",
         "biobank": "Biobank Inventory",
     }
 
@@ -30,9 +31,9 @@ class LaboratoryNavigationUXTests(SimpleTestCase):
 
     def test_role_oriented_laboratory_areas(self):
         cases = {
-            ROLE_ADMIN: {"receiving", "biobank"},
+            ROLE_ADMIN: {"receiving", "main_lab", "biobank"},
             ROLE_LAB_ENCODER: {"receiving", "biobank"},
-            ROLE_LAB_STAFF: {"biobank"},
+            ROLE_LAB_STAFF: {"main_lab", "biobank"},
             ROLE_SECRETARIAT: set(),
         }
         for role, visible in cases.items():
@@ -46,14 +47,14 @@ class LaboratoryNavigationUXTests(SimpleTestCase):
                 self.assertNotIn(">Identification Testing</span>", rendered)
                 self.assertNotIn(">Revival &amp; Processing</span>", rendered)
                 if role == ROLE_LAB_STAFF:
-                    self.assertIn("Laboratory Cases", rendered)
+                    self.assertNotIn("Bench A / Laboratory Receiving", rendered)
 
     def test_stage_pages_keep_single_laboratory_navigation_active(self):
         for route in ("laboratory_worklist", "laboratory_processing_worklist",
                       "laboratory_batch_detail", "laboratory_isolate_detail"):
             with self.subTest(route=route):
                 rendered = self.render_sidebar(ROLE_ADMIN, "processing", route)
-                self.assertIn("Receiving &amp; Accessioning", rendered)
+                self.assertIn("Bench A / Laboratory Receiving", rendered)
                 self.assertRegex(
                     rendered,
                     r'class="nav-link active" href="' + reverse("laboratory_receiving_dashboard") + '"',
@@ -64,6 +65,7 @@ class LaboratoryNavigationUXTests(SimpleTestCase):
             "includes/sidenav.html", "laboratory/dashboard.html",
             "laboratory/laboratory_workspace.html", "laboratory/lab_worklist.html",
             "laboratory/lab_batch_detail.html", "laboratory/lab_biobank_list.html",
+            "laboratory/main_lab_dashboard.html", "laboratory/main_lab_isolate.html",
         ):
             with self.subTest(template=template):
                 get_template(template)
