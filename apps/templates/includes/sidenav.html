@@ -140,12 +140,7 @@
             {% if user_access.is_admin or user_access.is_lab_encoder %}
             <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_receiving_dashboard' or current_url == 'laboratory_receiving_detail' or current_url == 'receiving_lab_confirm' or current_url == 'laboratory_receiving_workspace' or current_url == 'laboratory_accession_add' or current_url == 'laboratory_accession_edit' or current_url == 'laboratory_accession_delete' or current_url == 'laboratory_batch_create' or current_url == 'laboratory_receiving_register' or current_url == 'laboratory_receiving_register_pdf' %}active{% endif %}" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-box-open text-primary" aria-hidden="true"></i><span class="nav-link-text">Receiving &amp; Accessioning</span></a></li>
             {% endif %}
-            {% if user_access.can_view_lab_testing %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_worklist' or current_url == 'laboratory_id_upload' or area == 'identification' %}active{% endif %}" href="{% url 'laboratory_worklist' %}"><i class="fas fa-microscope text-primary" aria-hidden="true"></i><span class="nav-link-text">Identification Testing</span></a></li>
-            {% endif %}
-            {% if user_access.is_admin or user_access.is_lab_encoder %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_processing_worklist' or area == 'processing' %}active{% endif %}" href="{% url 'laboratory_processing_worklist' %}"><i class="fas fa-vials text-primary" aria-hidden="true"></i><span class="nav-link-text">Revival &amp; Processing</span></a></li>
-            {% endif %}
+
             {% if user_access.can_view_lab_testing %}
             <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_biobank_list' or current_url == 'laboratory_biobank_label' or area == 'biobank' %}active{% endif %}" href="{% url 'laboratory_biobank_list' %}"><i class="fas fa-archive text-primary" aria-hidden="true"></i><span class="nav-link-text">Biobank Inventory</span></a></li>
             {% endif %}
