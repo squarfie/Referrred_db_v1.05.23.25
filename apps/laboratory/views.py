@@ -8,8 +8,9 @@ from hashlib import sha256
 from urllib.parse import urlencode
 
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.http import JsonResponse
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from .organism_lookup import find_organisms, resolve_organism
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -58,9 +59,27 @@ def _biobank_inventory_context(request):
         "accession_range__laboratory_receiving__receipt__site", "biobank"
     ).filter(Q(status__in=(LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.BIOBANKED)) | Q(biobank__isnull=False)).order_by("accession_range_id", "accession_number")
     if search:
-        isolates = isolates.filter(accession_number__icontains=search)
+        matches = Q(accession_number__icontains=search) | Q(
+            accession_range__laboratory_receiving__receipt__site__SiteCode__icontains=search
+        )
+        bounds = search.split("-")
+        if len(bounds) == 2 and all(
+            1 <= len(part.strip()) <= 4 and part.strip().isdecimal() for part in bounds
+        ):
+            matches |= Q(accession_range__start_number=int(bounds[0]),
+                         accession_range__end_number=int(bounds[1]))
+        isolates = isolates.filter(matches)
+    batches = LaboratoryAccession.objects.filter(
+        pk__in=isolates.values("accession_range_id")
+    ).select_related("laboratory_receiving__receipt__site").order_by(
+        "laboratory_receiving__receipt__site__SiteCode", "-date_referred", "-pk"
+    )
+    page = Paginator(batches, 25).get_page(request.GET.get("page"))
+    page.object_list = page.object_list.prefetch_related(
+        Prefetch("isolate_records", queryset=isolates, to_attr="inventory_isolates")
+    )
     return {
-        "isolates": isolates[:250], "query": search,
+        "inventory_batches": page.object_list, "page_obj": page, "query": search,
         "can_bank": can_manage_biobank(request.user),
         "sticker_date_form": StickerDateRangeForm(initial={
             "from_date": timezone.localdate(), "to_date": timezone.localdate(),

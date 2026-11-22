@@ -1,7 +1,21 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Biobank inventory{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}
+<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">
+<style>
+  .inventory-batch { border: 1px solid #cfe4ed; border-radius: .5rem; margin-bottom: .75rem; overflow: hidden; }
+  .inventory-batch summary { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; padding: 1rem; background: #edf8fc; color: #173f50; cursor: pointer; list-style: none; }
+  .inventory-batch summary::-webkit-details-marker { display: none; }
+  .inventory-batch summary::before { content: '\25B6'; font-size: .75rem; transition: transform .15s; }
+  .inventory-batch[open] summary::before { transform: rotate(90deg); }
+  .inventory-batch summary:focus-visible { outline: 3px solid #17a2b8; outline-offset: -3px; }
+  .inventory-batch-site { background: #173f50; color: white; border-radius: .25rem; padding: .2rem .6rem; font-weight: 700; }
+  .inventory-batch-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-left: auto; }
+  .inventory-batch-actions .btn { margin: 0; }
+  .inventory-batch .receiving-table { margin-bottom: 0; }
+</style>
+{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
 <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-archive"></i></span><div><p class="receiving-eyebrow">Laboratory staff</p><h1>Biobank Inventory</h1><p class="receiving-hero-subtitle">Batch-based inventory with accession-level preservation, storage, and specimen tracking.</p></div></div>
@@ -34,13 +48,21 @@
 <section class="receiving-surface">
 <div class="receiving-card-header"><h2>Isolate storage ledger</h2><p>Storage is available after identification review and lyophilization. Stickers require an approved organism, WHONET code, and harvest date.</p></div>
 <div class="receiving-card-body">
-<form method="get" class="form-row align-items-end mb-3"><div class="col-md-6 mb-2"><label for="bank-q">Search accession</label><input id="bank-q" name="q" value="{{ query }}" class="form-control" placeholder="Accession number"></div><div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Search</button></div></form>
-<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession</th><th>Status</th><th>Approved organism</th><th>Preservation method</th><th>Harvested</th><th>Location</th><th>Box</th><th>Position</th><th>Action</th></tr></thead><tbody>
-{% regroup isolates by accession_range as inventory_batches %}
+<form method="get" class="form-row align-items-end mb-3"><div class="col-md-6 mb-2"><label for="bank-q">Search accession, site, or batch range</label><input id="bank-q" name="q" value="{{ query }}" class="form-control" placeholder="Accession number, site code, or 0001-0005"></div><div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Search</button>{% if query %}<a href="{% url 'laboratory_biobank_list' %}" class="btn btn-outline-secondary mb-0">Clear</a>{% endif %}</div></form>
+<p class="small text-muted">Expand a batch to view its accessions. Print batch stickers includes all eligible accessions in that site's batch.</p>
 {% for inventory_batch in inventory_batches %}
-<tr><td colspan="9"><a href="{% url 'laboratory_batch_labels' inventory_batch.grouper.pk %}" target="_blank" class="btn btn-sm btn-info">Print batch stickers · {{ inventory_batch.grouper.reference_range }}</a></td></tr>
-<tr><th colspan="9" scope="rowgroup">Batch {{ inventory_batch.grouper.batch_number }} / {{ inventory_batch.grouper.total_batches }} · {{ inventory_batch.grouper.reference_range }} · {{ inventory_batch.grouper.laboratory_receiving.receipt.site.SiteCode }} &nbsp; &nbsp;<a href="{% url 'laboratory_batch_detail' inventory_batch.grouper.pk %}?area=biobank" class="btn btn-sm btn-outline-primary">Open Batch</a></th></tr>
-{% for isolate in inventory_batch.list %}
+<details class="inventory-batch" id="inventory-batch-{{ inventory_batch.pk }}" {% if query %}open{% endif %}>
+<summary>
+  <span class="inventory-batch-site">{{ inventory_batch.laboratory_receiving.receipt.site.SiteCode }}</span>
+  <strong>Batch {{ inventory_batch.batch_number }} / {{ inventory_batch.total_batches }} · {{ inventory_batch.reference_range }}</strong>
+  <span class="small">{{ inventory_batch.date_referred|date:"M j, Y" }} · {{ inventory_batch.inventory_isolates|length }} accession{{ inventory_batch.inventory_isolates|length|pluralize }}{% if query %} matching{% endif %}</span>
+  <span class="inventory-batch-actions">
+    <a href="{% url 'laboratory_batch_detail' inventory_batch.pk %}?area=biobank" class="btn btn-sm btn-outline-primary">Open Batch</a>
+    <a href="{% url 'laboratory_batch_labels' inventory_batch.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-info" aria-label="Print batch stickers for {{ inventory_batch.laboratory_receiving.receipt.site.SiteCode }} {{ inventory_batch.reference_range }}"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print batch stickers</a>
+  </span>
+</summary>
+<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession</th><th>Status</th><th>Approved organism</th><th>Preservation method</th><th>Harvested</th><th>Location</th><th>Box</th><th>Position</th><th>Action</th></tr></thead><tbody>
+{% for isolate in inventory_batch.inventory_isolates %}
 <tr>
 <td>{{ isolate.accession_number }}</td><td>{% if isolate.status == "biobanked" %}Stored{% elif isolate.status == "ready_for_biobank" %}Ready for storage{% else %}{{ isolate.get_status_display }}{% endif %}</td><td>{{ isolate.final_organism|default:"Pending review" }}</td>
 <td>{{ isolate.biobank.preservation_method|default:"—" }}</td>
@@ -50,7 +72,16 @@
 <td>{{ isolate.biobank.box_position|default:isolate.biobank.lyo_position|default:isolate.biobank.supplementary_position|default:"—" }}</td>
 <td><a href="{% url 'laboratory_isolate_detail' isolate.pk %}?area=biobank#biobank" class="btn btn-sm btn-primary">{% if can_bank %}Update{% else %}View{% endif %}</a>
 {% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a target="_blank" href="{% url 'laboratory_biobank_label' isolate.pk %}" class="btn btn-sm btn-outline-info">Sticker</a>{% endif %}</td>
-</tr>{% endfor %}{% empty %}<tr><td colspan="9" class="text-muted text-center">No isolate records found.</td></tr>{% endfor %}
-</tbody></table></div><p class="small text-muted">Showing up to 250 matching records.</p>
+</tr>{% endfor %}
+</tbody></table></div></details>
+{% empty %}<p class="text-muted text-center">No isolate records found.</p>{% endfor %}
+{% if page_obj.paginator.count %}<p class="small text-muted">Showing batches {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}.</p>{% endif %}
+{% if page_obj.has_other_pages %}
+<nav aria-label="Inventory batch pages" class="d-flex align-items-center justify-content-between">
+  <span>{% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}</span>
+  <span class="small">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  <span>{% if page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}</span>
+</nav>
+{% endif %}
 </div></section></div></main>
 {% endblock content %}
