@@ -58,7 +58,7 @@ def _biobank_inventory_context(request):
     search = (request.GET.get("q") or "").strip()
     isolates = LaboratoryIsolate.objects.select_related(
         "accession_range__laboratory_receiving__receipt__site", "biobank"
-    ).filter(status__in=(LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.BIOBANKED)).order_by("accession_range_id", "accession_number")
+    ).filter(status__in=(LaboratoryIsolate.Status.READY_FOR_BIOBANK, LaboratoryIsolate.Status.SITE_BANKED, LaboratoryIsolate.Status.BIOBANKED)).order_by("accession_range_id", "accession_number")
     if search:
         matches = Q(accession_number__icontains=search) | Q(
             accession_range__laboratory_receiving__receipt__site__SiteCode__icontains=search
@@ -111,7 +111,7 @@ def laboratory_worklist(request, area="identification"):
     S = LaboratoryIsolate.Status
     active = (S.ID_PENDING, S.ID_TESTING) if area == "identification" else (
         S.ID_RETURNED, S.ID_QUEUED, S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED,
-        S.REVIVED, S.ID_REVIEWED, S.READY_FOR_BIOBANK,
+        S.REVIVED, S.ID_REVIEWED, S.READY_FOR_BIOBANK, S.SITE_BANKED,
     )
     if show_history and area == "processing":
         batches = batches.filter(isolate_records__returned_at__isnull=False).distinct()
@@ -129,15 +129,15 @@ def laboratory_worklist(request, area="identification"):
             "status_counts": counts,
             "returned_count": sum(bool(item.returned_at) for item in isolates),
             "reviewed_count": sum(bool(item.reviewed_at) for item in isolates),
-            "biobanked_count": counts.get(S.BIOBANKED, 0),
+            "biobanked_count": counts.get(S.BIOBANKED, 0) + counts.get(S.SITE_BANKED, 0),
             "awaiting_id_count": sum(counts.get(st, 0) for st in (S.ID_PENDING, S.ID_TESTING)),
             "awaiting_revival_count": sum(counts.get(st, 0) for st in (S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED)),
             "awaiting_disposition_count": sum(item.status == S.REVIVED and not item.returned_at for item in isolates),
-            "awaiting_endorsement_count": counts.get(S.ID_QUEUED, 0),
+            "awaiting_endorsement_count": counts.get(S.ID_QUEUED, 0) + counts.get(S.SITE_BANKED, 0),
             "awaiting_review_count": sum(item.status == S.ID_RETURNED or (item.status == S.REVIVED and bool(item.returned_at)) for item in isolates),
             "awaiting_lyophilization_count": counts.get(S.ID_REVIEWED, 0),
             "awaiting_biobank_count": counts.get(S.READY_FOR_BIOBANK, 0),
-            "completed_count": counts.get(S.BIOBANKED, 0) + counts.get(S.NON_VIABLE, 0),
+            "completed_count": sum(item.status == S.NON_VIABLE or (item.status == S.BIOBANKED and item.identification_source == "main_lab" and item.returned_at and item.reviewed_at and item.lyophilization_completed_at) for item in isolates),
         })
     return render(request, "laboratory/lab_worklist.html", {
         "batches": rows, "query": query, "selected_status": status,
@@ -239,7 +239,7 @@ def laboratory_bank_site_id(request, isolate_id):
     get_object_or_404(LaboratoryIsolate, pk=isolate_id)
     try:
         bank_using_site_id(isolate_id, request.user)
-        messages.success(request, "Site identification selected. Complete the storage map to finalize ID and banking.")
+        messages.success(request, "Site ID selected. Record temporary storage; Main Lab ID testing will still be required.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
     return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
