@@ -156,9 +156,11 @@ def create_id_handoff(accession_id, user, isolate_id=None):
     for item in queued:
         if not (item.revival_started_at and item.revival_completed_at):
             raise WorkflowError("Every queued isolate needs actual revival start and completion times.")
+        if not (item.site_organism_code.strip() and item.site_organism_name.strip()):
+            raise WorkflowError("Every viable isolate must have its Site ID explicitly encoded before whole-batch endorsement.")
         site_code, site_name = site_identification(item)
         if not site_code or not site_name:
-            raise WorkflowError("Every queued isolate needs a recorded Site ID.")
+            raise WorkflowError("Every queued isolate needs a valid Site ID.")
         if item.endorsed_at or item.returned_at or item.identifications.exists():
             raise WorkflowError("Previously endorsed isolates cannot be re-endorsed.")
     now = timezone.now()
