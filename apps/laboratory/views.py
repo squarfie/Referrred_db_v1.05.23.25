@@ -117,6 +117,29 @@ def _biobank_inventory_context(request):
     }
 
 
+# Revival is strictly the pre-Main Lab queue. Once an isolate has
+# entered Main Lab custody/testing, it moves out of Manage Revival even if
+# an older status or historical flag remains on the record.
+PRE_MAIN_LAB_STATUSES = (
+    LaboratoryIsolate.Status.REVIVAL_PENDING,
+    LaboratoryIsolate.Status.REVIVAL_QUEUED,
+    LaboratoryIsolate.Status.REVIVAL_IN_PROGRESS,
+    LaboratoryIsolate.Status.REVIVAL_FAILED,
+    LaboratoryIsolate.Status.REVIVED,
+    LaboratoryIsolate.Status.ID_QUEUED,
+)
+
+
+def _awaiting_bench_a_preparation(item):
+    return (
+        item.status in PRE_MAIN_LAB_STATUSES
+        and not item.endorsed_at
+        and not item.retrieved_at
+        and not item.id_completed_at
+        and not item.identifications.exists()
+    )
+
+
 @login_required
 @lab_worklist_required
 def laboratory_worklist(request, area="identification"):
@@ -140,10 +163,7 @@ def laboratory_worklist(request, area="identification"):
         batches = batches.filter(isolate_records__status=status).distinct()
     show_history = request.GET.get("history") == "1"
     S = LaboratoryIsolate.Status
-    active = (S.ID_PENDING, S.ID_TESTING) if area == "identification" else (
-        S.ID_COMPLETE, S.ID_RETURNED, S.ID_QUEUED, S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED,
-        S.REVIVED, S.ID_REVIEWED, S.READY_FOR_BIOBANK, S.SITE_BANKED,
-    )
+    active = (S.ID_PENDING, S.ID_TESTING) if area == "identification" else PRE_MAIN_LAB_STATUSES
     # Scope badges count isolates across the complete queue, before filters and
     # the batch display limit. Returned history can overlap active processing.
     scope_counts = {
@@ -158,8 +178,12 @@ def laboratory_worklist(request, area="identification"):
     if not show_history:
         batches = batches.filter(isolate_records__status__in=active).distinct()
     rows = []
-    for accession in batches.prefetch_related("isolate_records")[:250]:
+    for accession in batches.prefetch_related("isolate_records__identifications")[:250]:
         isolates = list(accession.isolate_records.all())
+        if area == "processing" and not show_history:
+            isolates = [item for item in isolates if _awaiting_bench_a_preparation(item)]
+            if not isolates:
+                continue
         counts = {}
         for isolate in isolates:
             counts[isolate.status] = counts.get(isolate.status, 0) + 1
@@ -201,10 +225,17 @@ def laboratory_batch_detail(request, accession_id):
             "laboratory_receiving__receipt__site", "batch"
         ), pk=accession_id,
     )
-    isolates = accession.isolate_records.prefetch_related(
+    isolates = list(accession.isolate_records.prefetch_related(
         "identifications"
-    ).order_by("accession_number", "pk")
-    isolates = list(isolates)
+    ).order_by("accession_number", "pk"))
+    requested_area = request.GET.get("area")
+    area = requested_area if requested_area in ("identification", "processing", "biobank") else (
+        "processing" if any(item.status in PRE_MAIN_LAB_STATUSES for item in isolates) else "identification"
+    )
+    # Only the revival/initial Site ID queue is shown from Manage Revival.
+    # History stays available by explicit opt-in, without changing records.
+    if area == "processing" and request.GET.get("history") != "1":
+        isolates = [item for item in isolates if _awaiting_bench_a_preparation(item)]
     for isolate in isolates:
         isolate.next_action = next_action(isolate, request.user)
         try:
@@ -214,7 +245,7 @@ def laboratory_batch_detail(request, accession_id):
     return render(request, "laboratory/lab_batch_detail.html", {
         "accession": accession, "isolates": isolates,
         "show_history": request.GET.get("history") == "1",
-        "area": request.GET.get("area") if request.GET.get("area") in ("identification", "processing", "biobank") else ("processing" if any(item.status not in ("id_pending", "id_testing") for item in isolates) else "identification"),
+        "area": area,
         "can_review": can_review_id_results(request.user),
         "can_test": can_access_main_lab(request.user),
         "id_handoff": id_handoff_readiness(accession, isolates),
