@@ -368,7 +368,8 @@ class SimplifiedWorkflowTests(TestCase):
         response = self.client.post(reverse('laboratory_identification_correct', args=[item.pk]),
             {'kind': 'site', 'organism_code': 'ECO', 'organism_name': 'Escherichia coli'},
             follow=True)
-        self.assertContains(response, 'Site ID corrected')
+        self.assertContains(response, 'Identification correction history')
+        self.assertNotContains(response, '<th>Reason</th>', html=False)
         correction = item.identification_corrections.get()
         self.assertEqual(correction.reason, 'Site ID corrected')
         self.assertEqual(correction.performed_by, self.lab_user)
