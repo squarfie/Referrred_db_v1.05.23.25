@@ -23,7 +23,7 @@
 <p>Waiting for Main Laboratory acknowledgment.</p>
 {% if can_test %}<form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary">Acknowledge ID testing receipt</button></form>{% endif %}
 {% elif isolate.status == 'site_banked' %}
-<form method="post" action="{% url 'laboratory_retrieve_for_testing' isolate.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}"><button class="btn btn-primary" type="submit">Retrieve for ID testing</button></form>
+<form method="post" action="{% url 'laboratory_retrieve_for_testing' isolate.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}"><button class="btn btn-primary" type="submit">Retrieve from Temporary Storage</button></form>
 {% elif isolate.status == 'id_testing' %}
 {% if can_test %}
 <form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="mb-3">{% csrf_token %}
