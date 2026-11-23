@@ -130,6 +130,7 @@ class WorkflowUXTests(TestCase):
             ('UX-IN-PROGRESS', 'revival_in_progress', '', ''),
             ('UX-FAILED', 'revival_failed', '', ''),
             ('UX-SITE-MISSING', 'revived', '', ''),
+            ('UX-UNDATED', 'revived', 'KPN', 'Klebsiella pneumoniae'),
             ('UX-READY', 'revived', 'KPN', 'Klebsiella pneumoniae'),
             ('UX-QUEUED', 'id_queued', 'KPN', 'Klebsiella pneumoniae'),
             ('UX-MAIN-LAB', 'id_complete', 'KPN', 'Klebsiella pneumoniae'),
@@ -148,10 +149,10 @@ class WorkflowUXTests(TestCase):
             )
         url = reverse('laboratory_batch_detail', args=[accession.pk])
         cases = {
-            'record': ['UX-IN-PROGRESS', 'UX-NEW', 'UX-SITE-MISSING'],
+            'record': ['UX-IN-PROGRESS', 'UX-NEW', 'UX-SITE-MISSING', 'UX-UNDATED'],
             'failed': ['UX-FAILED'],
             'ready': ['UX-QUEUED', 'UX-READY'],
-            'all': ['UX-FAILED', 'UX-IN-PROGRESS', 'UX-NEW', 'UX-QUEUED', 'UX-READY', 'UX-SITE-MISSING'],
+            'all': ['UX-FAILED', 'UX-IN-PROGRESS', 'UX-NEW', 'UX-QUEUED', 'UX-READY', 'UX-SITE-MISSING', 'UX-UNDATED'],
         }
         for tab, expected in cases.items():
             with self.subTest(tab=tab):
@@ -161,7 +162,7 @@ class WorkflowUXTests(TestCase):
                 self.assertNotContains(page, 'UX-MAIN-LAB')
                 self.assertNotContains(page, 'UX-NONVIABLE')
                 counts = {x['key']: x['count'] for x in page.context['revival_tabs']}
-                self.assertEqual(counts, {'record': 3, 'failed': 1, 'ready': 2, 'all': 6})
+                self.assertEqual(counts, {'record': 4, 'failed': 1, 'ready': 2, 'all': 7})
         page = self.client.get(url + '?area=processing')
         self.assertEqual(page.context['active_revival_tab'], 'record')
         self.assertNotContains(page, 'Revival in progress')
