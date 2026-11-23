@@ -20,8 +20,25 @@
   <div class="receiving-content">
     <section class="receiving-surface">
       <div class="receiving-card-header"><h2>Isolates in this batch</h2>
-      <p>Record revival and Site ID per isolate, then temporarily store or endorse ready revived isolates. Endorse the ready batch to Main Lab below. After ID completion, proceed to lyophilization, confirm Final ID and finalize banking.</p></div>
+      <p>{% if area == 'processing' and not show_history %}Bench A records revival and the Site ID from the sentinel referral form. These are pre-handoff tasks only. Isolates leave this worklist when Main Lab testing begins; subsequent processing takes place in Step 5 of the Receiving Worksheet.{% else %}Review accession history and recorded actions. Main Lab identification and Final ID entry occur in the Main Laboratory workspace.{% endif %}</p></div>
       <div class="receiving-card-body">
+        {% if area == 'processing' and not show_history %}
+        <nav class="receiving-tabs d-flex flex-wrap mb-3" style="gap:.5rem" aria-label="Bench A pre-handoff tasks">
+          {% for tab in revival_tabs %}
+          <a class="receiving-tab {% if active_revival_tab == tab.key %}active{% endif %}"
+             href="?area=processing&amp;revival_tab={{ tab.key }}{% if return_to %}&amp;next={{ return_to|urlencode }}{% endif %}"
+             {% if active_revival_tab == tab.key %}aria-current="page"{% endif %}>
+            {{ tab.label }} <span class="receiving-tab-count">{{ tab.count }}</span>
+          </a>
+          {% endfor %}
+        </nav>
+        <p class="small text-muted mb-3">
+          {% if active_revival_tab == 'record' %}Record actual revival outcomes and transcribe the sentinel site's reported ID from its referral form.
+          {% elif active_revival_tab == 'failed' %}Review failed revival outcomes and retry where appropriate. Non-viable isolates are closed and remain in the history.
+          {% elif active_revival_tab == 'ready' %}Revival and Site ID recording are complete; choose temporary storage or endorse the ready batch to Main Lab.
+          {% else %}All isolates awaiting Bench A work or handoff; Main Lab work is excluded.{% endif %}
+        </p>
+        {% endif %}
         {% if can_review and id_handoff.queued_count %}
         <div class="receiving-help-panel mb-3">
           <p>{{ id_handoff.queued_count }} accession{{ id_handoff.queued_count|pluralize }} ready at Bench A for direct endorsement to Main Lab.</p>
@@ -36,7 +53,12 @@
         {% for isolate in isolates %}
         <tr>
           <td><strong>{{ isolate.accession_number }}</strong></td>
-          <td>{{ isolate.get_status_display }}</td>
+          <td>{% if area == 'processing' and not show_history %}
+            {% if isolate.status == 'revival_failed' %}Failed — Review / Retry
+            {% elif isolate.status == 'revived' and not isolate.site_organism_code %}Site ID to Record
+            {% elif isolate.status == 'revived' or isolate.status == 'id_queued' %}Ready for Handoff
+            {% else %}Revival Outcome to Record{% endif %}
+          {% else %}{{ isolate.get_status_display }}{% endif %}</td>
           <td>{% if isolate.reported_site_id %}{{ isolate.reported_site_id.0 }} &middot; {{ isolate.reported_site_id.1 }}{% else %}<span class="text-muted">Not recorded</span>{% endif %}</td>
           <td>{{ isolate.identifications.count }}</td>
           <td>{% if isolate.returned_at %}{{ isolate.returned_at|date:"M j, Y g:i A" }}<span class="receiving-site-name">{% if isolate.returned_by %}{{ isolate.returned_by.get_full_name|default:isolate.returned_by.username }}{% else %}—{% endif %}</span>{% else %}Pending{% endif %}</td>
@@ -44,7 +66,7 @@
           <td><strong>{{ isolate.next_action.label }}</strong><span class="receiving-site-name">{{ isolate.next_action.owner }}</span>{% if not isolate.next_action.allowed %}<span class="small text-muted">Assigned to another role</span>{% endif %}</td>
           <td><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}&amp;next={{ return_to|urlencode }}#{{ isolate.next_action.section }}">{% if isolate.next_action.allowed %}Open Isolate{% else %}View Isolate{% endif %}</a></td>
         </tr>
-        {% empty %}<tr><td colspan="8" class="text-muted text-center">Open the Receiving Worksheet to record revival for this accession range.</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="8" class="text-muted text-center">{% if area == 'processing' and not show_history %}No isolates need revival or Site ID preparation in this batch. Check Step 5 for later-stage work.{% else %}No isolate records available for this batch.{% endif %}</td></tr>{% endfor %}
         </tbody></table></div>
       </div>
     </section>

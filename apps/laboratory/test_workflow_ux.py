@@ -94,6 +94,121 @@ class WorkflowUXTests(TestCase):
         self.assertEqual(response.context['batches'][0]['awaiting_disposition_count'], 1)
         self.assertEqual(len(self.client.get(reverse('laboratory_worklist')+'?history=1').context['batches']), 1)
 
+    def test_manage_revival_excludes_main_lab_tested_and_completed_isolates(self):
+        accession = self.create_pending_accession()
+        states = (
+            ('UX-REVIVAL', 'revival_pending'),
+            ('UX-REVIVED', 'revived'),
+            ('UX-TESTING', 'id_testing'),
+            ('UX-ID-DONE', 'id_complete'),
+            ('UX-FINAL', 'biobanked'),
+            ('UX-SITE-BANKED', 'site_banked'),
+        )
+        for number, status in states:
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number, status=status,
+            )
+        url = reverse('laboratory_batch_detail', args=[accession.pk])
+        page = self.client.get(url + '?area=processing')
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual([item.accession_number for item in page.context['isolates']],
+                         ['UX-REVIVAL', 'UX-REVIVED'])
+        self.assertContains(page, 'UX-REVIVAL')
+        self.assertContains(page, 'UX-REVIVED')
+        for number in ('UX-TESTING', 'UX-ID-DONE', 'UX-FINAL', 'UX-SITE-BANKED'):
+            self.assertNotContains(page, number)
+        worklist = self.client.get(reverse('laboratory_processing_worklist'))
+        self.assertEqual(worklist.context['batches'][0]['count'], 2)
+        # History remains separately accessible when deliberately requested.
+        history = self.client.get(url + '?area=processing&history=1')
+        self.assertEqual(len(history.context['isolates']), len(states))
+
+    def test_pre_handoff_categories_are_work_not_extra_status_transitions(self):
+        accession = self.create_pending_accession()
+        statuses = [
+            ('UX-NEW', 'revival_pending', '', ''),
+            ('UX-IN-PROGRESS', 'revival_in_progress', '', ''),
+            ('UX-FAILED', 'revival_failed', '', ''),
+            ('UX-SITE-MISSING', 'revived', '', ''),
+            ('UX-UNDATED', 'revived', 'KPN', 'Klebsiella pneumoniae'),
+            ('UX-READY', 'revived', 'KPN', 'Klebsiella pneumoniae'),
+            ('UX-QUEUED', 'id_queued', 'KPN', 'Klebsiella pneumoniae'),
+            ('UX-MAIN-LAB', 'id_complete', 'KPN', 'Klebsiella pneumoniae'),
+            ('UX-NONVIABLE', 'non_viable', '', ''),
+        ]
+        now = timezone.now()
+        for number, status, code, name in statuses:
+            fields = {}
+            if number in ('UX-READY', 'UX-QUEUED'):
+                fields = {'revival_started_at': now - timedelta(hours=1),
+                          'revival_completed_at': now}
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number,
+                status=status, site_organism_code=code, site_organism_name=name,
+                **fields,
+            )
+        url = reverse('laboratory_batch_detail', args=[accession.pk])
+        cases = {
+            'record': ['UX-IN-PROGRESS', 'UX-NEW', 'UX-SITE-MISSING', 'UX-UNDATED'],
+            'failed': ['UX-FAILED'],
+            'ready': ['UX-QUEUED', 'UX-READY'],
+            'all': ['UX-FAILED', 'UX-IN-PROGRESS', 'UX-NEW', 'UX-QUEUED', 'UX-READY', 'UX-SITE-MISSING', 'UX-UNDATED'],
+        }
+        for tab, expected in cases.items():
+            with self.subTest(tab=tab):
+                page = self.client.get(url, {'area': 'processing', 'revival_tab': tab})
+                self.assertEqual(
+                    sorted(x.accession_number for x in page.context['isolates']), expected)
+                self.assertNotContains(page, 'UX-MAIN-LAB')
+                self.assertNotContains(page, 'UX-NONVIABLE')
+                counts = {x['key']: x['count'] for x in page.context['revival_tabs']}
+                self.assertEqual(counts, {'record': 4, 'failed': 1, 'ready': 2, 'all': 7})
+        page = self.client.get(url + '?area=processing')
+        self.assertEqual(page.context['active_revival_tab'], 'record')
+        self.assertNotContains(page, 'Revival in progress')
+        self.assertContains(page, 'Revival Outcome to Record')
+        history = self.client.get(url + '?area=processing&history=1')
+        self.assertEqual(len(history.context['isolates']), len(statuses))
+
+    def test_worksheet_step_four_shows_failed_revive_and_ready_counts(self):
+        accession = self.create_pending_accession()
+        LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number='UX-FAILED',
+            status='revival_failed')
+        LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number='UX-READY',
+            status='revived', site_organism_code='KPN',
+            site_organism_name='Klebsiella pneumoniae',
+            revival_started_at=timezone.now() - timedelta(hours=1),
+            revival_completed_at=timezone.now())
+        page = self.client.get(reverse(
+            'laboratory_receiving_workspace', args=[self.receipt.receiving_id]))
+        row = page.context['workflow_rows'][0]
+        self.assertEqual(row['failed_count'], 1)
+        self.assertEqual(row['ready_count'], 1)
+        self.assertEqual(row['awaiting_record'], 0)
+        self.assertContains(page, '1 Failed / Retry')
+        self.assertContains(page, '1 Ready for Handoff')
+
+    def test_manage_revival_disappears_when_no_pre_handoff_tasks_remain(self):
+        accession = self.create_pending_accession()
+        LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number='UX-COMPLETE',
+            status='id_complete',
+        )
+        workspace = reverse('laboratory_receiving_workspace',
+                            args=[self.receipt.receiving_id])
+        page = self.client.get(workspace)
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'Manage Revival')
+        self.assertContains(page, 'Bench A Preparation Done')
+        page = self.client.get(
+            reverse('laboratory_batch_detail', args=[accession.pk]) + '?area=processing')
+        self.assertEqual(list(page.context['isolates']), [])
+        self.assertContains(page, 'No isolates need revival or Site ID preparation')
+        worklist = self.client.get(reverse('laboratory_processing_worklist'))
+        self.assertEqual(len(worklist.context['batches']), 0)
+
     def test_record_revival_actual_dates_and_preserve_start(self):
         from apps.laboratory.workflow import record_revival_outcome
         item = self.isolate('revival_pending')

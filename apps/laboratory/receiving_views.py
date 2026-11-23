@@ -16,7 +16,7 @@ from .models import LaboratoryAccession, LaboratoryIsolate, LaboratoryOrganismCo
 from .permissions import can_confirm_lab_receipt, lab_receiving_required, can_read_laboratory_receiving, lab_receiving_read_required
 from apps.receiving.permissions import receiving_read_required
 from .reports import REGISTER_COLUMNS, build_register_rows, render_register_pdf
-from .workflow import id_handoff_readiness
+from .workflow import id_handoff_readiness, bench_a_pre_handoff_group
 
 def _receipt_or_404(receiving_id):
     return get_object_or_404(
@@ -153,8 +153,18 @@ def laboratory_receiving_workspace(request, receiving_id):
         readiness = id_handoff_readiness(accession, isolates)
         accession.can_endorse_id = readiness["ready"]
         accession.id_handoff_reason = readiness["reason"]
+        # Step 4 represents work *before* Main Lab endorsement/retrieval.
+        # Never describe already tested isolates as outstanding revival.
+        preparation_groups = [bench_a_pre_handoff_group(item) for item in isolates]
+        preparation_pending = sum(group is not None for group in preparation_groups)
+        awaiting_record = preparation_groups.count("record")
+        failed_count = preparation_groups.count("failed")
+        ready_count = preparation_groups.count("ready")
         workflow_rows.append({
             "accession": accession, "stages": stages,
+            "preparation_pending": preparation_pending,
+            "awaiting_record": awaiting_record, "failed_count": failed_count,
+            "ready_count": ready_count,
             "count": len(isolates), "expected": accession.isolate_count,
             "can_handoff": can_edit and accession.can_endorse_id,
             "can_prepare": can_edit and not isolates,
@@ -163,84 +173,88 @@ def laboratory_receiving_workspace(request, receiving_id):
             "can_complete": can_edit and len(isolates) == accession.isolate_count and any(i.status == "revival_in_progress" for i in isolates) and all(i.status in {"revival_in_progress", "revived"} for i in isolates),
 
         })
-    # Worksheet status reflects persisted data, not whether its panel was
-    # opened. Keep Main Laboratory-owned testing read-only in Bench A.
+    # Step 5 is a focused worklist. Derive status from saved isolate state,
+    # and never show an isolate as Ready without a usable Final ID.
+    from collections import Counter
     from .guidance import next_action
     from .identification_workflow import is_final_banked
     from .navigation import return_url
-    all_isolates = [item for accession in ranges for item in accession.isolate_records.all()]
-    total = len(all_isolates)
-    processed = sum(item.status not in (
-        "revival_pending", "revival_queued", "revival_in_progress", "revival_failed"
-    ) for item in all_isolates)
-    final_complete = sum(item.status == "non_viable" or is_final_banked(item) for item in all_isolates)
     final_rows = []
-    final_ready = 0
-    final_in_progress = 0
     for accession in ranges:
         for item in accession.isolate_records.all():
             action = next_action(item, request.user)
+            has_final_id = bool(
+                item.approved_organism_code and item.final_organism
+                and (item.final_identified_at or not item.id_completed_at)
+            )
             if item.status == "non_viable":
-                state = "completed"
-                label = "Closed — Non-viable"
+                state, label = "completed", "Closed — Non-viable"
             elif is_final_banked(item):
                 state, label = "completed", "Completed"
-            elif item.status == "ready_for_biobank" and item.identification_source == "main_lab":
-                state, label = "ready", "Ready for Banking"
-            elif action["section"] == "lyophilization":
+            elif item.status == "ready_for_biobank" and item.identification_source == "main_lab" and has_final_id:
+                state, label = "ready", "Ready for Final Banking"
+            elif action["section"] == "lyophilization" and has_final_id:
                 state, label = "in_progress", "Lyophilization In Progress"
-            elif action["section"] == "id_complete":
-                state, label = "ready", "ID Complete — Ready"
+            elif action["section"] == "id_complete" and has_final_id:
+                state, label = "ready", "Ready for Lyophilization"
+            elif item.id_completed_at and not has_final_id:
+                state, label = "pending", "Awaiting Main Lab Final ID"
             elif item.status in ("id_pending", "id_testing", "site_banked", "id_queued"):
                 state, label = "pending", "Awaiting Main Lab"
-            elif item.status in ("revival_pending", "revival_queued", "revival_in_progress", "revival_failed", "revived"):
+            elif item.status in ("revival_pending", "revival_queued", "revival_in_progress",
+                                 "revival_failed", "revived"):
                 state, label = "pending", "Awaiting Bench A Processing"
             else:
                 state, label = "pending", "Pending"
-            if state == "ready":
-                final_ready += 1
-            if state == "in_progress":
-                final_in_progress += 1
             final_rows.append({
-                "isolate": item, "action": action, "state": state, "label": label,
+                "isolate": item, "action": action, "state": state,
+                "label": label, "has_final_id": has_final_id,
                 "bank": getattr(item, "biobank", None),
             })
-    receiving_complete = bool(record.total_isolates_received and
-        record.total_isolates_received == record.isolates_accepted + record.isolates_rejected)
-    cards = [
-        {"name": "Receiving", "done": int(receiving_complete), "total": 1,
-         "state": "completed" if receiving_complete else "pending"},
-        {"name": "Accessioning", "done": sum(len(a.isolate_records.all()) == a.isolate_count and a.isolate_count > 0 for a in ranges),
-         "total": len(ranges), "state": "completed" if ranges and all(
-             a.isolate_count > 0 and len(a.isolate_records.all()) == a.isolate_count for a in ranges
-         ) else "pending"},
-        {"name": "Organism Inventory", "done": sum(row["total"] > 0 for row in organism_rows),
-         "total": len(ranges), "state": "completed" if ranges and all(
-             row["total"] > 0 for row in organism_rows
-         ) else "pending"},
-        {"name": "Revival", "done": processed, "total": total,
-         "state": "completed" if total and processed == total else "in_progress" if processed else "pending"},
-        {"name": "Main Lab Handoff", "done": sum(i.id_completed_at is not None for i in all_isolates),
-         "total": total, "state": "completed" if total and all(
-             i.id_completed_at or i.status == "non_viable" for i in all_isolates
-         ) else "in_progress" if any(i.endorsed_at or i.retrieved_at for i in all_isolates) else "pending"},
-        {"name": "Final Processing", "done": final_complete, "total": total,
-         "state": "completed" if total and final_complete == total
-         else "in_progress" if final_in_progress
-         else "ready" if final_ready else "pending"},
-        {"name": "Batch Generation", "done": sum(bool(a.batch_id) for a in ranges),
-         "total": len(ranges), "state": "completed" if ranges and all(a.batch_id for a in ranges) else "pending"},
+
+    final_counts = Counter(row["state"] for row in final_rows)
+    valid_final_tabs = {"ready", "in_progress", "pending", "completed", "all"}
+    requested_final_tab = request.GET.get("final_tab")
+    if requested_final_tab in valid_final_tabs:
+        final_tab = requested_final_tab
+    else:
+        # Prioritize actionable records; an empty ready queue should not
+        # conceal work in progress or upstream work awaiting Main Lab.
+        final_tab = next(
+            (state for state in ("ready", "in_progress", "pending", "completed")
+             if final_counts[state]), "all"
+        )
+    visible_final_rows = [
+        row for row in final_rows if final_tab == "all" or row["state"] == final_tab
     ]
+    final_tabs = [
+        {"key": key, "label": label, "count": len(final_rows) if key == "all" else final_counts[key]}
+        for key, label in (
+            ("ready", "Ready"), ("in_progress", "In Progress"),
+            ("pending", "Pending"), ("completed", "Completed"), ("all", "All")
+        )
+    ]
+    # Preserve the outer worklist breadcrumb; the chosen Step 5 filter is
+    # carried through each inline POST so the user stays in the same tab.
+    worksheet_path = request.path
+    breadcrumb = return_url(request)
+    def final_tab_return(tab):
+        query = {"final_tab": tab}
+        if breadcrumb:
+            query["next"] = breadcrumb
+        return worksheet_path + "?" + urlencode(query) + "#final-processing"
+    worksheet_return = final_tab_return(final_tab)
     return render(request, "laboratory/laboratory_workspace.html", {
         "return_to": return_url(request),
         "receipt": receipt, "record": record, "form": form,
         "accession_form": LaboratoryAccessionForm(initial={"date_referred": record.date_accepted or receipt.lab_date_received}),
         "organism_form": LaboratoryOrganismCountForm(),
         "ranges": ranges, "batch_rows": batch_rows, "workflow_rows": workflow_rows, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
-        "worksheet_cards": cards, "final_rows": final_rows, "final_ready_count": final_ready,
-        "final_complete_count": final_complete, "final_in_progress_count": final_in_progress,
-        "final_total": total,
-        "worksheet_return_url": request.get_full_path(),
+        "final_rows": visible_final_rows, "final_tabs": final_tabs,
+        "active_final_tab": final_tab, "worksheet_return_url": worksheet_return,
+        "worksheet_next_in_progress": final_tab_return("in_progress"),
+        "worksheet_next_ready": final_tab_return("ready"),
+        "worksheet_next_completed": final_tab_return("completed"),
     })
 
 

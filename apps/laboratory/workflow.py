@@ -53,6 +53,30 @@ def acknowledge_id_receipt(*, isolate_id, user):
     return isolate, True
 
 
+def bench_a_pre_handoff_group(item):
+    """Present existing status fields as a simple pre-Main Lab worklist.
+
+    The referral Site ID is known from the sentinel form but still has to be
+    transcribed by Bench A. Do not silently treat an unencoded ID as ready.
+    Return None once Main Lab custody/testing begins or for closed outcomes.
+    """
+    if (item.endorsed_at or item.retrieved_at or item.id_completed_at
+            or item.identifications.exists()):
+        return None
+    if item.status == S.REVIVAL_FAILED:
+        return "failed"
+    if item.status in (S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS):
+        return "record"
+    if item.status in (S.REVIVED, S.ID_QUEUED):
+        # A referral ID alone is insufficient: physical revival must have
+        # actual start/completion times before endorsement can proceed.
+        if not (item.revival_started_at and item.revival_completed_at
+                and item.site_organism_code.strip() and item.site_organism_name.strip()):
+            return "record"
+        return "ready"
+    return None
+
+
 @transaction.atomic
 def prepare_revival(accession_id, user):
     """Create accession records for actual revival; do not queue or endorse ID work."""
