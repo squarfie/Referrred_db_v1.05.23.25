@@ -168,8 +168,12 @@ def correct_identification(isolate_id, kind, code, name, reason, user, *, result
     if not allowed:
         raise WorkflowError('Your role cannot correct this identification.')
     reason = (reason or '').strip()
+    if kind == 'site' and not reason:
+        # Bench A Site ID edits need no free-text reason, but their audit row
+        # still identifies the change without inventing a justification.
+        reason = 'Site ID corrected (no reason supplied)'
     if not reason or len(reason) > 1000:
-        raise WorkflowError('A correction reason of at most 1,000 characters is required.')
+        raise WorkflowError('A correction reason of at most 1,000 characters is required for Main Lab or Final ID changes.')
     code, name = _organism(code, name)
     item = _locked(isolate_id)
     original, revision = None, None
