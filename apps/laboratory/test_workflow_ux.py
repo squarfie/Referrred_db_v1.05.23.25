@@ -123,6 +123,64 @@ class WorkflowUXTests(TestCase):
         history = self.client.get(url + '?area=processing&history=1')
         self.assertEqual(len(history.context['isolates']), len(states))
 
+    def test_pre_handoff_categories_are_work_not_extra_status_transitions(self):
+        accession = self.create_pending_accession()
+        statuses = [
+            ('UX-NEW', 'revival_pending', '', ''),
+            ('UX-IN-PROGRESS', 'revival_in_progress', '', ''),
+            ('UX-FAILED', 'revival_failed', '', ''),
+            ('UX-SITE-MISSING', 'revived', '', ''),
+            ('UX-READY', 'revived', 'KPN', 'Klebsiella pneumoniae'),
+            ('UX-QUEUED', 'id_queued', 'KPN', 'Klebsiella pneumoniae'),
+            ('UX-MAIN-LAB', 'id_complete', 'KPN', 'Klebsiella pneumoniae'),
+            ('UX-NONVIABLE', 'non_viable', '', ''),
+        ]
+        for number, status, code, name in statuses:
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number,
+                status=status, site_organism_code=code, site_organism_name=name,
+            )
+        url = reverse('laboratory_batch_detail', args=[accession.pk])
+        cases = {
+            'record': ['UX-IN-PROGRESS', 'UX-NEW', 'UX-SITE-MISSING'],
+            'failed': ['UX-FAILED'],
+            'ready': ['UX-QUEUED', 'UX-READY'],
+            'all': ['UX-FAILED', 'UX-IN-PROGRESS', 'UX-NEW', 'UX-QUEUED', 'UX-READY', 'UX-SITE-MISSING'],
+        }
+        for tab, expected in cases.items():
+            with self.subTest(tab=tab):
+                page = self.client.get(url, {'area': 'processing', 'revival_tab': tab})
+                self.assertEqual(
+                    sorted(x.accession_number for x in page.context['isolates']), expected)
+                self.assertNotContains(page, 'UX-MAIN-LAB')
+                self.assertNotContains(page, 'UX-NONVIABLE')
+                counts = {x['key']: x['count'] for x in page.context['revival_tabs']}
+                self.assertEqual(counts, {'record': 3, 'failed': 1, 'ready': 2, 'all': 6})
+        page = self.client.get(url + '?area=processing')
+        self.assertEqual(page.context['active_revival_tab'], 'record')
+        self.assertNotContains(page, 'Revival in progress')
+        self.assertContains(page, 'Revival Outcome to Record')
+        history = self.client.get(url + '?area=processing&history=1')
+        self.assertEqual(len(history.context['isolates']), len(statuses))
+
+    def test_worksheet_step_four_shows_failed_revive_and_ready_counts(self):
+        accession = self.create_pending_accession()
+        LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number='UX-FAILED',
+            status='revival_failed')
+        LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number='UX-READY',
+            status='revived', site_organism_code='KPN',
+            site_organism_name='Klebsiella pneumoniae')
+        page = self.client.get(reverse(
+            'laboratory_receiving_workspace', args=[self.receipt.receiving_id]))
+        row = page.context['workflow_rows'][0]
+        self.assertEqual(row['failed_count'], 1)
+        self.assertEqual(row['ready_count'], 1)
+        self.assertEqual(row['awaiting_record'], 0)
+        self.assertContains(page, '1 Failed / Retry')
+        self.assertContains(page, '1 Ready for Handoff')
+
     def test_manage_revival_disappears_when_no_pre_handoff_tasks_remain(self):
         accession = self.create_pending_accession()
         LaboratoryIsolate.objects.create(
