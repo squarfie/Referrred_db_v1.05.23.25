@@ -39,7 +39,8 @@ class RevivalCorrectionTests(TestCase):
         return values
 
     def test_step_four_exposes_edit_history_after_revival_is_done(self):
-        item = self.create_saved_isolate()
+        item = self.create_saved_isolate(
+            status="id_testing", endorsed_at=timezone.now(), acknowledged_at=timezone.now())
         worksheet = self.client.get(reverse(
             "laboratory_receiving_workspace", args=[self.receipt.receiving_id]))
         self.assertContains(worksheet, "Bench A Preparation Done")
