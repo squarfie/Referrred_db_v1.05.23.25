@@ -56,6 +56,14 @@
 <p class="alert alert-info">Main Lab ID testing and Final ID entry are complete. Bench A can proceed to lyophilization using the recorded Final ID. Corrections are available in the section below.</p>
 {% endif %}
 </div></section>
+{% if can_test and not isolate.approved_organism_code and isolate.identifications.exists and isolate.id_completed_at or can_test and not isolate.approved_organism_code and isolate.identifications.exists and isolate.returned_at %}
+<section class="receiving-surface receiving-card mb-3">
+<div class="receiving-card-header"><h2>Resolve Missing Final ID</h2></div>
+<div class="receiving-card-body">
+<p class="alert alert-warning">Main Lab testing evidence exists, but this historical record has no confirmed Final ID. Select the confirmed organism and record a reason. This action is audited and will unlock Bench A Final Processing.</p>
+{% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}
+</div></section>
+{% endif %}
 {% if isolate.id_completed_at and isolate.identification_source == 'main_lab' and isolate.final_organism and can_test %}
 <section class="receiving-surface receiving-card mb-3"><div class="receiving-card-header"><h2>Main Lab Final ID</h2></div><div class="receiving-card-body">
 <p><strong>{{ isolate.approved_organism_code }} — {{ isolate.final_organism }}</strong> · Recorded by {{ isolate.final_identified_by }} on {{ isolate.final_identified_at|date:"M j, Y g:i A" }}</p>
