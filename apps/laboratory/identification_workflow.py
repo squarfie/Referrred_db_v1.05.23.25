@@ -208,13 +208,14 @@ def correct_identification(isolate_id, kind, code, name, reason, user, *, result
     allowed = can_access_main_lab(user) if main_lab_owned else can_review_id_results(user)
     if not allowed:
         raise WorkflowError('Your role cannot correct this identification.')
-    reason = (reason or '').strip()
-    if kind == 'site' and not reason:
-        # Bench A Site ID edits need no free-text reason, but their audit row
-        # still identifies the change without inventing a justification.
-        reason = 'Site ID corrected (no reason supplied)'
-    if not reason or len(reason) > 1000:
-        raise WorkflowError('A correction reason of at most 1,000 characters is required for Main Lab or Final ID changes.')
+    # Manual justification is not required for any identification correction.
+    # Retain a neutral, automatic audit label while preserving old/new values,
+    # the responsible user, and the recorded time.
+    reason = {
+        'site': 'Site ID corrected',
+        'main_lab': 'Main Lab result corrected',
+        'final': 'Final ID corrected',
+    }[kind]
     code, name = _organism(code, name)
     original, revision = None, None
     if kind == 'main_lab':
