@@ -234,6 +234,10 @@
 .receiving-board-search {flex:0 1 540px;min-width:240px;}
 .receiving-board-search .receiving-search-wrap {flex:1 1 260px;min-width:180px;}
 .receiving-tabs {display:flex;gap:.45rem;overflow-x:auto;padding:.8rem 1rem;background:#fff;border-bottom:1px solid var(--receiving-border);}
+/* Four primary Bench A tabs and optional task filters wrap instead of scrolling. */
+.receiving-workflow-tabs,.receiving-task-filters {flex-wrap:wrap;overflow-x:visible;}
+.receiving-task-filters {padding-top:.5rem;padding-bottom:.5rem;background:#f7fbfe;}
+.receiving-task-filters .receiving-tab {font-weight:600;font-size:.74rem;}
 .receiving-tab {display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;padding:.5rem .75rem;border:1px solid #d5e4ee;border-radius:7px;background:#f7fbfe;color:#173f63;font-size:.77rem;font-weight:800;}
 .receiving-tab:hover,.receiving-tab:focus {color:#087f95;border-color:var(--receiving-cyan);text-decoration:none;}
 .receiving-tab.active {background:#0f3a5f;color:#fff;border-color:#0f3a5f;}
