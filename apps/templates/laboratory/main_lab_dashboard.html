@@ -6,12 +6,12 @@
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
     <p class="receiving-eyebrow">Main Laboratory</p><h1>Identification Testing</h1>
-    <p class="receiving-hero-subtitle">Acknowledge Bench A-endorsed isolates or retrieve previously revived isolates from temporary storage. Record the instrument result and Final ID so Bench A can begin lyophilization.</p>
+    <p class="receiving-hero-subtitle">Use For Testing for isolates endorsed directly by Bench A or awaiting retrieval from temporary storage. Confirm the Main Lab Final ID so Bench A can continue with lyophilization.</p>
   </div></div>
   <div class="receiving-hero-actions">{% if can_test %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}">Upload ID Results</a>{% endif %}</div></header>
   <div class="receiving-content">
     <section class="receiving-stat-grid" aria-label="Main Laboratory identification counts">
-      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Awaiting ID acknowledgment</span><div class="receiving-stat-value">{{ counts.awaiting }}</div></article>
+      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">For Testing · Direct handoff + Storage</span><div class="receiving-stat-value">{{ counts.for_testing }}</div></article>
       <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Testing in progress</span><div class="receiving-stat-value">{{ counts.testing }}</div></article>
       <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">ID testing completed</span><div class="receiving-stat-value">{{ counts.completed }}</div></article>
     </section>
@@ -40,13 +40,22 @@
           </summary>
           <div class="table-responsive"><table class="table receiving-table">
             <caption class="sr-only">Main Laboratory accessions for {{ batch.laboratory_receiving.receipt.site.SiteCode }} batch {{ batch.reference_range }}</caption>
-            <thead><tr><th>Accession</th><th>Main Lab status</th><th>Endorsed at</th><th>Action</th></tr></thead><tbody>
+            <thead><tr><th>Accession</th><th>Main Lab status</th><th>Arrival route</th><th>Action</th></tr></thead><tbody>
             {% for item in batch.main_lab_isolates %}
-            <tr><td data-label="Accession"><strong>{{ item.accession_number }}</strong></td><td data-label="Main Lab status">{{ item.get_status_display }}</td><td data-label="Endorsed at">{{ item.endorsed_at|date:"M j, Y g:i A"|default:"Not recorded" }}</td><td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'main_lab_isolate_detail' item.pk %}?next={{ origin_url|urlencode }}">Open ID case</a></td></tr>
+            <tr><td data-label="Accession"><strong>{{ item.accession_number }}</strong></td>
+            <td data-label="Main Lab status">{{ item.get_status_display }}</td>
+            <td data-label="Arrival route">
+              {% if item.status == 'site_banked' %}<strong>Retrieve from temporary storage</strong>
+              {% elif item.status == 'id_pending' %}<strong>Direct Bench A endorsement</strong>{% if item.endorsed_at %}<div class="small text-muted">{{ item.endorsed_at|date:"M j, Y g:i A" }}</div>{% endif %}
+              {% elif item.retrieved_at %}Retrieved from storage
+              {% elif item.endorsed_at %}Endorsed by Bench A
+              {% else %}Historical Main Lab case{% endif %}
+            </td>
+            <td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'main_lab_isolate_detail' item.pk %}?next={{ origin_url|urlencode }}">{% if item.status == 'site_banked' %}Retrieve for Testing{% elif item.status == 'id_pending' %}Acknowledge for Testing{% else %}Open ID case{% endif %}</a></td></tr>
             {% endfor %}
             </tbody></table></div>
         </details>
-        {% empty %}<p class="text-muted text-center">No endorsed isolates in this Main Lab queue.</p>{% endfor %}
+        {% empty %}<p class="text-muted text-center">No isolates in this Main Lab category.</p>{% endfor %}
       </div>
       <nav class="receiving-board-pagination" aria-label="Main Laboratory batch pages"><span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} batch{{ page_obj.paginator.count|pluralize:'es' }}</span><div class="receiving-action-group">{% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}{% if page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}</div></nav>
     </section>
