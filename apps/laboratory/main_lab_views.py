@@ -42,7 +42,13 @@ def main_lab_dashboard(request):
         tab = "completed"
     base = main_lab_cases().select_related("accession_range__laboratory_receiving__receipt__site")
     completed = Q(id_completed_at__isnull=False) | Q(returned_at__isnull=False)
-    temporary = LaboratoryIsolate.objects.filter(status="site_banked", identification_source="site", site_banked_at__isnull=False)
+    # Only physically stored, successfully revived isolates are retrievable.
+    # A provisional label alone is not proof of an available storage position.
+    temporary = LaboratoryIsolate.objects.filter(
+        status="site_banked", identification_source="site",
+        site_banked_at__isnull=False, biobank__isnull=False,
+        revival_started_at__isnull=False, revival_completed_at__isnull=False,
+    )
     counts = {
         "awaiting": base.filter(status=LaboratoryIsolate.Status.ID_PENDING).count(),
         "testing": base.filter(status=LaboratoryIsolate.Status.ID_TESTING).count(),
@@ -96,7 +102,11 @@ def main_lab_dashboard(request):
 def main_lab_isolate_detail(request, isolate_id):
     """ID work only: no revival, Site ID banking, final review or lyophilization controls."""
     isolate = get_object_or_404(
-        (main_lab_cases() | LaboratoryIsolate.objects.filter(status="site_banked", identification_source="site", site_banked_at__isnull=False).distinct()).select_related(
+        (main_lab_cases() | LaboratoryIsolate.objects.filter(
+            status="site_banked", identification_source="site", site_banked_at__isnull=False,
+            biobank__isnull=False, revival_started_at__isnull=False,
+            revival_completed_at__isnull=False,
+        ).distinct()).select_related(
             "accession_range__laboratory_receiving__receipt__site"
         ).prefetch_related("identifications__recorded_by"),
         pk=isolate_id,
