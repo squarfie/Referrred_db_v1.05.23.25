@@ -67,10 +67,12 @@ def bench_a_pre_handoff_group(item):
         return "failed"
     if item.status in (S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS):
         return "record"
-    if item.status == S.REVIVED:
-        return ("ready" if item.site_organism_code.strip()
-                and item.site_organism_name.strip() else "record")
-    if item.status == S.ID_QUEUED:
+    if item.status in (S.REVIVED, S.ID_QUEUED):
+        # A referral ID alone is insufficient: physical revival must have
+        # actual start/completion times before endorsement can proceed.
+        if not (item.revival_started_at and item.revival_completed_at
+                and item.site_organism_code.strip() and item.site_organism_name.strip()):
+            return "record"
         return "ready"
     return None
 
