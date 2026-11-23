@@ -482,7 +482,8 @@ def laboratory_isolate_detail(request, isolate_id):
         "can_correct_revival": can_review_id_results(request.user) and bool(
             isolate.revival_started_at and isolate.revival_completed_at),
         "revival_outcome_locked": bool(
-            isolate.endorsed_at or isolate.acknowledged_at or isolate.id_completed_at
+            isolate.status not in ("revived", "revival_failed", "non_viable")
+            or isolate.endorsed_at or isolate.acknowledged_at or isolate.id_completed_at
             or isolate.returned_at or isolate.identifications.exists()
             or isolate.lyophilization_started_at or isolate.lyophilization_completed_at
             or isolate.site_banked_at or isolate.biobanked_at),
