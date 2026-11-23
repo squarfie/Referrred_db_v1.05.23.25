@@ -62,9 +62,13 @@ def record_identification(isolate_id, code, name, user, *, instrument='', casset
                 and latest.instrument == instrument and latest.cassette_reference == cassette_reference):
             return latest
         raise WorkflowError('Testing is complete. Use a result correction with a reason.')
-    if item.status != S.ID_TESTING or not (item.acknowledged_at or item.retrieved_at or item.endorsed_at
-                                          or item.returned_at or item.identifications.exists()):
-        raise WorkflowError('Acknowledge the endorsed isolate or retrieve it from temporary storage before testing.')
+    # Endorsement only transfers custody to Main Lab; it does not prove
+    # acknowledgment. Only actual receipt, retrieval, or documented legacy
+    # testing evidence can authorize a result-completion transition.
+    if item.status != S.ID_TESTING or not (
+        item.acknowledged_at or item.retrieved_at or item.identifications.exists()
+    ):
+        raise WorkflowError('Acknowledge the Main Lab handoff or retrieve the temporarily banked isolate before recording ID results.')
     result = LaboratoryIdentification.objects.create(isolate=item, whonet_organism_code=code,
         organism_reported=name, instrument=instrument, cassette_reference=cassette_reference,
         source=source, recorded_by=user)
