@@ -243,6 +243,10 @@
 .receiving-tab.active {background:#0f3a5f;color:#fff;border-color:#0f3a5f;}
 .receiving-tab-count {display:inline-flex;align-items:center;justify-content:center;min-width:23px;height:21px;padding:0 .4rem;border-radius:100px;color:#07889a;background:rgba(0,188,212,.14);font-size:.72rem;}
 .receiving-tab.active .receiving-tab-count {color:#fff;background:rgba(255,255,255,.2);}
+.receiving-task-filters .receiving-tab-count.is-zero {background:#edf1f5;color:#667789;}
+.receiving-task-filters .receiving-tab-count.has-pending {background:#d4f4f5;color:#066979;}
+.receiving-task-filters .receiving-tab.active .receiving-tab-count {background:rgba(255,255,255,.23);color:#fff;}
+
 .receiving-batch-accordion { margin-bottom: .75rem; border: 1px solid var(--receiving-border); border-radius: 8px; overflow: hidden; }
 .receiving-batch-accordion > summary { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; padding: .9rem 1rem; background: #edf8fc; color: var(--receiving-navy); cursor: pointer; list-style: none; }
 .receiving-batch-accordion > summary::-webkit-details-marker { display: none; }

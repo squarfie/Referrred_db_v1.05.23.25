@@ -18,6 +18,27 @@
   <div class="receiving-content">{% if return_to %}<p><a class="btn btn-outline-primary" href="{{ return_to }}">Back to filtered worklist</a></p>{% endif %}
     <div class="alert alert-info receiving-notice"><i class="fas fa-user-check"></i><div><strong>The LAB Encoder decides acceptance or rejection.</strong> The system validates the totals but does not classify isolates automatically.</div></div>
     
+  <nav class="receiving-surface p-3 mb-4" aria-label="Bench A workflow progress">
+    <h2 class="h5 mb-3">Bench A Progress</h2>
+    <div class="row">
+      {% for card in worksheet_cards %}
+      <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+        <div class="border rounded p-3 h-100 laboratory-step-status">
+          <div class="d-flex justify-content-between align-items-start flex-wrap">
+            <strong class="small">{{ card.name }}</strong>
+            {% if card.state == 'completed' %}<span class="badge badge-success">Completed</span>
+            {% elif card.state == 'ready' %}<span class="badge badge-info">Ready</span>
+            {% elif card.state == 'in_progress' %}<span class="badge badge-primary">In Progress</span>
+            {% else %}<span class="badge badge-warning">Pending</span>{% endif %}
+          </div>
+          <p class="small text-muted mb-0 mt-2">{{ card.done }} of {{ card.total }} complete</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="small text-muted mb-0">Steps reflect recorded isolate and batch activity. Main Lab identification is displayed here for monitoring only.</p>
+  </nav>
+
   <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Step 1: Receiving and acceptance summary</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
     <div class="receiving-card-body">
       <form method="post" novalidate>
@@ -279,12 +300,82 @@
   </section>
 
   <section class="receiving-surface receiving-form-card mb-4" id="revival">
-    <div class="receiving-card-header"><h2>Step 4: Revival &amp; Processing</h2><p>Record revival dates and outcomes per accession. Then temporarily bank using Site ID or endorse directly for Main Lab ID. Completed ID results continue to lyophilization, Final ID confirmation and final banking.</p></div>
-    <div class="receiving-card-body"><a class="btn btn-primary" href="{% url 'laboratory_processing_worklist' %}">Open Revival &amp; Processing</a></div>
+    <div class="receiving-card-header"><h2>Step 4: Revival &amp; Site ID</h2><p>Bench A records revival and Site IDs. Temporary storage and batch endorsement are Bench A decisions.</p></div>
+    <div class="receiving-card-body">
+      {% for row in workflow_rows %}
+      <div class="border rounded p-3 mb-2 d-flex justify-content-between align-items-center flex-wrap">
+        <div><strong>{{ row.accession.reference_range }}</strong>
+          <span class="text-muted small">· {{ row.count }} of {{ row.expected }} accession records</span></div>
+        <div>
+          {% if row.can_handoff %}<span class="badge badge-info mr-2">Ready for Main Lab</span>
+          {% elif row.count %}<span class="badge badge-warning mr-2">Processing</span>
+          {% else %}<span class="badge badge-warning mr-2">Pending</span>{% endif %}
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing">Manage Revival</a>
+          {% if row.can_handoff and can_edit %}<form method="post" class="d-inline" action="{% url 'laboratory_endorse_id' row.accession.pk %}">{% csrf_token %}
+          <button class="btn btn-sm btn-primary" type="submit">Endorse Batch to Main Lab</button></form>{% endif %}
+        </div>
+      </div>
+      {% empty %}<p class="text-muted">Accession ranges must be created before revival.</p>{% endfor %}
+      <p class="small text-muted mb-0">Main Lab acknowledgment, testing, and Final ID entry occur only in the Main Laboratory workspace.</p>
+    </div>
+  </section>
+  <section class="receiving-surface receiving-form-card mb-4" id="final-processing">
+    <div class="receiving-card-header d-flex justify-content-between align-items-center flex-wrap">
+      <div><h2>Step 5: Final Processing</h2>
+      <p class="mb-0">Bench A records lyophilization and final banking using the Main Lab Final ID. No Main Lab editing is available here.</p></div>
+      <div><span class="badge badge-info">{{ final_ready_count }} Ready</span>
+      <span class="badge badge-primary">{{ final_in_progress_count }} In Progress</span>
+      <span class="badge badge-success">{{ final_complete_count }} of {{ final_total }} Completed</span></div>
+    </div>
+    <div class="receiving-card-body">
+    {% for row in final_rows %}
+    {% with isolate=row.isolate biobank=row.bank %}
+      <details class="border rounded mb-2" {% if row.state == 'ready' %}open{% endif %}>
+        <summary class="p-3 d-flex justify-content-between align-items-center" style="cursor:pointer;">
+          <strong>{{ isolate.accession_number }}</strong>
+          {% if row.state == 'completed' %}<span class="badge badge-success">{{ row.label }}</span>
+          {% elif row.state == 'ready' %}<span class="badge badge-info">{{ row.label }}</span>
+          {% elif row.state == 'in_progress' %}<span class="badge badge-primary">{{ row.label }}</span>
+          {% else %}<span class="badge badge-warning">{{ row.label }}</span>{% endif %}
+        </summary>
+        <div class="border-top p-3">
+          {% if isolate.id_completed_at %}
+          <div class="alert alert-light border"><strong>Main Lab Final ID:</strong>
+            {{ isolate.approved_organism_code|default:"Not recorded" }} — {{ isolate.final_organism|default:"Not recorded" }}
+            <div class="small text-muted">Read-only. Main Laboratory is responsible for Final ID and corrections.</div>
+          </div>
+          {% endif %}
+          {% if row.action.section == 'id_complete' and can_edit %}
+            <form method="post" action="{% url 'laboratory_proceed_lyophilization' isolate.pk %}">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ worksheet_return_url }}">
+              <button type="submit" class="btn btn-primary">Proceed to Lyophilization</button>
+            </form>
+          {% elif row.action.section == 'lyophilization' and can_edit %}
+            <p class="small text-muted">Record harvest and lyophilization dates; Final ID is supplied by Main Lab.</p>
+            {% include 'laboratory/_lab_lyophilization_form.html' with return_to=worksheet_return_url %}
+          {% elif row.action.section == 'biobank' and isolate.identification_source == 'main_lab' and can_edit %}
+            <p class="small text-muted">Lyophilization is complete. Record a box and position to complete final banking.</p>
+            <form method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}" class="row align-items-end">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ worksheet_return_url }}">
+              <div class="col-md-4 mb-2"><label>Storage Box</label><input class="form-control" name="storage_box" value="{{ biobank.storage_box|default:'' }}" maxlength="100" required></div>
+              <div class="col-md-4 mb-2"><label>Box Position</label><input class="form-control" name="box_position" value="{{ biobank.box_position|default:'' }}" maxlength="30" required></div>
+              <div class="col-md-4 mb-2"><button type="submit" class="btn btn-success mb-0">Complete Final Banking</button></div>
+            </form>
+            <p class="small text-muted mb-0">For additional storage fields, open <a href="{% url 'laboratory_isolate_detail' isolate.pk %}">full storage details</a>.</p>
+          {% elif row.state == 'completed' %}
+            <p class="text-success mb-1">This isolate's Bench A workflow is completed or formally closed.</p>
+          {% else %}
+            <p class="text-muted mb-1">{{ row.label }}. This panel will unlock when the required upstream steps are recorded.</p>
+          {% endif %}
+        </div>
+      </details>
+    {% endwith %}
+    {% empty %}<p class="text-muted mb-0">No isolate records yet.</p>{% endfor %}
+    </div>
   </section>
   <section class="receiving-surface receiving-form-card mb-4" id="batch-generation">
     <div class="receiving-card-header">
-      <h2>Step 5: Batch generation</h2>
+      <h2>Batch Generation</h2>
       <p>Review the accession range and its organism inventory before creating the batch. Generated batches cannot be edited or deleted through this worksheet.</p>
     </div>
     <div class="receiving-card-body">

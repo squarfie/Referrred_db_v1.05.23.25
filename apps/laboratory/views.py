@@ -46,7 +46,7 @@ def laboratory_organism_search(request):
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 1000
-UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference", "organism_code")
+UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference", "organism_code", "final_organism_code", "final_organism")
 
 
 
@@ -360,17 +360,15 @@ def laboratory_lyophilization_complete(request, isolate_id):
         complete_lyophilization(
             isolate_id, request.POST.get("date_harvested"),
             request.POST.get("date_lyophilized"), request.user,
+            # Existing integrations may still POST organism fields. The
+            # workflow validates them against Main Lab ID, never adopts them.
+            whonet_code=(request.POST.get("whonet_code") or "").strip(),
             whonet_organism_name=(request.POST.get("whonet_organism_name") or "").strip(),
-            whonet_code=(resolve_organism(
-                code=request.POST.get("whonet_code") or "",
-                name=request.POST.get("whonet_organism_name") or "",
-                require_code=True,
-            )[0] if request.POST.get("whonet_code") or request.POST.get("whonet_organism_name") else ""),
         )
         messages.success(request, "Harvest and lyophilization recorded.")
     except (WorkflowError, ValidationError) as exc:
         messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc))
-    return redirect(detail_url(request, isolate_id))
+    return redirect(return_url(request) or detail_url(request, isolate_id))
 
 
 @login_required
@@ -419,7 +417,7 @@ def laboratory_isolate_detail(request, isolate_id):
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
         "can_correct_site": can_review_id_results(request.user) and bool(site_id) and not can_edit_site_id,
-        "can_correct_final": can_review_id_results(request.user) and isolate.identification_source == "main_lab" and bool(isolate.final_organism),
+        "can_correct_final": can_review_id_results(request.user) and not isolate.id_completed_at and isolate.identification_source == "main_lab" and bool(isolate.final_organism),
         "show_history": request.GET.get("history") == "1",
         "area": request.GET.get("area") if request.GET.get("area") in ("identification", "processing", "biobank") else ("identification" if isolate.status in ("id_pending", "id_testing") else "processing"),
         "revival_attempt_start": attempt_start,
@@ -446,8 +444,10 @@ def laboratory_record_id(request, isolate_id):
         record_identification(isolate_id, request.POST.get("organism_reported_code"),
             request.POST.get("organism_reported"), request.user,
             instrument=(request.POST.get("instrument") or "").strip(),
-            cassette_reference=(request.POST.get("cassette_reference") or "").strip())
-        messages.success(request, "ID result saved. Testing is complete; Bench A can proceed to lyophilization. Physical cassette return has not been recorded.")
+            cassette_reference=(request.POST.get("cassette_reference") or "").strip(),
+            final_code=(request.POST.get("final_organism_code") or "").strip() or None,
+            final_name=(request.POST.get("final_organism") or "").strip() or None)
+        messages.success(request, "Main Lab result and Final ID saved. Bench A can proceed to lyophilization. Physical cassette return is tracked separately.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
     return redirect(detail_url(request, isolate_id, main_lab=True))
@@ -564,7 +564,7 @@ def laboratory_biobank_save(request, isolate_id):
                          else "Identification and banking map finalized.")
     except (WorkflowError, ValueError) as exc:
         messages.error(request, str(exc))
-    return redirect(detail_url(request, isolate_id))
+    return redirect(return_url(request) or detail_url(request, isolate_id))
 
 
 def _label_item(isolate, request):
@@ -713,6 +713,17 @@ def _upload_rows(upload):
             values["organism_code"] = _resolved_code
         except ValidationError as exc:
             raise ValueError(f"Row {number}: " + "; ".join(exc.messages)) from exc
+        # Importers may include a separate Main Lab Final ID. If absent, the
+        # coded instrument identification is the initial Final ID.
+        try:
+            final_code, final_name = resolve_organism(
+                code=values["final_organism_code"] or values["organism_code"],
+                name=values["final_organism"] or (values["organism_reported"] if not values["final_organism_code"] else ""),
+                require_code=True,
+            )
+            values["final_organism_code"], values["final_organism"] = final_code, final_name
+        except ValidationError as exc:
+            raise ValueError(f"Row {number}: invalid Final ID: " + "; ".join(exc.messages)) from exc
         if len(values["accession_number"]) > 80 or len(values["organism_reported"]) > 255:
             raise ValueError(f"Row {number}: accession or organism exceeds its length limit.")
         if len(values["instrument"]) > 100 or len(values["cassette_reference"]) > 100:
@@ -788,13 +799,14 @@ def laboratory_id_upload(request):
                     record_identification(locked[row["accession_number"]].pk,
                         row["organism_code"], row["organism_reported"], request.user,
                         instrument=row["instrument"], cassette_reference=row["cassette_reference"],
+                        final_code=row["final_organism_code"], final_name=row["final_organism"],
                         source=(LaboratoryIdentification.Source.CSV if file.name.lower().endswith(".csv")
                                 else LaboratoryIdentification.Source.XLSX))
         except WorkflowError as exc:
             messages.error(request, str(exc) + " No results were imported.")
             return redirect("laboratory_id_upload")
     request.session.pop("lab_id_preview_digest", None)
-    messages.success(request, f"Imported {len(rows)} identification results. Testing complete; results are available to Bench A.")
+    messages.success(request, f"Imported {len(rows)} Main Lab results and Final IDs. Ready for Bench A lyophilization.")
     return redirect(reverse("main_lab_dashboard") + "?tab=completed")
 
 

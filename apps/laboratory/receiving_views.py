@@ -163,13 +163,84 @@ def laboratory_receiving_workspace(request, receiving_id):
             "can_complete": can_edit and len(isolates) == accession.isolate_count and any(i.status == "revival_in_progress" for i in isolates) and all(i.status in {"revival_in_progress", "revived"} for i in isolates),
 
         })
+    # Worksheet status reflects persisted data, not whether its panel was
+    # opened. Keep Main Laboratory-owned testing read-only in Bench A.
+    from .guidance import next_action
+    from .identification_workflow import is_final_banked
     from .navigation import return_url
+    all_isolates = [item for accession in ranges for item in accession.isolate_records.all()]
+    total = len(all_isolates)
+    processed = sum(item.status not in (
+        "revival_pending", "revival_queued", "revival_in_progress", "revival_failed"
+    ) for item in all_isolates)
+    final_complete = sum(item.status == "non_viable" or is_final_banked(item) for item in all_isolates)
+    final_rows = []
+    final_ready = 0
+    final_in_progress = 0
+    for accession in ranges:
+        for item in accession.isolate_records.all():
+            action = next_action(item, request.user)
+            if item.status == "non_viable":
+                state = "completed"
+                label = "Closed — Non-viable"
+            elif is_final_banked(item):
+                state, label = "completed", "Completed"
+            elif item.status == "ready_for_biobank" and item.identification_source == "main_lab":
+                state, label = "ready", "Ready for Banking"
+            elif action["section"] == "lyophilization":
+                state, label = "in_progress", "Lyophilization In Progress"
+            elif action["section"] == "id_complete":
+                state, label = "ready", "ID Complete — Ready"
+            elif item.status in ("id_pending", "id_testing", "site_banked", "id_queued"):
+                state, label = "pending", "Awaiting Main Lab"
+            elif item.status in ("revival_pending", "revival_queued", "revival_in_progress", "revival_failed", "revived"):
+                state, label = "pending", "Awaiting Bench A Processing"
+            else:
+                state, label = "pending", "Pending"
+            if state == "ready":
+                final_ready += 1
+            if state == "in_progress":
+                final_in_progress += 1
+            final_rows.append({
+                "isolate": item, "action": action, "state": state, "label": label,
+                "bank": getattr(item, "biobank", None),
+            })
+    receiving_complete = bool(record.total_isolates_received and
+        record.total_isolates_received == record.isolates_accepted + record.isolates_rejected)
+    cards = [
+        {"name": "Receiving", "done": int(receiving_complete), "total": 1,
+         "state": "completed" if receiving_complete else "pending"},
+        {"name": "Accessioning", "done": sum(len(a.isolate_records.all()) == a.isolate_count and a.isolate_count > 0 for a in ranges),
+         "total": len(ranges), "state": "completed" if ranges and all(
+             a.isolate_count > 0 and len(a.isolate_records.all()) == a.isolate_count for a in ranges
+         ) else "pending"},
+        {"name": "Organism Inventory", "done": sum(row["total"] > 0 for row in organism_rows),
+         "total": len(ranges), "state": "completed" if ranges and all(
+             row["total"] > 0 for row in organism_rows
+         ) else "pending"},
+        {"name": "Revival", "done": processed, "total": total,
+         "state": "completed" if total and processed == total else "in_progress" if processed else "pending"},
+        {"name": "Main Lab Handoff", "done": sum(i.id_completed_at is not None for i in all_isolates),
+         "total": total, "state": "completed" if total and all(
+             i.id_completed_at or i.status == "non_viable" for i in all_isolates
+         ) else "in_progress" if any(i.endorsed_at or i.retrieved_at for i in all_isolates) else "pending"},
+        {"name": "Final Processing", "done": final_complete, "total": total,
+         "state": "completed" if total and final_complete == total
+         else "in_progress" if final_in_progress
+         else "ready" if final_ready else "pending"},
+        {"name": "Batch Generation", "done": sum(bool(a.batch_id) for a in ranges),
+         "total": len(ranges), "state": "completed" if ranges and all(a.batch_id for a in ranges) else "pending"},
+    ]
     return render(request, "laboratory/laboratory_workspace.html", {
         "return_to": return_url(request),
         "receipt": receipt, "record": record, "form": form,
         "accession_form": LaboratoryAccessionForm(initial={"date_referred": record.date_accepted or receipt.lab_date_received}),
         "organism_form": LaboratoryOrganismCountForm(),
         "ranges": ranges, "batch_rows": batch_rows, "workflow_rows": workflow_rows, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
+        "worksheet_cards": cards, "final_rows": final_rows, "final_ready_count": final_ready,
+        "final_complete_count": final_complete, "final_in_progress_count": final_in_progress,
+        "final_total": total,
+        "worksheet_return_url": request.get_full_path(),
     })
 
 

@@ -441,9 +441,11 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
         raise WorkflowError("Only Bench A or Admin may record lyophilization.")
     item = lock_isolate(isolate_id)
     new_flow = bool(item.lyophilization_started_at and (item.id_completed_at or item.returned_at))
-    proposal = item.identifications.first() if new_flow else None
-    organism_name = proposal.organism_reported if proposal else item.final_organism
-    organism_code = proposal.whonet_organism_code if proposal else item.approved_organism_code
+    # Bench A uses the Final ID recorded by Main Lab, not a new selection.
+    organism_name = item.final_organism
+    organism_code = item.approved_organism_code
+    if new_flow and item.id_completed_at and not (item.final_identified_at and organism_name and organism_code):
+        raise WorkflowError('Main Lab Final ID is required before lyophilization.')
     site_banking = item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.SITE_BANKED)
     if (item.status != S.ID_REVIEWED and not site_banking and not (new_flow and item.status in (S.ID_COMPLETE, S.ID_RETURNED, S.REVIVED))) or not organism_name:
         raise WorkflowError("Confirm Main Laboratory identification or select site-ID banking before recording lyophilization.")
@@ -465,23 +467,26 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
         raise WorkflowError("Lyophilization cannot precede revival completion.")
     if harvest > lyoph:
         raise WorkflowError("Harvest date cannot be later than lyophilization date.")
-    code = (whonet_code or organism_code).strip().upper()
-    if not new_flow and organism_code and code != organism_code.upper():
-        raise WorkflowError(
-            "The selected WHONET code differs from the approved identification code."
-        )
+    # Identification is controlled by the Main Lab result (or the existing
+    # reviewed ID on legacy records), not by fields submitted at lyophilization.
+    # Explicitly reject legacy/tampered form values that try to change it.
+    code = (organism_code or "").strip().upper()
+    submitted_code = (whonet_code or "").strip().upper()
+    submitted_name = (whonet_organism_name or "").strip()
+    if submitted_code and submitted_code != code:
+        raise WorkflowError("Lyophilization cannot change the Main Lab ID. Correct the Main Lab result first.")
+    if submitted_name and submitted_name != (organism_name or "").strip():
+        raise WorkflowError("Lyophilization cannot change the Main Lab organism. Correct the ID result first.")
     if not code:
-        raise WorkflowError("WHONET organism code is required for the isolate label.")
+        raise WorkflowError("The Main Lab ID has no WHONET code. Request a Main Lab ID correction before lyophilization.")
     if len(code) > 30:
         raise WorkflowError("WHONET code exceeds 30 characters.")
     try:
-        # A sticker must never silently assign a different organism than the
-        # identification approved by Laboratory Receiving.
-        resolve_organism(code=code,
-            name=(whonet_organism_name or ("" if whonet_code else organism_name)) if new_flow else organism_name,
-            require_code=True)
+        # Preserve the organism from the latest Main Lab result. The Site ID
+        # is not a substitute during lyophilization.
+        resolve_organism(code=code, name=organism_name, require_code=True)
     except ValidationError as exc:
-        raise WorkflowError("Sticker organism does not match approved identification: " + "; ".join(exc.messages)) from exc
+        raise WorkflowError("Main Lab identification needs correction before lyophilization: " + "; ".join(exc.messages)) from exc
     bank.date_harvested = harvest
     bank.date_lyophilized = lyoph
     bank.whonet_code = code

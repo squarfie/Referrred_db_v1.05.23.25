@@ -110,7 +110,13 @@ def render_laboratory_dashboard(request, queue=None):
             # so it may overlap any scientific workflow stage.
             "batch_creation": pending_batch_filter,
         }
-        pending_batch_count = all_receipts.filter(pending_batch_filter).distinct().count()
+        # Count the full queue, not the user's search results or the current
+        # page. Each task badge uses the same predicate as its task filter.
+        stage_counts = {
+            key: all_receipts.filter(task_filter).distinct().count()
+            for key, task_filter in stage_filters.items()
+        }
+        pending_batch_count = stage_counts["batch_creation"]
         lab_counts = {
             "action": all_receipts.filter(action_filter).count(),
             "main_lab": all_receipts.filter(main_lab_filter).count(),
@@ -144,6 +150,7 @@ def render_laboratory_dashboard(request, queue=None):
                 receipts = receipts.filter(stage_filters[stage])
     else:
         pending_batch_count = 0
+        stage_counts = {}
         lab_summary_cards = []
         selected_status = tab_status[selected_tab]
         if not explicit_tab and legacy_status in valid_statuses:
@@ -196,7 +203,7 @@ def render_laboratory_dashboard(request, queue=None):
             "pending_batch_count": pending_batch_count,
             "active_stage": stage,
             "stage_filters": [
-                {"key": key, "label": label}
+                {"key": key, "label": label, "count": stage_counts[key]}
                 for key, label in (
                     ("receipt", "Receipt"),
                     ("accessioning", "Accessioning"),

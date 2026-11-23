@@ -67,8 +67,8 @@ class ReceivingPermissionTests(TestCase):
         response = self.client.get(reverse("laboratory_receiving_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Laboratory Receiving")
-        self.assertContains(response, "Pending Lab Receipt")
-        self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=pending")
+        self.assertContains(response, "Pending Receipt")
+        self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=action")
         self.assertNotContains(response, "Pending Endorsement")
         shared = self.client.get(reverse("secretariat_receiving_dashboard"))
         self.assertEqual(shared.status_code, 200)
@@ -854,7 +854,7 @@ class ReceivingViewTests(TestCase):
         self.assertNotContains(response, "ENDORSED-001")
         self.assertContains(response, "Pending Endorsement")
 
-    def test_lab_encoder_default_tab_is_pending_lab_receipt(self):
+    def test_lab_encoder_default_tab_is_needs_action(self):
         self.create_receipt("PENDING-001", ReferralReceipt.Status.RECEIVED)
         self.create_receipt("ENDORSED-001", ReferralReceipt.Status.ENDORSED)
         self.create_receipt("LAB-001", ReferralReceipt.Status.LAB_RECEIVED)
@@ -862,11 +862,11 @@ class ReceivingViewTests(TestCase):
         response = self.client.get(self.route("receiving_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["active_tab"], "pending")
-        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertEqual(response.context["active_tab"], "action")
+        self.assertEqual(response.context["page_obj"].paginator.count, 2)
         self.assertContains(response, "ENDORSED-001")
         self.assertNotContains(response, "PENDING-001")
-        self.assertNotContains(response, "LAB-001")
+        self.assertContains(response, "LAB-001")
         self.assertContains(response, "Confirm receipt")
 
     def test_tabs_are_filtered_and_counts_are_not_search_dependent(self):
@@ -908,11 +908,11 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context["page_obj"].object_list), [matched])
 
-    def test_invalid_tab_falls_back_to_pending(self):
+    def test_invalid_tab_falls_back_to_needs_action(self):
         self.client.force_login(self.lab_encoder)
         response = self.client.get(self.route("receiving_dashboard"), {"tab": "not-a-tab"})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["active_tab"], "pending")
+        self.assertEqual(response.context["active_tab"], "action")
 
     def test_sidebar_does_not_offer_settings_or_batch_creation_to_secretariat(self):
         self.client.force_login(self.secretariat)
@@ -1172,7 +1172,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(secretariat_dashboard, "New receipt")
         self.assertContains(secretariat_dashboard, "Pending Endorsement")
         self.assertNotContains(secretariat_dashboard, "Confirm receipt")
-        self.assertContains(laboratory_dashboard, "Pending Lab Receipt")
+        self.assertContains(laboratory_dashboard, "Pending Receipt")
         self.assertContains(laboratory_dashboard, "Confirm receipt")
         self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
@@ -1659,7 +1659,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             assigned_by=self.lab_user,
         )
 
-    def test_workspace_has_four_ordered_steps_and_fixed_organism_headings(self):
+    def test_workspace_has_ordered_bench_a_steps_and_fixed_organism_headings(self):
         accession = self.create_pending_accession()
         response = self.client.get(reverse(
             "laboratory_receiving_workspace",
@@ -1671,9 +1671,12 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 1: Receiving and acceptance summary",
             "Step 2: Accessioning",
             "Step 3: Organism inventory",
-            "Step 4: Revival &amp; Processing",
-            "Step 5: Batch generation",
+            "Step 4: Revival &amp; Site ID",
+            "Step 5: Final Processing",
+            "<h2>Batch Generation</h2>",
         ]
+        # Match the actual step heading, not the earlier Batch Generation
+        # label in the worksheet's progress-summary cards.
         positions = [text.index(label) for label in labels]
         self.assertEqual(positions, sorted(positions))
         self.assertContains(response, "Fastidious Organisms")
@@ -1919,7 +1922,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         })
         isolate.refresh_from_db()
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
-        self.assertContains(self.client.get(url), "Finalize ID and banking map")
+        self.assertContains(self.client.get(url), "Final banking storage")
         self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
             "lyo_box_name": "Test storage", "lyo_position": "A1",
         })
@@ -2582,7 +2585,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.client.force_login(secretariat)
         self.assertEqual(self.client.get(reverse("laboratory_organism_search"), {"q": "KPN"}).status_code, 302)
 
-    def test_isolate_form_exposes_shared_search_for_id_review_and_lyophilization(self):
+    def test_main_lab_has_id_search_but_bench_a_lyophilization_has_no_organism_picker(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()
@@ -2606,10 +2609,13 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertContains(response, "Proceed to lyophilization")
         isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
         isolate.final_organism = "Klebsiella pneumoniae"
-        isolate.save(update_fields=("status", "final_organism"))
+        isolate.approved_organism_code = "KPN"
+        isolate.save(update_fields=("status", "final_organism", "approved_organism_code"))
         response = self.client.get(url)
-        self.assertContains(response, 'name="whonet_code"')
-        self.assertContains(response, 'name="whonet_organism_name"')
+        self.assertNotContains(response, 'name="whonet_code"')
+        self.assertNotContains(response, 'name="whonet_organism_name"')
+        self.assertContains(response, 'Recorded ID:')
+        self.assertContains(response, 'KPN')
 
 
     def test_review_rejects_mismatched_code_and_name(self):
@@ -2688,12 +2694,13 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate.refresh_from_db()
         self.assertEqual(isolate.approved_organism_code, "KPN")
         page = self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk}))
-        self.assertContains(page, 'value="KPN"')
+        self.assertContains(page, 'Recorded ID:')
+        self.assertContains(page, 'KPN')
+        # Bench A supplies only dates; identification comes from the
+        # previously approved Main Lab/legacy reviewed result.
         self.client.post(reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}), {
             "date_harvested": "2026-11-19",
             "date_lyophilized": "2026-11-19",
-            "whonet_code": "KPN",
-            "whonet_organism_name": "Klebsiella pneumoniae",
         })
         isolate.refresh_from_db()
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)

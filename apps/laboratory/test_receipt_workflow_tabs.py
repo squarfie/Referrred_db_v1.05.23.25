@@ -183,6 +183,78 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertContains(response, 'name="stage" value="accessioning"')
         self.assertContains(response, 'tab=action&amp;stage=accessioning')
 
+    def test_bench_a_stage_badges_match_tasks_and_ignore_search(self):
+        accession = self.create_pending_accession()
+        url = reverse('laboratory_receiving_dashboard')
+        response = self.client.get(url, {'tab': 'action', 'q': 'no-matching-receipts'})
+        self.assertEqual(response.status_code, 200)
+        counts = {task['key']: task['count'] for task in response.context['stage_filters']}
+        self.assertEqual(counts, {
+            'receipt': 0,
+            'accessioning': 1,
+            'processing': 0,
+            'lyophilization': 0,
+        })
+        self.assertContains(response, 'aria-label="1 pending receipt"')
+        self.assertEqual(response.context['page_obj'].paginator.count, 0)
+        for number in accession.accession_numbers:
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number, status='id_complete')
+        response = self.client.get(url, {'tab': 'action', 'stage': 'lyophilization'})
+        counts = {task['key']: task['count'] for task in response.context['stage_filters']}
+        self.assertEqual(counts['accessioning'], 0)
+        self.assertEqual(counts['lyophilization'], 1)
+        self.assertEqual(response.context['page_obj'].paginator.count, 1)
+
+    def test_bench_a_worksheet_shows_step_badges_and_inline_final_processing(self):
+        accession = self.create_pending_accession()
+        url = reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id])
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'Bench A Progress')
+        self.assertContains(page, 'Step 5: Final Processing')
+        self.assertContains(page, 'Final Processing')
+        self.assertNotContains(page, 'name="final_organism_code"')
+        cards = {card['name']: card for card in page.context['worksheet_cards']}
+        self.assertEqual(cards['Final Processing']['state'], 'pending')
+
+        now = timezone.now()
+        item = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            status='id_complete', id_completed_at=now, final_identified_at=now,
+            final_identified_by=self.lab_user, identification_source='main_lab',
+            approved_organism_code='KPN', final_organism='Klebsiella pneumoniae',
+        )
+        page = self.client.get(url)
+        self.assertContains(page, item.accession_number)
+        self.assertContains(page, 'Main Lab Final ID:')
+        self.assertContains(page, 'Proceed to Lyophilization')
+        self.assertEqual(page.context['final_ready_count'], 1)
+        self.assertNotContains(page, 'name="final_organism_code"')
+
+    def test_inline_worksheet_post_returns_to_worksheet_even_on_validation_error(self):
+        accession = self.create_pending_accession()
+        item = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            status='revival_pending',
+        )
+        worksheet = reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id])
+        response = self.client.post(reverse('laboratory_proceed_lyophilization', args=[item.pk]), {
+            'next': worksheet,
+        })
+        self.assertRedirects(response, worksheet, fetch_redirect_response=False)
+        response = self.client.post(reverse('laboratory_lyophilization_complete', args=[item.pk]), {
+            'next': worksheet, 'date_harvested': timezone.localdate().isoformat(),
+            'date_lyophilized': timezone.localdate().isoformat(),
+        })
+        self.assertRedirects(response, worksheet, fetch_redirect_response=False)
+        response = self.client.post(reverse('laboratory_biobank_save', args=[item.pk]), {
+            'next': worksheet, 'storage_box': 'A', 'box_position': '1',
+        })
+        self.assertRedirects(response, worksheet, fetch_redirect_response=False)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'revival_pending')
+
     def test_mixed_id_and_returned_receipt_stays_pending_until_last_id_return(self):
         accession = self.create_pending_accession()
         for index, number in enumerate(accession.accession_numbers):

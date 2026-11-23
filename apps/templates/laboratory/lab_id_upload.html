@@ -8,7 +8,7 @@
 <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'main_lab_dashboard' %}">Back to Worklist</a></div></header>
 <div class="receiving-content">
 <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Import ID results</h2><p>Accepted formats: UTF-8 CSV, .xlsx · max 2 MB · max 1,000 result rows.</p></div><div class="receiving-card-body">
-<p>Required columns: <code>accession_number</code>, <code>organism_reported</code>. Optional: <code>instrument</code>, <code>cassette_reference</code>, <code>organism_code</code> (WHONET code matched against the organism table). Keep one row per instrument finding, including retests.</p>
+<p>Required columns: <code>accession_number</code>, <code>organism_reported</code>. Optional: <code>instrument</code>, <code>cassette_reference</code>, <code>organism_code</code>, <code>final_organism_code</code> and <code>final_organism</code>. Main Lab Final ID is mandatory for completion; when separate Final ID columns are omitted, a coded instrument organism supplies the default. Keep one row per accession being completed.</p>
 {% if warning %}<div class="alert alert-warning">{{ warning }}</div>{% endif %}
 <form method="post" enctype="multipart/form-data" class="form-row align-items-end">{% csrf_token %}
 <div class="col-md-7 mb-2"><label for="id-file">Identification result file</label><input class="form-control" type="file" id="id-file" name="file" accept=".csv,.xlsx" required></div>
@@ -19,7 +19,7 @@
 </div></section>
 {% if preview %}
 <section class="receiving-surface"><div class="receiving-card-header"><h2>Validated preview · {{ rows|length }} rows</h2><p>Accession numbers were matched to isolates in testing status.</p></div>
-<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession number</th><th>Reported organism</th><th>Instrument</th><th>Cassette/slot</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.accession_number }}</td><td>{{ row.organism_reported }}</td><td>{{ row.instrument }}</td><td>{{ row.cassette_reference }}</td></tr>{% endfor %}</tbody></table></div></section>
+<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Accession number</th><th>Reported organism</th><th>Main Lab Final ID</th><th>Instrument</th><th>Cassette/slot</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.accession_number }}</td><td>{{ row.organism_reported }}</td><td>{{ row.final_organism_code }} — {{ row.final_organism }}</td><td>{{ row.instrument }}</td><td>{{ row.cassette_reference }}</td></tr>{% endfor %}</tbody></table></div></section>
 {% endif %}
 </div></main>
 {% endblock content %}

@@ -14,7 +14,9 @@
         <input class="form-control" name="organism_name" data-organism-name readonly required aria-label="Corrected organism name">
       </div>
     </div>
+    {% if correction_kind != 'site' %}
     <label class="mt-3">Correction reason<textarea class="form-control" name="reason" required maxlength="1000"></textarea></label>
+    {% endif %}
     <button type="submit" class="btn btn-outline-primary">Save correction</button>
   </form>
 </details>
