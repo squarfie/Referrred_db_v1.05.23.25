@@ -53,7 +53,7 @@
 </div></form>
 {% endif %}
 {% else %}
-<p class="alert alert-info">Main Lab ID testing and Final ID entry are complete. Bench A can proceed to lyophilization using the recorded Final ID. Corrections are available in the section below.</p>
+{% if isolate.approved_organism_code and isolate.final_organism %}<p class="alert alert-info">Main Lab ID testing and Final ID entry are complete. Bench A can proceed to lyophilization using the recorded Final ID. Corrections are available in the section below.</p>{% else %}<p class="alert alert-warning">Final ID is not recorded. Main Laboratory must reconcile the identification before Bench A can proceed.</p>{% endif %}
 {% endif %}
 </div></section>
 {% if can_test and not isolate.approved_organism_code and isolate.identifications.exists and isolate.id_completed_at or can_test and not isolate.approved_organism_code and isolate.identifications.exists and isolate.returned_at %}
