@@ -67,8 +67,8 @@ class ReceivingPermissionTests(TestCase):
         response = self.client.get(reverse("laboratory_receiving_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Laboratory Receiving")
-        self.assertContains(response, "Pending Lab Receipt")
-        self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=pending")
+        self.assertContains(response, "Pending Receipt")
+        self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=action")
         self.assertNotContains(response, "Pending Endorsement")
         shared = self.client.get(reverse("secretariat_receiving_dashboard"))
         self.assertEqual(shared.status_code, 200)
@@ -863,10 +863,10 @@ class ReceivingViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["active_tab"], "action")
-        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertEqual(response.context["page_obj"].paginator.count, 2)
         self.assertContains(response, "ENDORSED-001")
         self.assertNotContains(response, "PENDING-001")
-        self.assertNotContains(response, "LAB-001")
+        self.assertContains(response, "LAB-001")
         self.assertContains(response, "Confirm receipt")
 
     def test_tabs_are_filtered_and_counts_are_not_search_dependent(self):
@@ -1172,7 +1172,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(secretariat_dashboard, "New receipt")
         self.assertContains(secretariat_dashboard, "Pending Endorsement")
         self.assertNotContains(secretariat_dashboard, "Confirm receipt")
-        self.assertContains(laboratory_dashboard, "Pending Lab Receipt")
+        self.assertContains(laboratory_dashboard, "Pending Receipt")
         self.assertContains(laboratory_dashboard, "Confirm receipt")
         self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
@@ -1671,8 +1671,9 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 1: Receiving and acceptance summary",
             "Step 2: Accessioning",
             "Step 3: Organism inventory",
-            "Step 4: Revival &amp; Processing",
-            "Step 5: Batch generation",
+            "Step 4: Revival &amp; Site ID",
+            "Step 5: Final Processing",
+            "Batch Generation",
         ]
         positions = [text.index(label) for label in labels]
         self.assertEqual(positions, sorted(positions))
@@ -2608,8 +2609,9 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate.final_organism = "Klebsiella pneumoniae"
         isolate.save(update_fields=("status", "final_organism"))
         response = self.client.get(url)
-        self.assertContains(response, 'name="whonet_code"')
-        self.assertContains(response, 'name="whonet_organism_name"')
+        self.assertNotContains(response, 'name="whonet_code"')
+        self.assertNotContains(response, 'name="whonet_organism_name"')
+        self.assertContains(response, 'Recorded ID:')
 
 
     def test_review_rejects_mismatched_code_and_name(self):
@@ -2688,7 +2690,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate.refresh_from_db()
         self.assertEqual(isolate.approved_organism_code, "KPN")
         page = self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk}))
-        self.assertContains(page, 'value="KPN"')
+        self.assertContains(page, 'Recorded ID:')
+        self.assertContains(page, 'KPN')
         self.client.post(reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}), {
             "date_harvested": "2026-11-19",
             "date_lyophilized": "2026-11-19",
