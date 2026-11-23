@@ -135,10 +135,16 @@ class WorkflowUXTests(TestCase):
             ('UX-MAIN-LAB', 'id_complete', 'KPN', 'Klebsiella pneumoniae'),
             ('UX-NONVIABLE', 'non_viable', '', ''),
         ]
+        now = timezone.now()
         for number, status, code, name in statuses:
+            fields = {}
+            if number in ('UX-READY', 'UX-QUEUED'):
+                fields = {'revival_started_at': now - timedelta(hours=1),
+                          'revival_completed_at': now}
             LaboratoryIsolate.objects.create(
                 accession_range=accession, accession_number=number,
                 status=status, site_organism_code=code, site_organism_name=name,
+                **fields,
             )
         url = reverse('laboratory_batch_detail', args=[accession.pk])
         cases = {
@@ -171,7 +177,9 @@ class WorkflowUXTests(TestCase):
         LaboratoryIsolate.objects.create(
             accession_range=accession, accession_number='UX-READY',
             status='revived', site_organism_code='KPN',
-            site_organism_name='Klebsiella pneumoniae')
+            site_organism_name='Klebsiella pneumoniae',
+            revival_started_at=timezone.now() - timedelta(hours=1),
+            revival_completed_at=timezone.now())
         page = self.client.get(reverse(
             'laboratory_receiving_workspace', args=[self.receipt.receiving_id]))
         row = page.context['workflow_rows'][0]
