@@ -527,7 +527,7 @@ def laboratory_biobank_save(request, isolate_id):
     # Full forms submit their fields; partial inventory corrections must not
     # erase unrelated storage slots simply because a field was omitted.
     details = {key: (request.POST.get(key) or "").strip() for key in limits if key in request.POST}
-    if any(len(details[key]) > maximum for key, maximum in limits.items()):
+    if any(len(value) > limits[key] for key, value in details.items()):
         messages.error(request, "One or more biobank fields exceed their maximum length.")
         return redirect(detail_url(request, isolate_id))
     details["remarks"] = (request.POST.get("remarks") or "").strip()
