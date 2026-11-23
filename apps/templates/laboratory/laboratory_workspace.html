@@ -318,8 +318,8 @@
         {% endfor %}
       </nav>
       <p class="text-muted small mb-3">
-        {% if active_final_tab == 'ready' %}Ready for lyophilization or final banking.
-        {% elif active_final_tab == 'in_progress' %}Lyophilization has started but is not yet completed.
+        {% if active_final_tab == 'biobank' %}Lyophilization is complete. Open the full biobanking form to record final storage.
+        {% elif active_final_tab == 'in_progress' %}Begin or complete lyophilization for isolates with a confirmed Main Lab Final ID.
         {% elif active_final_tab == 'pending' %}Waiting for Bench A processing or Main Laboratory results.
         {% elif active_final_tab == 'completed' %}Fully banked or formally closed isolates.
         {% else %}All isolates in this worksheet.{% endif %}
@@ -330,7 +330,7 @@
         <summary class="p-3 d-flex justify-content-between align-items-center" style="cursor:pointer;">
           <strong>{{ isolate.accession_number }}</strong>
           {% if row.state == 'completed' %}<span class="badge badge-success">{{ row.label }}</span>
-          {% elif row.state == 'ready' %}<span class="badge badge-info">{{ row.label }}</span>
+          {% elif row.state == 'biobank' %}<span class="badge badge-info">{{ row.label }}</span>
           {% elif row.state == 'in_progress' %}<span class="badge badge-primary">{{ row.label }}</span>
           {% else %}<span class="badge badge-warning">{{ row.label }}</span>{% endif %}
         </summary>
@@ -348,16 +348,10 @@
             </form>
           {% elif row.action.section == 'lyophilization' and row.has_final_id and can_edit %}
             <p class="small text-muted">Record harvest and lyophilization dates; Final ID is supplied by Main Lab.</p>
-            {% include 'laboratory/_lab_lyophilization_form.html' with return_to=worksheet_next_ready %}
+            {% include 'laboratory/_lab_lyophilization_form.html' with return_to=worksheet_next_biobank %}
           {% elif row.action.section == 'biobank' and row.has_final_id and isolate.identification_source == 'main_lab' and can_edit %}
-            <p class="small text-muted">Lyophilization is complete. Record a box and position to complete final banking.</p>
-            <form method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}" class="row align-items-end">
-              {% csrf_token %}<input type="hidden" name="next" value="{{ worksheet_next_completed }}">
-              <div class="col-md-4 mb-2"><label>Storage Box</label><input class="form-control" name="storage_box" value="{{ biobank.storage_box|default:'' }}" maxlength="100" required></div>
-              <div class="col-md-4 mb-2"><label>Box Position</label><input class="form-control" name="box_position" value="{{ biobank.box_position|default:'' }}" maxlength="30" required></div>
-              <div class="col-md-4 mb-2"><button type="submit" class="btn btn-success mb-0">Complete Final Banking</button></div>
-            </form>
-            <p class="small text-muted mb-0">For additional storage fields, open <a href="{% url 'laboratory_isolate_detail' isolate.pk %}">full storage details</a>.</p>
+            <p class="small text-muted mb-2">Lyophilization is complete. Continue final storage encoding in the full biobanking form.</p>
+            <a class="btn btn-success" href="{% url 'laboratory_isolate_detail' isolate.pk %}?next={{ worksheet_next_completed|urlencode }}#biobank">Open Biobanking</a>
           {% elif row.state == 'completed' %}
             <p class="text-success mb-1">This isolate's Bench A workflow is completed or formally closed.</p>
           {% else %}
