@@ -186,7 +186,7 @@ class ScanReceiveFlowTests(ScanReceiptFixtures, TestCase):
 
     def test_later_accession_stages_open_current_step_without_advancing(self):
         self.client.force_login(self.staff)
-        for status, section in (("id_testing", "identification"), ("id_returned", "review"),
+        for status, section in (("id_testing", "identification"), ("id_returned", "id_complete"),
                                 ("ready_for_biobank", "biobank"), ("biobanked", "closed")):
             with self.subTest(status=status):
                 self.isolate.status = status

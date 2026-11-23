@@ -133,6 +133,8 @@ def role_flags(user):
     return {
         "role": role or ROLE_CHECKER,
         "roles": sorted(roles),
+        "display_role": display_role(role or ROLE_CHECKER),
+        "display_roles": ", ".join(display_role(value) for value in sorted(roles)),
         "is_admin": ROLE_ADMIN in roles,
         "is_verifier": ROLE_VERIFIER in roles,
         "is_encoder": ROLE_ENCODER in roles,
@@ -244,3 +246,7 @@ def role_required(*allowed_roles):
         return _wrapped
 
     return decorator
+
+
+def display_role(role):
+    return {ROLE_LAB_ENCODER: "LAB Encoder — Bench A", ROLE_LAB_STAFF: "Main Lab Staff"}.get(role, role)

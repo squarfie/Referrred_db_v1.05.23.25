@@ -131,7 +131,7 @@ class RevivalBeforeIdentificationTests(TestCase):
             revival_started_at=timezone.now() - timedelta(hours=2), revival_completed_at=timezone.now() - timedelta(hours=1))
         LaboratoryIdentification.objects.create(isolate=item, organism_reported='Klebsiella pneumoniae',
             whonet_organism_code='KPN', cassette_reference='C1')
-        self.assertEqual(next_action(item, self.lab_user)['section'], 'review')
+        self.assertEqual(next_action(item, self.lab_user)['section'], 'id_complete')
         self.client.force_login(self.lab_user)
         self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
         item.refresh_from_db()
@@ -159,7 +159,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         accession = self.create_pending_accession()
         item = LaboratoryIsolate.objects.create(accession_range=accession,
             accession_number='HISTORICAL', status='revived', returned_at=timezone.now())
-        self.assertEqual(next_action(item, self.lab_user)['section'], 'review')
+        self.assertEqual(next_action(item, self.lab_user)['section'], 'id_complete')
 
     def test_direct_bank_uses_site_identification_without_main_lab_or_lyophilization(self):
         from apps.home.models import Referred_Data
@@ -212,7 +212,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.assertEqual(receipt.lab_workflow, 'processing')
         self.assertEqual(next_action(first, self.lab_user)['section'], 'site_banked')
         self.assertContains(self.client.get(reverse('laboratory_isolate_detail', args=[first.pk])),
-                            'Queue for endorsement')
+                            'Main Lab Staff can retrieve')
         self.assertTrue(queue_for_id(accession.pk, self.lab_user, isolate_id=first.pk))
         first.refresh_from_db()
         self.assertEqual(first.status, 'id_queued')
@@ -293,6 +293,7 @@ class RevivalBeforeIdentificationTests(TestCase):
 
     def test_main_lab_path_requires_lyophilization_before_storage(self):
         from apps.laboratory.workflow import save_biobank
+        from apps.laboratory.identification_workflow import finalize_banking
         accession = self.prepare()
         item = accession.isolate_records.first()
         self.revive(item)
@@ -308,9 +309,9 @@ class RevivalBeforeIdentificationTests(TestCase):
             'organism_reported': 'Klebsiella pneumoniae', 'cassette_reference': 'C1',
         })
         self.client.force_login(self.lab_user)
-        self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
+        self.client.post(reverse('laboratory_proceed_lyophilization', args=[item.pk]), {'action': 'accept_reported'})
         item.refresh_from_db()
-        self.assertEqual(item.status, 'id_reviewed')
+        self.assertEqual(item.status, 'id_complete')
         self.assertEqual(item.identification_source, 'main_lab')
         self.assertEqual((item.revival_started_at, item.revival_completed_at), original)
         with self.assertRaises(WorkflowError):
@@ -318,10 +319,11 @@ class RevivalBeforeIdentificationTests(TestCase):
         day = timezone.localdate().isoformat()
         self.client.post(reverse('laboratory_lyophilization_complete', args=[item.pk]),
             {'date_harvested': day, 'date_lyophilized': day})
-        save_biobank(item.pk, {'storage_box': 'MAIN-BOX', 'box_position': 'A1'}, self.lab_user)
+        finalize_banking(item.pk, {'storage_box': 'MAIN-BOX', 'box_position': 'A1'}, 'KPN', 'Klebsiella pneumoniae', self.lab_user)
         item.refresh_from_db()
         self.assertEqual(item.status, 'biobanked')
         self.assertEqual(item.biobanked_by, self.lab_user)
+
 
     def test_harvest_is_recorded_with_lyophilization_and_preserved_at_final_banking(self):
         from apps.home.models import Referred_Data
@@ -381,7 +383,7 @@ class RevivalBeforeIdentificationTests(TestCase):
         self.revive(item)
         self.assertEqual(item.returned_at, old_return)
         self.assertEqual(item.identifications.get().pk, result.pk)
-        self.assertEqual(next_action(item, self.lab_user)['section'], 'review')
+        self.assertEqual(next_action(item, self.lab_user)['section'], 'id_complete')
         self.client.force_login(self.lab_user)
         self.client.post(reverse('laboratory_review_id', args=[item.pk]), {'action': 'accept_reported'})
         item.refresh_from_db()

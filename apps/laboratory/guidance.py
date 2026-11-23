@@ -8,16 +8,17 @@ def next_action(isolate, user):
     actions = {
         S.ID_QUEUED: ('Await whole-batch endorsement to Main Lab', 'Laboratory Receiving', can_review_id_results, 'endorsement'),
         S.ID_PENDING: ('Receive for ID testing', 'Main Laboratory', can_access_main_lab, 'handoff'),
-        S.ID_TESTING: ('Record ID and return cassette', 'Main Laboratory', can_access_main_lab, 'identification'),
-        S.ID_RETURNED: ('Confirm returned identification', 'Laboratory Receiving', can_review_id_results, 'review'),
+        S.ID_TESTING: ('Save ID result', 'Main Laboratory', can_access_main_lab, 'identification'),
+        S.ID_COMPLETE: ('Proceed to lyophilization', 'Bench A', can_review_id_results, 'id_complete'),
+        S.ID_RETURNED: ('Proceed to lyophilization', 'Bench A', can_review_id_results, 'id_complete'),
         S.REVIVAL_PENDING: ('Record revival outcome', 'Laboratory Receiving', can_review_id_results, 'revival'),
         S.REVIVAL_QUEUED: ('Record revival outcome', 'Laboratory Receiving', can_review_id_results, 'revival'),
         S.REVIVAL_IN_PROGRESS: ('Record revival outcome', 'Laboratory Receiving', can_review_id_results, 'revival'),
         S.REVIVAL_FAILED: ('Retry revival', 'Laboratory Receiving', can_review_id_results, 'revival'),
-        S.REVIVED: ('Bank using site ID or queue for endorsement', 'Laboratory Receiving',
+        S.REVIVED: ('Temporarily bank using Site ID or endorse for Main Lab ID', 'Laboratory Receiving',
                     lambda user: can_review_id_results(user) or can_manage_id_testing(user) or can_manage_biobank(user), 'disposition'),
-        S.SITE_BANKED: ('Queue temporarily banked isolate for Main Lab ID', 'Laboratory Receiving',
-                        lambda user: can_manage_id_testing(user) or can_review_id_results(user), 'site_banked'),
+        S.SITE_BANKED: ('Await Main Lab retrieval for ID testing', 'Main Laboratory',
+                        can_access_main_lab, 'site_banked'),
         S.ID_REVIEWED: ('Record lyophilization', 'Laboratory Receiving', can_review_id_results, 'lyophilization'),
         S.READY_FOR_BIOBANK: ('Record biobank storage', 'Biobank staff', can_manage_biobank, 'biobank'),
     }
@@ -25,6 +26,10 @@ def next_action(isolate, user):
         actions[S.ID_RETURNED] = ('Record missing revival outcome', 'Laboratory Receiving', can_review_id_results, 'revival')
     # Preserve the continuation of historical ID-first records without rewriting dates.
     if isolate.status == S.REVIVED and (isolate.returned_at or isolate.identifications.exists()):
-        actions[S.REVIVED] = ('Confirm returned identification', 'Laboratory Receiving', can_review_id_results, 'review')
+        actions[S.REVIVED] = ('Proceed to lyophilization', 'Bench A', can_review_id_results, 'id_complete')
+    if isolate.lyophilization_started_at and isolate.status in (S.ID_COMPLETE, S.ID_RETURNED, S.REVIVED, S.ID_REVIEWED):
+        actions[isolate.status] = ('Record lyophilization', 'Bench A', can_review_id_results, 'lyophilization')
+    if isolate.status == S.READY_FOR_BIOBANK and isolate.identification_source == 'main_lab':
+        actions[S.READY_FOR_BIOBANK] = ('Confirm Final ID and finalize banking', 'Bench A', can_review_id_results, 'biobank')
     label, owner, permission, section = actions.get(isolate.status, ('Workflow complete' if isolate.status == S.BIOBANKED else 'Non-viable — closed', 'Laboratory Receiving', lambda user: False, 'closed'))
     return {'label': label, 'owner': owner, 'allowed': permission(user), 'section': section}

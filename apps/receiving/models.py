@@ -549,6 +549,7 @@ class LaboratoryIsolate(models.Model):
         ID_QUEUED = "id_queued", "Queued for Main Laboratory endorsement"
         ID_PENDING = "id_pending", "Awaiting Main Laboratory acknowledgment"
         ID_TESTING = "id_testing", "ID testing"
+        ID_COMPLETE = "id_complete", "ID complete / ready for lyophilization"
         ID_RETURNED = "id_returned", "ID results and cassette returned"
         ID_REVIEWED = "id_reviewed", "Identification reviewed"
         READY_FOR_BIOBANK = "ready_for_biobank", "Ready for biobank"
@@ -625,6 +626,20 @@ class LaboratoryIsolate(models.Model):
     biobanked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="lab_biobanked_isolates")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    id_completed_at = models.DateTimeField(null=True, blank=True)
+    id_completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="lab_ids_completed")
+    retrieved_at = models.DateTimeField(null=True, blank=True)
+    retrieved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="lab_isolates_retrieved")
+    retrieved_storage = models.JSONField(default=dict, blank=True)
+    lyophilization_started_at = models.DateTimeField(null=True, blank=True)
+    lyophilization_started_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="lab_lyophilization_started")
+    final_identified_at = models.DateTimeField(null=True, blank=True)
+    final_identified_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="lab_final_ids_confirmed")
+
     class Meta:
         db_table = "laboratory_isolates"
         ordering = ("accession_number",)
@@ -661,6 +676,33 @@ class LaboratoryIdentification(models.Model):
 
     def __str__(self):
         return f"{self.isolate.accession_number}: {self.organism_reported}"
+
+
+class LaboratoryIdentificationCorrection(models.Model):
+    """Append-only scientific corrections; original instrument rows stay intact."""
+    class Kind(models.TextChoices):
+        SITE = "site", "Site ID"
+        MAIN_LAB = "main_lab", "Main Lab result"
+        FINAL = "final", "Final ID"
+
+    isolate = models.ForeignKey(LaboratoryIsolate, on_delete=models.PROTECT,
+        related_name="identification_corrections")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    previous_code = models.CharField(max_length=20, blank=True)
+    previous_name = models.CharField(max_length=255, blank=True)
+    new_code = models.CharField(max_length=20)
+    new_name = models.CharField(max_length=255)
+    reason = models.TextField(max_length=1000)
+    original_result = models.ForeignKey(LaboratoryIdentification, null=True, blank=True,
+        on_delete=models.PROTECT, related_name="corrections")
+    revised_result = models.OneToOneField(LaboratoryIdentification, null=True, blank=True,
+        on_delete=models.PROTECT, related_name="revision_record")
+    performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,
+        on_delete=models.SET_NULL, related_name="lab_identification_corrections")
+    performed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-performed_at", "-pk")
 
 
 class LaboratoryBiobank(models.Model):

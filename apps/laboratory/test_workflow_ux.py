@@ -28,20 +28,31 @@ class WorkflowUXTests(TestCase):
         response = self.client.get(isolate_url + query)
         self.assertContains(response, batch_url + query)
 
-    def test_combined_submit_requires_cassette_without_saving_result(self):
+    def test_result_completion_needs_no_cassette_return(self):
         self.staff()
         item = self.isolate()
+        item.endorsed_at = timezone.now()
+        item.acknowledged_at = timezone.now()
+        item.save()
         self.client.post(reverse('laboratory_record_id', args=[item.pk]), {'action':'submit_return', 'organism_reported':'Klebsiella pneumoniae', 'organism_reported_code':'KPN'})
-        self.assertEqual(item.identifications.count(), 0)
+        self.assertEqual(item.identifications.count(), 1)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_complete')
+        self.assertIsNone(item.returned_at)
 
-    def test_combined_submit_returns_cassette(self):
+
+    def test_obsolete_combined_submit_does_not_fabricate_cassette_return(self):
         self.lab_user.is_superuser = True
         self.lab_user.save()
         item = self.isolate()
+        item.endorsed_at = timezone.now()
+        item.acknowledged_at = timezone.now()
+        item.save()
         self.client.post(reverse('laboratory_record_id', args=[item.pk]), {'action':'submit_return', 'organism_reported':'Klebsiella pneumoniae', 'organism_reported_code':'KPN','cassette_reference':'C1'})
         item.refresh_from_db()
-        self.assertEqual(item.status, 'id_returned')
-        self.assertEqual(item.returned_by_id, self.lab_user.pk)
+        self.assertEqual(item.status, 'id_complete')
+        self.assertIsNone(item.returned_by_id)
+
 
     def test_guidance_is_role_aware(self):
         from apps.laboratory.guidance import next_action
@@ -63,7 +74,7 @@ class WorkflowUXTests(TestCase):
                 item.refresh_from_db()
                 self.assertEqual(item.status, 'id_testing')
                 page = self.client.get(reverse('main_lab_isolate_detail', args=[item.pk]))
-                self.assertContains(page, 'Save ID result and return cassette to Bench A')
+                self.assertContains(page, 'Save ID result')
                 self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
                     'organism_reported': 'Klebsiella pneumoniae',
                     'organism_reported_code': 'KPN', 'cassette_reference': 'C1',
@@ -71,7 +82,9 @@ class WorkflowUXTests(TestCase):
                 self.assertEqual(item.identifications.get().recorded_by_id, self.lab_user.pk)
                 self.client.post(reverse('laboratory_return_id', args=[item.pk]))
                 item.refresh_from_db()
-                self.assertEqual(item.status, 'id_returned')
+                self.assertEqual(item.status, 'id_complete')
+                self.assertIsNotNone(item.returned_at)
+
 
     def test_worklists_separate_active_and_history(self):
         item = self.isolate('revived')

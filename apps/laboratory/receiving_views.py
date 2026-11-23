@@ -45,16 +45,14 @@ def laboratory_receiving_dashboard(request):
 
 def _laboratory_workflow_receipts(receipts):
     """Derived receipt queues; never advance the scientific or custody record."""
+    from .identification_workflow import final_banking_filter
     path = "laboratory_receiving__accession_ranges__isolate_records"
     receipts = receipts.annotate(
         workflow_isolates=Count(path, distinct=True),
-        workflow_closed=Count(path, filter=Q(**{path + "__status__in": ["non_viable"]}) |
-            (Q(**{path + "__status": "biobanked"}) &
-             Q(**{path + "__identification_source": "main_lab"}) &
-             Q(**{path + "__returned_at__isnull": False}) &
-             Q(**{path + "__reviewed_at__isnull": False}) &
-             Q(**{path + "__lyophilization_completed_at__isnull": False}) &
-             Q(**{path + "__biobanked_at__isnull": False})), distinct=True),
+        workflow_closed=Count(path, filter=Q(**{path + "__status": "non_viable"}) |
+            final_banking_filter(path + "__"), distinct=True),
+        workflow_id_complete=Count(path, filter=Q(**{path + "__status__in": ["id_complete", "id_returned"]}) &
+            Q(**{path + "__lyophilization_started_at__isnull": True}), distinct=True),
         workflow_pending_id=Count(path, filter=Q(**{path + "__status__in": ["id_pending", "id_testing"]}), distinct=True),
     )
     complete = Q(
@@ -67,6 +65,7 @@ def _laboratory_workflow_receipts(receipts):
         When(status=ReferralReceipt.Status.LAB_RECEIVED, then=Case(
             When(complete, then=Value("complete")),
             When(workflow_isolates=0, then=Value("received")),
+            When(workflow_id_complete__gt=0, then=Value("id_complete")),
             When(workflow_pending_id__gt=0, then=Value("main_lab")),
             default=Value("processing"), output_field=CharField(),
         )),
@@ -164,7 +163,9 @@ def laboratory_receiving_workspace(request, receiving_id):
             "can_complete": can_edit and len(isolates) == accession.isolate_count and any(i.status == "revival_in_progress" for i in isolates) and all(i.status in {"revival_in_progress", "revived"} for i in isolates),
 
         })
+    from .navigation import return_url
     return render(request, "laboratory/laboratory_workspace.html", {
+        "return_to": return_url(request),
         "receipt": receipt, "record": record, "form": form,
         "accession_form": LaboratoryAccessionForm(initial={"date_referred": record.date_accepted or receipt.lab_date_received}),
         "organism_form": LaboratoryOrganismCountForm(),

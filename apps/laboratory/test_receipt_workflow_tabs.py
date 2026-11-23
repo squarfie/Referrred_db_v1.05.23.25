@@ -92,7 +92,8 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertIn(self.receipt.pk, self.ids('main_lab'))
         LaboratoryIsolate.objects.filter(pk__in=[i.pk for i in items]).update(status='id_returned')
         self.assertNotIn(self.receipt.pk, self.ids('main_lab'))
-        self.assertIn(self.receipt.pk, self.ids('processing'))
+        self.assertIn(self.receipt.pk, self.ids('id_complete'))
+        self.assertNotIn(self.receipt.pk, self.ids('processing'))
         LaboratoryIsolate.objects.filter(pk__in=[i.pk for i in items]).update(**self.completed_fields())
         self.assertIn(self.receipt.pk, self.ids('complete'))
         self.assertNotIn(self.receipt.pk, self.ids('processing'))
@@ -124,7 +125,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.create_pending_accession()
         response = self.client.get(reverse('laboratory_receiving_dashboard'))
         cards = response.context['lab_summary_cards']
-        self.assertEqual([card['key'] for card in cards], ['pending', 'received', 'main_lab', 'processing', 'pending_batch', 'complete'])
+        self.assertEqual([card['key'] for card in cards], ['pending', 'received', 'main_lab', 'id_complete', 'processing', 'pending_batch', 'complete'])
         self.assertEqual(next(card['count'] for card in cards if card['key'] == 'received'), 1)
         self.assertNotContains(response, '<div class="receiving-stat-label">Isolates Received</div>')
         user = User.objects.create_user('tab-secretariat')

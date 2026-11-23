@@ -1,8 +1,11 @@
 """Main Laboratory identification queue, separate from Bench A custody and processing."""
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max, Prefetch, Q
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, render
 
+from .identification_workflow import final_banking_filter
+from .navigation import return_url
 from .models import LaboratoryAccession, LaboratoryIsolate
 from .permissions import main_lab_required, can_access_main_lab
 
@@ -17,7 +20,7 @@ MAIN_LAB_STAGES = (
 def main_lab_cases():
     """Retain historical ID work without inventing missing endorsement dates."""
     return LaboratoryIsolate.objects.filter(
-        Q(endorsed_at__isnull=False) |
+        Q(endorsed_at__isnull=False) | Q(retrieved_at__isnull=False) | Q(id_completed_at__isnull=False) |
         (Q(status__in=('id_pending', 'id_testing', 'id_returned', 'id_reviewed',
                        'ready_for_biobank', 'biobanked')) &
          (Q(acknowledged_at__isnull=False) | Q(returned_at__isnull=False) |
@@ -31,27 +34,41 @@ def main_lab_dashboard(request):
     """Isolate-level Main Lab metrics: never count Bench A revival as ID testing."""
     search = (request.GET.get("q") or "").strip()
     tab = request.GET.get("tab", "awaiting")
-    allowed = {"awaiting", "testing", "returned", "all"}
+    allowed = {"awaiting", "testing", "completed", "returned", "temporary", "all"}
     if tab not in allowed:
         tab = "awaiting"
 
+    if tab == "returned":
+        tab = "completed"
     base = main_lab_cases().select_related("accession_range__laboratory_receiving__receipt__site")
+    completed = Q(id_completed_at__isnull=False) | Q(returned_at__isnull=False)
+    # Only physically stored, successfully revived isolates are retrievable.
+    # A provisional label alone is not proof of an available storage position.
+    temporary = LaboratoryIsolate.objects.filter(
+        status="site_banked", identification_source="site",
+        site_banked_at__isnull=False, biobank__isnull=False,
+        revival_started_at__isnull=False, revival_completed_at__isnull=False,
+    )
     counts = {
         "awaiting": base.filter(status=LaboratoryIsolate.Status.ID_PENDING).count(),
         "testing": base.filter(status=LaboratoryIsolate.Status.ID_TESTING).count(),
-        "returned": base.filter(returned_at__isnull=False).count(),
+        "returned": base.filter(completed).count(),
+        "completed": base.filter(completed).count(),
+        "temporary": temporary.count(),
         "all": base.count(),
     }
     tab_labels = (("awaiting", "Awaiting acknowledgment"), ("testing", "Testing in progress"),
-                  ("returned", "Returned to Bench A"), ("all", "All endorsed"))
+                  ("completed", "Completed"), ("temporary", "Temporary storage / retrieve"), ("all", "All Main Lab cases"))
     tabs = [{"key": key, "label": label, "count": counts[key]} for key, label in tab_labels]
     isolates = base
     if tab == "awaiting":
         isolates = isolates.filter(status=LaboratoryIsolate.Status.ID_PENDING)
     elif tab == "testing":
         isolates = isolates.filter(status=LaboratoryIsolate.Status.ID_TESTING)
-    elif tab == "returned":
-        isolates = isolates.filter(returned_at__isnull=False)
+    elif tab == "completed":
+        isolates = isolates.filter(completed)
+    elif tab == "temporary":
+        isolates = temporary.select_related("accession_range__laboratory_receiving__receipt__site")
     if search:
         isolates = isolates.filter(
             Q(accession_number__icontains=search) |
@@ -76,7 +93,7 @@ def main_lab_dashboard(request):
         "counts": counts, "selected_tab": tab,
         "tab_labels": tab_labels, "main_lab_tabs": tabs,
         "query": search, "can_test": can_access_main_lab(request.user),
-        "area": "main_lab",
+        "area": "main_lab", "origin_url": request.get_full_path(),
     })
 
 
@@ -85,13 +102,18 @@ def main_lab_dashboard(request):
 def main_lab_isolate_detail(request, isolate_id):
     """ID work only: no revival, Site ID banking, final review or lyophilization controls."""
     isolate = get_object_or_404(
-        main_lab_cases().select_related(
+        (main_lab_cases() | LaboratoryIsolate.objects.filter(
+            status="site_banked", identification_source="site", site_banked_at__isnull=False,
+            biobank__isnull=False, revival_started_at__isnull=False,
+            revival_completed_at__isnull=False,
+        ).distinct()).select_related(
             "accession_range__laboratory_receiving__receipt__site"
         ).prefetch_related("identifications__recorded_by"),
         pk=isolate_id,
     )
     return render(request, "laboratory/main_lab_isolate.html", {
-        "isolate": isolate,
+        "isolate": isolate, "return_to": return_url(request),
+        "latest_result": isolate.identifications.first(), "main_lab_back_url": reverse("main_lab_dashboard"),
         "can_test": can_access_main_lab(request.user),
-        "area": "main_lab",
+        "area": "main_lab", "origin_url": request.get_full_path(),
     })

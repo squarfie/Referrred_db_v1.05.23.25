@@ -676,7 +676,8 @@ class arsStaff_Details(models.Model):
     @property
     def display_roles(self):
         roles = self.role_list
-        return ", ".join(roles) if roles else "Checker"
+        from .permissions import display_role
+        return ", ".join(display_role(role) for role in roles) if roles else "Checker"
 
     @property
     def display_name(self):

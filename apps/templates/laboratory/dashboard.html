@@ -35,7 +35,7 @@
     <section class="receiving-surface receiving-table-card" aria-label="Receiving worklist">
       <div class="receiving-board-toolbar">
         <div><h2 class="receiving-board-title">{{ active_tab_label }}</h2>
-          <p class="receiving-board-subtitle">{% if active_tab == "pending_batch" %}Receipts with one or more accession ranges awaiting batch generation. Open the worksheet at Batch generation. A receipt can also appear in its scientific workflow tab.{% elif is_lab_worklist %}Receipts move between workflow tabs as their isolates progress. Completion requires all mandatory Main Lab ID, review, lyophilization and final banking steps, except properly closed non-viable isolates. Counts are receipts, not isolates.{% else %}Choose a tab to view courier receiving isolates. Counts represent all isolates.{% endif %}</p>
+          <p class="receiving-board-subtitle">{% if active_tab == "pending_batch" %}Receipts with one or more accession ranges awaiting batch generation. Open the worksheet at Batch generation. A receipt can also appear in its scientific workflow tab.{% elif is_lab_worklist %}Receipts move between workflow tabs as their isolates progress. Completion requires all mandatory Main Lab ID, lyophilization, Final ID confirmation and final banking steps, except properly closed non-viable isolates. Counts are receipts, not isolates.{% else %}Choose a tab to view courier receiving isolates. Counts represent all isolates.{% endif %}</p>
         </div>
         <form method="get" class="receiving-board-search">
           <input type="hidden" name="tab" value="{{ active_tab }}">
@@ -70,7 +70,7 @@
             <td data-label="Referring site"><strong>{{ receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ receipt.site.SiteName }}</span></td>
             <td data-label="Secretariat received">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
             <td data-label="Received by">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</td>
-            <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if is_lab_worklist and receipt.status == 'lab_received' %}{% if receipt.lab_workflow == 'complete' %}Workflow Complete{% elif receipt.lab_workflow == 'main_lab' %}Pending Main Lab Identification{% elif receipt.lab_workflow == 'processing' %}Revival &amp; Processing{% else %}Receiving / Accessioning{% endif %}{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
+            <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if is_lab_worklist and receipt.status == 'lab_received' %}{% if receipt.lab_workflow == 'complete' %}Workflow Complete{% elif receipt.lab_workflow == 'main_lab' %}Pending Main Lab Identification{% elif receipt.lab_workflow == 'id_complete' %}ID complete / ready for lyophilization{% elif receipt.lab_workflow == 'processing' %}Revival &amp; Processing{% else %}Receiving / Accessioning{% endif %}{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
             <td class="receiving-actions text-right"><div class="receiving-action-group">
               {% if can_manage_secretariat and receipt.status == 'received' %}
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Endorse / Open</a>
@@ -78,7 +78,7 @@
               {% if can_confirm_lab and receipt.status == 'endorsed' %}
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm receipt</a>
               {% elif can_read_lab and receipt.status == 'lab_received' %}
-                <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}{% if active_tab == 'pending_batch' %}#batch-generation{% endif %}"><i class="fas fa-microscope mr-1"></i>{% if active_tab == 'pending_batch' %}Create batch / Open worksheet{% else %}Open worksheet{% endif %}</a>
+                <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}?next={{ origin_url|urlencode }}{% if active_tab == 'pending_batch' %}#batch-generation{% endif %}"><i class="fas fa-microscope mr-1"></i>{% if active_tab == 'pending_batch' %}Create batch / Open worksheet{% else %}Open worksheet{% endif %}</a>
               {% endif %}
               <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_worklist %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}">Open</a>
               {% if receipt.can_delete_from_queue %}

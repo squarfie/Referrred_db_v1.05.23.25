@@ -1,7 +1,12 @@
 from django.urls import path
 from . import views, receiving_views, scan_views, inventory_views, main_lab_views
+from . import identification_views
 
 urlpatterns = [
+    path("biobank-inventory/<int:isolate_id>/storage/", identification_views.laboratory_storage_detail, name="laboratory_storage_detail"),
+    path("laboratory-worklist/<int:isolate_id>/retrieve/", identification_views.laboratory_retrieve_for_testing, name="laboratory_retrieve_for_testing"),
+    path("laboratory-worklist/<int:isolate_id>/proceed-lyophilization/", identification_views.laboratory_proceed_lyophilization, name="laboratory_proceed_lyophilization"),
+    path("laboratory-worklist/<int:isolate_id>/correct-identification/", identification_views.laboratory_identification_correct, name="laboratory_identification_correct"),
     path("main-laboratory/", main_lab_views.main_lab_dashboard, name="main_lab_dashboard"),
     path("main-laboratory/isolate/<int:isolate_id>/", main_lab_views.main_lab_isolate_detail, name="main_lab_isolate_detail"),
     path("laboratory-worklist/<int:isolate_id>/site-id/", views.laboratory_site_id_save, name="laboratory_site_id_save"),

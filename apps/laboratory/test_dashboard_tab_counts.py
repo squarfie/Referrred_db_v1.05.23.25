@@ -23,9 +23,9 @@ class DashboardTabCountTests(TestCase):
         page = self.client.get(reverse('main_lab_dashboard'), {'tab': 'testing', 'q': 'no-match'})
         self.assertEqual(page.context['page_obj'].paginator.count, 0)
         self.assertEqual({tab['key']: tab['count'] for tab in page.context['main_lab_tabs']},
-                         {'awaiting': 1, 'testing': 2, 'returned': 1, 'all': 4})
+                         {'awaiting': 1, 'testing': 2, 'completed': 1, 'temporary': 0, 'all': 4})
         self.assertContains(page, '2 isolates')
-        self.assertContains(page, 'class="receiving-tab-count"', count=4)
+        self.assertContains(page, 'class="receiving-tab-count"', count=5)
 
     def test_processing_scope_counts_are_isolates_and_ignore_search(self):
         accession = self.create_pending_accession()
@@ -42,5 +42,5 @@ class DashboardTabCountTests(TestCase):
     def test_empty_main_lab_tabs_keep_zero_count_badges(self):
         self.lab_user.groups.add(Group.objects.get_or_create(name='Laboratory Staff')[0])
         page = self.client.get(reverse('main_lab_dashboard'))
-        self.assertContains(page, 'class="receiving-tab-count"', count=4)
+        self.assertContains(page, 'class="receiving-tab-count"', count=5)
         self.assertTrue(all(tab['count'] == 0 for tab in page.context['main_lab_tabs']))
