@@ -16,7 +16,7 @@ from .models import LaboratoryAccession, LaboratoryIsolate, LaboratoryOrganismCo
 from .permissions import can_confirm_lab_receipt, lab_receiving_required, can_read_laboratory_receiving, lab_receiving_read_required
 from apps.receiving.permissions import receiving_read_required
 from .reports import REGISTER_COLUMNS, build_register_rows, render_register_pdf
-from .workflow import id_handoff_readiness
+from .workflow import id_handoff_readiness, bench_a_pre_handoff_group
 
 def _receipt_or_404(receiving_id):
     return get_object_or_404(
@@ -155,17 +155,16 @@ def laboratory_receiving_workspace(request, receiving_id):
         accession.id_handoff_reason = readiness["reason"]
         # Step 4 represents work *before* Main Lab endorsement/retrieval.
         # Never describe already tested isolates as outstanding revival.
-        preparation_pending = sum(
-            item.status in (
-                "revival_pending", "revival_queued", "revival_in_progress",
-                "revival_failed", "revived", "id_queued"
-            ) and not item.endorsed_at and not item.retrieved_at
-            and not item.id_completed_at and not item.identifications.exists()
-            for item in isolates
-        )
+        preparation_groups = [bench_a_pre_handoff_group(item) for item in isolates]
+        preparation_pending = sum(group is not None for group in preparation_groups)
+        awaiting_record = preparation_groups.count("record")
+        failed_count = preparation_groups.count("failed")
+        ready_count = preparation_groups.count("ready")
         workflow_rows.append({
             "accession": accession, "stages": stages,
             "preparation_pending": preparation_pending,
+            "awaiting_record": awaiting_record, "failed_count": failed_count,
+            "ready_count": ready_count,
             "count": len(isolates), "expected": accession.isolate_count,
             "can_handoff": can_edit and accession.can_endorse_id,
             "can_prepare": can_edit and not isolates,
