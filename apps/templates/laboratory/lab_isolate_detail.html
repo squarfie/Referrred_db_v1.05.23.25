@@ -34,6 +34,9 @@
 {% if can_correct_final %}{% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}{% endif %}
 {% if next_action.section == 'closed' %}
 <p class="mb-0">{% if isolate.status == 'non_viable' %}This isolate is non-viable. The scientific record is preserved below.{% else %}Processing is complete. The scientific record and storage details are available below.{% endif %}</p>
+{% elif next_action.section == 'site_banked' %}
+<p class="alert alert-info">Temporary Site ID storage is not workflow complete. Main Lab Staff can retrieve this isolate for ID testing from Biobank Inventory.</p>
+{% if can_bank %}<details><summary>Edit temporary storage details</summary>{% include 'laboratory/_lab_isolate_storage_form.html' %}</details>{% endif %}
 {% elif not next_action.allowed %}
 <p class="mb-0">Waiting for {{ next_action.owner }} to {{ next_action.label|lower }}.</p>
 {% elif next_action.section == 'handoff' or next_action.section == 'identification' %}
@@ -61,9 +64,6 @@
 <form method="post" action="{% url 'laboratory_bank_site_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-info" type="submit">Temporarily bank using Site ID</button><p class="small text-muted">Records temporary Site ID storage. Main Lab identification and the remaining workflow are still required.</p></form>
 {% else %}<p class="alert alert-warning">{{ site_id_error }} Record Site ID before endorsement.</p>{% endif %}
 {% endif %}
-{% elif next_action.section == 'site_banked' %}
-<p class="alert alert-info">Temporary Site ID storage is not workflow complete. Main Lab Staff can retrieve this isolate for ID testing from Biobank Inventory.</p>
-{% if can_bank %}<details><summary>Edit temporary storage details</summary>{% include 'laboratory/_lab_isolate_storage_form.html' %}</details>{% endif %}
 {% elif next_action.section == 'endorsement' and can_review %}
 <div class="alert alert-info"><strong>Queued—awaiting batch endorsement.</strong> This accession is not yet endorsed. It will appear in Main Laboratory's pending ID queue after batch endorsement.</div>
 {% if id_handoff.ready %}
