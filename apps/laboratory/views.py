@@ -31,7 +31,7 @@ from .workflow import (WorkflowError, transition_batch, transition_isolate_reviv
     bank_using_site_id, site_identification, record_site_identification, queue_for_id, id_handoff_readiness,
     bench_a_pre_handoff_group)
 from .models import (
-    LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
+    LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate, ReceivingEvent,
 )
 from .permissions import (
     can_access_laboratory_worklist, can_manage_id_testing, can_manage_biobank,
@@ -474,6 +474,11 @@ def laboratory_isolate_detail(request, isolate_id):
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
+        "revival_correction_events": ReceivingEvent.objects.filter(
+            receipt=isolate.accession_range.laboratory_receiving.receipt,
+            event_type=ReceivingEvent.EventType.CORRECTED,
+            remarks__startswith=f"Revival correction for {isolate.accession_number} (isolate {isolate.pk}):",
+        ).select_related("performed_by"),
         "can_correct_revival": can_review_id_results(request.user) and bool(
             isolate.revival_started_at and isolate.revival_completed_at),
         "revival_outcome_locked": bool(
