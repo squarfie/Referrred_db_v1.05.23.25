@@ -418,7 +418,7 @@ def laboratory_isolate_detail(request, isolate_id):
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
-        "can_correct_site": can_review_id_results(request.user) and bool(site_id),
+        "can_correct_site": can_review_id_results(request.user) and bool(site_id) and not can_edit_site_id,
         "can_correct_final": can_review_id_results(request.user) and isolate.identification_source == "main_lab" and bool(isolate.final_organism),
         "show_history": request.GET.get("history") == "1",
         "area": request.GET.get("area") if request.GET.get("area") in ("identification", "processing", "biobank") else ("identification" if isolate.status in ("id_pending", "id_testing") else "processing"),
