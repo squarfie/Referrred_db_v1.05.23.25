@@ -697,7 +697,8 @@ def correct_revival_outcome(isolate_id, status, started_at, completed_at, observ
         raise WorkflowError("Revival cannot complete after Main Lab endorsement.")
 
     downstream = bool(
-        item.endorsed_at or item.acknowledged_at or item.id_completed_at
+        item.status not in (S.REVIVED, S.REVIVAL_FAILED, S.NON_VIABLE)
+        or item.endorsed_at or item.acknowledged_at or item.id_completed_at
         or item.returned_at or item.identifications.exists()
         or item.lyophilization_started_at or item.lyophilization_completed_at
         or item.site_banked_at or item.biobanked_at
