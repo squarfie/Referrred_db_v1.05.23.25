@@ -20,7 +20,7 @@
   <div class="receiving-content">
     <section class="receiving-surface">
       <div class="receiving-card-header"><h2>Isolates in this batch</h2>
-      <p>Record revival and Site ID per isolate, then temporarily store or endorse ready revived isolates. Endorse the ready batch to Main Lab below. After ID completion, proceed to lyophilization, confirm Final ID and finalize banking.</p></div>
+      <p>{% if area == 'processing' and not show_history %}Only isolates awaiting revival, Site ID, or pre-handoff disposition appear here. Once Main Lab receives an isolate, it leaves this queue. Continue lyophilization and final banking in Step 5 of the Receiving Worksheet.{% else %}Review the accession history and the responsible team's recorded actions. Main Lab identification and Final ID entry occur in the Main Laboratory workspace.{% endif %}</p></div>
       <div class="receiving-card-body">
         {% if can_review and id_handoff.queued_count %}
         <div class="receiving-help-panel mb-3">
@@ -44,7 +44,7 @@
           <td><strong>{{ isolate.next_action.label }}</strong><span class="receiving-site-name">{{ isolate.next_action.owner }}</span>{% if not isolate.next_action.allowed %}<span class="small text-muted">Assigned to another role</span>{% endif %}</td>
           <td><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}&amp;next={{ return_to|urlencode }}#{{ isolate.next_action.section }}">{% if isolate.next_action.allowed %}Open Isolate{% else %}View Isolate{% endif %}</a></td>
         </tr>
-        {% empty %}<tr><td colspan="8" class="text-muted text-center">Open the Receiving Worksheet to record revival for this accession range.</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="8" class="text-muted text-center">{% if area == 'processing' and not show_history %}No isolates need revival or Site ID preparation in this batch. Check Step 5 for later-stage work.{% else %}No isolate records available for this batch.{% endif %}</td></tr>{% endfor %}
         </tbody></table></div>
       </div>
     </section>
