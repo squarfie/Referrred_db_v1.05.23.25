@@ -206,31 +206,76 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertEqual(counts['lyophilization'], 1)
         self.assertEqual(response.context['page_obj'].paginator.count, 1)
 
-    def test_bench_a_worksheet_shows_step_badges_and_inline_final_processing(self):
+    def test_bench_a_step_five_tabs_replace_redundant_progress_cards(self):
         accession = self.create_pending_accession()
         url = reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id])
         page = self.client.get(url)
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, 'Bench A Progress')
+        self.assertNotContains(page, 'Bench A Progress')
         self.assertContains(page, 'Step 5: Final Processing')
-        self.assertContains(page, 'Final Processing')
+        self.assertContains(page, 'Final Processing status')
         self.assertNotContains(page, 'name="final_organism_code"')
-        cards = {card['name']: card for card in page.context['worksheet_cards']}
-        self.assertEqual(cards['Final Processing']['state'], 'pending')
+        self.assertEqual(page.context['active_final_tab'], 'all')
+        self.assertEqual(sum(tab['count'] for tab in page.context['final_tabs'] if tab['key'] != 'all'), 0)
 
         now = timezone.now()
-        item = LaboratoryIsolate.objects.create(
+        ready = LaboratoryIsolate.objects.create(
             accession_range=accession, accession_number=accession.accession_numbers[0],
             status='id_complete', id_completed_at=now, final_identified_at=now,
             final_identified_by=self.lab_user, identification_source='main_lab',
             approved_organism_code='KPN', final_organism='Klebsiella pneumoniae',
         )
+        # An ID_COMPLETE status without a Final ID must not be shown as
+        # actionable or allow proceeding into lyophilization.
+        missing_id = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[1],
+            status='id_complete', id_completed_at=now,
+            identification_source='main_lab',
+        )
         page = self.client.get(url)
-        self.assertContains(page, item.accession_number)
+        self.assertEqual(page.context['active_final_tab'], 'ready')
+        self.assertEqual([r['isolate'].pk for r in page.context['final_rows']], [ready.pk])
         self.assertContains(page, 'Main Lab Final ID:')
         self.assertContains(page, 'Proceed to Lyophilization')
-        self.assertEqual(page.context['final_ready_count'], 1)
+        self.assertNotContains(page, 'Bench A Progress')
         self.assertNotContains(page, 'name="final_organism_code"')
+        counts = {tab['key']: tab['count'] for tab in page.context['final_tabs']}
+        self.assertEqual(counts, {
+            'ready': 1, 'in_progress': 0, 'pending': 1, 'completed': 0, 'all': 2,
+        })
+        pending_page = self.client.get(url, {'final_tab': 'pending'})
+        self.assertEqual(pending_page.context['active_final_tab'], 'pending')
+        self.assertEqual([r['isolate'].pk for r in pending_page.context['final_rows']], [missing_id.pk])
+        self.assertContains(pending_page, 'Awaiting Main Lab Final ID')
+        self.assertNotContains(pending_page, 'Proceed to Lyophilization')
+        all_page = self.client.get(url, {'final_tab': 'all'})
+        self.assertEqual(len(all_page.context['final_rows']), 2)
+        invalid_page = self.client.get(url, {'final_tab': 'invalid'})
+        self.assertEqual(invalid_page.context['active_final_tab'], 'ready')
+
+    def test_bench_a_tabs_expose_in_progress_and_completed_records(self):
+        accession = self.create_pending_accession()
+        now = timezone.now()
+        in_progress = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            status='id_complete', id_completed_at=now, final_identified_at=now,
+            identification_source='main_lab', approved_organism_code='KPN',
+            final_organism='Klebsiella pneumoniae', lyophilization_started_at=now,
+        )
+        completed = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[1],
+            status='biobanked', id_completed_at=now, final_identified_at=now,
+            identification_source='main_lab', approved_organism_code='KPN',
+            final_organism='Klebsiella pneumoniae', lyophilization_completed_at=now,
+            biobanked_at=now,
+        )
+        url = reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id])
+        response = self.client.get(url, {'final_tab': 'in_progress'})
+        self.assertEqual([r['isolate'].pk for r in response.context['final_rows']], [in_progress.pk])
+        self.assertContains(response, 'Complete lyophilization')
+        response = self.client.get(url, {'final_tab': 'completed'})
+        self.assertEqual([r['isolate'].pk for r in response.context['final_rows']], [completed.pk])
+        self.assertContains(response, 'Completed')
 
     def test_inline_worksheet_post_returns_to_worksheet_even_on_validation_error(self):
         accession = self.create_pending_accession()
