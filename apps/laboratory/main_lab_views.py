@@ -53,8 +53,16 @@ def main_lab_dashboard(request):
         revival_started_at__isnull=False, revival_completed_at__isnull=False,
         retrieved_at__isnull=True,
     )
-    for_testing = (base.filter(status=LaboratoryIsolate.Status.ID_PENDING) | temporary).distinct()
-    all_cases = (base | temporary).distinct()
+    # Combine case IDs through a single queryset. Django cannot OR a
+    # distinct() Main Lab queryset with a non-distinct() storage queryset.
+    # Using PK subqueries also avoids duplicate rows from ID result joins.
+    for_testing = LaboratoryIsolate.objects.filter(
+        Q(pk__in=base.filter(status=LaboratoryIsolate.Status.ID_PENDING).values("pk"))
+        | Q(pk__in=temporary.values("pk"))
+    )
+    all_cases = LaboratoryIsolate.objects.filter(
+        Q(pk__in=base.values("pk")) | Q(pk__in=temporary.values("pk"))
+    )
     counts = {
         "awaiting": base.filter(status=LaboratoryIsolate.Status.ID_PENDING).count(),
         "testing": base.filter(status=LaboratoryIsolate.Status.ID_TESTING).count(),
