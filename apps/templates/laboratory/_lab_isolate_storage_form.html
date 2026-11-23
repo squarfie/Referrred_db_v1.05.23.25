@@ -1,13 +1,11 @@
 <form class="laboratory-storage-form" data-model="LaboratoryBiobank" method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}">
-<h3 class="h5 mb-3">Finalize identification and banking map</h3>
+<h3 class="h5 mb-3">Record storage and finalize banking</h3>
 <p><strong>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}</strong>{% if isolate.identification_source %} &middot; Source: {{ isolate.get_identification_source_display }}{% endif %}</p>
 {% if isolate.identification_source == 'site' %}<p class="small text-muted">Direct banking uses the referring site's identification. This is temporary storage; Main Laboratory testing is still required before final banking. A harvest date is required for sticker printing.</p>{% endif %}
-{% if isolate.identification_source == 'main_lab' and isolate.status == 'ready_for_biobank' and isolate.lyophilization_started_at and not storage_only %}
-<div class="lab-organism-picker mb-3" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
-<label>Confirm Final ID (Main Lab result proposed; select another organism if needed)</label>
-<input class="form-control" type="search" data-organism-search placeholder="Search organism code or name">
-<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
-<div class="organism-picker-pair"><input name="final_organism_code" data-organism-code value="{{ latest_result.whonet_organism_code }}" class="form-control" readonly required aria-label="Final ID code"><input name="final_organism" data-organism-name value="{{ latest_result.organism_reported }}" class="form-control" readonly required aria-label="Final ID name"></div>
+{% if isolate.identification_source == 'main_lab' and isolate.status == 'ready_for_biobank' and not storage_only %}
+<div class="receiving-help-panel mb-3">
+<strong>Main Lab Final ID:</strong> {{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}
+<p class="small text-muted mb-0">Recorded by Main Laboratory. Bench A only enters final storage details.</p>
 </div>
 {% endif %}
 <div class="row">
