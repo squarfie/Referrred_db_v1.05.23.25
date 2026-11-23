@@ -228,6 +228,9 @@ def laboratory_batch_detail(request, accession_id):
     isolates = list(accession.isolate_records.prefetch_related(
         "identifications"
     ).order_by("accession_number", "pk"))
+    # Handoff readiness must consider the *whole* accession range, even
+    # though this screen shows only the outstanding pre-handoff subset.
+    all_batch_isolates = isolates
     requested_area = request.GET.get("area")
     area = requested_area if requested_area in ("identification", "processing", "biobank") else (
         "processing" if any(item.status in PRE_MAIN_LAB_STATUSES for item in isolates) else "identification"
@@ -248,7 +251,7 @@ def laboratory_batch_detail(request, accession_id):
         "area": area,
         "can_review": can_review_id_results(request.user),
         "can_test": can_access_main_lab(request.user),
-        "id_handoff": id_handoff_readiness(accession, isolates),
+        "id_handoff": id_handoff_readiness(accession, all_batch_isolates),
         "return_to": return_url(request),
     })
 
