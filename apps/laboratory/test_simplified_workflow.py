@@ -281,7 +281,8 @@ class SimplifiedWorkflowTests(TestCase):
         item = self.isolate('biobanked', identification_source='main_lab', final_organism='Klebsiella pneumoniae',
             approved_organism_code='KPN', endorsed_at=self.now, biobanked_at=self.now,
             returned_at=self.now, reviewed_at=self.now, lyophilization_completed_at=self.now)
-        LaboratoryBiobank.objects.create(isolate=item, whonet_code='KPN', storage_box='Old', box_position='A1',\n                                         supplementary_box_name='Historic', supplementary_position='D7')
+        LaboratoryBiobank.objects.create(isolate=item, whonet_code='KPN', storage_box='Old', box_position='A1',
+                                         supplementary_box_name='Historic', supplementary_position='D7')
         self.client.force_login(self.main_user)
         page = self.client.get(reverse('laboratory_storage_detail', args=[item.pk]))
         self.assertContains(page, 'name="storage_box"')
