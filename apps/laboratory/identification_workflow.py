@@ -49,17 +49,25 @@ def is_final_banked(item):
 
 @transaction.atomic
 def record_identification(isolate_id, code, name, user, *, instrument='', cassette_reference='',
-                          source=LaboratoryIdentification.Source.MANUAL):
+                          source=LaboratoryIdentification.Source.MANUAL, final_code=None, final_name=None):
     if not can_access_main_lab(user):
         raise WorkflowError('Only Main Lab Staff or Admin may save Main Lab results.')
     item = _locked(isolate_id)
     code, name = _organism(code, name, require_code=False)
+    # Keep the instrument result distinct from the Final ID, which is owned by
+    # Main Lab. Old clients/uploads may omit separate Final ID fields: in that
+    # case only an already coded instrument result can supply the Final ID.
+    final_code, final_name = _organism(
+        code if final_code is None else final_code,
+        name if final_name is None else final_name,
+    )
     if len(instrument) > 100 or len(cassette_reference) > 100:
         raise WorkflowError('Instrument and cassette references must be at most 100 characters.')
     latest = item.identifications.first()
     if item.id_completed_at:
         if (latest and latest.whonet_organism_code == code and latest.organism_reported == name
-                and latest.instrument == instrument and latest.cassette_reference == cassette_reference):
+                and latest.instrument == instrument and latest.cassette_reference == cassette_reference
+                and item.approved_organism_code == final_code and item.final_organism == final_name):
             return latest
         raise WorkflowError('Testing is complete. Use a result correction with a reason.')
     # Endorsement only transfers custody to Main Lab; it does not prove
@@ -72,9 +80,21 @@ def record_identification(isolate_id, code, name, user, *, instrument='', casset
     result = LaboratoryIdentification.objects.create(isolate=item, whonet_organism_code=code,
         organism_reported=name, instrument=instrument, cassette_reference=cassette_reference,
         source=source, recorded_by=user)
+    now = timezone.now()
     item.status = S.ID_COMPLETE
-    item.id_completed_at, item.id_completed_by = timezone.now(), user
-    item.save(update_fields=['status', 'id_completed_at', 'id_completed_by'])
+    item.id_completed_at, item.id_completed_by = now, user
+    # Final ID is a Main Laboratory decision, made at ID completion rather
+    # than later at Bench A's lyophilization or final-banking step.
+    item.final_organism, item.approved_organism_code = final_name, final_code
+    item.final_identified_at, item.final_identified_by = now, user
+    item.identification_source = 'main_lab'
+    item.save(update_fields=[
+        'status', 'id_completed_at', 'id_completed_by',
+        'final_organism', 'approved_organism_code',
+        'final_identified_at', 'final_identified_by', 'identification_source',
+    ])
+    # A temporarily banked isolate may have a stale provisional Site ID sticker.
+    LaboratoryBiobank.objects.filter(isolate=item).update(whonet_code=final_code)
     return result
 
 
@@ -133,6 +153,9 @@ def proceed_to_lyophilization(isolate_id, user):
     if (item.status not in (S.ID_COMPLETE, S.ID_RETURNED, S.ID_REVIEWED, S.REVIVED)
             or not has_completed_id(item) or not item.identifications.exists()
             or not item.revival_completed_at):
+        raise WorkflowError('Complete Main Lab ID and record actual revival before lyophilization.')
+    if item.id_completed_at and not (item.final_identified_at and item.approved_organism_code
+                                     and item.final_organism and item.identification_source == 'main_lab'):
         raise WorkflowError('Complete Main Lab ID and record actual revival before lyophilization.')
     item.lyophilization_started_at, item.lyophilization_started_by = timezone.now(), user
     item.identification_source = 'main_lab'
