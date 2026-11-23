@@ -33,6 +33,16 @@
 <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
 <div class="organism-picker-pair"><input data-organism-code name="organism_reported_code" type="text" readonly class="form-control" placeholder="WHONET code"><input data-organism-name name="organism_reported" type="text" readonly class="form-control" placeholder="Organism name"></div>
 </div>
+<div class="lab-organism-picker mt-3" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
+<label for="mainlab-final-id-search"><strong>Final ID (Main Lab)</strong> — organism to use for lyophilization and banking</label>
+<input id="mainlab-final-id-search" class="form-control" type="search" data-organism-search placeholder="Search and select confirmed Final ID" required>
+<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
+<div class="organism-picker-pair">
+<input data-organism-code name="final_organism_code" type="text" readonly required class="form-control" placeholder="Final WHONET code">
+<input data-organism-name name="final_organism" type="text" readonly required class="form-control" placeholder="Final organism">
+</div>
+<p class="small text-muted mt-1 mb-0">Main Lab records the Final ID once. Bench A will use it automatically without selecting another organism.</p>
+</div>
 <div class="receiving-info-grid mt-3">
 <div class="form-group"><label for="mainlab-instrument">Instrument</label><input id="mainlab-instrument" class="form-control" name="instrument" maxlength="100"></div>
 <div class="form-group"><label for="mainlab-cassette">Cassette / slot reference</label><input id="mainlab-cassette" class="form-control" name="cassette_reference" maxlength="100"></div>
@@ -43,7 +53,8 @@
 </div></form>
 {% endif %}
 {% else %}
-<p class="alert alert-info">ID testing is complete. Bench A can proceed to lyophilization. To amend a result, use the correction action in its history below.</p>
+<p class="mb-2"><strong>Main Lab Final ID:</strong> {{ isolate.approved_organism_code|default:"Not recorded" }} — {{ isolate.final_organism|default:"Not recorded" }}</p>
+<p class="alert alert-info">ID testing is complete. Bench A can proceed to lyophilization using this Final ID. To amend an identification, use the correction action below.</p>
 {% endif %}
 </div></section>
 <section class="receiving-surface receiving-card"><div class="receiving-card-header"><h2>Instrument result history</h2></div><div class="receiving-card-body">{% include "laboratory/_lab_isolate_results.html" %}{% include "laboratory/_identification_correction_history.html" %}</div></section>
