@@ -197,7 +197,15 @@ def laboratory_receiving_workspace(request, receiving_id):
             next_href = None
             next_label = ""
             pending_message = ""
-            if action["section"] == "revival":
+            if (item.status in ("id_complete", "id_returned", "id_reviewed")
+                    and not item.revival_completed_at):
+                pending_message = (
+                    "This historical isolate has a Main Lab result but no"
+                    " recorded revival outcome. Bench A must reconcile the"
+                    " missing revival record before lyophilization."
+                )
+                next_href, next_label = detail_url, "Record Missing Revival"
+            elif action["section"] == "revival":
                 pending_message = ("Bench A must record the actual revival outcome"
                                    " before final processing can start.")
                 next_href, next_label = detail_url, "Record Revival / Review Failure"
@@ -266,6 +274,9 @@ def laboratory_receiving_workspace(request, receiving_id):
                 state, label = "completed", "Completed"
             elif item.status == "ready_for_biobank" and item.identification_source == "main_lab" and has_final_id:
                 state, label = "ready", "Ready for Final Banking"
+            elif (item.status in ("id_complete", "id_returned", "id_reviewed")
+                  and not item.revival_completed_at):
+                state, label = "pending", "Awaiting Revival Reconciliation"
             elif action["section"] == "lyophilization" and has_final_id:
                 state, label = "in_progress", "Lyophilization In Progress"
             elif action["section"] == "id_complete" and has_final_id:
