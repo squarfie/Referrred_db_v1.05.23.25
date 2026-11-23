@@ -232,6 +232,27 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertEqual(item.status, 'id_complete')
         self.assertIsNone(item.returned_at)
 
+    def test_failed_multirow_import_rolls_back_completed_id_and_results(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
+        # A duplicate accession in one upload must not leave a partly completed
+        # isolate when the second row is rejected by the completion service.
+        header = 'accession_number,organism_reported,instrument,cassette_reference,organism_code\\n'
+        row = f'{item.accession_number},Klebsiella pneumoniae,Vitek,C1,KPN\\n'
+        data = (header + row + row).encode()
+        self.client.force_login(self.main_user)
+        url = reverse('laboratory_id_upload')
+        preview = self.client.post(url, {'file': SimpleUploadedFile('ids.csv', data),
+                                         'action': 'preview'})
+        self.assertEqual(preview.status_code, 200)
+        response = self.client.post(url, {'file': SimpleUploadedFile('ids.csv', data),
+                                          'action': 'commit'})
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_testing')
+        self.assertIsNone(item.id_completed_at)
+        self.assertEqual(item.identifications.count(), 0)
+
     def test_query_context_returns_to_filtered_inventory(self):
         item = self.isolate('biobanked', identification_source='main_lab',
                             final_organism='Klebsiella pneumoniae', approved_organism_code='KPN')
