@@ -46,7 +46,7 @@ def laboratory_organism_search(request):
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 1000
-UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference", "organism_code")
+UPLOAD_COLUMNS = ("accession_number", "organism_reported", "instrument", "cassette_reference", "organism_code", "final_organism_code", "final_organism")
 
 
 
@@ -444,8 +444,10 @@ def laboratory_record_id(request, isolate_id):
         record_identification(isolate_id, request.POST.get("organism_reported_code"),
             request.POST.get("organism_reported"), request.user,
             instrument=(request.POST.get("instrument") or "").strip(),
-            cassette_reference=(request.POST.get("cassette_reference") or "").strip())
-        messages.success(request, "ID result saved. Testing is complete; Bench A can proceed to lyophilization. Physical cassette return has not been recorded.")
+            cassette_reference=(request.POST.get("cassette_reference") or "").strip(),
+            final_code=(request.POST.get("final_organism_code") or "").strip() or None,
+            final_name=(request.POST.get("final_organism") or "").strip() or None)
+        messages.success(request, "Main Lab result and Final ID saved. Bench A can proceed to lyophilization. Physical cassette return is tracked separately.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
     return redirect(detail_url(request, isolate_id, main_lab=True))
@@ -711,6 +713,17 @@ def _upload_rows(upload):
             values["organism_code"] = _resolved_code
         except ValidationError as exc:
             raise ValueError(f"Row {number}: " + "; ".join(exc.messages)) from exc
+        # Importers may include a separate Main Lab Final ID. If absent, the
+        # coded instrument identification is the initial Final ID.
+        try:
+            final_code, final_name = resolve_organism(
+                code=values["final_organism_code"] or values["organism_code"],
+                name=values["final_organism"] or (values["organism_reported"] if not values["final_organism_code"] else ""),
+                require_code=True,
+            )
+            values["final_organism_code"], values["final_organism"] = final_code, final_name
+        except ValidationError as exc:
+            raise ValueError(f"Row {number}: invalid Final ID: " + "; ".join(exc.messages)) from exc
         if len(values["accession_number"]) > 80 or len(values["organism_reported"]) > 255:
             raise ValueError(f"Row {number}: accession or organism exceeds its length limit.")
         if len(values["instrument"]) > 100 or len(values["cassette_reference"]) > 100:
@@ -786,13 +799,14 @@ def laboratory_id_upload(request):
                     record_identification(locked[row["accession_number"]].pk,
                         row["organism_code"], row["organism_reported"], request.user,
                         instrument=row["instrument"], cassette_reference=row["cassette_reference"],
+                        final_code=row["final_organism_code"], final_name=row["final_organism"],
                         source=(LaboratoryIdentification.Source.CSV if file.name.lower().endswith(".csv")
                                 else LaboratoryIdentification.Source.XLSX))
         except WorkflowError as exc:
             messages.error(request, str(exc) + " No results were imported.")
             return redirect("laboratory_id_upload")
     request.session.pop("lab_id_preview_digest", None)
-    messages.success(request, f"Imported {len(rows)} identification results. Testing complete; results are available to Bench A.")
+    messages.success(request, f"Imported {len(rows)} Main Lab results and Final IDs. Ready for Bench A lyophilization.")
     return redirect(reverse("main_lab_dashboard") + "?tab=completed")
 
 
