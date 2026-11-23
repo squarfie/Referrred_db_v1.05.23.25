@@ -293,6 +293,9 @@
           {% if row.preparation_pending %}
           <a class="btn btn-sm btn-outline-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing">Manage Revival &amp; Site ID</a>
           {% endif %}
+          {% if can_edit and row.count %}
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing&amp;history=1">Review / Edit Saved Revival</a>
+          {% endif %}
           {% if row.can_handoff and can_edit %}<form method="post" class="d-inline" action="{% url 'laboratory_endorse_id' row.accession.pk %}">{% csrf_token %}
           <button class="btn btn-sm btn-primary" type="submit">Endorse Batch to Main Lab</button></form>{% endif %}
         </div>
