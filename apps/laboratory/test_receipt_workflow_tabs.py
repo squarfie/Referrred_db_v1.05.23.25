@@ -254,6 +254,36 @@ class ReceiptWorkflowTabsTests(TestCase):
         invalid_page = self.client.get(url, {'final_tab': 'invalid'})
         self.assertEqual(invalid_page.context['active_final_tab'], 'ready')
 
+    def test_step_five_pending_explains_upstream_revival_action(self):
+        accession = self.create_pending_accession()
+        item = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            status='revival_pending',
+        )
+        workspace = reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id])
+        response = self.client.get(workspace, {'final_tab': 'pending'})
+        self.assertContains(response, 'Bench A must record the actual revival outcome')
+        self.assertContains(response, 'Record Revival / Review Failure')
+        detail = reverse('laboratory_isolate_detail', args=[item.pk])
+        self.assertContains(response, detail)
+        self.assertNotContains(response, 'This panel will unlock when the required upstream steps')
+
+    def test_returned_legacy_isolate_shows_missing_revival_action(self):
+        accession = self.create_pending_accession()
+        item = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            status='id_returned', returned_at=timezone.now(),
+        )
+        LaboratoryIdentification.objects.create(
+            isolate=item, organism_reported='Klebsiella pneumoniae',
+            whonet_organism_code='KPN',
+        )
+        workspace = reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id])
+        response = self.client.get(workspace, {'final_tab': 'pending'})
+        self.assertContains(response, 'Record Missing Revival')
+        self.assertContains(response, reverse('laboratory_isolate_detail', args=[item.pk]))
+        self.assertNotContains(response, 'Proceed to Lyophilization')
+
     def test_bench_a_tabs_expose_in_progress_and_completed_records(self):
         accession = self.create_pending_accession()
         now = timezone.now()
