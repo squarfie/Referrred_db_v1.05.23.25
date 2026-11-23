@@ -97,9 +97,9 @@
         {% csrf_token %}
         <div class="row">
           <div class="col-md-4 mb-3"><label for="correction-revival-start">Revival started</label>
-            <input id="correction-revival-start" name="started_at" type="datetime-local" step="1" class="form-control" value="{{ isolate.revival_started_at|date:'Y-m-d\\TH:i:s' }}" required></div>
+            <input id="correction-revival-start" name="started_at" type="datetime-local" step="1" class="form-control" value="{{ isolate.revival_started_at|date:'Y-m-d\TH:i:s' }}" required></div>
           <div class="col-md-4 mb-3"><label for="correction-revival-end">Revival completed</label>
-            <input id="correction-revival-end" name="completed_at" type="datetime-local" step="1" class="form-control" value="{{ isolate.revival_completed_at|date:'Y-m-d\\TH:i:s' }}" required></div>
+            <input id="correction-revival-end" name="completed_at" type="datetime-local" step="1" class="form-control" value="{{ isolate.revival_completed_at|date:'Y-m-d\TH:i:s' }}" required></div>
           <div class="col-md-4 mb-3">
             <label for="correction-revival-status">Revival outcome</label>
             {% if revival_outcome_locked %}
