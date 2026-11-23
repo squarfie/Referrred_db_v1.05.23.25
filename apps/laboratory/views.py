@@ -512,12 +512,22 @@ def laboratory_isolate_detail(request, isolate_id):
 def laboratory_record_id(request, isolate_id):
     get_object_or_404(LaboratoryIsolate, pk=isolate_id)
     try:
-        record_identification(isolate_id, request.POST.get("organism_reported_code"),
-            request.POST.get("organism_reported"), request.user,
+        final_code = (request.POST.get("final_organism_code") or "").strip()
+        final_name = (request.POST.get("final_organism") or "").strip()
+        instrument_code = (request.POST.get("organism_reported_code") or "").strip()
+        instrument_name = (request.POST.get("organism_reported") or "").strip()
+        # The Main Lab form uses a single confirmed ID in the usual case.
+        # A separate instrument result is optional, but must be a complete
+        # code/name pair if provided. Legacy clients can still send only an
+        # instrument result, with the existing service supplying the Final ID.
+        if bool(instrument_code) != bool(instrument_name):
+            raise WorkflowError("Select both code and organism for the optional instrument result.")
+        record_identification(isolate_id, instrument_code or final_code,
+            instrument_name or final_name, request.user,
             instrument=(request.POST.get("instrument") or "").strip(),
             cassette_reference=(request.POST.get("cassette_reference") or "").strip(),
-            final_code=(request.POST.get("final_organism_code") or "").strip() or None,
-            final_name=(request.POST.get("final_organism") or "").strip() or None)
+            final_code=final_code or None,
+            final_name=final_name or None)
         messages.success(request, "Main Lab result and Final ID saved. Bench A can proceed to lyophilization. Physical cassette return is tracked separately.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
