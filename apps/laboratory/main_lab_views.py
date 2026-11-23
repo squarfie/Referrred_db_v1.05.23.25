@@ -58,7 +58,7 @@ def main_lab_dashboard(request):
         "all": base.count(),
     }
     tab_labels = (("awaiting", "Awaiting acknowledgment"), ("testing", "Testing in progress"),
-                  ("completed", "Completed"), ("temporary", "Temporary storage / retrieve"), ("all", "All Main Lab cases"))
+                  ("completed", "Completed"), ("temporary", "Retrieve from Storage"), ("all", "All Main Lab cases"))
     tabs = [{"key": key, "label": label, "count": counts[key]} for key, label in tab_labels]
     isolates = base
     if tab == "awaiting":
