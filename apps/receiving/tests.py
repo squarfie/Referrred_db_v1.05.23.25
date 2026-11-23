@@ -2654,7 +2654,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()
         isolate.status = LaboratoryIsolate.Status.ID_TESTING
-        isolate.save(update_fields=("status",))
+        isolate.acknowledged_at = timezone.now()
+        isolate.save(update_fields=("status", "acknowledged_at"))
         staff = User.objects.create_user(username="organism-record-staff", password="test-pass")
         staff.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_LAB_STAFF)[0])
         self.client.force_login(staff)
