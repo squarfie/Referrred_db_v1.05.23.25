@@ -5,11 +5,11 @@
 <div class="col-md-4 mb-2"><label for="lyo-date">Date lyophilized</label><input id="lyo-date" data-model="LaboratoryBiobank" data-field="date_lyophilized" name="date_lyophilized" type="date" class="form-control" required></div>
 <div class="col-md-12 mb-2">
   {% if isolate.lyophilization_started_at %}
-    <p class="mb-1"><strong>Main Lab ID:</strong> {% if latest_result %}{{ latest_result.whonet_organism_code|default:"No WHONET code" }} &mdash; {{ latest_result.organism_reported }}{% else %}Not recorded{% endif %}</p>
-    {% if not latest_result or not latest_result.whonet_organism_code %}<p class="text-warning mb-1">A valid WHONET code must be recorded or corrected by Main Lab before lyophilization can be completed.</p>{% endif %}
+    <p class="mb-1"><strong>Main Lab Final ID:</strong> {{ isolate.approved_organism_code|default:"No WHONET code" }} &mdash; {{ isolate.final_organism|default:"Not recorded" }}</p>
+    {% if not isolate.approved_organism_code or not isolate.final_identified_at %}<p class="text-warning mb-1">Main Lab must record or correct the Final ID before lyophilization can be completed.</p>{% endif %}
   {% elif isolate.approved_organism_code %}
     <p class="mb-1"><strong>Recorded ID:</strong> {{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}</p>
   {% endif %}
 </div>
-<div class="col-md-12 mb-2"><button class="btn btn-primary mb-0" type="submit"{% if isolate.lyophilization_started_at and not latest_result.whonet_organism_code %} disabled{% endif %}>Complete lyophilization</button></div>
+<div class="col-md-12 mb-2"><button class="btn btn-primary mb-0" type="submit"{% if isolate.lyophilization_started_at and not isolate.approved_organism_code %} disabled{% endif %}>Complete lyophilization</button></div>
 </form>
