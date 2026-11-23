@@ -234,6 +234,11 @@ class ReceiptWorkflowTabsTests(TestCase):
             accession_range=accession, accession_number=accession.accession_numbers[1],
             status='id_complete', id_completed_at=now,
             identification_source='main_lab',
+            # Revival is complete in this scenario; only the Main Lab Final
+            # ID is missing. Otherwise reconciliation of revival is correctly
+            # prioritized and this test does not exercise its intended path.
+            revival_started_at=now - timedelta(hours=2),
+            revival_completed_at=now - timedelta(hours=1),
         )
         page = self.client.get(url)
         self.assertEqual(page.context['active_final_tab'], 'ready')
