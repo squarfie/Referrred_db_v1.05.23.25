@@ -352,6 +352,70 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertEqual(item.site_bank_storage['storage_box'], 'Temporary')
         self.assertIsNone(item.endorsed_at)
 
+    def test_main_lab_for_testing_combines_direct_endorsement_and_storage_retrieval(self):
+        from .workflow import bank_using_site_id
+        from .models import LaboratoryBiobank
+        direct = self.isolate(
+            'id_pending', endorsed_at=self.now,
+            accession_number=self.accession.accession_numbers[0])
+        stored = self.isolate(
+            'revived', accession_number=self.accession.accession_numbers[1])
+        bank_using_site_id(stored.pk, self.lab_user)
+        save_biobank(
+            stored.pk, {'storage_box': 'Temporary', 'box_position': 'A1'}, self.lab_user)
+        self.client.force_login(self.main_user)
+        url = reverse('main_lab_dashboard')
+        response = self.client.get(url)
+        self.assertEqual(response.context['selected_tab'], 'for_testing')
+        self.assertEqual(response.context['counts']['for_testing'], 2)
+        self.assertEqual(response.context['counts']['all'], 2)
+        self.assertContains(response, 'For Testing')
+        self.assertContains(response, 'Direct Bench A endorsement')
+        self.assertContains(response, 'Retrieve from temporary storage')
+        self.assertContains(response, direct.accession_number)
+        self.assertContains(response, stored.accession_number)
+        for old_tab in ('temporary', 'awaiting'):
+            old_bookmark = self.client.get(url, {'tab': old_tab})
+            self.assertEqual(old_bookmark.context['selected_tab'], 'for_testing')
+            self.assertContains(old_bookmark, stored.accession_number)
+            self.assertContains(old_bookmark, direct.accession_number)
+        result = self.client.post(reverse('laboratory_retrieve_for_testing', args=[stored.pk]))
+        self.assertEqual(result.status_code, 302)
+        stored.refresh_from_db()
+        self.assertEqual(stored.status, 'id_testing')
+        updated = self.client.get(url, {'tab': 'for_testing'})
+        self.assertEqual(updated.context['counts']['for_testing'], 1)
+        self.assertEqual(updated.context['counts']['testing'], 1)
+
+    def test_single_final_id_picker_defaults_instrument_result_to_final_id(self):
+        item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
+        self.client.force_login(self.main_user)
+        page = self.client.get(reverse('main_lab_isolate_detail', args=[item.pk]))
+        self.assertContains(page, 'Instrument result differs from confirmed Final ID (optional)')
+        self.assertContains(page, 'name="final_organism_code"')
+        result = self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
+            'final_organism_code': 'ECO', 'final_organism': 'Escherichia coli',
+            'instrument': 'Vitek', 'cassette_reference': 'S1',
+        })
+        self.assertEqual(result.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_complete')
+        self.assertEqual(item.identifications.first().whonet_organism_code, 'ECO')
+        self.assertEqual(item.identifications.first().organism_reported, 'Escherichia coli')
+        self.assertEqual(item.approved_organism_code, 'ECO')
+        self.assertEqual(item.final_organism, 'Escherichia coli')
+
+    def test_partial_optional_instrument_result_is_rejected(self):
+        item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
+        self.client.force_login(self.main_user)
+        self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
+            'final_organism_code': 'ECO', 'final_organism': 'Escherichia coli',
+            'organism_reported_code': 'KPN',
+        })
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_testing')
+        self.assertFalse(item.identifications.exists())
+
     def test_main_lab_inventory_offers_retrieval_and_no_bench_a_menu(self):
         item = self.isolate('site_banked', identification_source='site', site_banked_at=self.now,
                             final_organism='Klebsiella pneumoniae', approved_organism_code='KPN')

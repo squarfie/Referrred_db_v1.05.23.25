@@ -33,42 +33,58 @@ def main_lab_cases():
 def main_lab_dashboard(request):
     """Isolate-level Main Lab metrics: never count Bench A revival as ID testing."""
     search = (request.GET.get("q") or "").strip()
-    tab = request.GET.get("tab", "awaiting")
-    allowed = {"awaiting", "testing", "completed", "returned", "temporary", "all"}
-    if tab not in allowed:
-        tab = "awaiting"
-
+    tab = request.GET.get("tab", "for_testing")
+    # Existing bookmarks for the two older arrival queues open their
+    # combined replacement rather than hiding isolates.
+    if tab in ("awaiting", "temporary"):
+        tab = "for_testing"
     if tab == "returned":
         tab = "completed"
-    base = main_lab_cases().select_related("accession_range__laboratory_receiving__receipt__site")
+    if tab not in {"for_testing", "testing", "completed", "all"}:
+        tab = "for_testing"
+
+    base = main_lab_cases()
     completed = Q(id_completed_at__isnull=False) | Q(returned_at__isnull=False)
-    # Only physically stored, successfully revived isolates are retrievable.
-    # A provisional label alone is not proof of an available storage position.
+    # A temporary Site ID record must have real storage and documented
+    # revival before Main Lab may retrieve it for testing.
     temporary = LaboratoryIsolate.objects.filter(
         status="site_banked", identification_source="site",
         site_banked_at__isnull=False, biobank__isnull=False,
         revival_started_at__isnull=False, revival_completed_at__isnull=False,
+        retrieved_at__isnull=True,
+    )
+    # Combine case IDs through a single queryset. Django cannot OR a
+    # distinct() Main Lab queryset with a non-distinct() storage queryset.
+    # Using PK subqueries also avoids duplicate rows from ID result joins.
+    for_testing = LaboratoryIsolate.objects.filter(
+        Q(pk__in=base.filter(status=LaboratoryIsolate.Status.ID_PENDING).values("pk"))
+        | Q(pk__in=temporary.values("pk"))
+    )
+    all_cases = LaboratoryIsolate.objects.filter(
+        Q(pk__in=base.values("pk")) | Q(pk__in=temporary.values("pk"))
     )
     counts = {
         "awaiting": base.filter(status=LaboratoryIsolate.Status.ID_PENDING).count(),
         "testing": base.filter(status=LaboratoryIsolate.Status.ID_TESTING).count(),
-        "returned": base.filter(completed).count(),
         "completed": base.filter(completed).count(),
-        "temporary": temporary.count(),
-        "all": base.count(),
+        "for_testing": for_testing.count(),
+        "all": all_cases.count(),
     }
-    tab_labels = (("awaiting", "Awaiting acknowledgment"), ("testing", "Testing in progress"),
-                  ("completed", "Completed"), ("temporary", "Retrieve from Storage"), ("all", "All Main Lab cases"))
+    tab_labels = (
+        ("for_testing", "For Testing"),
+        ("testing", "Testing in progress"),
+        ("completed", "Completed"),
+        ("all", "All Main Lab cases"),
+    )
     tabs = [{"key": key, "label": label, "count": counts[key]} for key, label in tab_labels]
-    isolates = base
-    if tab == "awaiting":
-        isolates = isolates.filter(status=LaboratoryIsolate.Status.ID_PENDING)
+    isolates = all_cases
+    if tab == "for_testing":
+        isolates = for_testing
     elif tab == "testing":
-        isolates = isolates.filter(status=LaboratoryIsolate.Status.ID_TESTING)
+        isolates = base.filter(status=LaboratoryIsolate.Status.ID_TESTING)
     elif tab == "completed":
-        isolates = isolates.filter(completed)
-    elif tab == "temporary":
-        isolates = temporary.select_related("accession_range__laboratory_receiving__receipt__site")
+        isolates = base.filter(completed)
+    isolates = isolates.select_related("accession_range__laboratory_receiving__receipt__site")
     if search:
         isolates = isolates.filter(
             Q(accession_number__icontains=search) |

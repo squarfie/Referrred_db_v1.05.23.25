@@ -27,11 +27,11 @@ from .navigation import return_url, detail_url
 from .forms import StickerDateRangeForm
 from apps.receiving.qr import build_isolate_scan_url, render_qr_png
 from .workflow import (WorkflowError, transition_batch, transition_isolate_revival,
-    record_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff, acknowledge_id_receipt,
+    record_revival_outcome, correct_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff, acknowledge_id_receipt,
     bank_using_site_id, site_identification, record_site_identification, queue_for_id, id_handoff_readiness,
     bench_a_pre_handoff_group)
 from .models import (
-    LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
+    LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate, ReceivingEvent,
 )
 from .permissions import (
     can_access_laboratory_worklist, can_manage_id_testing, can_manage_biobank,
@@ -474,6 +474,19 @@ def laboratory_isolate_detail(request, isolate_id):
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
+        "revival_correction_events": ReceivingEvent.objects.filter(
+            receipt=isolate.accession_range.laboratory_receiving.receipt,
+            event_type=ReceivingEvent.EventType.CORRECTED,
+            remarks__startswith=f"Revival correction for {isolate.accession_number} (isolate {isolate.pk}):",
+        ).select_related("performed_by"),
+        "can_correct_revival": can_review_id_results(request.user) and bool(
+            isolate.revival_started_at and isolate.revival_completed_at),
+        "revival_outcome_locked": bool(
+            isolate.status not in ("revived", "revival_failed", "non_viable")
+            or isolate.endorsed_at or isolate.acknowledged_at or isolate.id_completed_at
+            or isolate.returned_at or isolate.identifications.exists()
+            or isolate.lyophilization_started_at or isolate.lyophilization_completed_at
+            or isolate.site_banked_at or isolate.biobanked_at),
         "can_correct_site": can_review_id_results(request.user) and bool(site_id) and not can_edit_site_id,
         "can_correct_final": can_review_id_results(request.user) and not isolate.id_completed_at and isolate.identification_source == "main_lab" and bool(isolate.final_organism),
         "show_history": request.GET.get("history") == "1",
@@ -499,12 +512,23 @@ def laboratory_isolate_detail(request, isolate_id):
 def laboratory_record_id(request, isolate_id):
     get_object_or_404(LaboratoryIsolate, pk=isolate_id)
     try:
-        record_identification(isolate_id, request.POST.get("organism_reported_code"),
-            request.POST.get("organism_reported"), request.user,
+        final_code = (request.POST.get("final_organism_code") or "").strip()
+        final_name = (request.POST.get("final_organism") or "").strip()
+        instrument_code = (request.POST.get("organism_reported_code") or "").strip()
+        instrument_name = (request.POST.get("organism_reported") or "").strip()
+        # The Main Lab form uses a single confirmed ID in the usual case.
+        # A separate instrument result is optional. Its name is required
+        # when a code is supplied, but an unlisted instrument organism may
+        # legitimately have a name without a WHONET code.
+        # Legacy clients can still send only an instrument result.
+        if instrument_code and not instrument_name:
+            raise WorkflowError("Enter the organism name for the optional instrument result.")
+        record_identification(isolate_id, instrument_code if instrument_name else final_code,
+            instrument_name or final_name, request.user,
             instrument=(request.POST.get("instrument") or "").strip(),
             cassette_reference=(request.POST.get("cassette_reference") or "").strip(),
-            final_code=(request.POST.get("final_organism_code") or "").strip() or None,
-            final_name=(request.POST.get("final_organism") or "").strip() or None)
+            final_code=final_code or None,
+            final_name=final_name or None)
         messages.success(request, "Main Lab result and Final ID saved. Bench A can proceed to lyophilization. Physical cassette return is tracked separately.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
@@ -872,6 +896,23 @@ def laboratory_id_upload(request):
 @lab_worklist_required
 def laboratory_processing_worklist(request):
     return laboratory_worklist(request, area="processing")
+
+
+@login_required
+@lab_review_required
+@require_POST
+def laboratory_revival_correct(request, isolate_id):
+    item = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
+    try:
+        correct_revival_outcome(
+            isolate_id, request.POST.get("status", ""),
+            request.POST.get("started_at"), request.POST.get("completed_at"),
+            request.POST.get("observations"), request.user,
+        )
+        messages.success(request, "Saved revival information corrected. Previous values are preserved in the receiving audit.")
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+    return redirect(detail_url(request, isolate_id) + "#revival-correction")
 
 
 @login_required
