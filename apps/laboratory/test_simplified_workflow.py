@@ -44,6 +44,69 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertFalse(self.accession.isolate_records.filter(id_queued_at__isnull=False).exists())
         self.assertFalse(create_id_handoff(self.accession.pk, self.lab_user))
 
+    def test_main_lab_can_reconcile_missing_historical_final_id_but_bench_a_cannot(self):
+        item = self.isolate('id_returned', returned_at=self.now)
+        LaboratoryIdentification.objects.create(
+            isolate=item, organism_reported='Klebsiella pneumoniae',
+            whonet_organism_code='KPN', recorded_by=self.main_user)
+        self.client.force_login(self.lab_user)
+        worksheet = reverse('laboratory_receiving_workspace',
+                            args=[self.receipt.receiving_id])
+        pending = self.client.get(worksheet, {'final_tab': 'pending'})
+        self.assertContains(pending, 'Awaiting Main Lab Final ID')
+        self.assertContains(pending, 'Main Laboratory must record the missing Final ID')
+        self.assertNotContains(pending, 'Record Missing Final ID')
+
+        url = reverse('laboratory_identification_correct', args=[item.pk])
+        forbidden = self.client.post(url, {
+            'kind': 'final', 'organism_code': 'KPN',
+            'organism_name': 'Klebsiella pneumoniae',
+            'reason': 'Reconcile historical Main Lab result',
+        })
+        self.assertEqual(forbidden.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.approved_organism_code, '')
+
+        self.client.force_login(self.main_user)
+        page = self.client.get(reverse('main_lab_isolate_detail', args=[item.pk]))
+        self.assertContains(page, 'Resolve Missing Final ID')
+        self.assertContains(page, 'Record Missing Final ID')
+        saved = self.client.post(url, {
+            'kind': 'final', 'organism_code': 'KPN',
+            'organism_name': 'Klebsiella pneumoniae',
+            'reason': 'Reconcile historical Main Lab result',
+        })
+        self.assertEqual(saved.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.approved_organism_code, 'KPN')
+        self.assertEqual(item.final_organism, 'Klebsiella pneumoniae')
+        self.assertEqual(item.identification_source, 'main_lab')
+        self.assertEqual(item.final_identified_by, self.main_user)
+        self.assertIsNotNone(item.final_identified_at)
+        correction = item.identification_corrections.get()
+        self.assertEqual(correction.previous_code, '')
+        self.assertEqual(correction.new_code, 'KPN')
+        self.assertEqual(correction.performed_by, self.main_user)
+        self.assertEqual(correction.reason, 'Reconcile historical Main Lab result')
+        self.assertIsNone(item.id_completed_at)
+        self.client.force_login(self.lab_user)
+        ready = self.client.get(worksheet, {'final_tab': 'ready'})
+        self.assertContains(ready, item.accession_number)
+        self.assertContains(ready, 'Proceed to Lyophilization')
+
+    def test_main_lab_cannot_fabricate_final_id_without_prior_test_evidence(self):
+        item = self.isolate('id_returned', returned_at=self.now)
+        self.client.force_login(self.main_user)
+        response = self.client.post(reverse('laboratory_identification_correct', args=[item.pk]), {
+            'kind': 'final', 'organism_code': 'KPN',
+            'organism_name': 'Klebsiella pneumoniae',
+            'reason': 'Attempt without instrument result',
+        })
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.approved_organism_code, '')
+        self.assertFalse(item.identification_corrections.exists())
+
     def test_main_lab_records_distinct_final_id_on_manual_id_completion(self):
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
         self.client.force_login(self.main_user)

@@ -1,8 +1,9 @@
+from datetime import timedelta
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from apps.receiving import tests as fixtures
-from apps.receiving.models import LaboratoryIsolate
+from apps.receiving.models import LaboratoryIsolate, LaboratoryIdentification
 from django.contrib.auth.models import Group, User
 
 
@@ -224,6 +225,8 @@ class ReceiptWorkflowTabsTests(TestCase):
             status='id_complete', id_completed_at=now, final_identified_at=now,
             final_identified_by=self.lab_user, identification_source='main_lab',
             approved_organism_code='KPN', final_organism='Klebsiella pneumoniae',
+            revival_started_at=now - timedelta(hours=2),
+            revival_completed_at=now - timedelta(hours=1),
         )
         # An ID_COMPLETE status without a Final ID must not be shown as
         # actionable or allow proceeding into lyophilization.
@@ -231,6 +234,11 @@ class ReceiptWorkflowTabsTests(TestCase):
             accession_range=accession, accession_number=accession.accession_numbers[1],
             status='id_complete', id_completed_at=now,
             identification_source='main_lab',
+            # Revival is complete in this scenario; only the Main Lab Final
+            # ID is missing. Otherwise reconciliation of revival is correctly
+            # prioritized and this test does not exercise its intended path.
+            revival_started_at=now - timedelta(hours=2),
+            revival_completed_at=now - timedelta(hours=1),
         )
         page = self.client.get(url)
         self.assertEqual(page.context['active_final_tab'], 'ready')
@@ -254,6 +262,57 @@ class ReceiptWorkflowTabsTests(TestCase):
         invalid_page = self.client.get(url, {'final_tab': 'invalid'})
         self.assertEqual(invalid_page.context['active_final_tab'], 'ready')
 
+    def test_step_five_pending_explains_upstream_revival_action(self):
+        accession = self.create_pending_accession()
+        item = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            status='revival_pending',
+        )
+        workspace = reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id])
+        response = self.client.get(workspace, {'final_tab': 'pending'})
+        self.assertContains(response, 'Bench A must record the actual revival outcome')
+        self.assertContains(response, 'Record Revival / Review Failure')
+        detail = reverse('laboratory_isolate_detail', args=[item.pk])
+        self.assertContains(response, detail)
+        self.assertNotContains(response, 'This panel will unlock when the required upstream steps')
+
+    def test_returned_legacy_isolate_shows_missing_revival_action(self):
+        accession = self.create_pending_accession()
+        item = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            status='id_returned', returned_at=timezone.now(),
+        )
+        LaboratoryIdentification.objects.create(
+            isolate=item, organism_reported='Klebsiella pneumoniae',
+            whonet_organism_code='KPN',
+        )
+        workspace = reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id])
+        response = self.client.get(workspace, {'final_tab': 'pending'})
+        self.assertContains(response, 'Record Missing Revival')
+        self.assertContains(response, reverse('laboratory_isolate_detail', args=[item.pk]))
+        self.assertNotContains(response, 'Proceed to Lyophilization')
+
+    def test_legacy_completed_id_with_missing_revival_is_pending_even_with_final_id(self):
+        accession = self.create_pending_accession()
+        now = timezone.now()
+        item = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number=accession.accession_numbers[0],
+            status='id_complete', id_completed_at=now,
+            final_identified_at=now, approved_organism_code='KPN',
+            final_organism='Klebsiella pneumoniae',
+            identification_source='main_lab',
+        )
+        response = self.client.get(
+            reverse('laboratory_receiving_workspace', args=[self.receipt.receiving_id]),
+            {'final_tab': 'pending'})
+        self.assertEqual(response.status_code, 200)
+        rows = response.context['final_rows']
+        self.assertEqual([r['isolate'].pk for r in rows], [item.pk])
+        self.assertEqual(rows[0]['label'], 'Awaiting Revival Reconciliation')
+        self.assertEqual(rows[0]['next_label'], 'Record Missing Revival')
+        self.assertNotEqual(rows[0]['state'], 'ready')
+        self.assertNotEqual(rows[0]['action']['section'], 'lyophilization')
+
     def test_bench_a_tabs_expose_in_progress_and_completed_records(self):
         accession = self.create_pending_accession()
         now = timezone.now()
@@ -262,6 +321,8 @@ class ReceiptWorkflowTabsTests(TestCase):
             status='id_complete', id_completed_at=now, final_identified_at=now,
             identification_source='main_lab', approved_organism_code='KPN',
             final_organism='Klebsiella pneumoniae', lyophilization_started_at=now,
+            revival_started_at=now - timedelta(hours=2),
+            revival_completed_at=now - timedelta(hours=1),
         )
         completed = LaboratoryIsolate.objects.create(
             accession_range=accession, accession_number=accession.accession_numbers[1],

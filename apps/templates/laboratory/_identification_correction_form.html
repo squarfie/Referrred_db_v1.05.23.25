@@ -1,5 +1,5 @@
 <details class="mb-3">
-  <summary>Correct {% if correction_kind == 'site' %}Site ID{% elif correction_kind == 'final' %}Final ID{% else %}this Main Lab result{% endif %}</summary>
+  <summary>{% if correction_kind == 'final' and not isolate.approved_organism_code %}Record Missing Final ID{% else %}Correct {% if correction_kind == 'site' %}Site ID{% elif correction_kind == 'final' %}Final ID{% else %}this Main Lab result{% endif %}{% endif %}</summary>
   <form method="post" action="{% url 'laboratory_identification_correct' isolate.pk %}" class="mt-3">
     {% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}">
     <input type="hidden" name="kind" value="{{ correction_kind }}">

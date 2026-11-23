@@ -195,9 +195,17 @@ def correct_identification(isolate_id, kind, code, name, reason, user, *, result
     # Keep the historical Bench A correction path for pre-simplification
     # records that have no Main Lab ID completion timestamp.
     item = _locked(isolate_id)
-    allowed = (can_access_main_lab(user) if kind == 'main_lab'
-               or (kind == 'final' and item.id_completed_at)
-               else can_review_id_results(user))
+    # Missing Final ID is a Main Lab reconciliation, including legacy
+    # returned results without an id_completed_at value. Historic already-
+    # confirmed Final ID corrections retain the old Bench A access path.
+    main_lab_owned = kind == 'main_lab' or (
+        kind == 'final' and (
+            item.id_completed_at or not (
+                item.approved_organism_code and item.final_organism
+            )
+        )
+    )
+    allowed = can_access_main_lab(user) if main_lab_owned else can_review_id_results(user)
     if not allowed:
         raise WorkflowError('Your role cannot correct this identification.')
     reason = (reason or '').strip()
@@ -221,9 +229,20 @@ def correct_identification(isolate_id, kind, code, name, reason, user, *, result
         from .workflow import site_identification
         previous = site_identification(item, require_code=False)
     else:
-        if not item.final_organism or not item.approved_organism_code or item.identification_source != 'main_lab':
+        # Main Lab may reconcile missing Final ID on historical records with
+        # documented ID evidence. This is a new audit event, not a fabricated
+        # original ID-completion timestamp or a Bench A confirmation.
+        if not (item.final_organism and item.approved_organism_code):
+            if not can_access_main_lab(user):
+                raise WorkflowError('Only Main Laboratory may record a missing Final ID.')
+            if not item.identifications.exists() or not (
+                    item.id_completed_at or item.returned_at):
+                raise WorkflowError('A documented Main Lab result and completed testing or physical return are required.')
+            previous = item.approved_organism_code or '', item.final_organism or ''
+        elif item.identification_source != 'main_lab':
             raise WorkflowError('A confirmed Main Lab-derived Final ID is required before correction.')
-        previous = item.approved_organism_code, item.final_organism
+        else:
+            previous = item.approved_organism_code, item.final_organism
     if previous == (code, name):
         return item
     if kind == 'main_lab':
@@ -239,8 +258,14 @@ def correct_identification(isolate_id, kind, code, name, reason, user, *, result
             item.save(update_fields=['approved_organism_code', 'final_organism'])
             LaboratoryBiobank.objects.filter(isolate=item).update(whonet_code=code)
     else:
+        missing_final = not (item.approved_organism_code and item.final_organism)
         item.approved_organism_code, item.final_organism = code, name
-        item.save(update_fields=['approved_organism_code', 'final_organism'])
+        update_fields = ['approved_organism_code', 'final_organism']
+        if missing_final:
+            item.final_identified_at, item.final_identified_by = timezone.now(), user
+            item.identification_source = 'main_lab'
+            update_fields += ['final_identified_at', 'final_identified_by', 'identification_source']
+        item.save(update_fields=update_fields)
         LaboratoryBiobank.objects.filter(isolate=item).update(whonet_code=code)
     LaboratoryIdentificationCorrection.objects.create(isolate=item, kind=kind,
         previous_code=previous[0], previous_name=previous[1], new_code=code, new_name=name,

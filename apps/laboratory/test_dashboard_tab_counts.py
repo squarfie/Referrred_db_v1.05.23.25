@@ -36,7 +36,7 @@ class DashboardTabCountTests(TestCase):
             )
         page = self.client.get(reverse('laboratory_processing_worklist'), {'q': 'no-match'})
         self.assertEqual(page.context['batches'], [])
-        self.assertEqual(page.context['scope_counts'], {'active': 2, 'history': 2})
+        self.assertEqual(page.context['scope_counts'], {'active': 1, 'history': 2})
         self.assertContains(page, 'class="receiving-tab-count"', count=2)
 
     def test_empty_main_lab_tabs_keep_zero_count_badges(self):
