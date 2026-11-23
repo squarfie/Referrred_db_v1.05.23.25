@@ -353,6 +353,28 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertEqual(item.status, 'id_complete')
         self.assertIsNone(item.returned_at)
 
+    def test_main_lab_csv_upload_can_supply_distinct_final_id(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
+        data = (
+            'accession_number,organism_reported,organism_code,final_organism_code,final_organism\\n'
+            f'{item.accession_number},Klebsiella pneumoniae,KPN,ECO,Escherichia coli\\n'
+        ).encode().replace(b'\\\\n', b'\\n')
+        self.client.force_login(self.main_user)
+        url = reverse('laboratory_id_upload')
+        preview = self.client.post(url, {
+            'file': SimpleUploadedFile('identification.csv', data), 'action': 'preview'})
+        self.assertEqual(preview.status_code, 200)
+        self.assertContains(preview, 'Escherichia coli')
+        imported = self.client.post(url, {
+            'file': SimpleUploadedFile('identification.csv', data), 'action': 'commit'})
+        self.assertEqual(imported.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_complete')
+        self.assertEqual(item.approved_organism_code, 'ECO')
+        self.assertEqual(item.final_identified_by, self.main_user)
+        self.assertEqual(item.identifications.first().whonet_organism_code, 'KPN')
+
     def test_failed_multirow_import_rolls_back_completed_id_and_results(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
