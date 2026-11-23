@@ -665,3 +665,89 @@ def record_revival_outcome(isolate_id, status, started_at, completed_at, reason,
     fields.append('revival_failed_reason')
     item.save(update_fields=fields)
     return item
+
+
+@transaction.atomic
+def correct_revival_outcome(isolate_id, status, started_at, completed_at, observations, user):
+    """Correct saved revival evidence without resetting downstream laboratory steps.
+
+    The original values are retained in an append-only ReceivingEvent. A
+    completed Main Lab or biobanking workflow cannot be reopened by changing
+    its revival outcome.
+    """
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A or Admin may correct revival records.")
+    item = lock_isolate(isolate_id)
+    if not (item.revival_started_at and item.revival_completed_at):
+        raise WorkflowError("Record the revival outcome before attempting a correction.")
+
+    start = _actual_datetime(started_at, "Revival start")
+    end = _actual_datetime(completed_at, "Revival completion")
+    if end < start:
+        raise WorkflowError("Revival completion cannot precede its start.")
+
+    date_received = item.accession_range.laboratory_receiving.receipt.lab_date_received
+    if date_received and timezone.localdate(start) < date_received:
+        raise WorkflowError("Revival cannot precede laboratory receipt.")
+    if item.revival_retried_at and start < item.revival_retried_at:
+        raise WorkflowError("Retry work cannot precede the recorded retry.")
+    if item.lyophilization_started_at and end > item.lyophilization_started_at:
+        raise WorkflowError("Revival cannot complete after lyophilization started.")
+    if item.endorsed_at and end > item.endorsed_at:
+        raise WorkflowError("Revival cannot complete after Main Lab endorsement.")
+
+    downstream = bool(
+        item.endorsed_at or item.acknowledged_at or item.id_completed_at
+        or item.returned_at or item.identifications.exists()
+        or item.lyophilization_started_at or item.lyophilization_completed_at
+        or item.site_banked_at or item.biobanked_at
+    )
+    editable_outcomes = (S.REVIVED, S.REVIVAL_FAILED, S.NON_VIABLE)
+    if downstream:
+        # The status now represents Main Lab or storage progress; never
+        # overwrite it when correcting earlier revival evidence.
+        if status not in ("", "unchanged"):
+            raise WorkflowError("The isolate has progressed beyond revival. Correct dates and observations only; its completed outcome cannot be changed.")
+        new_status = item.status
+    else:
+        if item.status not in editable_outcomes or status not in editable_outcomes:
+            raise WorkflowError("Only a recorded revival outcome can be corrected.")
+        new_status = status
+
+    observations = (observations or "").strip()
+    if len(observations) > 1000:
+        raise WorkflowError("Revival observations cannot exceed 1,000 characters.")
+    if not downstream and new_status in (S.REVIVAL_FAILED, S.NON_VIABLE) and not observations:
+        raise WorkflowError("An unsuccessful revival requires observations or a reason.")
+
+    before = {
+        "status": item.status,
+        "started": item.revival_started_at,
+        "completed": item.revival_completed_at,
+        "observations": item.revival_failed_reason,
+    }
+    if (before["status"] == new_status and before["started"] == start
+            and before["completed"] == end and before["observations"] == observations):
+        return item
+
+    item.status = new_status
+    item.revival_started_at = start
+    item.revival_completed_at = end
+    item.revival_failed_reason = observations
+    item.save(update_fields=(
+        "status", "revival_started_at", "revival_completed_at",
+        "revival_failed_reason",
+    ))
+    ReceivingEvent.objects.create(
+        receipt=item.accession_range.laboratory_receiving.receipt,
+        event_type=ReceivingEvent.EventType.CORRECTED,
+        performed_by=user,
+        remarks=(
+            f"Revival correction for {item.accession_number} (isolate {item.pk}): "
+            f"status {before['status']} -> {new_status}; "
+            f"start {before['started'].isoformat()} -> {start.isoformat()}; "
+            f"completion {before['completed'].isoformat()} -> {end.isoformat()}; "
+            f"observations {before['observations']!r} -> {observations!r}."
+        ),
+    )
+    return item
