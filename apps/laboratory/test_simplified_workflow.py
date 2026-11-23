@@ -237,8 +237,8 @@ class SimplifiedWorkflowTests(TestCase):
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
         # A duplicate accession in one upload must not leave a partly completed
         # isolate when the second row is rejected by the completion service.
-        header = 'accession_number,organism_reported,instrument,cassette_reference,organism_code\\n'
-        row = f'{item.accession_number},Klebsiella pneumoniae,Vitek,C1,KPN\\n'
+        header = 'accession_number,organism_reported,instrument,cassette_reference,organism_code\n'
+        row = f'{item.accession_number},Klebsiella pneumoniae,Vitek,C1,KPN\n'
         data = (header + row + row).encode()
         self.client.force_login(self.main_user)
         url = reverse('laboratory_id_upload')
