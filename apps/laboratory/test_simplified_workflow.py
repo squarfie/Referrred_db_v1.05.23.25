@@ -198,6 +198,29 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertContains(detail, 'Proceed to lyophilization')
         self.assertNotContains(detail, 'Accept reported identification')
 
+    def test_bench_a_temporary_storage_is_retrievable_by_main_lab(self):
+        from .workflow import bank_using_site_id
+        item = self.isolate('revived')
+        bank_using_site_id(item.pk, self.lab_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'ready_for_biobank')
+        save_biobank(item.pk, {'storage_box': 'Temporary', 'box_position': 'A1'}, self.lab_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'site_banked')
+        self.assertIsNotNone(item.site_banked_at)
+        self.assertIsNone(item.endorsed_at)
+        self.client.force_login(self.main_user)
+        dashboard = self.client.get(reverse('main_lab_dashboard'), {'tab': 'temporary'})
+        self.assertContains(dashboard, item.accession_number)
+        response = self.client.post(reverse('laboratory_retrieve_for_testing', args=[item.pk]))
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_testing')
+        self.assertIsNotNone(item.retrieved_at)
+        self.assertEqual(item.retrieved_storage['storage_box'], 'Temporary')
+        self.assertEqual(item.site_bank_storage['storage_box'], 'Temporary')
+        self.assertIsNone(item.endorsed_at)
+
     def test_main_lab_inventory_offers_retrieval_and_no_bench_a_menu(self):
         item = self.isolate('site_banked', identification_source='site', site_banked_at=self.now,
                             final_organism='Klebsiella pneumoniae', approved_organism_code='KPN')
