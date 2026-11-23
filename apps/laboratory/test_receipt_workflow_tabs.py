@@ -224,6 +224,8 @@ class ReceiptWorkflowTabsTests(TestCase):
             status='id_complete', id_completed_at=now, final_identified_at=now,
             final_identified_by=self.lab_user, identification_source='main_lab',
             approved_organism_code='KPN', final_organism='Klebsiella pneumoniae',
+            revival_started_at=now - timezone.timedelta(hours=2),
+            revival_completed_at=now - timezone.timedelta(hours=1),
         )
         # An ID_COMPLETE status without a Final ID must not be shown as
         # actionable or allow proceeding into lyophilization.
@@ -302,7 +304,8 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertEqual([r['isolate'].pk for r in rows], [item.pk])
         self.assertEqual(rows[0]['label'], 'Awaiting Revival Reconciliation')
         self.assertEqual(rows[0]['next_label'], 'Record Missing Revival')
-        self.assertNotContains(response, 'Proceed to Lyophilization')
+        self.assertNotEqual(rows[0]['state'], 'ready')
+        self.assertNotEqual(rows[0]['action']['section'], 'lyophilization')
 
     def test_bench_a_tabs_expose_in_progress_and_completed_records(self):
         accession = self.create_pending_accession()
@@ -312,6 +315,8 @@ class ReceiptWorkflowTabsTests(TestCase):
             status='id_complete', id_completed_at=now, final_identified_at=now,
             identification_source='main_lab', approved_organism_code='KPN',
             final_organism='Klebsiella pneumoniae', lyophilization_started_at=now,
+            revival_started_at=now - timezone.timedelta(hours=2),
+            revival_completed_at=now - timezone.timedelta(hours=1),
         )
         completed = LaboratoryIsolate.objects.create(
             accession_range=accession, accession_number=accession.accession_numbers[1],
