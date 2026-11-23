@@ -122,6 +122,16 @@
         <button type="submit" class="btn btn-primary">Save revival correction</button>
       </form>
     </details>
+    {% if revival_correction_events %}
+      <h3 class="h6 mt-4">Revival correction history</h3>
+      <div class="table-responsive"><table class="table receiving-table">
+        <thead><tr><th>Recorded by / at</th><th>Previous and corrected information</th></tr></thead>
+        <tbody>{% for event in revival_correction_events %}
+          <tr><td>{{ event.performed_by|default:"Unknown" }}<br>{{ event.recorded_at|date:"M j, Y g:i A" }}</td>
+          <td class="small">{{ event.remarks|linebreaksbr }}</td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+    {% endif %}
   </div>
 </section>
 {% endif %}
