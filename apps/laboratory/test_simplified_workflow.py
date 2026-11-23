@@ -57,6 +57,16 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertIsNone(item.reviewed_at)
         self.assertEqual(item.identifications.count(), 1)
 
+    def test_endorsement_alone_does_not_allow_main_lab_result_before_acknowledgment(self):
+        item = self.isolate('id_testing', endorsed_at=self.now)
+        with self.assertRaises(WorkflowError):
+            self.services().record_identification(
+                item.pk, 'KPN', 'Klebsiella pneumoniae', self.main_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_testing')
+        self.assertIsNone(item.id_completed_at)
+        self.assertFalse(item.identifications.exists())
+
     def test_retrieval_preserves_storage_and_has_no_invented_acknowledgment(self):
         item = self.isolate('site_banked', identification_source='site',
             approved_organism_code='KPN', final_organism='Klebsiella pneumoniae',
@@ -80,7 +90,7 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertEqual(bank.box_position, 'A1')
 
     def test_final_banking_without_return_or_review_requires_bench_a_confirmation(self):
-        item = self.isolate('id_testing', endorsed_at=self.now)
+        item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
         service = self.services()
         service.record_identification(item.pk, 'KPN', 'Klebsiella pneumoniae', self.main_user)
         service.proceed_to_lyophilization(item.pk, self.lab_user)
