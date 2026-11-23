@@ -30,6 +30,6 @@ def next_action(isolate, user):
     if isolate.lyophilization_started_at and isolate.status in (S.ID_COMPLETE, S.ID_RETURNED, S.REVIVED, S.ID_REVIEWED):
         actions[isolate.status] = ('Record lyophilization', 'Bench A', can_review_id_results, 'lyophilization')
     if isolate.status == S.READY_FOR_BIOBANK and isolate.identification_source == 'main_lab':
-        actions[S.READY_FOR_BIOBANK] = ('Confirm Final ID and finalize banking', 'Bench A', can_review_id_results, 'biobank')
+        actions[S.READY_FOR_BIOBANK] = ('Record final storage', 'Bench A', can_review_id_results, 'biobank')
     label, owner, permission, section = actions.get(isolate.status, ('Workflow complete' if isolate.status == S.BIOBANKED else 'Non-viable — closed', 'Laboratory Receiving', lambda user: False, 'closed'))
     return {'label': label, 'owner': owner, 'allowed': permission(user), 'section': section}
