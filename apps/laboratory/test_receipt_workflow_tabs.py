@@ -241,7 +241,7 @@ class ReceiptWorkflowTabsTests(TestCase):
             revival_completed_at=now - timedelta(hours=1),
         )
         page = self.client.get(url)
-        self.assertEqual(page.context['active_final_tab'], 'ready')
+        self.assertEqual(page.context['active_final_tab'], 'in_progress')
         self.assertEqual([r['isolate'].pk for r in page.context['final_rows']], [ready.pk])
         self.assertContains(page, 'Main Lab Final ID:')
         self.assertContains(page, 'Proceed to Lyophilization')
@@ -250,7 +250,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertNotContains(page, 'name="final_organism_code"')
         counts = {tab['key']: tab['count'] for tab in page.context['final_tabs']}
         self.assertEqual(counts, {
-            'ready': 1, 'in_progress': 0, 'pending': 1, 'completed': 0, 'all': 2,
+            'biobank': 0, 'in_progress': 1, 'pending': 1, 'completed': 0, 'all': 2,
         })
         pending_page = self.client.get(url, {'final_tab': 'pending'})
         self.assertEqual(pending_page.context['active_final_tab'], 'pending')
@@ -260,7 +260,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         all_page = self.client.get(url, {'final_tab': 'all'})
         self.assertEqual(len(all_page.context['final_rows']), 2)
         invalid_page = self.client.get(url, {'final_tab': 'invalid'})
-        self.assertEqual(invalid_page.context['active_final_tab'], 'ready')
+        self.assertEqual(invalid_page.context['active_final_tab'], 'in_progress')
 
     def test_step_five_pending_explains_upstream_revival_action(self):
         accession = self.create_pending_accession()
@@ -310,7 +310,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertEqual([r['isolate'].pk for r in rows], [item.pk])
         self.assertEqual(rows[0]['label'], 'Awaiting Revival Reconciliation')
         self.assertEqual(rows[0]['next_label'], 'Record Missing Revival')
-        self.assertNotEqual(rows[0]['state'], 'ready')
+        self.assertNotEqual(rows[0]['state'], 'biobank')
         self.assertNotEqual(rows[0]['action']['section'], 'lyophilization')
 
     def test_bench_a_tabs_expose_in_progress_and_completed_records(self):
@@ -335,10 +335,41 @@ class ReceiptWorkflowTabsTests(TestCase):
         response = self.client.get(url, {'final_tab': 'in_progress'})
         self.assertEqual([r['isolate'].pk for r in response.context['final_rows']], [in_progress.pk])
         self.assertContains(response, 'Complete lyophilization')
-        self.assertContains(response, 'final_tab=ready')
+        self.assertContains(response, 'final_tab=biobank')
         response = self.client.get(url, {'final_tab': 'completed'})
         self.assertEqual([r['isolate'].pk for r in response.context['final_rows']], [completed.pk])
         self.assertContains(response, 'Completed')
+
+    def test_final_biobanking_tab_opens_full_isolate_storage_form(self):
+        accession = self.create_pending_accession()
+        now = timezone.now()
+        item = LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number=accession.accession_numbers[0],
+            status='ready_for_biobank', identification_source='main_lab',
+            approved_organism_code='KPN', final_organism='Klebsiella pneumoniae',
+            id_completed_at=now, final_identified_at=now,
+            revival_started_at=now - timedelta(hours=2),
+            revival_completed_at=now - timedelta(hours=1),
+            lyophilization_completed_at=now,
+        )
+        worksheet = reverse('laboratory_receiving_workspace',
+                            args=[self.receipt.receiving_id])
+        response = self.client.get(worksheet, {'final_tab': 'biobank'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row['isolate'].pk for row in response.context['final_rows']],
+                         [item.pk])
+        self.assertContains(response, 'Biobank')
+        self.assertContains(response, 'Open Biobanking')
+        self.assertContains(response, reverse('laboratory_isolate_detail', args=[item.pk]))
+        self.assertContains(response, 'final_tab=completed')
+        self.assertNotContains(response, 'name="storage_box"')
+        self.assertNotContains(response, 'name="box_position"')
+        self.assertNotContains(response, 'Complete Final Banking')
+        self.assertNotContains(response, 'full storage details')
+        detail = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, 'name="storage_box"')
 
     def test_inline_worksheet_post_returns_to_worksheet_even_on_validation_error(self):
         accession = self.create_pending_accession()
