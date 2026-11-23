@@ -284,12 +284,15 @@
       {% for row in workflow_rows %}
       <div class="border rounded p-3 mb-2 d-flex justify-content-between align-items-center flex-wrap">
         <div><strong>{{ row.accession.reference_range }}</strong>
-          <span class="text-muted small">· {{ row.count }} of {{ row.expected }} accession records</span></div>
+          <span class="text-muted small">· {{ row.preparation_pending }} awaiting revival / Site ID out of {{ row.count }} accessions</span></div>
         <div>
-          {% if row.can_handoff %}<span class="badge badge-info mr-2">Ready for Main Lab</span>
-          {% elif row.count %}<span class="badge badge-warning mr-2">Processing</span>
+          {% if row.can_handoff %}<span class="badge badge-info mr-2">Ready for Main Lab Endorsement</span>
+          {% elif row.preparation_pending %}<span class="badge badge-warning mr-2">Needs Bench A Work</span>
+          {% elif row.count %}<span class="badge badge-success mr-2">Bench A Preparation Done</span>
           {% else %}<span class="badge badge-warning mr-2">Pending</span>{% endif %}
+          {% if row.preparation_pending %}
           <a class="btn btn-sm btn-outline-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing">Manage Revival</a>
+          {% endif %}
           {% if row.can_handoff and can_edit %}<form method="post" class="d-inline" action="{% url 'laboratory_endorse_id' row.accession.pk %}">{% csrf_token %}
           <button class="btn btn-sm btn-primary" type="submit">Endorse Batch to Main Lab</button></form>{% endif %}
         </div>
