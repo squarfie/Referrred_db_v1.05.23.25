@@ -179,6 +179,7 @@ def laboratory_receiving_workspace(request, receiving_id):
     from .guidance import next_action
     from .identification_workflow import is_final_banked
     from .navigation import return_url
+    from .permissions import can_access_main_lab
     from django.urls import reverse
     final_rows = []
     for accession in ranges:
@@ -238,11 +239,15 @@ def laboratory_receiving_workspace(request, receiving_id):
                     next_href, next_label = detail_url, "Record Missing Revival"
                 elif not has_final_id:
                     pending_message = (
-                        "The historical ID result has no approved Final ID."
-                        " Review the isolate record and arrange reconciliation"
-                        " before lyophilization."
+                        "The historical Main Lab result has no approved Final ID."
+                        " Main Laboratory must record the missing Final ID on its"
+                        " identification case before Bench A can finish processing."
                     )
-                    next_href, next_label = detail_url, "Review Historical ID"
+                    if can_access_main_lab(request.user):
+                        next_href = reverse("main_lab_isolate_detail", args=[item.pk])
+                        next_label = "Record Missing Final ID"
+                    else:
+                        next_href, next_label = detail_url, "View Isolate Evidence"
                 else:
                     pending_message = (
                         "The isolate needs its earlier workflow record checked"
@@ -272,6 +277,11 @@ def laboratory_receiving_workspace(request, receiving_id):
             elif item.status in ("revival_pending", "revival_queued", "revival_in_progress",
                                  "revival_failed", "revived"):
                 state, label = "pending", "Awaiting Bench A Processing"
+            elif item.status in ("id_returned", "id_reviewed", "id_complete") and not has_final_id:
+                state, label = "pending", (
+                    "Awaiting Revival Reconciliation" if action["section"] == "revival"
+                    else "Awaiting Main Lab Final ID"
+                )
             else:
                 state, label = "pending", (
                     "Awaiting Revival Reconciliation" if action["section"] == "revival"
