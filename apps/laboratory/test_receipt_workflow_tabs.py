@@ -183,6 +183,29 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertContains(response, 'name="stage" value="accessioning"')
         self.assertContains(response, 'tab=action&amp;stage=accessioning')
 
+    def test_bench_a_stage_badges_match_tasks_and_ignore_search(self):
+        accession = self.create_pending_accession()
+        url = reverse('laboratory_receiving_dashboard')
+        response = self.client.get(url, {'tab': 'action', 'q': 'no-matching-receipts'})
+        self.assertEqual(response.status_code, 200)
+        counts = {task['key']: task['count'] for task in response.context['stage_filters']}
+        self.assertEqual(counts, {
+            'receipt': 0,
+            'accessioning': 1,
+            'processing': 0,
+            'lyophilization': 0,
+        })
+        self.assertContains(response, 'aria-label="1 pending receipt"')
+        self.assertEqual(response.context['page_obj'].paginator.count, 0)
+        for number in accession.accession_numbers:
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number, status='id_complete')
+        response = self.client.get(url, {'tab': 'action', 'stage': 'lyophilization'})
+        counts = {task['key']: task['count'] for task in response.context['stage_filters']}
+        self.assertEqual(counts['accessioning'], 0)
+        self.assertEqual(counts['lyophilization'], 1)
+        self.assertEqual(response.context['page_obj'].paginator.count, 1)
+
     def test_mixed_id_and_returned_receipt_stays_pending_until_last_id_return(self):
         accession = self.create_pending_accession()
         for index, number in enumerate(accession.accession_numbers):
