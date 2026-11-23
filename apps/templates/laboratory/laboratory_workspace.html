@@ -363,7 +363,7 @@
           {% else %}
             <p class="mb-2">{{ row.pending_message }}</p>
             {% if row.next_href %}
-              <a class="btn btn-sm btn-outline-primary" href="{{ row.next_href }}?next={{ worksheet_return_url|urlencode }}">{{ row.next_label }}</a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ row.next_href }}{% if '?' in row.next_href %}&amp;{% else %}?{% endif %}next={{ worksheet_return_url|urlencode }}">{{ row.next_label }}</a>
             {% else %}
               <p class="small text-muted mb-0">Responsible team: {{ row.action.owner }}. This is not an editable Bench A step.</p>
             {% endif %}
