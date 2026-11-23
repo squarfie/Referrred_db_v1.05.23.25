@@ -27,7 +27,7 @@ from .navigation import return_url, detail_url
 from .forms import StickerDateRangeForm
 from apps.receiving.qr import build_isolate_scan_url, render_qr_png
 from .workflow import (WorkflowError, transition_batch, transition_isolate_revival,
-    record_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff, acknowledge_id_receipt,
+    record_revival_outcome, correct_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff, acknowledge_id_receipt,
     bank_using_site_id, site_identification, record_site_identification, queue_for_id, id_handoff_readiness,
     bench_a_pre_handoff_group)
 from .models import (
@@ -474,6 +474,13 @@ def laboratory_isolate_detail(request, isolate_id):
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
+        "can_correct_revival": can_review_id_results(request.user) and bool(
+            isolate.revival_started_at and isolate.revival_completed_at),
+        "revival_outcome_locked": bool(
+            isolate.endorsed_at or isolate.acknowledged_at or isolate.id_completed_at
+            or isolate.returned_at or isolate.identifications.exists()
+            or isolate.lyophilization_started_at or isolate.lyophilization_completed_at
+            or isolate.site_banked_at or isolate.biobanked_at),
         "can_correct_site": can_review_id_results(request.user) and bool(site_id) and not can_edit_site_id,
         "can_correct_final": can_review_id_results(request.user) and not isolate.id_completed_at and isolate.identification_source == "main_lab" and bool(isolate.final_organism),
         "show_history": request.GET.get("history") == "1",
@@ -872,6 +879,23 @@ def laboratory_id_upload(request):
 @lab_worklist_required
 def laboratory_processing_worklist(request):
     return laboratory_worklist(request, area="processing")
+
+
+@login_required
+@lab_review_required
+@require_POST
+def laboratory_revival_correct(request, isolate_id):
+    item = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
+    try:
+        correct_revival_outcome(
+            isolate_id, request.POST.get("status", ""),
+            request.POST.get("started_at"), request.POST.get("completed_at"),
+            request.POST.get("observations"), request.user,
+        )
+        messages.success(request, "Saved revival information corrected. Previous values are preserved in the receiving audit.")
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+    return redirect(detail_url(request, isolate_id) + "#revival-correction")
 
 
 @login_required
