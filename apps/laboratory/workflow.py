@@ -525,9 +525,13 @@ def save_biobank(isolate_id, details, user):
     )
     if not any(box and position for box, position in mapped):
         raise WorkflowError("A box identifier and position in the same storage section are required to finalize banking.")
-    if item.identification_source == "main_lab" and not (bank.date_harvested and bank.date_lyophilized):
+    # Existing completed records may predate mandatory scientific timestamps.
+    # Editing their storage locations is not a new finalization operation and
+    # must neither invent nor require missing historic harvest/lyoph dates.
+    is_storage_correction = item.status == S.BIOBANKED
+    if not is_storage_correction and item.identification_source == "main_lab" and not (bank.date_harvested and bank.date_lyophilized):
         raise WorkflowError("Record harvest and lyophilization dates before finalizing Main Laboratory banking.")
-    if item.identification_source and bank.whonet_code.upper() != item.approved_organism_code.upper():
+    if not is_storage_correction and item.identification_source and bank.whonet_code.upper() != item.approved_organism_code.upper():
         raise WorkflowError("The banking organism code must match the selected identification.")
     # Scientific dates belong to lyophilization; storage edits must not rewrite them.
     blocked = {"date_harvested", "date_lyophilized", "whonet_code"}
