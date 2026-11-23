@@ -85,6 +85,46 @@
 
 {% endif %}
 </div></section>
+{% if can_correct_revival %}
+<section class="receiving-surface receiving-form-card mb-4" id="revival-correction">
+  <div class="receiving-card-header"><h2 class="h5 mb-1">Saved revival information</h2>
+    <p class="mb-0">Authorized Bench A staff can correct recorded revival dates and observations. Each change is retained in the receiving audit history.</p>
+  </div>
+  <div class="receiving-card-body">
+    <details>
+      <summary class="mb-3">Edit saved revival information</summary>
+      <form method="post" action="{% url 'laboratory_revival_correct' isolate.pk %}">
+        {% csrf_token %}
+        <div class="row">
+          <div class="col-md-4 mb-3"><label for="correction-revival-start">Revival started</label>
+            <input id="correction-revival-start" name="started_at" type="datetime-local" step="1" class="form-control" value="{{ isolate.revival_started_at|date:'Y-m-d\\TH:i:s' }}" required></div>
+          <div class="col-md-4 mb-3"><label for="correction-revival-end">Revival completed</label>
+            <input id="correction-revival-end" name="completed_at" type="datetime-local" step="1" class="form-control" value="{{ isolate.revival_completed_at|date:'Y-m-d\\TH:i:s' }}" required></div>
+          <div class="col-md-4 mb-3">
+            <label for="correction-revival-status">Revival outcome</label>
+            {% if revival_outcome_locked %}
+              <input class="form-control" value="Locked after subsequent processing" readonly>
+              <input type="hidden" name="status" value="unchanged">
+              <p class="small text-muted">Later processing is already recorded; only revival dates and observations can be corrected.</p>
+            {% else %}
+              <select id="correction-revival-status" name="status" class="form-control" required>
+                <option value="revived" {% if isolate.status == 'revived' %}selected{% endif %}>Revived</option>
+                <option value="revival_failed" {% if isolate.status == 'revival_failed' %}selected{% endif %}>Revival failed</option>
+                <option value="non_viable" {% if isolate.status == 'non_viable' %}selected{% endif %}>Non-viable</option>
+              </select>
+            {% endif %}
+          </div>
+        </div>
+        <div class="mb-3"><label for="correction-revival-notes">Saved observations / reason</label>
+          <textarea id="correction-revival-notes" name="observations" class="form-control" maxlength="1000" rows="3">{{ isolate.revival_failed_reason }}</textarea>
+          <p class="small text-muted">Previous observations remain available in the correction audit after saving.</p>
+        </div>
+        <button type="submit" class="btn btn-primary">Save revival correction</button>
+      </form>
+    </details>
+  </div>
+</section>
+{% endif %}
 <details class="receiving-surface receiving-form-card mb-4">
 <summary class="p-3"><strong>Scientific record and completed history</strong></summary>
 <div class="receiving-card-body">
