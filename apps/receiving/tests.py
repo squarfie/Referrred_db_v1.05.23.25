@@ -908,11 +908,11 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context["page_obj"].object_list), [matched])
 
-    def test_invalid_tab_falls_back_to_pending(self):
+    def test_invalid_tab_falls_back_to_needs_action(self):
         self.client.force_login(self.lab_encoder)
         response = self.client.get(self.route("receiving_dashboard"), {"tab": "not-a-tab"})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["active_tab"], "pending")
+        self.assertEqual(response.context["active_tab"], "action")
 
     def test_sidebar_does_not_offer_settings_or_batch_creation_to_secretariat(self):
         self.client.force_login(self.secretariat)
@@ -1919,7 +1919,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         })
         isolate.refresh_from_db()
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
-        self.assertContains(self.client.get(url), "Finalize ID and banking map")
+        self.assertContains(self.client.get(url), "Final banking storage")
         self.client.post(reverse("laboratory_biobank_save", kwargs={"isolate_id": isolate.pk}), {
             "lyo_box_name": "Test storage", "lyo_position": "A1",
         })
