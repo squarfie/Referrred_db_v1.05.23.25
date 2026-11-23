@@ -15,6 +15,7 @@ urlpatterns = [
     path("laboratory-worklist/<int:isolate_id>/qr-label/", scan_views.laboratory_isolate_scan_label, name="laboratory_isolate_scan_label"),
     path("laboratory-processing/", views.laboratory_processing_worklist, name="laboratory_processing_worklist"),
     path("laboratory-worklist/<int:isolate_id>/revival-outcome/", views.laboratory_revival_outcome, name="laboratory_revival_outcome"),
+    path("laboratory-worklist/<int:isolate_id>/revival-correct/", views.laboratory_revival_correct, name="laboratory_revival_correct"),
     path("laboratory-worklist/", views.laboratory_worklist, name="laboratory_worklist"),
     path("laboratory-worklist/batches/<int:accession_id>/", views.laboratory_batch_detail, name="laboratory_batch_detail"),
     path("laboratory-worklist/<int:isolate_id>/revival/<str:action>/", views.laboratory_isolate_revival, name="laboratory_isolate_revival"),
