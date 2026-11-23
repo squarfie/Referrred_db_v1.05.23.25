@@ -218,6 +218,36 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertContains(response, 'Klebsiella pneumoniae')
         self.assertContains(response, 'Escherichia coli')
 
+    def test_site_id_correction_requires_no_reason_but_preserves_audit(self):
+        item = self.isolate('id_testing', endorsed_at=self.now)
+        self.client.force_login(self.lab_user)
+        detail = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
+        self.assertContains(detail, 'Correct Site ID')
+        # The Site ID correction is the only correction type without a reason field.
+        self.assertNotContains(detail, 'Correction reason')
+        response = self.client.post(reverse('laboratory_identification_correct', args=[item.pk]), {
+            'kind': 'site', 'organism_code': 'ECO',
+            'organism_name': 'Escherichia coli',
+        })
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.site_organism_code, 'ECO')
+        correction = item.identification_corrections.get()
+        self.assertEqual(correction.previous_code, 'KPN')
+        self.assertEqual(correction.new_code, 'ECO')
+        self.assertEqual(correction.performed_by, self.lab_user)
+        self.assertEqual(correction.reason, 'Site ID corrected (no reason supplied)')
+
+    def test_final_id_correction_still_requires_a_reason(self):
+        item = self.isolate(
+            'biobanked', identification_source='main_lab',
+            final_organism='Klebsiella pneumoniae', approved_organism_code='KPN',
+        )
+        with self.assertRaises(WorkflowError):
+            self.services().correct_identification(
+                item.pk, 'final', 'ECO', 'Escherichia coli', '', self.lab_user)
+        self.assertFalse(item.identification_corrections.exists())
+
     def test_main_lab_completion_import_is_atomic_and_does_not_return_cassettes(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
