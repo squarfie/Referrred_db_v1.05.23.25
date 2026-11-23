@@ -166,8 +166,14 @@ def laboratory_worklist(request, area="identification"):
     active = (S.ID_PENDING, S.ID_TESTING) if area == "identification" else PRE_MAIN_LAB_STATUSES
     # Scope badges count isolates across the complete queue, before filters and
     # the batch display limit. Returned history can overlap active processing.
+    active_isolates = LaboratoryIsolate.objects.filter(status__in=active)
+    if area == "processing":
+        active_isolates = active_isolates.filter(
+            endorsed_at__isnull=True, retrieved_at__isnull=True,
+            id_completed_at__isnull=True, identifications__isnull=True,
+        )
     scope_counts = {
-        "active": LaboratoryIsolate.objects.filter(status__in=active).count(),
+        "active": active_isolates.distinct().count(),
         "history": (LaboratoryIsolate.objects.filter(returned_at__isnull=False).count()
                     if area == "processing" else LaboratoryIsolate.objects.count()),
     }
