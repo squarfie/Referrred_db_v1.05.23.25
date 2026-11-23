@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from apps.receiving import tests as fixtures
-from apps.receiving.models import LaboratoryIsolate
+from apps.receiving.models import LaboratoryIsolate, LaboratoryIdentification
 from django.contrib.auth.models import Group, User
 
 
