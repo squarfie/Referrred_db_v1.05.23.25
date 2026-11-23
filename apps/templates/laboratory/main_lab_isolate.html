@@ -57,6 +57,12 @@
 <p class="alert alert-info">ID testing is complete. Bench A can proceed to lyophilization using this Final ID. To amend an identification, use the correction action below.</p>
 {% endif %}
 </div></section>
+{% if isolate.id_completed_at and isolate.identification_source == 'main_lab' and isolate.final_organism and can_test %}
+<section class="receiving-surface receiving-card mb-3"><div class="receiving-card-header"><h2>Main Lab Final ID</h2></div><div class="receiving-card-body">
+<p><strong>{{ isolate.approved_organism_code }} — {{ isolate.final_organism }}</strong> · Recorded by {{ isolate.final_identified_by }} on {{ isolate.final_identified_at|date:"M j, Y g:i A" }}</p>
+{% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}
+</div></section>
+{% endif %}
 <section class="receiving-surface receiving-card"><div class="receiving-card-header"><h2>Instrument result history</h2></div><div class="receiving-card-body">{% include "laboratory/_lab_isolate_results.html" %}{% include "laboratory/_identification_correction_history.html" %}</div></section>
 </div></main>
 {% endblock content %}
