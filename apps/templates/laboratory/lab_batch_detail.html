@@ -53,7 +53,12 @@
         {% for isolate in isolates %}
         <tr>
           <td><strong>{{ isolate.accession_number }}</strong></td>
-          <td>{{ isolate.get_status_display }}</td>
+          <td>{% if area == 'processing' and not show_history %}
+            {% if isolate.status == 'revival_failed' %}Failed — Review / Retry
+            {% elif isolate.status == 'revived' and not isolate.site_organism_code %}Site ID to Record
+            {% elif isolate.status == 'revived' or isolate.status == 'id_queued' %}Ready for Handoff
+            {% else %}Revival Outcome to Record{% endif %}
+          {% else %}{{ isolate.get_status_display }}{% endif %}</td>
           <td>{% if isolate.reported_site_id %}{{ isolate.reported_site_id.0 }} &middot; {{ isolate.reported_site_id.1 }}{% else %}<span class="text-muted">Not recorded</span>{% endif %}</td>
           <td>{{ isolate.identifications.count }}</td>
           <td>{% if isolate.returned_at %}{{ isolate.returned_at|date:"M j, Y g:i A" }}<span class="receiving-site-name">{% if isolate.returned_by %}{{ isolate.returned_by.get_full_name|default:isolate.returned_by.username }}{% else %}—{% endif %}</span>{% else %}Pending{% endif %}</td>
