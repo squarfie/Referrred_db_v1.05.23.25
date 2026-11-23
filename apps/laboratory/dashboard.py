@@ -28,13 +28,13 @@ def render_laboratory_dashboard(request, queue=None):
         from apps.laboratory.receiving_views import _laboratory_workflow_receipts
         all_receipts = _laboratory_workflow_receipts(all_receipts)
         tab_definitions = [
-            ("pending", "Pending Lab Receipt", ReferralReceipt.Status.ENDORSED),
-            ("received", "Received by Laboratory Receiving", ReferralReceipt.Status.LAB_RECEIVED),
-            ("main_lab", "Main Lab / Testing in progress", "main_lab"),
-            ("id_complete", "ID complete / ready for lyophilization", "id_complete"),
-            ("processing", "Bench A Processing / Revival / Lyophilization", "processing"),
-            ("pending_batch", "Pending Batch Creation", "pending_batch"),
-            ("complete", "Workflow Complete", "complete"),
+            ("pending", "Awaiting Lab Receipt", ReferralReceipt.Status.ENDORSED),
+            ("received", "For Accessioning", ReferralReceipt.Status.LAB_RECEIVED),
+            ("main_lab", "With Main Lab", "main_lab"),
+            ("id_complete", "Ready for Lyophilization", "id_complete"),
+            ("processing", "Bench A Processing", "processing"),
+            ("pending_batch", "Batch Creation Pending", "pending_batch"),
+            ("complete", "Completed", "complete"),
             ("all", "All Records", None),
         ]
     else:
