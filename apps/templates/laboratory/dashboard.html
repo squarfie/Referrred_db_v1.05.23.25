@@ -7,8 +7,8 @@
   <header class="receiving-hero">
     <div class="receiving-hero-main">
       <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-      <div><p class="receiving-eyebrow">Isolate custody</p><h1>{% if is_lab_worklist %}Bench A / Laboratory Receiving{% else %}Receiving{% endif %}</h1>
-        <p class="receiving-hero-subtitle">{% if is_lab_worklist %}Review endorsed courier batches and confirm laboratory custody before accessioning.{% else %}Record courier arrivals and endorse received isolates to Laboratory Receiving.{% endif %}</p>
+      <div><p class="receiving-eyebrow">{% if is_lab_worklist %}Laboratory Receiving{% else %}Isolate custody{% endif %}</p><h1>{% if is_lab_worklist %}Bench A{% else %}Receiving{% endif %}</h1>
+        <p class="receiving-hero-subtitle">{% if is_lab_worklist %}Manage receipt, accessioning, processing and Main Lab handoffs.{% else %}Record courier arrivals and endorse received isolates to Laboratory Receiving.{% endif %}</p>
       </div>
     </div>
     <div class="receiving-hero-actions">
