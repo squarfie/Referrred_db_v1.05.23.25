@@ -195,9 +195,17 @@ def correct_identification(isolate_id, kind, code, name, reason, user, *, result
     # Keep the historical Bench A correction path for pre-simplification
     # records that have no Main Lab ID completion timestamp.
     item = _locked(isolate_id)
-    allowed = (can_access_main_lab(user) if kind == 'main_lab'
-               or (kind == 'final' and item.id_completed_at)
-               else can_review_id_results(user))
+    # Missing Final ID is a Main Lab reconciliation, including legacy
+    # returned results without an id_completed_at value. Historic already-
+    # confirmed Final ID corrections retain the old Bench A access path.
+    main_lab_owned = kind == 'main_lab' or (
+        kind == 'final' and (
+            item.id_completed_at or not (
+                item.approved_organism_code and item.final_organism
+            )
+        )
+    )
+    allowed = can_access_main_lab(user) if main_lab_owned else can_review_id_results(user)
     if not allowed:
         raise WorkflowError('Your role cannot correct this identification.')
     reason = (reason or '').strip()
