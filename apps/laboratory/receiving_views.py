@@ -188,7 +188,7 @@ def laboratory_receiving_workspace(request, receiving_id):
             elif item.status == "ready_for_biobank" and item.identification_source == "main_lab":
                 state, label = "ready", "Ready for Banking"
             elif action["section"] == "lyophilization":
-                state, label = "ready", "Ready for Lyophilization"
+                state, label = "in_progress", "Lyophilization In Progress"
             elif action["section"] == "id_complete":
                 state, label = "ready", "ID Complete — Ready"
             elif item.status in ("id_pending", "id_testing", "site_banked", "id_queued"):
@@ -199,7 +199,7 @@ def laboratory_receiving_workspace(request, receiving_id):
                 state, label = "pending", "Pending"
             if state == "ready":
                 final_ready += 1
-            if action["section"] == "lyophilization":
+            if state == "in_progress":
                 final_in_progress += 1
             final_rows.append({
                 "isolate": item, "action": action, "state": state, "label": label,
@@ -225,8 +225,9 @@ def laboratory_receiving_workspace(request, receiving_id):
              i.id_completed_at or i.status == "non_viable" for i in all_isolates
          ) else "in_progress" if any(i.endorsed_at or i.retrieved_at for i in all_isolates) else "pending"},
         {"name": "Final Processing", "done": final_complete, "total": total,
-         "state": "completed" if total and final_complete == total else "ready" if final_ready
-         else "in_progress" if final_in_progress else "pending"},
+         "state": "completed" if total and final_complete == total
+         else "in_progress" if final_in_progress
+         else "ready" if final_ready else "pending"},
         {"name": "Batch Generation", "done": sum(bool(a.batch_id) for a in ranges),
          "total": len(ranges), "state": "completed" if ranges and all(a.batch_id for a in ranges) else "pending"},
     ]
@@ -237,7 +238,8 @@ def laboratory_receiving_workspace(request, receiving_id):
         "organism_form": LaboratoryOrganismCountForm(),
         "ranges": ranges, "batch_rows": batch_rows, "workflow_rows": workflow_rows, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
         "worksheet_cards": cards, "final_rows": final_rows, "final_ready_count": final_ready,
-        "final_complete_count": final_complete, "final_total": total,
+        "final_complete_count": final_complete, "final_in_progress_count": final_in_progress,
+        "final_total": total,
         "worksheet_return_url": request.get_full_path(),
     })
 
