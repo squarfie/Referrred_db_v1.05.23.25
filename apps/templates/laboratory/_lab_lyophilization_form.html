@@ -1,4 +1,4 @@
-<p>Record harvest and lyophilization dates. The organism is taken from the recorded Main Lab ID.</p>
+<p>Record harvest and lyophilization dates. {% if isolate.lyophilization_started_at %}The organism is taken automatically from the Main Lab ID.{% else %}The recorded organism is used automatically.{% endif %}</p>
 <form method="post" action="{% url 'laboratory_lyophilization_complete' isolate.pk %}" class="row align-items-end">
 {% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}">
 <div class="col-md-4 mb-2"><label for="lyo-harvest">Date harvested</label><input id="lyo-harvest" data-model="LaboratoryBiobank" data-field="date_harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control" {% if biobank.date_harvested %}readonly{% endif %} required></div>
