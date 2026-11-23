@@ -1659,7 +1659,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             assigned_by=self.lab_user,
         )
 
-    def test_workspace_has_four_ordered_steps_and_fixed_organism_headings(self):
+    def test_workspace_has_ordered_bench_a_steps_and_fixed_organism_headings(self):
         accession = self.create_pending_accession()
         response = self.client.get(reverse(
             "laboratory_receiving_workspace",
@@ -2583,7 +2583,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.client.force_login(secretariat)
         self.assertEqual(self.client.get(reverse("laboratory_organism_search"), {"q": "KPN"}).status_code, 302)
 
-    def test_isolate_form_exposes_shared_search_for_id_review_and_lyophilization(self):
+    def test_main_lab_has_id_search_but_bench_a_lyophilization_has_no_organism_picker(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         isolate = accession.isolate_records.first()
@@ -2692,11 +2692,11 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         page = self.client.get(reverse("laboratory_isolate_detail", kwargs={"isolate_id": isolate.pk}))
         self.assertContains(page, 'Recorded ID:')
         self.assertContains(page, 'KPN')
+        # Bench A supplies only dates; identification comes from the
+        # previously approved Main Lab/legacy reviewed result.
         self.client.post(reverse("laboratory_lyophilization_complete", kwargs={"isolate_id": isolate.pk}), {
             "date_harvested": "2026-11-19",
             "date_lyophilized": "2026-11-19",
-            "whonet_code": "KPN",
-            "whonet_organism_name": "Klebsiella pneumoniae",
         })
         isolate.refresh_from_db()
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
