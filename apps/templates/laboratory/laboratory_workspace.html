@@ -340,16 +340,16 @@
           {% endif %}
           {% if row.action.section == 'id_complete' and row.has_final_id and can_edit %}
             <form method="post" action="{% url 'laboratory_proceed_lyophilization' isolate.pk %}">
-              {% csrf_token %}<input type="hidden" name="next" value="{{ worksheet_return_url }}">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ worksheet_next_in_progress }}">
               <button type="submit" class="btn btn-primary">Proceed to Lyophilization</button>
             </form>
           {% elif row.action.section == 'lyophilization' and row.has_final_id and can_edit %}
             <p class="small text-muted">Record harvest and lyophilization dates; Final ID is supplied by Main Lab.</p>
-            {% include 'laboratory/_lab_lyophilization_form.html' with return_to=worksheet_return_url %}
+            {% include 'laboratory/_lab_lyophilization_form.html' with return_to=worksheet_next_ready %}
           {% elif row.action.section == 'biobank' and row.has_final_id and isolate.identification_source == 'main_lab' and can_edit %}
             <p class="small text-muted">Lyophilization is complete. Record a box and position to complete final banking.</p>
             <form method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}" class="row align-items-end">
-              {% csrf_token %}<input type="hidden" name="next" value="{{ worksheet_return_url }}">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ worksheet_next_completed }}">
               <div class="col-md-4 mb-2"><label>Storage Box</label><input class="form-control" name="storage_box" value="{{ biobank.storage_box|default:'' }}" maxlength="100" required></div>
               <div class="col-md-4 mb-2"><label>Box Position</label><input class="form-control" name="box_position" value="{{ biobank.box_position|default:'' }}" maxlength="30" required></div>
               <div class="col-md-4 mb-2"><button type="submit" class="btn btn-success mb-0">Complete Final Banking</button></div>
