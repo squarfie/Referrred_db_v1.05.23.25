@@ -156,7 +156,7 @@ def proceed_to_lyophilization(isolate_id, user):
         raise WorkflowError('Complete Main Lab ID and record actual revival before lyophilization.')
     if item.id_completed_at and not (item.final_identified_at and item.approved_organism_code
                                      and item.final_organism and item.identification_source == 'main_lab'):
-        raise WorkflowError('Complete Main Lab ID and record actual revival before lyophilization.')
+        raise WorkflowError('Main Lab must record the Final ID before Bench A proceeds to lyophilization.')
     item.lyophilization_started_at, item.lyophilization_started_by = timezone.now(), user
     item.identification_source = 'main_lab'
     item.save(update_fields=['lyophilization_started_at', 'lyophilization_started_by', 'identification_source'])
@@ -166,20 +166,24 @@ def proceed_to_lyophilization(isolate_id, user):
 @transaction.atomic
 def finalize_banking(isolate_id, details, code, name, user):
     if not can_review_id_results(user):
-        raise WorkflowError('Only Bench A or Admin may confirm Final ID and finalize banking.')
+        raise WorkflowError('Only Bench A or Admin may record final banking.')
     item = _locked(isolate_id)
     if item.status != S.READY_FOR_BIOBANK or item.identification_source != 'main_lab':
-        raise WorkflowError('Complete lyophilization before confirming Final ID and storage.')
-    code, name = _organism(code, name)
+        raise WorkflowError('Complete lyophilization before final banking.')
+    # New cases must have their Final ID supplied by Main Lab. Historic
+    # result-return cases preserve their existing reviewed ID rather than
+    # manufacturing a new Main Lab confirmation.
+    if not (item.approved_organism_code and item.final_organism):
+        raise WorkflowError('Main Lab Final ID is missing. Have Main Lab record it before banking.')
+    if item.id_completed_at and not item.final_identified_at:
+        raise WorkflowError('Final ID must be recorded by Main Lab before banking.')
+    if (code and str(code).strip().upper() != item.approved_organism_code.upper()) or (
+            name and str(name).strip() != item.final_organism):
+        raise WorkflowError('Banking cannot change Main Lab Final ID. Use an audited ID correction.')
     bank = LaboratoryBiobank.objects.select_for_update().get(isolate=item)
-    if not item.final_identified_at:
-        item.final_identified_at, item.final_identified_by = timezone.now(), user
-        item.approved_organism_code, item.final_organism = code, name
-        item.save(update_fields=['final_identified_at', 'final_identified_by', 'approved_organism_code', 'final_organism'])
-        bank.whonet_code = code
+    if bank.whonet_code != item.approved_organism_code:
+        bank.whonet_code = item.approved_organism_code
         bank.save(update_fields=['whonet_code'])
-    elif item.approved_organism_code != code or item.final_organism != name:
-        raise WorkflowError('Use a Final ID correction with a reason to amend an approved identification.')
     return save_biobank(item.pk, details, user)
 
 
