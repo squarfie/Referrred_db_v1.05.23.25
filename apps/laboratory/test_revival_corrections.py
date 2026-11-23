@@ -77,6 +77,10 @@ class RevivalCorrectionTests(TestCase):
         self.assertIn("Initial notes", audit.remarks)
         self.assertIn("No growth on repeat plate", audit.remarks)
         self.assertIn(item.accession_number, audit.remarks)
+        detail = self.client.get(reverse("laboratory_isolate_detail", args=[item.pk]))
+        self.assertContains(detail, "Revival correction history")
+        self.assertContains(detail, "Initial notes")
+        self.assertContains(detail, "No growth on repeat plate")
 
     def test_downstream_workflow_keeps_status_and_allows_date_correction(self):
         now = timezone.now()
