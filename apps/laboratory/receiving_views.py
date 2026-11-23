@@ -179,6 +179,7 @@ def laboratory_receiving_workspace(request, receiving_id):
     from .guidance import next_action
     from .identification_workflow import is_final_banked
     from .navigation import return_url
+    from django.urls import reverse
     final_rows = []
     for accession in ranges:
         for item in accession.isolate_records.all():
@@ -187,6 +188,73 @@ def laboratory_receiving_workspace(request, receiving_id):
                 item.approved_organism_code and item.final_organism
                 and (item.final_identified_at or not item.id_completed_at)
             )
+            # A Pending label must tell Bench A exactly who owns the
+            # missing prerequisite and where staff can inspect or perform it.
+            # Never present a Main Lab-only action as editable by Bench A.
+            detail_url = reverse("laboratory_isolate_detail", args=[item.pk])
+            prep_url = reverse("laboratory_batch_detail", args=[accession.pk]) + "?area=processing"
+            next_href = None
+            next_label = ""
+            pending_message = ""
+            if action["section"] == "revival":
+                pending_message = ("Bench A must record the actual revival outcome"
+                                   " before final processing can start.")
+                next_href, next_label = detail_url, "Record Revival / Review Failure"
+            elif item.status in ("revival_pending", "revival_queued",
+                                 "revival_in_progress", "revival_failed"):
+                pending_message = "Bench A must finish revival recording first."
+                next_href, next_label = detail_url, "Open Revival Record"
+            elif item.status in ("revived", "id_queued") and not (
+                    item.returned_at or item.identifications.exists()):
+                pending_message = (
+                    "Bench A must complete Site ID and revival recording, then"
+                    " choose temporary storage or batch endorsement to Main Lab."
+                )
+                next_href, next_label = prep_url, "Open Step 4 Preparation"
+            elif item.status == "site_banked":
+                pending_message = (
+                    "This isolate is temporarily stored. Main Laboratory must"
+                    " retrieve it from storage and perform confirmatory ID testing."
+                )
+            elif item.status in ("id_pending", "id_testing"):
+                pending_message = (
+                    "The isolate is with Main Laboratory for acknowledgment or"
+                    " confirmatory identification. No Bench A action is needed yet."
+                )
+            elif item.id_completed_at and not has_final_id:
+                pending_message = (
+                    "Main Lab identification is marked complete, but the Final ID"
+                    " is missing. Main Laboratory must reconcile the confirmed"
+                    " organism and WHONET code before Bench A can continue."
+                )
+                next_href, next_label = detail_url, "Review Isolate Record"
+            elif item.status in ("id_complete", "id_returned", "id_reviewed"):
+                if not item.revival_completed_at:
+                    pending_message = (
+                        "This historical isolate has a Main Lab result but no"
+                        " recorded revival outcome. Bench A must reconcile the"
+                        " missing revival record before lyophilization."
+                    )
+                    next_href, next_label = detail_url, "Record Missing Revival"
+                elif not has_final_id:
+                    pending_message = (
+                        "The historical ID result has no approved Final ID."
+                        " Review the isolate record and arrange reconciliation"
+                        " before lyophilization."
+                    )
+                    next_href, next_label = detail_url, "Review Historical ID"
+                else:
+                    pending_message = (
+                        "The isolate needs its earlier workflow record checked"
+                        " before moving to Final Processing."
+                    )
+                    next_href, next_label = detail_url, "Review Isolate Record"
+            else:
+                pending_message = (
+                    "Review this isolate's recorded workflow and resolve the"
+                    " outstanding prerequisite before final processing."
+                )
+                next_href, next_label = detail_url, "Review Isolate Record"
             if item.status == "non_viable":
                 state, label = "completed", "Closed — Non-viable"
             elif is_final_banked(item):
@@ -205,10 +273,15 @@ def laboratory_receiving_workspace(request, receiving_id):
                                  "revival_failed", "revived"):
                 state, label = "pending", "Awaiting Bench A Processing"
             else:
-                state, label = "pending", "Pending"
+                state, label = "pending", (
+                    "Awaiting Revival Reconciliation" if action["section"] == "revival"
+                    else "Awaiting Prior Step"
+                )
             final_rows.append({
                 "isolate": item, "action": action, "state": state,
                 "label": label, "has_final_id": has_final_id,
+                "pending_message": pending_message,
+                "next_href": next_href, "next_label": next_label,
                 "bank": getattr(item, "biobank", None),
             })
 
