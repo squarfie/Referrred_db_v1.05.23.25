@@ -368,7 +368,7 @@ def laboratory_lyophilization_complete(request, isolate_id):
         messages.success(request, "Harvest and lyophilization recorded.")
     except (WorkflowError, ValidationError) as exc:
         messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc))
-    return redirect(detail_url(request, isolate_id))
+    return redirect(return_url(request) or detail_url(request, isolate_id))
 
 
 @login_required
@@ -564,7 +564,7 @@ def laboratory_biobank_save(request, isolate_id):
                          else "Identification and banking map finalized.")
     except (WorkflowError, ValueError) as exc:
         messages.error(request, str(exc))
-    return redirect(detail_url(request, isolate_id))
+    return redirect(return_url(request) or detail_url(request, isolate_id))
 
 
 def _label_item(isolate, request):
