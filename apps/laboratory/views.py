@@ -22,6 +22,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .guidance import next_action
+from .identification_workflow import record_identification, finalize_banking, final_banking_filter, is_final_banked
+from .navigation import return_url, detail_url
 from .forms import StickerDateRangeForm
 from apps.receiving.qr import build_isolate_scan_url, render_qr_png
 from .workflow import (WorkflowError, transition_batch, transition_isolate_revival,
@@ -57,12 +59,10 @@ def laboratory_biobank_list(request):
 def _biobank_inventory_context(request):
     search = (request.GET.get("q") or "").strip()
     S = LaboratoryIsolate.Status
-    final = Q(status=S.BIOBANKED, identification_source="main_lab",
-              returned_at__isnull=False, reviewed_at__isnull=False,
-              lyophilization_completed_at__isnull=False, biobanked_at__isnull=False)
+    final = final_banking_filter()
     temporary = Q(status=S.SITE_BANKED) | Q(status=S.READY_FOR_BIOBANK, identification_source="site")
     continuing = (Q(site_banked_at__isnull=False) | Q(biobank__isnull=False)) & Q(status__in=(
-        S.ID_QUEUED, S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED, S.ID_REVIEWED,
+        S.ID_QUEUED, S.ID_PENDING, S.ID_TESTING, S.ID_COMPLETE, S.ID_RETURNED, S.ID_REVIEWED,
     )) | Q(status=S.READY_FOR_BIOBANK, identification_source="main_lab")
     isolates = LaboratoryIsolate.objects.select_related(
         "accession_range__laboratory_receiving__receipt__site", "biobank"
@@ -102,13 +102,14 @@ def _biobank_inventory_context(request):
     )
     for batch in page.object_list:
         for item in batch.inventory_isolates:
-            item.inventory_final = bool(item.status == S.BIOBANKED and item.identification_source == "main_lab"
-                and item.returned_at and item.reviewed_at and item.lyophilization_completed_at and item.biobanked_at)
+            item.inventory_final = is_final_banked(item)
             item.inventory_next_action = next_action(item, request.user)
     return {
         "inventory_batches": page.object_list, "page_obj": page, "query": search,
         "inventory_tabs": tabs, "selected_tab": selected_tab,
         "can_queue_inventory": can_review_id_results(request.user),
+        "can_retrieve": can_access_main_lab(request.user),
+        "origin_url": request.get_full_path(),
         "can_bank": can_manage_biobank(request.user),
         "sticker_date_form": StickerDateRangeForm(initial={
             "from_date": timezone.localdate(), "to_date": timezone.localdate(),
@@ -140,7 +141,7 @@ def laboratory_worklist(request, area="identification"):
     show_history = request.GET.get("history") == "1"
     S = LaboratoryIsolate.Status
     active = (S.ID_PENDING, S.ID_TESTING) if area == "identification" else (
-        S.ID_RETURNED, S.ID_QUEUED, S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED,
+        S.ID_COMPLETE, S.ID_RETURNED, S.ID_QUEUED, S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED,
         S.REVIVED, S.ID_REVIEWED, S.READY_FOR_BIOBANK, S.SITE_BANKED,
     )
     # Scope badges count isolates across the complete queue, before filters and
@@ -150,6 +151,8 @@ def laboratory_worklist(request, area="identification"):
         "history": (LaboratoryIsolate.objects.filter(returned_at__isnull=False).count()
                     if area == "processing" else LaboratoryIsolate.objects.count()),
     }
+    if request.GET.get("tab") == "id_complete":
+        batches = batches.filter(isolate_records__status__in=(S.ID_COMPLETE, S.ID_RETURNED)).distinct()
     if show_history and area == "processing":
         batches = batches.filter(isolate_records__returned_at__isnull=False).distinct()
     if not show_history:
@@ -171,18 +174,15 @@ def laboratory_worklist(request, area="identification"):
             "awaiting_revival_count": sum(counts.get(st, 0) for st in (S.REVIVAL_PENDING, S.REVIVAL_QUEUED, S.REVIVAL_IN_PROGRESS, S.REVIVAL_FAILED)),
             "awaiting_disposition_count": sum(item.status == S.REVIVED and not item.returned_at for item in isolates),
             "awaiting_endorsement_count": counts.get(S.ID_QUEUED, 0) + counts.get(S.SITE_BANKED, 0),
-            "awaiting_review_count": sum(item.status == S.ID_RETURNED or (item.status == S.REVIVED and bool(item.returned_at)) for item in isolates),
-            "awaiting_lyophilization_count": counts.get(S.ID_REVIEWED, 0),
+            "awaiting_review_count": sum((item.status in (S.ID_COMPLETE, S.ID_RETURNED) and not item.lyophilization_started_at) or (item.status == S.REVIVED and bool(item.returned_at)) for item in isolates),
+            "awaiting_lyophilization_count": sum(item.status == S.ID_REVIEWED or (item.status in (S.ID_COMPLETE, S.ID_RETURNED) and bool(item.lyophilization_started_at)) for item in isolates),
             "awaiting_biobank_count": counts.get(S.READY_FOR_BIOBANK, 0),
-            "completed_count": sum(bool(item.status == S.NON_VIABLE or (
-                item.status == S.BIOBANKED and item.identification_source == "main_lab"
-                and item.returned_at and item.reviewed_at
-                and item.lyophilization_completed_at and item.biobanked_at
-            )) for item in isolates),
+            "completed_count": sum(item.status == S.NON_VIABLE or is_final_banked(item) for item in isolates),
         })
     return render(request, "laboratory/lab_worklist.html", {
         "batches": rows, "query": query, "selected_status": status,
         "area": area, "show_history": show_history, "scope_counts": scope_counts,
+        "origin_url": request.get_full_path(),
         "worklist_url": "laboratory_processing_worklist" if area == "processing" else "laboratory_worklist",
         "statuses": LaboratoryIsolate.Status.choices,
         "can_test": can_access_main_lab(request.user),
@@ -218,6 +218,7 @@ def laboratory_batch_detail(request, accession_id):
         "can_review": can_review_id_results(request.user),
         "can_test": can_access_main_lab(request.user),
         "id_handoff": id_handoff_readiness(accession, isolates),
+        "return_to": return_url(request),
     })
 
 @login_required
@@ -283,7 +284,7 @@ def laboratory_bank_site_id(request, isolate_id):
         messages.success(request, "Site ID selected. Record temporary storage; Main Lab ID testing will still be required.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))
 
 
 @login_required
@@ -310,7 +311,7 @@ def laboratory_isolate_revival(request, isolate_id, action):
         messages.success(request, f"Isolate revival action '{action}' completed.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))
 
 
 @login_required
@@ -324,7 +325,7 @@ def laboratory_revival_failed(request, isolate_id):
         messages.success(request, f"Revival outcome recorded: {status.replace('_', ' ')}.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))
 
 
 @login_required
@@ -336,7 +337,7 @@ def laboratory_revival_retry(request, isolate_id):
         messages.success(request, "Revival retry started; previous failure reason remains recorded.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))
 
 
 @login_required
@@ -348,7 +349,7 @@ def laboratory_revival_retry_complete(request, isolate_id):
         messages.success(request, "Retried isolate revived successfully.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))
 
 
 @login_required
@@ -359,6 +360,7 @@ def laboratory_lyophilization_complete(request, isolate_id):
         complete_lyophilization(
             isolate_id, request.POST.get("date_harvested"),
             request.POST.get("date_lyophilized"), request.user,
+            whonet_organism_name=(request.POST.get("whonet_organism_name") or "").strip(),
             whonet_code=(resolve_organism(
                 code=request.POST.get("whonet_code") or "",
                 name=request.POST.get("whonet_organism_name") or "",
@@ -368,7 +370,7 @@ def laboratory_lyophilization_complete(request, isolate_id):
         messages.success(request, "Harvest and lyophilization recorded.")
     except (WorkflowError, ValidationError) as exc:
         messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))
 
 
 @login_required
@@ -381,7 +383,7 @@ def laboratory_acknowledge_id(request, isolate_id):
         messages.error(request, "Only pending isolates may be acknowledged.")
     else:
         messages.success(request, f"Received {isolate.accession_number} for ID testing.")
-    return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
+    return redirect(detail_url(request, isolate.pk, main_lab=True))
 
 
 @login_required
@@ -389,7 +391,7 @@ def laboratory_acknowledge_id(request, isolate_id):
 def laboratory_isolate_detail(request, isolate_id):
     if can_access_main_lab(request.user) and not can_review_id_results(request.user):
         isolate_for_redirect = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
-        if isolate_for_redirect.endorsed_at:
+        if isolate_for_redirect.endorsed_at or isolate_for_redirect.retrieved_at or isolate_for_redirect.status == "site_banked":
             return redirect("main_lab_isolate_detail", isolate_id=isolate_id)
         return redirect("main_lab_dashboard")
     isolate = get_object_or_404(
@@ -411,10 +413,13 @@ def laboratory_isolate_detail(request, isolate_id):
         site_id = site_identification(isolate, require_code=False)
     except WorkflowError as exc:
         site_id_error = str(exc)
-    can_edit_site_id = can_review_id_results(request.user) and not isolate.endorsed_at and isolate.status in (
+    can_edit_site_id = can_review_id_results(request.user) and not (isolate.site_organism_code or isolate.site_organism_name) and not isolate.endorsed_at and isolate.status in (
         'revival_pending', 'revival_queued', 'revival_in_progress', 'revival_failed', 'revived', 'id_queued')
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
+        "return_to": return_url(request), "latest_result": isolate.identifications.first(),
+        "can_correct_site": can_review_id_results(request.user) and bool(site_id),
+        "can_correct_final": can_review_id_results(request.user) and isolate.identification_source == "main_lab" and bool(isolate.final_organism),
         "show_history": request.GET.get("history") == "1",
         "area": request.GET.get("area") if request.GET.get("area") in ("identification", "processing", "biobank") else ("identification" if isolate.status in ("id_pending", "id_testing") else "processing"),
         "revival_attempt_start": attempt_start,
@@ -436,38 +441,16 @@ def laboratory_isolate_detail(request, isolate_id):
 @require_POST
 @transaction.atomic
 def laboratory_record_id(request, isolate_id):
-    isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
-    if isolate.status != LaboratoryIsolate.Status.ID_TESTING:
-        messages.error(request, "ID results may be added only while testing is in progress.")
-        return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
-    organism = (request.POST.get("organism_reported") or "").strip()
-    code = (request.POST.get("organism_reported_code") or "").strip()
+    get_object_or_404(LaboratoryIsolate, pk=isolate_id)
     try:
-        canonical_code, organism = resolve_organism(code=code, name=organism)
-    except ValidationError as exc:
-        messages.error(request, "; ".join(exc.messages))
-        return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
-    if not organism or len(organism) > 255:
-        messages.error(request, "Enter an identified organism (maximum 255 characters).")
-        return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
-    submit_return = request.POST.get("action") in ("submit_return", "save_and_return")
-    cassette = (request.POST.get("cassette_reference") or "").strip()
-    if submit_return and (not cassette or len(cassette) > 100):
-        messages.error(request, "A cassette reference (maximum 100 characters) is required to return the cassette.")
-        return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
-    LaboratoryIdentification.objects.create(
-        isolate=isolate, organism_reported=organism, whonet_organism_code=canonical_code,
-        instrument=(request.POST.get("instrument") or "").strip()[:100],
-        cassette_reference=(request.POST.get("cassette_reference") or "").strip()[:100],
-        recorded_by=request.user,
-    )
-    if submit_return:
-        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
-        isolate.returned_at = timezone.now()
-        isolate.returned_by = request.user
-        isolate.save(update_fields=("status", "returned_at", "returned_by"))
-    messages.success(request, "Identification saved and cassette returned." if submit_return else "Instrument identification saved.")
-    return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
+        record_identification(isolate_id, request.POST.get("organism_reported_code"),
+            request.POST.get("organism_reported"), request.user,
+            instrument=(request.POST.get("instrument") or "").strip(),
+            cassette_reference=(request.POST.get("cassette_reference") or "").strip())
+        messages.success(request, "ID result saved. Testing is complete; Bench A can proceed to lyophilization. Physical cassette return has not been recorded.")
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+    return redirect(detail_url(request, isolate_id, main_lab=True))
 
 
 @login_required
@@ -475,16 +458,14 @@ def laboratory_record_id(request, isolate_id):
 @require_POST
 @transaction.atomic
 def laboratory_return_id(request, isolate_id):
-    isolate = get_object_or_404(LaboratoryIsolate.objects.select_for_update(), pk=isolate_id)
-    if isolate.status != LaboratoryIsolate.Status.ID_TESTING or not isolate.identifications.filter(cassette_reference__gt="").exists():
-        messages.error(request, "Record at least one ID result with a cassette reference before returning the cassette.")
-    else:
-        isolate.status = LaboratoryIsolate.Status.ID_RETURNED
-        isolate.returned_at = timezone.now()
-        isolate.returned_by = request.user
-        isolate.save(update_fields=("status", "returned_at", "returned_by"))
-        messages.success(request, "Identification returned to Laboratory Receiving.")
-    return redirect("main_lab_isolate_detail", isolate_id=isolate.pk)
+    from .identification_workflow import record_physical_return
+    get_object_or_404(LaboratoryIsolate, pk=isolate_id)
+    try:
+        record_physical_return(isolate_id, request.user)
+        messages.success(request, "Physical cassette return recorded. ID availability and scientific stages are unchanged.")
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+    return redirect(detail_url(request, isolate_id, main_lab=True))
 
 
 @login_required
@@ -534,7 +515,7 @@ def laboratory_review_id(request, isolate_id):
 def laboratory_biobank_save(request, isolate_id):
     if not can_manage_biobank(request.user):
         messages.error(request, "You do not have permission to update biobank inventory.")
-        return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+        return redirect(detail_url(request, isolate_id))
     limits = {
         "lyo_box_name": 100, "lyo_box_number": 50,
         "lyo_position": 50, "refrigerator_number": 50, "lyo_location": 100,
@@ -546,7 +527,7 @@ def laboratory_biobank_save(request, isolate_id):
     details = {key: (request.POST.get(key) or "").strip() for key in limits}
     if any(len(details[key]) > maximum for key, maximum in limits.items()):
         messages.error(request, "One or more biobank fields exceed their maximum length.")
-        return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+        return redirect(detail_url(request, isolate_id))
     details["remarks"] = (request.POST.get("remarks") or "").strip()
     for field in ("lyo_date_encoded", "supplementary_date_encoded"):
         value = (request.POST.get(field) or "").strip()
@@ -555,24 +536,29 @@ def laboratory_biobank_save(request, isolate_id):
                 date = datetime.strptime(value, "%Y-%m-%d").date()
             except ValueError:
                 messages.error(request, f"Enter a valid {field.replace('_', ' ')}.")
-                return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+                return redirect(detail_url(request, isolate_id))
             if date > timezone.localdate():
                 messages.error(request, "Date encoded cannot be in the future.")
-                return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+                return redirect(detail_url(request, isolate_id))
             details[field] = date
         else:
             details[field] = None
     details["skimmed_milk"] = request.POST.get("skimmed_milk") == "on"
     details["tsbg"] = request.POST.get("tsbg") == "on"
     try:
-        save_biobank(isolate_id, details, request.user)
+        item = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
+        if item.status == LaboratoryIsolate.Status.READY_FOR_BIOBANK and item.identification_source == "main_lab" and item.lyophilization_started_at:
+            finalize_banking(isolate_id, details, request.POST.get("final_organism_code"),
+                             request.POST.get("final_organism"), request.user)
+        else:
+            save_biobank(isolate_id, details, request.user)
         item = LaboratoryIsolate.objects.get(pk=isolate_id)
         messages.success(request, "Temporary Site ID storage saved; Main Lab confirmation is still required."
                          if item.status == LaboratoryIsolate.Status.SITE_BANKED
                          else "Identification and banking map finalized.")
     except (WorkflowError, ValueError) as exc:
         messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))
 
 
 def _label_item(isolate, request):
@@ -777,6 +763,9 @@ def laboratory_id_upload(request):
     # Recheck inside the transaction before writing; original instrument records
     # remain separate and are never overwritten.
     with transaction.atomic():
+        list(LaboratoryAccession.objects.select_for_update().filter(
+            pk__in=LaboratoryIsolate.objects.filter(accession_number__in=accession_numbers).values('accession_range_id')
+        ).order_by('pk'))
         locked = {
             isolate.accession_number: isolate
             for isolate in LaboratoryIsolate.objects.select_for_update().filter(
@@ -787,22 +776,20 @@ def laboratory_id_upload(request):
                for number in accession_numbers):
             messages.error(request, "One or more isolate statuses changed. No results were imported.")
             return redirect("laboratory_id_upload")
-        LaboratoryIdentification.objects.bulk_create([
-            LaboratoryIdentification(
-                isolate=locked[row["accession_number"]],
-                organism_reported=row["organism_reported"],
-                whonet_organism_code=row["organism_code"],
-                instrument=row["instrument"],
-                cassette_reference=row["cassette_reference"],
-                source=(LaboratoryIdentification.Source.CSV
-                        if file.name.lower().endswith(".csv")
-                        else LaboratoryIdentification.Source.XLSX),
-                recorded_by=request.user,
-            ) for row in rows
-        ])
+        try:
+            with transaction.atomic():
+                for row in rows:
+                    record_identification(locked[row["accession_number"]].pk,
+                        row["organism_code"], row["organism_reported"], request.user,
+                        instrument=row["instrument"], cassette_reference=row["cassette_reference"],
+                        source=(LaboratoryIdentification.Source.CSV if file.name.lower().endswith(".csv")
+                                else LaboratoryIdentification.Source.XLSX))
+        except WorkflowError as exc:
+            messages.error(request, str(exc) + " No results were imported.")
+            return redirect("laboratory_id_upload")
     request.session.pop("lab_id_preview_digest", None)
-    messages.success(request, f"Imported {len(rows)} identification results.")
-    return redirect("laboratory_worklist")
+    messages.success(request, f"Imported {len(rows)} identification results. Testing complete; results are available to Bench A.")
+    return redirect(reverse("main_lab_dashboard") + "?tab=completed")
 
 
 @login_required
@@ -823,7 +810,7 @@ def laboratory_revival_outcome(request, isolate_id):
         messages.success(request, "Revival outcome recorded.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))
 
 
 @login_required
@@ -833,8 +820,8 @@ def laboratory_site_id_save(request, isolate_id):
     get_object_or_404(LaboratoryIsolate, pk=isolate_id)
     try:
         record_site_identification(isolate_id, request.POST.get("site_organism_code"),
-                                   request.POST.get("site_organism_name"), request.user)
+                                   request.POST.get("site_organism_name"), request.user, reason=request.POST.get("reason", ""))
         messages.success(request, "Site-reported identification saved for this accession.")
     except WorkflowError as exc:
         messages.error(request, str(exc))
-    return redirect("laboratory_isolate_detail", isolate_id=isolate_id)
+    return redirect(detail_url(request, isolate_id))

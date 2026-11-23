@@ -1,10 +1,10 @@
 <p>Record the harvest and lyophilization dates. Harvest must be on or before lyophilization.</p>
 <form method="post" action="{% url 'laboratory_lyophilization_complete' isolate.pk %}" class="row align-items-end">
-{% csrf_token %}
+{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}">
 <div class="col-md-3 mb-2"><label for="lyo-harvest">Date harvested</label><input id="lyo-harvest" data-model="LaboratoryBiobank" data-field="date_harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control" {% if biobank.date_harvested %}readonly{% endif %} required></div>
 <div class="col-md-3 mb-2"><label for="lyo-date">Date lyophilized</label><input id="lyo-date" data-model="LaboratoryBiobank" data-field="date_lyophilized" name="date_lyophilized" type="date" class="form-control" required></div>
 {% if isolate.approved_organism_code %}
-<div class="col-md-6 mb-2"><label>Approved organism for sticker</label><p class="form-control-plaintext">{{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}</p><input type="hidden" data-model="LaboratoryBiobank" data-field="whonet_code" name="whonet_code" value="{{ isolate.approved_organism_code }}"><input type="hidden" data-model="LaboratoryBiobank" data-field="whonet_code" data-input-role="organism-name-lookup" name="whonet_organism_name" value="{{ isolate.final_organism }}"></div>
+<div class="col-md-6 mb-2"><label>Organism selected for lyophilization / sticker</label><p class="form-control-plaintext">{{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}</p><input type="hidden" data-model="LaboratoryBiobank" data-field="whonet_code" name="whonet_code" value="{{ isolate.approved_organism_code }}"><input type="hidden" data-model="LaboratoryBiobank" data-field="whonet_code" data-input-role="organism-name-lookup" name="whonet_organism_name" value="{{ isolate.final_organism }}"></div>
 {% else %}<div class="col-md-6 mb-2"><div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
 <label for="lyo-organism-search">WHONET organism for sticker</label>
 <input id="lyo-organism-search" type="search" data-organism-search value="{% if isolate.approved_organism_code %}{{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}{% endif %}" class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">

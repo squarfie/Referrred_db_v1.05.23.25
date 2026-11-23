@@ -15,7 +15,7 @@ from .workflow import acknowledge_id_receipt
 
 
 def _current_step(isolate, user):
-    url = reverse("main_lab_isolate_detail" if can_access_main_lab(user) and isolate.endorsed_at else "laboratory_isolate_detail", args=[isolate.pk])
+    url = reverse("main_lab_isolate_detail" if can_access_main_lab(user) and (isolate.endorsed_at or isolate.retrieved_at) else "laboratory_isolate_detail", args=[isolate.pk])
     return redirect(url + "#" + next_action(isolate, user)["section"])
 
 

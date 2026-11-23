@@ -7,7 +7,7 @@
 <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
 <p class="receiving-eyebrow">Main Laboratory · Identification</p><h1>{{ isolate.accession_number }}</h1>
 <p class="receiving-hero-subtitle">Batch {{ isolate.accession_range.reference_range }} · {{ isolate.get_status_display }}</p>
-</div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'main_lab_dashboard' %}">Back to Main Lab</a><a class="btn btn-info" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank">Print accession QR</a></div></header>
+</div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{{ return_to|default:main_lab_back_url }}">Back to Main Lab</a><a class="btn btn-info" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank">Print accession QR</a></div></header>
 <div class="receiving-content">
 <section class="receiving-surface receiving-card" aria-label="Accession QR">
   <div class="receiving-card-body receiving-batch-summary has-qr">
@@ -16,12 +16,14 @@
   </div>
 </section>
 <section id="identification" class="receiving-surface receiving-form-card mb-4">
-<div class="receiving-card-header"><h2>Main Laboratory ID testing</h2><p>Endorsed from Bench A. This page does not change revival, Site ID, lyophilization or storage records.</p></div>
+<div class="receiving-card-header"><h2>Main Laboratory ID testing</h2><p>Responsible team: Main Lab. Save the ID result to complete testing and notify Bench A. Physical cassette return is recorded independently.</p></div>
 <div class="receiving-card-body">
 <div class="receiving-help-panel mb-3"><strong>Site-reported organism:</strong> {{ isolate.site_organism_code|default:"—" }} {{ isolate.site_organism_name }}</div>
 {% if isolate.status == 'id_pending' %}
 <p>Waiting for Main Laboratory acknowledgment.</p>
 {% if can_test %}<form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary">Acknowledge ID testing receipt</button></form>{% endif %}
+{% elif isolate.status == 'site_banked' %}
+<form method="post" action="{% url 'laboratory_retrieve_for_testing' isolate.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}"><button class="btn btn-primary" type="submit">Retrieve for ID testing</button></form>
 {% elif isolate.status == 'id_testing' %}
 {% if can_test %}
 <form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="mb-3">{% csrf_token %}
@@ -36,19 +38,15 @@
 <div class="form-group"><label for="mainlab-cassette">Cassette / slot reference</label><input id="mainlab-cassette" class="form-control" name="cassette_reference" maxlength="100"></div>
 </div>
 <div class="receiving-form-actions">
-<button class="btn btn-outline-primary" type="submit" name="action" value="save">Save another ID result</button>
-<button class="btn btn-primary" type="submit" name="action" value="submit_return">Save ID result and return cassette to Bench A</button>
-</div>
-</form>
-{% if isolate.identifications.exists %}
-<form method="post" action="{% url 'laboratory_return_id' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-info">Return saved results and cassette to Bench A</button></form>
-{% endif %}
+<input type="hidden" name="next" value="{{ return_to }}">
+<button class="btn btn-primary" type="submit">Save ID result</button>
+</div></form>
 {% endif %}
 {% else %}
-<p class="alert alert-info">Main Laboratory processing has been handed back to Bench A, or this case has progressed to a later stage. No further Main Lab edits are required here.</p>
+<p class="alert alert-info">ID testing is complete. Bench A can proceed to lyophilization. To amend a result, use the correction action in its history below.</p>
 {% endif %}
 </div></section>
-<section class="receiving-surface receiving-card"><div class="receiving-card-header"><h2>Instrument result history</h2></div><div class="receiving-card-body">{% include "laboratory/_lab_isolate_results.html" %}</div></section>
+<section class="receiving-surface receiving-card"><div class="receiving-card-header"><h2>Instrument result history</h2></div><div class="receiving-card-body">{% include "laboratory/_lab_isolate_results.html" %}{% include "laboratory/_identification_correction_history.html" %}</div></section>
 </div></main>
 {% endblock content %}
 {% block javascripts %}{{ block.super }}<script defer src="{% static 'assets/js/laboratory-organism-picker.js' %}"></script>{% endblock javascripts %}

@@ -16,6 +16,7 @@
 {% if isolate.status == 'ready_for_biobank' or isolate.status == 'biobanked' %}<a href="{% url 'laboratory_biobank_label' isolate.pk %}" target="_blank" class="btn btn-info"><i class="fas fa-print mr-1"></i>Biobank Sticker</a>{% endif %}
 </div></header>
 <div class="receiving-content">
+{% if return_to %}<p><a class="btn btn-outline-primary" href="{{ return_to }}">Back to filtered worklist</a></p>{% endif %}
 <section class="receiving-surface receiving-card" aria-label="Accession QR">
   <div class="receiving-card-body receiving-batch-summary has-qr">
     <div><h2 class="h5">Accession QR</h2><p class="mb-2">Print this accession identifier for the Main Laboratory handoff. Main Laboratory acknowledgment and ID testing take place in their separate workspace.</p><a class="btn btn-outline-primary" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank" rel="noopener"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print accession QR</a></div>
@@ -29,12 +30,14 @@
 {% if can_edit_site_id and next_action.section != 'revival' %}
 <details class="mb-3"><summary>Record or correct the site-reported ID before endorsement</summary><form method="post" action="{% url 'laboratory_site_id_save' isolate.pk %}" class="mt-3">{% csrf_token %}{% include 'laboratory/_site_id_fields.html' %}<button class="btn btn-sm btn-primary" type="submit">Save site identification</button></form></details>
 {% endif %}
+{% if can_correct_site %}{% include 'laboratory/_identification_correction_form.html' with correction_kind='site' %}{% endif %}
+{% if can_correct_final %}{% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}{% endif %}
 {% if next_action.section == 'closed' %}
 <p class="mb-0">{% if isolate.status == 'non_viable' %}This isolate is non-viable. The scientific record is preserved below.{% else %}Processing is complete. The scientific record and storage details are available below.{% endif %}</p>
 {% elif not next_action.allowed %}
 <p class="mb-0">Waiting for {{ next_action.owner }} to {{ next_action.label|lower }}.</p>
 {% elif next_action.section == 'handoff' or next_action.section == 'identification' %}
-<p class="alert alert-info">This isolate has been endorsed to Main Laboratory. Bench A can monitor its handoff and subsequent return, but instrument ID testing is recorded only in the separate Main Laboratory workspace.</p>
+<p class="alert alert-info">This isolate has been endorsed to Main Laboratory. Bench A can monitor its handoff and ID completion, but instrument ID testing is recorded only in the separate Main Laboratory workspace.</p>
 {% if user_access.is_lab_staff or user_access.is_admin %}<a class="btn btn-outline-primary" href="{% url 'main_lab_isolate_detail' isolate.pk %}">Open Main Laboratory ID case</a>{% endif %}
 {% elif next_action.section == 'revival' and can_review %}
 {% if isolate.status == 'revival_failed' %}
@@ -51,59 +54,45 @@
 {% endif %}
 {% elif next_action.section == 'disposition' %}
 <p>Revival is complete. Choose the identification route before final banking.</p>
-{% if can_queue_id %}
-<form method="post" action="{% url 'laboratory_queue_main_lab' isolate.pk %}" class="mb-3">{% csrf_token %}<button class="btn btn-primary" type="submit">Queue for endorsement</button><p class="small text-muted">Queue this accession first. Endorse the batch to Main Lab when all remaining viable accessions are ready. After return, the Lab Encoder confirms the final ID and records lyophilization before banking.</p></form>
-{% endif %}
+{% if can_review %}<a class="btn btn-primary mb-3" href="{% url 'laboratory_batch_detail' isolate.accession_range.pk %}?next={{ return_to|urlencode }}">Endorse batch for Main Lab ID</a><p class="small text-muted">Open the batch to endorse ready revived accessions together. Temporary storage remains available below.</p>{% endif %}
 {% if can_bank %}
 {% if site_id %}
 <p><strong>Site identification:</strong> {{ site_id.0 }} &mdash; {{ site_id.1 }}</p>
 <form method="post" action="{% url 'laboratory_bank_site_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-info" type="submit">Temporarily bank using Site ID</button><p class="small text-muted">Records temporary Site ID storage. Main Lab identification and the remaining workflow are still required.</p></form>
-{% else %}<p class="alert alert-warning">{{ site_id_error }} You can still queue for endorsement to Main Lab.</p>{% endif %}
+{% else %}<p class="alert alert-warning">{{ site_id_error }} Record Site ID before endorsement.</p>{% endif %}
 {% endif %}
 {% elif next_action.section == 'site_banked' %}
-<div class="alert alert-info">Temporarily stored using Site ID. This isolate is <strong>not workflow complete</strong>. Queue it for Main Laboratory identification.</div>
-{% if can_queue_id %}
-<form method="post" action="{% url 'laboratory_queue_main_lab' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary">Queue for endorsement</button></form>
-{% endif %}
-{% if can_bank %}<details class="mt-3"><summary>Edit temporary storage details</summary><div class="mt-3">{% include 'laboratory/_lab_isolate_storage_form.html' %}</div></details>{% endif %}
+<p class="alert alert-info">Temporary Site ID storage is not workflow complete. Main Lab Staff can retrieve this isolate for ID testing from Biobank Inventory.</p>
+{% if can_bank %}<details><summary>Edit temporary storage details</summary>{% include 'laboratory/_lab_isolate_storage_form.html' %}</details>{% endif %}
 {% elif next_action.section == 'endorsement' and can_review %}
 <div class="alert alert-info"><strong>Queued—awaiting batch endorsement.</strong> This accession is not yet endorsed. It will appear in Main Laboratory's pending ID queue after batch endorsement.</div>
 {% if id_handoff.ready %}
 <p>{{ id_handoff.queued_count }} queued accession{{ id_handoff.queued_count|pluralize }} ready. Open the batch to endorse the ready accessions together. Previously completed records remain unchanged.</p>
 {% else %}<p class="alert alert-warning">{{ id_handoff.reason }}</p>{% endif %}
 <p class="mt-3 mb-0"><a class="btn btn-outline-primary" href="{% url 'laboratory_batch_detail' isolate.accession_range.pk %}?area={{ area }}{% if show_history %}&amp;history=1{% endif %}">Go to batch</a></p>
-{% elif next_action.section == 'review' and can_review %}
-{% with latest=isolate.identifications.first %}
-<p><strong>Latest instrument report:</strong> {% if latest.whonet_organism_code %}{{ latest.whonet_organism_code }} &mdash; {% endif %}{{ latest.organism_reported }} <span class="text-muted">{{ latest.instrument }} &middot; {{ latest.cassette_reference }}</span></p>
-<form method="post" action="{% url 'laboratory_review_id' isolate.pk %}" class="mb-3">{% csrf_token %}<button type="submit" name="review_choice" value="accept_reported" class="btn btn-primary">Accept reported identification</button></form>
-{% endwith %}
-<details><summary>Change the approved organism</summary><p class="text-muted mt-2">The original instrument report remains preserved.</p><form method="post" action="{% url 'laboratory_review_id' isolate.pk %}" class="form-row align-items-end">{% csrf_token %}
-<div class="col-md-7 mb-2"><div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
-<label for="review-organism-search">Approved organism (search code or name)</label>
-<input id="review-organism-search" type="search" data-organism-search class="form-control" autocomplete="off" placeholder="Search code (KPN) or organism name" required aria-label="Search organism code or name">
-<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
-<div class="organism-picker-pair">
-<input data-model="LaboratoryIsolate" data-field="approved_organism_code" name="final_organism_code" data-organism-code type="text" readonly class="form-control" aria-label="Selected WHONET code" placeholder="Code">
-<input data-model="LaboratoryIsolate" data-field="final_organism" name="final_organism" data-organism-name type="text" readonly class="form-control" aria-label="Selected organism name" placeholder="Organism name">
-</div></div></div>
-<div class="col-md-auto mb-2"><button class="btn btn-primary mb-0" type="submit">Approve changed identification</button></div></form></details>
-{% elif next_action.section == 'lyophilization' and can_review and isolate.status == 'id_reviewed' %}
+{% elif next_action.section == 'id_complete' and can_review %}
+<p><strong>Main Lab result:</strong> {{ latest_result.whonet_organism_code }} {{ latest_result.organism_reported }}</p>
+<p>Responsible team: Bench A. Record harvest and lyophilization next, then confirm Final ID and storage.</p>
+<form method="post" action="{% url 'laboratory_proceed_lyophilization' isolate.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}"><button class="btn btn-primary" type="submit">Proceed to lyophilization</button></form>
+{% elif next_action.section == 'lyophilization' and can_review %}
 {% include 'laboratory/_lab_lyophilization_form.html' %}
 {% elif next_action.section == 'biobank' and can_bank and isolate.status == 'ready_for_biobank' %}
 {% if isolate.identification_source == 'site' and can_review %}
 <details class="mb-3"><summary>Record harvest and lyophilization (if performed)</summary><div class="mt-3">{% include 'laboratory/_lab_lyophilization_form.html' %}</div></details>
 {% endif %}
 {% include 'laboratory/_lab_isolate_storage_form.html' %}
-{% if isolate.identification_source == 'site' and can_queue_id %}
-<form method="post" action="{% url 'laboratory_queue_main_lab' isolate.pk %}" class="mt-3">{% csrf_token %}<button type="submit" class="btn btn-outline-primary">Queue for Main Lab ID instead</button></form>
-{% endif %}
+
 {% endif %}
 </div></section>
 <details class="receiving-surface receiving-form-card mb-4">
 <summary class="p-3"><strong>Scientific record and completed history</strong></summary>
 <div class="receiving-card-body">
-<h2 class="h5">Instrument results</h2>{% include 'laboratory/_lab_isolate_results.html' %}
+{% include "laboratory/_identification_correction_history.html" %}<h2 class="h5">Instrument results</h2>{% include 'laboratory/_lab_isolate_results.html' %}
 <h2 class="h5 mt-4">Workflow audit</h2><dl class="row">
+{% if isolate.retrieved_at %}<dt class="col-md-4">Retrieved from temporary storage</dt><dd class="col-md-8">{{ isolate.retrieved_at }} · {{ isolate.retrieved_by }}<br>Storage snapshot: {{ isolate.retrieved_storage }}</dd>{% endif %}
+{% if isolate.id_completed_at %}<dt class="col-md-4">ID testing completed</dt><dd class="col-md-8">{{ isolate.id_completed_at }} · {{ isolate.id_completed_by }}</dd>{% endif %}
+{% if isolate.lyophilization_started_at %}<dt class="col-md-4">Proceeded to lyophilization</dt><dd class="col-md-8">{{ isolate.lyophilization_started_at }} · {{ isolate.lyophilization_started_by }}</dd>{% endif %}
+{% if isolate.final_identified_at %}<dt class="col-md-4">Final ID confirmed</dt><dd class="col-md-8">{{ isolate.final_identified_at }} · {{ isolate.final_identified_by }}</dd>{% endif %}
 {% if isolate.site_identified_at %}<dt class="col-md-4">Site ID recorded</dt><dd class="col-md-8">{{ isolate.site_identified_at|date:"M j, Y g:i A" }} &middot; {{ isolate.site_identified_by|default:"&mdash;" }}</dd>{% endif %}
 {% if isolate.created_at %}<dt class="col-md-4">Accession created</dt><dd class="col-md-8">{{ isolate.created_at|date:"M j, Y g:i A" }}</dd>{% endif %}
 {% if isolate.id_queued_at %}<dt class="col-md-4">Queued for endorsement</dt><dd class="col-md-8">{{ isolate.id_queued_at|date:"M j, Y g:i A" }} &middot; {{ isolate.id_queued_by|default:"&mdash;" }}</dd>{% endif %}

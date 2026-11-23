@@ -30,8 +30,9 @@ def render_laboratory_dashboard(request, queue=None):
         tab_definitions = [
             ("pending", "Pending Lab Receipt", ReferralReceipt.Status.ENDORSED),
             ("received", "Received by Laboratory Receiving", ReferralReceipt.Status.LAB_RECEIVED),
-            ("main_lab", "Endorsed to Main Lab / Awaiting Return", "main_lab"),
-            ("processing", "Bench A Processing / Revival / Review", "processing"),
+            ("main_lab", "Main Lab / Testing in progress", "main_lab"),
+            ("id_complete", "ID complete / ready for lyophilization", "id_complete"),
+            ("processing", "Bench A Processing / Revival / Lyophilization", "processing"),
             ("pending_batch", "Pending Batch Creation", "pending_batch"),
             ("complete", "Workflow Complete", "complete"),
             ("all", "All Records", None),
@@ -72,7 +73,7 @@ def render_laboratory_dashboard(request, queue=None):
     # Counts are for the full queue and do not change with search or pagination.
     lab_counts = {
         key: all_receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow=key).count()
-        for key in ("received", "main_lab", "processing", "complete")
+        for key in ("received", "main_lab", "id_complete", "processing", "complete")
     } if is_lab_worklist else {}
     if is_lab_worklist:
         # Independent task queue: a scientifically completed receipt may still
@@ -115,7 +116,7 @@ def render_laboratory_dashboard(request, queue=None):
         "laboratory/dashboard.html" if is_lab_worklist else "receiving/dashboard.html",
         {
             "page_obj": page_obj,
-            "q": query,
+            "q": query, "origin_url": request.get_full_path(),
             "active_tab": selected_tab,
             "active_tab_label": next(tab["label"] for tab in tabs if tab["active"]),
             "receiving_tabs": tabs,

@@ -32,7 +32,7 @@
         <div class="table-responsive">
           <table class="table receiving-table">
             <caption class="sr-only">Accession batches and workflow stage counts</caption>
-            <thead><tr><th scope="col">Batch / accession range</th><th scope="col">Referring site / tracking</th><th scope="col">Isolates</th><th scope="col">Awaiting revival</th><th scope="col">Bank or queue</th><th scope="col">Queued for endorsement</th><th scope="col">Awaiting Main Lab ID</th><th scope="col">Returned</th><th scope="col">Awaiting ID confirmation</th><th scope="col">Awaiting lyophilization</th><th scope="col">Awaiting biobank</th><th scope="col">Completed</th><th scope="col">Action</th></tr></thead>
+            <thead><tr><th scope="col">Batch / accession range</th><th scope="col">Referring site / tracking</th><th scope="col">Isolates</th><th scope="col">Awaiting revival</th><th scope="col">Temporary bank or endorse</th><th scope="col">Awaiting endorsement / temporary</th><th scope="col">Awaiting Main Lab ID</th><th scope="col">Returned</th><th scope="col">ID complete / ready for lyophilization</th><th scope="col">Awaiting lyophilization</th><th scope="col">Awaiting biobank</th><th scope="col">Completed</th><th scope="col">Action</th></tr></thead>
             <tbody>
             {% for row in batches %}
               <tr>
@@ -40,8 +40,8 @@
                 <td data-label="Site">{{ row.accession.laboratory_receiving.receipt.site.SiteCode }}<span class="receiving-site-name">{{ row.accession.laboratory_receiving.receipt.tracking_number }}</span></td>
                 <td data-label="Isolates">{{ row.count }} / {{ row.accession.isolate_count }}</td>
                 <td data-label="Awaiting revival">{{ row.awaiting_revival_count }}</td>
-                <td data-label="Bank or queue">{{ row.awaiting_disposition_count }}</td>
-                <td data-label="Queued for endorsement">{{ row.awaiting_endorsement_count }}</td>
+                <td data-label="Temporary bank or endorse">{{ row.awaiting_disposition_count }}</td>
+                <td data-label="Awaiting endorsement / temporary">{{ row.awaiting_endorsement_count }}</td>
                 <td data-label="Awaiting ID">{{ row.awaiting_id_count }}</td>
                 <td data-label="Returned">{{ row.returned_count }}</td>
                 <td data-label="Awaiting review">{{ row.awaiting_review_count }}</td>

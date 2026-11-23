@@ -75,24 +75,22 @@ class HandoffContinuationTests(TestCase):
         batch_page = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
         self.assertNotContains(batch_page, 'Endorse whole batch to Main Lab')
 
-    def test_queue_confirmation_identifies_missing_endorsement(self):
+    def test_direct_endorsement_replaces_queue_confirmation(self):
         accession, done, queued = self.mixed_batch()
         item = queued[0]
         item.status = 'revived'
         item.save()
-        isolate_page = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
-        self.assertContains(isolate_page, f'action="{reverse("laboratory_queue_main_lab", args=[item.pk])}"')
-        self.assertNotContains(isolate_page, 'Endorse whole batch to Main Lab')
-        batch_page = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
-        self.assertNotContains(batch_page, 'Endorse whole batch to Main Lab')
-        response = self.client.post(reverse('laboratory_queue_main_lab', args=[item.pk]), follow=True)
-        self.assertContains(response, 'not yet endorsed')
-        self.assertNotContains(response, 'Endorse whole batch to Main Lab')
-        self.assertContains(response, 'Go to batch')
-        batch_page = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
-        self.assertContains(batch_page, 'Endorse whole batch to Main Lab')
+        page = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
+        self.assertContains(page, 'Endorse batch for Main Lab ID')
+        self.assertNotContains(page, f'action="{reverse("laboratory_queue_main_lab", args=[item.pk])}"')
+        batch = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
+        self.assertContains(batch, 'Endorse whole batch to Main Lab')
+        self.client.post(reverse('laboratory_endorse_id', args=[accession.pk]))
         item.refresh_from_db()
-        self.assertIsNone(item.endorsed_at)
+        self.assertEqual(item.status, 'id_pending')
+        self.assertIsNotNone(item.endorsed_at)
+        self.assertIsNone(item.id_queued_at)
+
 
     def test_legacy_main_lab_evidence_does_not_block_remaining_queue(self):
         accession, done, queued = self.mixed_batch()

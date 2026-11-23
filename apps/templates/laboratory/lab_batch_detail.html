@@ -13,20 +13,20 @@
     </div>
     <div class="receiving-hero-actions">
       <a class="btn btn-info" href="{% url 'laboratory_batch_labels' accession.pk %}" target="_blank">Print batch stickers</a>
-      <a class="btn btn-outline-light" href="{% if area == 'biobank' %}{% url 'laboratory_biobank_list' %}{% elif area == 'processing' %}{% url 'laboratory_processing_worklist' %}{% else %}{% url 'laboratory_receiving_dashboard' %}{% endif %}?area={{ area }}{% if show_history %}&history=1{% endif %}">All Batches</a>
+      <a class="btn btn-outline-light" href="{% if area == 'biobank' %}{% url 'laboratory_biobank_list' %}{% elif area == 'processing' %}{% url 'laboratory_processing_worklist' %}{% else %}{% url 'laboratory_receiving_dashboard' %}{% endif %}?area={{ area }}{% if show_history %}&history=1{% endif %}&amp;next={{ return_to|urlencode }}">All Batches</a>
       {% if user_access.is_admin or user_access.is_lab_encoder %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_workspace' accession.laboratory_receiving.receipt.receiving_id %}">Receiving Worksheet</a>{% endif %}
     </div>
   </header>
   <div class="receiving-content">
     <section class="receiving-surface">
       <div class="receiving-card-header"><h2>Isolates in this batch</h2>
-      <p>Record revival and Site ID per isolate, then temporarily store or queue each viable isolate. Endorse the ready batch to Main Lab below. After Main Lab return, review ID, record lyophilization, and finalize banking.</p></div>
+      <p>Record revival and Site ID per isolate, then temporarily store or endorse ready revived isolates. Endorse the ready batch to Main Lab below. After ID completion, proceed to lyophilization, confirm Final ID and finalize banking.</p></div>
       <div class="receiving-card-body">
         {% if can_review and id_handoff.queued_count %}
         <div class="receiving-help-panel mb-3">
-          <p>{{ id_handoff.queued_count }} accession{{ id_handoff.queued_count|pluralize }} queued at Bench A, not yet endorsed to Main Lab.</p>
+          <p>{{ id_handoff.queued_count }} accession{{ id_handoff.queued_count|pluralize }} ready at Bench A for direct endorsement to Main Lab.</p>
           {% if id_handoff.ready %}
-          <form method="post" action="{% url 'laboratory_endorse_id' accession.pk %}" class="receiving-form-actions">{% csrf_token %}<button type="submit" class="btn btn-primary">Endorse whole batch to Main Lab</button></form>
+          <form method="post" action="{% url 'laboratory_endorse_id' accession.pk %}" class="receiving-form-actions">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}"><button type="submit" class="btn btn-primary">Endorse whole batch to Main Lab</button></form>
           {% else %}<p class="mb-0">{{ id_handoff.reason }} <a href="{% url 'laboratory_receiving_workspace' accession.laboratory_receiving.receipt.receiving_id %}#accessioning">Review batch readiness</a></p>{% endif %}
         </div>
         {% endif %}
@@ -42,7 +42,7 @@
           <td>{% if isolate.returned_at %}{{ isolate.returned_at|date:"M j, Y g:i A" }}<span class="receiving-site-name">{% if isolate.returned_by %}{{ isolate.returned_by.get_full_name|default:isolate.returned_by.username }}{% else %}—{% endif %}</span>{% else %}Pending{% endif %}</td>
           <td>{{ isolate.final_organism|default:"Pending identification" }}{% if isolate.identification_source %}<span class="receiving-site-name">{{ isolate.get_identification_source_display }}</span>{% endif %}</td>
           <td><strong>{{ isolate.next_action.label }}</strong><span class="receiving-site-name">{{ isolate.next_action.owner }}</span>{% if not isolate.next_action.allowed %}<span class="small text-muted">Assigned to another role</span>{% endif %}</td>
-          <td><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}#{{ isolate.next_action.section }}">{% if isolate.next_action.allowed %}Open Isolate{% else %}View Isolate{% endif %}</a></td>
+          <td><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}&amp;next={{ return_to|urlencode }}#{{ isolate.next_action.section }}">{% if isolate.next_action.allowed %}Open Isolate{% else %}View Isolate{% endif %}</a></td>
         </tr>
         {% empty %}<tr><td colspan="8" class="text-muted text-center">Open the Receiving Worksheet to record revival for this accession range.</td></tr>{% endfor %}
         </tbody></table></div>

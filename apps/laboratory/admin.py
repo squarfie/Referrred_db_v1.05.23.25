@@ -39,3 +39,11 @@ class LaboratoryIdentificationAdmin(ReadOnlyReceivingAdmin):
 class LaboratoryBiobankAdmin(ReadOnlyReceivingAdmin):
     list_display = ("isolate", "preservation_method", "storage_location", "storage_box", "box_position")
     search_fields = ("isolate__accession_number", "storage_location", "storage_box")
+
+
+from .models import LaboratoryIdentificationCorrection
+
+@admin.register(LaboratoryIdentificationCorrection)
+class LaboratoryIdentificationCorrectionAdmin(ReadOnlyReceivingAdmin):
+    list_display = ('isolate', 'kind', 'previous_code', 'new_code', 'performed_by', 'performed_at')
+    list_filter = ('kind',)

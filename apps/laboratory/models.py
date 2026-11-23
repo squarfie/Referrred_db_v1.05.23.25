@@ -12,6 +12,7 @@ from apps.receiving.models import (
     LaboratoryAdditionalOrganismCount,
     LaboratoryIsolate,
     LaboratoryIdentification,
+    LaboratoryIdentificationCorrection,
     LaboratoryBiobank,
 )
 

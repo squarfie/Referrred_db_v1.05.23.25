@@ -1,0 +1,12 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Storage map — {{ isolate.accession_number }}{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock %}
+{% block content %}
+<main class="receiving-page"><header class="receiving-hero"><div class="receiving-hero-main"><div><p class="receiving-eyebrow">Biobank Inventory · Storage map</p><h1>{{ isolate.accession_number }}</h1><p>{{ isolate.get_status_display }}</p></div></div></header>
+<div class="receiving-content"><section class="receiving-surface receiving-form-card"><div class="receiving-card-body">
+<p>Update the storage map. Scientific identification and physical-work dates remain protected.</p>
+<p><a class="btn btn-outline-primary" href="{% if return_to %}{{ return_to }}{% else %}{% url 'laboratory_biobank_list' %}{% endif %}">Back to inventory</a></p>
+{% include 'laboratory/_lab_isolate_storage_form.html' %}
+</div></section></div></main>
+{% endblock %}

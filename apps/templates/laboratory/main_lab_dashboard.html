@@ -6,14 +6,14 @@
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
     <p class="receiving-eyebrow">Main Laboratory</p><h1>Identification Testing</h1>
-    <p class="receiving-hero-subtitle">Only batches endorsed by Bench A appear here. Acknowledge ID handoff, perform identification, and return results and cassettes to Bench A.</p>
+    <p class="receiving-hero-subtitle">Acknowledge endorsed isolates or retrieve them from temporary storage. Save an ID result to complete testing and make it available to Bench A.</p>
   </div></div>
   <div class="receiving-hero-actions">{% if can_test %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}">Upload ID Results</a>{% endif %}</div></header>
   <div class="receiving-content">
     <section class="receiving-stat-grid" aria-label="Main Laboratory identification counts">
       <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Awaiting ID acknowledgment</span><div class="receiving-stat-value">{{ counts.awaiting }}</div></article>
       <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Testing in progress</span><div class="receiving-stat-value">{{ counts.testing }}</div></article>
-      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Results returned to Bench A</span><div class="receiving-stat-value">{{ counts.returned }}</div></article>
+      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">ID testing completed</span><div class="receiving-stat-value">{{ counts.completed }}</div></article>
     </section>
     <section class="receiving-surface receiving-table-card">
       <div class="receiving-board-toolbar"><h2 class="receiving-board-title">Main Lab Worklist</h2></div>
@@ -42,7 +42,7 @@
             <caption class="sr-only">Main Laboratory accessions for {{ batch.laboratory_receiving.receipt.site.SiteCode }} batch {{ batch.reference_range }}</caption>
             <thead><tr><th>Accession</th><th>Main Lab status</th><th>Endorsed at</th><th>Action</th></tr></thead><tbody>
             {% for item in batch.main_lab_isolates %}
-            <tr><td data-label="Accession"><strong>{{ item.accession_number }}</strong></td><td data-label="Main Lab status">{{ item.get_status_display }}</td><td data-label="Endorsed at">{{ item.endorsed_at|date:"M j, Y g:i A"|default:"Not recorded" }}</td><td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'main_lab_isolate_detail' item.pk %}">Open ID case</a></td></tr>
+            <tr><td data-label="Accession"><strong>{{ item.accession_number }}</strong></td><td data-label="Main Lab status">{{ item.get_status_display }}</td><td data-label="Endorsed at">{{ item.endorsed_at|date:"M j, Y g:i A"|default:"Not recorded" }}</td><td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'main_lab_isolate_detail' item.pk %}?next={{ origin_url|urlencode }}">Open ID case</a></td></tr>
             {% endfor %}
             </tbody></table></div>
         </details>

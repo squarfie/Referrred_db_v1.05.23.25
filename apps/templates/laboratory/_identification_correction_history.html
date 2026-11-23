@@ -1,0 +1,7 @@
+<h3 class="h5 mt-3">Identification correction history</h3>
+<div class="table-responsive"><table class="table receiving-table">
+<thead><tr><th>Identification</th><th>Previous value</th><th>Corrected value</th><th>Reason</th><th>Recorded by / at</th></tr></thead>
+<tbody>{% for correction in isolate.identification_corrections.all %}
+<tr><td>{{ correction.get_kind_display }}</td><td>{{ correction.previous_code }} {{ correction.previous_name }}</td><td>{{ correction.new_code }} {{ correction.new_name }}</td><td>{{ correction.reason }}</td><td>{{ correction.performed_by }}<br>{{ correction.performed_at|date:"M j, Y g:i A" }}</td></tr>
+{% empty %}<tr><td colspan="5">No identification corrections recorded.</td></tr>{% endfor %}
+</tbody></table></div>

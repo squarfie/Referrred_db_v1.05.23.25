@@ -21,6 +21,13 @@ class WorkflowError(ValueError):
 S = LaboratoryIsolate.Status
 
 
+def lock_isolate(isolate_id):
+    """All scientific transitions lock the accession before its isolate."""
+    candidate = LaboratoryIsolate.objects.only('accession_range_id').get(pk=isolate_id)
+    LaboratoryAccession.objects.select_for_update().get(pk=candidate.accession_range_id)
+    return LaboratoryIsolate.objects.select_for_update(of=('self',)).get(pk=isolate_id)
+
+
 @transaction.atomic
 def acknowledge_id_receipt(*, isolate_id, user):
     if not can_access_main_lab(user):
@@ -49,6 +56,8 @@ def acknowledge_id_receipt(*, isolate_id, user):
 @transaction.atomic
 def prepare_revival(accession_id, user):
     """Create accession records for actual revival; do not queue or endorse ID work."""
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A or Admin may prepare revival.")
     range_obj = LaboratoryAccession.objects.select_for_update().select_related(
         "laboratory_receiving__receipt__site"
     ).get(pk=accession_id)
@@ -166,21 +175,21 @@ def _id_handoff_candidates(accession, items):
     if len(items) != accession.isolate_count or not items:
         raise WorkflowError("Every isolate in the batch must be accessioned before Main Lab endorsement.")
     handed_off_stages = (S.ID_PENDING, S.ID_TESTING, S.ID_RETURNED, S.ID_REVIEWED,
-                         S.READY_FOR_BIOBANK, S.BIOBANKED)
+                         S.READY_FOR_BIOBANK, S.BIOBANKED, S.ID_COMPLETE)
     # Some older cases have receipt/result evidence without an endorsement
     # timestamp. Recognize that history without fabricating missing custody dates.
     blockers = [item.accession_number for item in items
-                if item.status not in (S.ID_QUEUED, S.NON_VIABLE)
+                if item.status not in (S.REVIVED, S.ID_QUEUED, S.SITE_BANKED, S.NON_VIABLE)
                 and not (item.status in handed_off_stages and (
-                    item.endorsed_at or item.acknowledged_at or item.returned_at
+                    item.endorsed_at or item.acknowledged_at or item.returned_at or item.retrieved_at
                     or item.identifications.exists()
                 ))]
     if blockers:
-        raise WorkflowError("Complete revival, Site ID encoding and queueing for: " + ", ".join(blockers) + ".")
-    queued = [item for item in items if item.status == S.ID_QUEUED]
+        raise WorkflowError("Complete revival and Site ID encoding for: " + ", ".join(blockers) + ".")
+    queued = [item for item in items if item.status in (S.REVIVED, S.ID_QUEUED)]
     for item in queued:
         if not (item.revival_started_at and item.revival_completed_at):
-            raise WorkflowError("Every queued isolate needs actual revival start and completion times.")
+            raise WorkflowError("Every ready isolate needs actual revival start and completion times.")
         if not (item.site_organism_code.strip() and item.site_organism_name.strip()):
             raise WorkflowError("Every viable isolate must have its Site ID explicitly encoded before whole-batch endorsement.")
         site_code, site_name = site_identification(item)
@@ -197,7 +206,7 @@ def id_handoff_readiness(accession, items):
         queued = _id_handoff_candidates(accession, items)
     except WorkflowError as exc:
         return {"ready": False, "reason": str(exc),
-                "queued_count": sum(item.status == S.ID_QUEUED for item in items)}
+                "queued_count": sum(item.status in (S.REVIVED, S.ID_QUEUED) for item in items)}
     return {"ready": bool(queued), "reason": "", "queued_count": len(queued)}
 
 
@@ -223,7 +232,7 @@ def site_identification(isolate, *, require_code=True):
 
 
 @transaction.atomic
-def record_site_identification(isolate_id, code, name, user):
+def record_site_identification(isolate_id, code, name, user, reason=""):
     if not can_review_id_results(user):
         raise WorkflowError("Only Laboratory Receiving encoders may record the referring site's ID.")
     candidate = LaboratoryIsolate.objects.only("accession_range_id").get(pk=isolate_id)
@@ -238,6 +247,12 @@ def record_site_identification(isolate_id, code, name, user):
         raise WorkflowError("; ".join(exc.messages)) from exc
     if len(code) > 20 or len(name) > 255:
         raise WorkflowError("Site organism code must be at most 20 characters and its name at most 255 characters.")
+    if item.site_organism_code or item.site_organism_name:
+        if (item.site_organism_code, item.site_organism_name) == (code, name):
+            return item
+        from .identification_workflow import correct_identification
+        return correct_identification(item.pk, 'site', code, name, reason, user)
+
     item.site_organism_code, item.site_organism_name = code, name
     item.site_identified_at, item.site_identified_by = timezone.now(), user
     item.save(update_fields=["site_organism_code", "site_organism_name", "site_identified_at", "site_identified_by"])
@@ -246,8 +261,8 @@ def record_site_identification(isolate_id, code, name, user):
 
 @transaction.atomic
 def bank_using_site_id(isolate_id, user):
-    if not can_manage_biobank(user):
-        raise WorkflowError("You do not have permission to bank this isolate.")
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A or Admin may select temporary Site ID banking.")
     candidate = LaboratoryIsolate.objects.only("accession_range_id").get(pk=isolate_id)
     LaboratoryAccession.objects.select_for_update().get(pk=candidate.accession_range_id)
     item = LaboratoryIsolate.objects.select_for_update().select_related(
@@ -283,6 +298,8 @@ BATCH_TRANSITIONS = {
 
 @transaction.atomic
 def transition_batch(accession_id, action, user):
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A or Admin may record revival.")
     if action == "prepare":
         return prepare_revival(accession_id, user)
     if action == "queue":
@@ -319,6 +336,8 @@ def transition_batch(accession_id, action, user):
 @transaction.atomic
 def transition_isolate_revival(isolate_id, action, user):
     """Progress revival or queue this successfully revived accession for Main Lab."""
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A or Admin may record revival.")
     if action == "queue":
         item = LaboratoryIsolate.objects.get(pk=isolate_id)
         queue_for_id(item.accession_range_id, user, isolate_id=item.pk)
@@ -345,6 +364,8 @@ def transition_isolate_revival(isolate_id, action, user):
 
 @transaction.atomic
 def record_revival_failure(isolate_id, status, reason, user):
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A or Admin may record revival.")
     if status not in (S.REVIVAL_FAILED, S.NON_VIABLE):
         raise WorkflowError("Select Revival failed or Non-viable.")
     if not reason or not reason.strip():
@@ -415,12 +436,16 @@ def _valid_date(value, title):
 
 
 @transaction.atomic
-def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_code=""):
-    item = LaboratoryIsolate.objects.select_for_update().select_related(
-        "accession_range__laboratory_receiving__receipt"
-    ).get(pk=isolate_id)
+def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_code="", whonet_organism_name=""):
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A or Admin may record lyophilization.")
+    item = lock_isolate(isolate_id)
+    new_flow = bool(item.lyophilization_started_at and (item.id_completed_at or item.returned_at))
+    proposal = item.identifications.first() if new_flow else None
+    organism_name = proposal.organism_reported if proposal else item.final_organism
+    organism_code = proposal.whonet_organism_code if proposal else item.approved_organism_code
     site_banking = item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.SITE_BANKED)
-    if (item.status != S.ID_REVIEWED and not site_banking) or not item.final_organism:
+    if (item.status != S.ID_REVIEWED and not site_banking and not (new_flow and item.status in (S.ID_COMPLETE, S.ID_RETURNED, S.REVIVED))) or not organism_name:
         raise WorkflowError("Confirm Main Laboratory identification or select site-ID banking before recording lyophilization.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
     harvest = bank.date_harvested
@@ -440,8 +465,8 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
         raise WorkflowError("Lyophilization cannot precede revival completion.")
     if harvest > lyoph:
         raise WorkflowError("Harvest date cannot be later than lyophilization date.")
-    code = (whonet_code or item.approved_organism_code).strip().upper()
-    if item.approved_organism_code and code != item.approved_organism_code.upper():
+    code = (whonet_code or organism_code).strip().upper()
+    if not new_flow and organism_code and code != organism_code.upper():
         raise WorkflowError(
             "The selected WHONET code differs from the approved identification code."
         )
@@ -452,7 +477,9 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
     try:
         # A sticker must never silently assign a different organism than the
         # identification approved by Laboratory Receiving.
-        resolve_organism(code=code, name=item.final_organism, require_code=True)
+        resolve_organism(code=code,
+            name=(whonet_organism_name or ("" if whonet_code else organism_name)) if new_flow else organism_name,
+            require_code=True)
     except ValidationError as exc:
         raise WorkflowError("Sticker organism does not match approved identification: " + "; ".join(exc.messages)) from exc
     bank.date_harvested = harvest
@@ -471,7 +498,9 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
 
 @transaction.atomic
 def save_biobank(isolate_id, details, user):
-    item = LaboratoryIsolate.objects.select_for_update().get(pk=isolate_id)
+    if not can_manage_biobank(user):
+        raise WorkflowError("You do not have permission to edit storage.")
+    item = lock_isolate(isolate_id)
     if item.status not in (S.READY_FOR_BIOBANK, S.SITE_BANKED, S.BIOBANKED):
         raise WorkflowError("Choose temporary Site ID storage, or complete Main Laboratory ID and lyophilization, before saving storage.")
     if (not item.identification_source and item.status == S.READY_FOR_BIOBANK
@@ -482,6 +511,8 @@ def save_biobank(isolate_id, details, user):
         # sufficient; never manufacture a return, review or physical-work date.
         item.identification_source = "main_lab"
         item.save(update_fields=["identification_source"])
+    if item.id_completed_at and not item.final_identified_at:
+        raise WorkflowError("Bench A must confirm Final ID before finalizing banking.")
     if item.identification_source and not (item.final_organism and item.approved_organism_code):
         raise WorkflowError("An organism identification is required to finalize banking.")
     bank, _ = LaboratoryBiobank.objects.select_for_update().get_or_create(isolate=item)
@@ -526,7 +557,9 @@ def save_biobank(isolate_id, details, user):
     elif item.status == S.READY_FOR_BIOBANK:
         if item.identification_source != "main_lab":
             raise WorkflowError("Main Lab identification approval is required for final biobanking.")
-        if not (item.returned_at and item.reviewed_at and item.lyophilization_completed_at):
+        if not can_review_id_results(user):
+            raise WorkflowError("Only Bench A or Admin may finalize banking.")
+        if not (item.lyophilization_completed_at and ((item.id_completed_at and item.final_identified_at) or (item.returned_at and (item.reviewed_at or item.final_identified_at)))):
             raise WorkflowError("Main Lab ID return, review and lyophilization are required for final banking.")
         item.status = S.BIOBANKED
         item.biobanked_at = timezone.now()
@@ -554,6 +587,8 @@ def _actual_datetime(value, title):
 def record_revival_outcome(isolate_id, status, started_at, completed_at, reason, user,
                            site_code=None, site_name=None):
     """Record actual physical work without overwriting earlier audit timestamps."""
+    if not can_review_id_results(user):
+        raise WorkflowError("Only Bench A or Admin may record revival.")
     if status not in (S.REVIVED, S.REVIVAL_FAILED, S.NON_VIABLE):
         raise WorkflowError('Select a revival outcome.')
     start = _actual_datetime(started_at, 'Revival start')
