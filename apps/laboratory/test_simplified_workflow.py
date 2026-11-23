@@ -67,6 +67,31 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertIsNone(item.id_completed_at)
         self.assertFalse(item.identifications.exists())
 
+    def test_physical_cassette_return_does_not_complete_an_unfinished_id(self):
+        from .models import LaboratoryIdentification
+        item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
+        LaboratoryIdentification.objects.create(
+            isolate=item, organism_reported='Klebsiella pneumoniae',
+            whonet_organism_code='KPN', cassette_reference='C1', recorded_by=self.main_user)
+        with self.assertRaises(WorkflowError):
+            self.services().record_physical_return(item.pk, self.main_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_testing')
+        self.assertIsNone(item.id_completed_at)
+        self.assertIsNone(item.returned_at)
+
+    def test_actual_cassette_return_does_not_change_completed_workflow_status(self):
+        item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
+        self.services().record_identification(
+            item.pk, 'KPN', 'Klebsiella pneumoniae', self.main_user,
+            cassette_reference='C1')
+        self.services().record_physical_return(item.pk, self.main_user)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'id_complete')
+        self.assertIsNotNone(item.id_completed_at)
+        self.assertIsNotNone(item.returned_at)
+        self.assertIsNone(item.reviewed_at)
+
     def test_retrieval_preserves_storage_and_has_no_invented_acknowledgment(self):
         item = self.isolate('site_banked', identification_source='site',
             approved_organism_code='KPN', final_organism='Klebsiella pneumoniae',
