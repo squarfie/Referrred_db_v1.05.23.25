@@ -282,7 +282,7 @@ class SimplifiedWorkflowTests(TestCase):
             approved_organism_code='KPN', endorsed_at=self.now, biobanked_at=self.now,
             returned_at=self.now, reviewed_at=self.now, lyophilization_completed_at=self.now)
         LaboratoryBiobank.objects.create(isolate=item, whonet_code='KPN', storage_box='Old', box_position='A1',
-                                         supplementary_box_name='Historic', supplementary_position='D7')
+                                         supplementary_box_name='Historic', supplementary_position='D7', remarks='Preserve this note')
         self.client.force_login(self.main_user)
         page = self.client.get(reverse('laboratory_storage_detail', args=[item.pk]))
         self.assertContains(page, 'name="storage_box"')
@@ -294,6 +294,7 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertEqual(item.biobank.storage_box, 'New')
         self.assertEqual(item.biobank.supplementary_box_name, 'Historic')
         self.assertEqual(item.biobank.supplementary_position, 'D7')
+        self.assertEqual(item.biobank.remarks, 'Preserve this note')
         self.assertEqual(item.approved_organism_code, 'KPN')
         self.assertEqual(item.biobanked_at, self.now)
 
