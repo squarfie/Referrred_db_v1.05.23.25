@@ -854,7 +854,7 @@ class ReceivingViewTests(TestCase):
         self.assertNotContains(response, "ENDORSED-001")
         self.assertContains(response, "Pending Endorsement")
 
-    def test_lab_encoder_default_tab_is_pending_lab_receipt(self):
+    def test_lab_encoder_default_tab_is_needs_action(self):
         self.create_receipt("PENDING-001", ReferralReceipt.Status.RECEIVED)
         self.create_receipt("ENDORSED-001", ReferralReceipt.Status.ENDORSED)
         self.create_receipt("LAB-001", ReferralReceipt.Status.LAB_RECEIVED)
@@ -862,7 +862,7 @@ class ReceivingViewTests(TestCase):
         response = self.client.get(self.route("receiving_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["active_tab"], "pending")
+        self.assertEqual(response.context["active_tab"], "action")
         self.assertEqual(response.context["page_obj"].paginator.count, 1)
         self.assertContains(response, "ENDORSED-001")
         self.assertNotContains(response, "PENDING-001")
