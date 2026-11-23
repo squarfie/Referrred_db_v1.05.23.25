@@ -227,10 +227,13 @@ def laboratory_receiving_workspace(request, receiving_id):
     # Preserve the outer worklist breadcrumb; the chosen Step 5 filter is
     # carried through each inline POST so the user stays in the same tab.
     worksheet_path = request.path
-    worksheet_query = urlencode({"final_tab": final_tab})
-    if return_url(request):
-        worksheet_query += "&" + urlencode({"next": return_url(request)})
-    worksheet_return = worksheet_path + "?" + worksheet_query + "#final-processing"
+    breadcrumb = return_url(request)
+    def final_tab_return(tab):
+        query = {"final_tab": tab}
+        if breadcrumb:
+            query["next"] = breadcrumb
+        return worksheet_path + "?" + urlencode(query) + "#final-processing"
+    worksheet_return = final_tab_return(final_tab)
     return render(request, "laboratory/laboratory_workspace.html", {
         "return_to": return_url(request),
         "receipt": receipt, "record": record, "form": form,
@@ -239,6 +242,9 @@ def laboratory_receiving_workspace(request, receiving_id):
         "ranges": ranges, "batch_rows": batch_rows, "workflow_rows": workflow_rows, "organism_rows": organism_rows, "register_columns": REGISTER_COLUMNS, "can_edit": can_edit,
         "final_rows": visible_final_rows, "final_tabs": final_tabs,
         "active_final_tab": final_tab, "worksheet_return_url": worksheet_return,
+        "worksheet_next_in_progress": final_tab_return("in_progress"),
+        "worksheet_next_ready": final_tab_return("ready"),
+        "worksheet_next_completed": final_tab_return("completed"),
     })
 
 
