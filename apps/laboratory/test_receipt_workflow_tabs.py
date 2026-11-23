@@ -1,3 +1,4 @@
+from datetime import timedelta
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -224,8 +225,8 @@ class ReceiptWorkflowTabsTests(TestCase):
             status='id_complete', id_completed_at=now, final_identified_at=now,
             final_identified_by=self.lab_user, identification_source='main_lab',
             approved_organism_code='KPN', final_organism='Klebsiella pneumoniae',
-            revival_started_at=now - timezone.timedelta(hours=2),
-            revival_completed_at=now - timezone.timedelta(hours=1),
+            revival_started_at=now - timedelta(hours=2),
+            revival_completed_at=now - timedelta(hours=1),
         )
         # An ID_COMPLETE status without a Final ID must not be shown as
         # actionable or allow proceeding into lyophilization.
@@ -315,8 +316,8 @@ class ReceiptWorkflowTabsTests(TestCase):
             status='id_complete', id_completed_at=now, final_identified_at=now,
             identification_source='main_lab', approved_organism_code='KPN',
             final_organism='Klebsiella pneumoniae', lyophilization_started_at=now,
-            revival_started_at=now - timezone.timedelta(hours=2),
-            revival_completed_at=now - timezone.timedelta(hours=1),
+            revival_started_at=now - timedelta(hours=2),
+            revival_completed_at=now - timedelta(hours=1),
         )
         completed = LaboratoryIsolate.objects.create(
             accession_range=accession, accession_number=accession.accession_numbers[1],
