@@ -46,7 +46,7 @@ def laboratory_proceed_lyophilization(request, isolate_id):
         messages.success(request, 'Main Lab Final ID is available. Record harvest and lyophilization, then enter storage details.')
     except WorkflowError as exc:
         messages.error(request, str(exc))
-    return redirect(detail_url(request, isolate_id))
+    return redirect(return_url(request) or detail_url(request, isolate_id))
 
 
 @login_required
