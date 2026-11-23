@@ -237,6 +237,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertEqual([r['isolate'].pk for r in page.context['final_rows']], [ready.pk])
         self.assertContains(page, 'Main Lab Final ID:')
         self.assertContains(page, 'Proceed to Lyophilization')
+        self.assertContains(page, 'final_tab=in_progress')
         self.assertNotContains(page, 'Bench A Progress')
         self.assertNotContains(page, 'name="final_organism_code"')
         counts = {tab['key']: tab['count'] for tab in page.context['final_tabs']}
@@ -273,6 +274,7 @@ class ReceiptWorkflowTabsTests(TestCase):
         response = self.client.get(url, {'final_tab': 'in_progress'})
         self.assertEqual([r['isolate'].pk for r in response.context['final_rows']], [in_progress.pk])
         self.assertContains(response, 'Complete lyophilization')
+        self.assertContains(response, 'final_tab=ready')
         response = self.client.get(url, {'final_tab': 'completed'})
         self.assertEqual([r['isolate'].pk for r in response.context['final_rows']], [completed.pk])
         self.assertContains(response, 'Completed')
