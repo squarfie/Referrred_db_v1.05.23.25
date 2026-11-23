@@ -21,7 +21,7 @@
     <section class="receiving-stat-grid{% if is_lab_worklist %} is-laboratory{% endif %}" aria-label="Receiving status summary">
       {% if is_lab_worklist %}
       {% for card in lab_summary_cards %}
-      <a class="receiving-surface receiving-stat {% if card.key == 'complete' %}is-complete{% endif %}" href="{% url receiving_queue_url %}?tab={{ card.key }}" style="color:inherit;text-decoration:none">
+      <a class="receiving-surface receiving-stat {% if card.key == 'complete' %}is-complete{% endif %}" href="{% url receiving_queue_url %}?tab={{ card.tab }}{% if card.stage %}&amp;stage={{ card.stage }}{% endif %}" style="color:inherit;text-decoration:none">
         <span class="receiving-stat-icon" aria-hidden="true"><i class="fas {% if card.key == 'complete' %}fa-check-circle{% elif card.key == 'main_lab' %}fa-microscope{% elif card.key == 'processing' %}fa-vials{% else %}fa-box-open{% endif %}"></i></span><div><div class="receiving-stat-label">{{ card.label }}</div><div class="receiving-stat-value">{{ card.count }}</div></div>
       </a>
       {% endfor %}
@@ -35,20 +35,28 @@
     <section class="receiving-surface receiving-table-card" aria-label="Receiving worklist">
       <div class="receiving-board-toolbar">
         <div><h2 class="receiving-board-title">{{ active_tab_label }}</h2>
-          <p class="receiving-board-subtitle">{% if active_tab == "pending_batch" %}Receipts with one or more accession ranges awaiting batch generation. Open the worksheet at Batch generation. A receipt can also appear in its scientific workflow tab.{% elif is_lab_worklist %}Receipts move between workflow tabs as their isolates progress. Completion requires all mandatory Main Lab ID, lyophilization, Final ID confirmation and final banking steps, except properly closed non-viable isolates. Counts are receipts, not isolates.{% else %}Choose a tab to view courier receiving isolates. Counts represent all isolates.{% endif %}</p>
+          <p class="receiving-board-subtitle">{% if is_lab_worklist %}{% if active_stage == 'batch_creation' %}Accession ranges awaiting Raw Data batch creation. This task is independent of laboratory completion.{% elif active_tab == 'action' %}Receipts awaiting Bench A work: receipt, accessioning, processing or lyophilization.{% elif active_tab == 'main_lab' %}Batches currently with Main Laboratory for identification.{% elif active_tab == 'complete' %}All required laboratory steps are complete, or isolates were properly closed as non-viable.{% else %}All courier receipts and laboratory records.{% endif %} Counts are receipts, not isolates.{% else %}View courier receiving records by status.{% endif %}</p>
         </div>
         <form method="get" class="receiving-board-search">
           <input type="hidden" name="tab" value="{{ active_tab }}">
+          {% if active_stage %}<input type="hidden" name="stage" value="{{ active_stage }}">{% endif %}
           <label class="form-control-label" for="receiving-search">Search receipts</label>
           <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
             <div class="receiving-search-wrap"><i class="fas fa-search" aria-hidden="true"></i>
               <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Tracking number, site code or name">
             </div>
             <button class="btn btn-primary mb-0" type="submit">Search</button>
-            <a class="btn btn-outline-secondary mb-0" href="{% url receiving_queue_url %}?tab={{ active_tab }}">Reset</a>
+            <a class="btn btn-outline-secondary mb-0" href="{% url receiving_queue_url %}?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}">Reset</a>
           </div>
         </form>
       </div>
+
+      {% if is_lab_worklist and pending_batch_count %}
+      <div class="alert alert-info mx-3 mt-3 mb-2" role="status">
+        <strong>{{ pending_batch_count }} receipt{{ pending_batch_count|pluralize }}</strong> pending Raw Data batch creation.
+        <a href="{% url receiving_queue_url %}?tab=action&amp;stage=batch_creation">View batch tasks</a>
+      </div>
+      {% endif %}
 
       <nav class="receiving-tabs" aria-label="Receiving worklist tabs">
         {% for tab in receiving_tabs %}
@@ -59,6 +67,15 @@
           </a>
         {% endfor %}
       </nav>
+      {% if is_lab_worklist and active_tab == 'action' %}
+      <nav class="receiving-tabs" aria-label="Bench A task filters">
+        <a class="receiving-tab {% if not active_stage %}active{% endif %}" href="{% url receiving_queue_url %}?tab=action{% if q %}&amp;q={{ q|urlencode }}{% endif %}">All Tasks</a>
+        {% for filter in stage_filters %}
+        <a class="receiving-tab {% if active_stage == filter.key %}active{% endif %}" href="{% url receiving_queue_url %}?tab=action&amp;stage={{ filter.key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ filter.label }}</a>
+        {% endfor %}
+        {% if active_stage == 'batch_creation' %}<span class="receiving-tab active">Batch Creation</span>{% endif %}
+      </nav>
+      {% endif %}
 
       <div class="table-responsive"><table class="table receiving-table">
         <caption class="sr-only">Courier batch receiving records</caption>
@@ -68,9 +85,9 @@
           <tr>
             <td data-label="Tracking number"><span class="receiving-tracking">{{ receipt.tracking_number }}</span></td>
             <td data-label="Referring site"><strong>{{ receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ receipt.site.SiteName }}</span></td>
-            <td data-label="Secretariat received">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
+            <td data-label="Receiving date">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
             <td data-label="Received by">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</td>
-            <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if is_lab_worklist and receipt.status == 'lab_received' %}{% if receipt.lab_workflow == 'complete' %}Workflow Complete{% elif receipt.lab_workflow == 'main_lab' %}Pending Main Lab Identification{% elif receipt.lab_workflow == 'id_complete' %}ID complete / ready for lyophilization{% elif receipt.lab_workflow == 'processing' %}Revival &amp; Processing{% else %}Receiving / Accessioning{% endif %}{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
+            <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if is_lab_worklist and receipt.status == 'lab_received' %}{% if receipt.lab_workflow == 'complete' %}Completed{% elif receipt.lab_workflow == 'main_lab' %}With Main Lab{% elif receipt.lab_workflow == 'id_complete' %}Ready for Lyophilization{% elif receipt.lab_workflow == 'processing' %}Processing{% else %}Accessioning{% endif %}{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
             <td class="receiving-actions text-right"><div class="receiving-action-group">
               {% if can_manage_secretariat and receipt.status == 'received' %}
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Endorse / Open</a>
@@ -78,7 +95,7 @@
               {% if can_confirm_lab and receipt.status == 'endorsed' %}
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm receipt</a>
               {% elif can_read_lab and receipt.status == 'lab_received' %}
-                <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}?next={{ origin_url|urlencode }}{% if active_tab == 'pending_batch' %}#batch-generation{% endif %}"><i class="fas fa-microscope mr-1"></i>{% if active_tab == 'pending_batch' %}Create batch / Open worksheet{% else %}Open worksheet{% endif %}</a>
+                <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}?next={{ origin_url|urlencode }}{% if active_stage == 'batch_creation' %}#batch-generation{% endif %}"><i class="fas fa-microscope mr-1"></i>{% if active_stage == 'batch_creation' %}Create Batch{% else %}Open Worksheet{% endif %}</a>
               {% endif %}
               <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_worklist %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}">Open</a>
               {% if receipt.can_delete_from_queue %}
@@ -95,14 +112,14 @@
         </tbody>
       </table></div>
       <div class="receiving-board-pagination">
-        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} isolate{{ page_obj.paginator.count|pluralize }}</span>
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} receipt{{ page_obj.paginator.count|pluralize }}</span>
         {% if page_obj.paginator.num_pages > 1 %}
           <nav class="receiving-pagination" aria-label="Receiving isolates pages">
             {% if page_obj.has_previous %}
-              <a href="?tab={{ active_tab }}&q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}">&larr; Previous</a>
+              <a href="?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;q={{ q|urlencode }}&amp;page={{ page_obj.previous_page_number }}">&larr; Previous</a>
             {% else %}<span></span>{% endif %}
             {% if page_obj.has_next %}
-              <a href="?tab={{ active_tab }}&q={{ q|urlencode }}&page={{ page_obj.next_page_number }}">Next &rarr;</a>
+              <a href="?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;q={{ q|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next &rarr;</a>
             {% else %}<span></span>{% endif %}
           </nav>
         {% endif %}
