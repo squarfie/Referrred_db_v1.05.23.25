@@ -235,11 +235,12 @@ class SimplifiedWorkflowTests(TestCase):
     def test_failed_multirow_import_rolls_back_completed_id_and_results(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
-        # A duplicate accession in one upload must not leave a partly completed
-        # isolate when the second row is rejected by the completion service.
+        # Two conflicting results for one accession in a single import must not
+        # leave a partly completed isolate when the second row is rejected.
         header = 'accession_number,organism_reported,instrument,cassette_reference,organism_code\n'
         row = f'{item.accession_number},Klebsiella pneumoniae,Vitek,C1,KPN\n'
-        data = (header + row + row).encode()
+        different_row = row.replace('Vitek,C1', 'Phoenix,C2')
+        data = (header + row + different_row).encode()
         self.client.force_login(self.main_user)
         url = reverse('laboratory_id_upload')
         preview = self.client.post(url, {'file': SimpleUploadedFile('ids.csv', data),
