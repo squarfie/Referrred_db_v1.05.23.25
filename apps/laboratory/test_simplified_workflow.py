@@ -357,9 +357,9 @@ class SimplifiedWorkflowTests(TestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
         data = (
-            'accession_number,organism_reported,organism_code,final_organism_code,final_organism\\n'
-            f'{item.accession_number},Klebsiella pneumoniae,KPN,ECO,Escherichia coli\\n'
-        ).encode().replace(b'\\\\n', b'\\n')
+            'accession_number,organism_reported,organism_code,final_organism_code,final_organism\n'
+            f'{item.accession_number},Klebsiella pneumoniae,KPN,ECO,Escherichia coli\n'
+        ).encode()
         self.client.force_login(self.main_user)
         url = reverse('laboratory_id_upload')
         preview = self.client.post(url, {
