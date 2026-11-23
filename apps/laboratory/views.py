@@ -28,7 +28,8 @@ from .forms import StickerDateRangeForm
 from apps.receiving.qr import build_isolate_scan_url, render_qr_png
 from .workflow import (WorkflowError, transition_batch, transition_isolate_revival,
     record_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff, acknowledge_id_receipt,
-    bank_using_site_id, site_identification, record_site_identification, queue_for_id, id_handoff_readiness)
+    bank_using_site_id, site_identification, record_site_identification, queue_for_id, id_handoff_readiness,
+    bench_a_pre_handoff_group)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate,
 )
@@ -243,8 +244,24 @@ def laboratory_batch_detail(request, accession_id):
     )
     # Only the revival/initial Site ID queue is shown from Manage Revival.
     # History stays available by explicit opt-in, without changing records.
+    revival_tab = request.GET.get("revival_tab", "record")
+    if revival_tab not in ("record", "failed", "ready", "all"):
+        revival_tab = "record"
+    revival_tabs = []
     if area == "processing" and request.GET.get("history") != "1":
-        isolates = [item for item in isolates if _awaiting_bench_a_preparation(item)]
+        remaining = [item for item in isolates if _awaiting_bench_a_preparation(item)]
+        grouped = {key: [item for item in remaining if bench_a_pre_handoff_group(item) == key]
+                   for key in ("record", "failed", "ready")}
+        revival_tabs = [
+            {"key": key, "label": label,
+             "count": len(remaining) if key == "all" else len(grouped[key])}
+            for key, label in (("record", "To Record"), ("failed", "Failed / Retry"),
+                               ("ready", "Ready for Handoff"), ("all", "All Pre-Handoff"))
+        ]
+        if request.GET.get("revival_tab") is None:
+            revival_tab = next((key for key in ("record", "failed", "ready")
+                                if grouped[key]), "all")
+        isolates = remaining if revival_tab == "all" else grouped[revival_tab]
     for isolate in isolates:
         isolate.next_action = next_action(isolate, request.user)
         try:
@@ -253,6 +270,7 @@ def laboratory_batch_detail(request, accession_id):
             isolate.reported_site_id = None
     return render(request, "laboratory/lab_batch_detail.html", {
         "accession": accession, "isolates": isolates,
+        "revival_tabs": revival_tabs, "active_revival_tab": revival_tab,
         "show_history": request.GET.get("history") == "1",
         "area": area,
         "can_review": can_review_id_results(request.user),
