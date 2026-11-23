@@ -279,19 +279,19 @@
   </section>
 
   <section class="receiving-surface receiving-form-card mb-4" id="revival">
-    <div class="receiving-card-header"><h2>Step 4: Revival &amp; Site ID</h2><p>Bench A records revival and Site IDs. Temporary storage and batch endorsement are Bench A decisions.</p></div>
+    <div class="receiving-card-header"><h2>Step 4: Revival &amp; Site ID</h2><p>Record the revival outcome and the Site ID supplied on the sentinel referral form. Separate failed revivals from isolates ready for Main Lab endorsement or temporary storage.</p></div>
     <div class="receiving-card-body">
       {% for row in workflow_rows %}
       <div class="border rounded p-3 mb-2 d-flex justify-content-between align-items-center flex-wrap">
         <div><strong>{{ row.accession.reference_range }}</strong>
-          <span class="text-muted small">· {{ row.preparation_pending }} awaiting revival / Site ID out of {{ row.count }} accessions</span></div>
+          <span class="text-muted small">· {{ row.preparation_pending }} pre-handoff item{{ row.preparation_pending|pluralize }} of {{ row.count }} accessions</span></div>
         <div>
-          {% if row.can_handoff %}<span class="badge badge-info mr-2">Ready for Main Lab Endorsement</span>
-          {% elif row.preparation_pending %}<span class="badge badge-warning mr-2">Needs Bench A Work</span>
-          {% elif row.count %}<span class="badge badge-success mr-2">Bench A Preparation Done</span>
-          {% else %}<span class="badge badge-warning mr-2">Pending</span>{% endif %}
+          {% if row.awaiting_record %}<span class="badge badge-warning mr-2">{{ row.awaiting_record }} To Record</span>{% endif %}
+          {% if row.failed_count %}<span class="badge badge-danger mr-2">{{ row.failed_count }} Failed / Retry</span>{% endif %}
+          {% if row.ready_count %}<span class="badge badge-info mr-2">{{ row.ready_count }} Ready for Handoff</span>{% endif %}
+          {% if not row.preparation_pending and row.count %}<span class="badge badge-success mr-2">Bench A Preparation Done</span>{% endif %}
           {% if row.preparation_pending %}
-          <a class="btn btn-sm btn-outline-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing">Manage Revival</a>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing">Manage Revival &amp; Site ID</a>
           {% endif %}
           {% if row.can_handoff and can_edit %}<form method="post" class="d-inline" action="{% url 'laboratory_endorse_id' row.accession.pk %}">{% csrf_token %}
           <button class="btn btn-sm btn-primary" type="submit">Endorse Batch to Main Lab</button></form>{% endif %}
