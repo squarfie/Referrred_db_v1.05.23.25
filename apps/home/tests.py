@@ -1089,7 +1089,7 @@ class LaboratoryStaffRoleSettingsTests(TestCase):
         from apps.home.models import arsStaff_Details
         form = ContactForm(can_edit_roles=True)
         values = dict(form.fields["Staff_Role"].choices)
-        self.assertEqual(values[ROLE_LAB_STAFF], ROLE_LAB_STAFF)
+        self.assertEqual(values[ROLE_LAB_STAFF], "Main Lab Staff")
         self.assertIn(ROLE_LAB_STAFF, dict(arsStaff_Details.Role_choices))
 
     def test_staff_role_assignment_is_recognized_for_linked_user(self):
@@ -1138,7 +1138,7 @@ class GroupedSidebarNavigationTests(TestCase):
         self.assertNotIn("WGS Upload", markup)
         self.assertNotIn("Secretariat Receiving", markup)
         # Reading a receiving worksheet remains authorized, but staff navigation focuses on ID.
-        self.assertIn("Identification Testing", markup)
+        self.assertIn("Main Laboratory", markup)
         self.assertNotIn("Receiving &amp; Accessioning", markup)
         self.assertNotIn("Revival &amp; Processing", markup)
 
@@ -1151,7 +1151,7 @@ class GroupedSidebarNavigationTests(TestCase):
 
     def test_lab_encoder_gets_laboratory_receiving_and_wgs_data(self):
         markup = self._render_sidebar("LAB Encoder", "laboratory_receiving_dashboard")
-        self.assertIn("Receiving &amp; Accessioning", markup)
+        self.assertIn("Bench A / Laboratory Receiving", markup)
         self.assertIn('href="/receiving/laboratory-receiving/"', markup)
         self.assertIn("WGS Data", markup)
         self.assertIn("Running TAT", markup)
