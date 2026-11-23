@@ -59,7 +59,7 @@ def laboratory_identification_correct(request, isolate_id):
         correct_identification(isolate_id, kind, request.POST.get('organism_code'),
             request.POST.get('organism_name'), request.POST.get('reason'), request.user,
             result_id=request.POST.get('result_id') or None)
-        messages.success(request, 'Identification corrected. Previous values and correction reason are preserved in history.')
+        messages.success(request, 'Identification corrected. Previous and new values are preserved in history.')
     except WorkflowError as exc:
         messages.error(request, str(exc))
         return redirect(detail_url(request, isolate_id, main_lab=kind == 'main_lab' and can_access_main_lab(request.user)))
