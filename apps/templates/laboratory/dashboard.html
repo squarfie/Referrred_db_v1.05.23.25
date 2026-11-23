@@ -71,7 +71,7 @@
       <nav class="receiving-tabs receiving-task-filters" aria-label="Bench A task filters">
         <a class="receiving-tab {% if not active_stage %}active{% endif %}" href="{% url receiving_queue_url %}?tab=action{% if q %}&amp;q={{ q|urlencode }}{% endif %}">All Tasks</a>
         {% for filter in stage_filters %}
-        <a class="receiving-tab {% if active_stage == filter.key %}active{% endif %}" href="{% url receiving_queue_url %}?tab=action&amp;stage={{ filter.key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ filter.label }} <span class="receiving-tab-count" aria-label="{{ filter.count }} pending receipt{{ filter.count|pluralize }}">{{ filter.count }}</span></a>
+        <a class="receiving-tab {% if active_stage == filter.key %}active{% endif %}" href="{% url receiving_queue_url %}?tab=action&amp;stage={{ filter.key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ filter.label }} <span class="receiving-tab-count {% if filter.count %}has-pending{% else %}is-zero{% endif %}" aria-label="{{ filter.count }} pending receipt{{ filter.count|pluralize }}">{{ filter.count }}</span></a>
         {% endfor %}
         {% if active_stage == 'batch_creation' %}<span class="receiving-tab active">Batch Creation</span>{% endif %}
       </nav>
