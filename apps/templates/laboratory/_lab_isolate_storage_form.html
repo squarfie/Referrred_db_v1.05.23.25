@@ -1,5 +1,5 @@
 <form class="laboratory-storage-form" data-model="LaboratoryBiobank" method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}">
-<h3 class="h5 mb-3">Record storage and finalize banking</h3>
+<h3 class="h5 mb-3">{% if isolate.identification_source == "site" %}Temporary Site ID storage{% else %}Final banking storage{% endif %}</h3>
 <p><strong>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}</strong>{% if isolate.identification_source %} &middot; Source: {{ isolate.get_identification_source_display }}{% endif %}</p>
 {% if isolate.identification_source == 'site' %}<p class="small text-muted">Direct banking uses the referring site's identification. This is temporary storage; Main Laboratory testing is still required before final banking. A harvest date is required for sticker printing.</p>{% endif %}
 {% if isolate.identification_source == 'main_lab' and isolate.status == 'ready_for_biobank' and not storage_only %}
