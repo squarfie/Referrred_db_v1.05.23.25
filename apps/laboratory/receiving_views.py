@@ -273,14 +273,14 @@ def laboratory_receiving_workspace(request, receiving_id):
             elif is_final_banked(item):
                 state, label = "completed", "Completed"
             elif item.status == "ready_for_biobank" and item.identification_source == "main_lab" and has_final_id:
-                state, label = "ready", "Ready for Final Banking"
+                state, label = "biobank", "Ready for Final Banking"
             elif (item.status in ("id_complete", "id_returned", "id_reviewed")
                   and not item.revival_completed_at):
                 state, label = "pending", "Awaiting Revival Reconciliation"
             elif action["section"] == "lyophilization" and has_final_id:
                 state, label = "in_progress", "Lyophilization In Progress"
             elif action["section"] == "id_complete" and has_final_id:
-                state, label = "ready", "Ready for Lyophilization"
+                state, label = "in_progress", "Ready for Lyophilization"
             elif item.id_completed_at and not has_final_id:
                 state, label = "pending", "Awaiting Main Lab Final ID"
             elif item.status in ("id_pending", "id_testing", "site_banked", "id_queued"):
@@ -307,7 +307,7 @@ def laboratory_receiving_workspace(request, receiving_id):
             })
 
     final_counts = Counter(row["state"] for row in final_rows)
-    valid_final_tabs = {"ready", "in_progress", "pending", "completed", "all"}
+    valid_final_tabs = {"biobank", "in_progress", "pending", "completed", "all"}
     requested_final_tab = request.GET.get("final_tab")
     if requested_final_tab in valid_final_tabs:
         final_tab = requested_final_tab
@@ -315,7 +315,7 @@ def laboratory_receiving_workspace(request, receiving_id):
         # Prioritize actionable records; an empty ready queue should not
         # conceal work in progress or upstream work awaiting Main Lab.
         final_tab = next(
-            (state for state in ("ready", "in_progress", "pending", "completed")
+            (state for state in ("biobank", "in_progress", "pending", "completed")
              if final_counts[state]), "all"
         )
     visible_final_rows = [
@@ -324,7 +324,7 @@ def laboratory_receiving_workspace(request, receiving_id):
     final_tabs = [
         {"key": key, "label": label, "count": len(final_rows) if key == "all" else final_counts[key]}
         for key, label in (
-            ("ready", "Ready"), ("in_progress", "In Progress"),
+            ("biobank", "Biobank"), ("in_progress", "In Progress"),
             ("pending", "Pending"), ("completed", "Completed"), ("all", "All")
         )
     ]
@@ -347,7 +347,7 @@ def laboratory_receiving_workspace(request, receiving_id):
         "final_rows": visible_final_rows, "final_tabs": final_tabs,
         "active_final_tab": final_tab, "worksheet_return_url": worksheet_return,
         "worksheet_next_in_progress": final_tab_return("in_progress"),
-        "worksheet_next_ready": final_tab_return("ready"),
+        "worksheet_next_biobank": final_tab_return("biobank"),
         "worksheet_next_completed": final_tab_return("completed"),
     })
 

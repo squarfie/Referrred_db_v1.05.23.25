@@ -87,7 +87,7 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertEqual(correction.previous_code, '')
         self.assertEqual(correction.new_code, 'KPN')
         self.assertEqual(correction.performed_by, self.main_user)
-        self.assertEqual(correction.reason, 'Reconcile historical Main Lab result')
+        self.assertEqual(correction.reason, 'Final ID corrected')
         self.assertIsNone(item.id_completed_at)
         self.client.force_login(self.lab_user)
         ready = self.client.get(worksheet, {'final_tab': 'ready'})
@@ -268,10 +268,9 @@ class SimplifiedWorkflowTests(TestCase):
             approved_organism_code='KPN', biobanked_at=self.now)
         LaboratoryBiobank.objects.create(isolate=item, whonet_code='KPN', storage_box='Final', box_position='B1')
         service = self.services()
-        for user, reason in ((self.main_user, 'Correction'), (self.lab_user, '')):
-            with self.assertRaises(WorkflowError):
-                service.correct_identification(item.pk, 'final', 'ECO', 'Escherichia coli', reason, user)
-        service.correct_identification(item.pk, 'final', 'ECO', 'Escherichia coli', 'Verified transcription error', self.lab_user)
+        with self.assertRaises(WorkflowError):
+            service.correct_identification(item.pk, 'final', 'ECO', 'Escherichia coli', '', self.main_user)
+        service.correct_identification(item.pk, 'final', 'ECO', 'Escherichia coli', '', self.lab_user)
         item.refresh_from_db()
         self.assertEqual(item.approved_organism_code.upper(), 'ECO')
         self.assertEqual(item.biobank.whonet_code.upper(), 'ECO')
@@ -281,6 +280,7 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertEqual(correction.previous_code, 'KPN')
         self.assertEqual(correction.new_code.upper(), 'ECO')
         self.assertEqual(correction.performed_by, self.lab_user)
+        self.assertEqual(correction.reason, 'Final ID corrected')
 
     def test_main_lab_correction_preserves_original_and_final_id(self):
         item = self.isolate('biobanked', final_organism='Klebsiella pneumoniae', approved_organism_code='KPN')
@@ -363,12 +363,16 @@ class SimplifiedWorkflowTests(TestCase):
             {'next': 'https://untrusted.invalid/'})
         self.assertRedirects(response, reverse('main_lab_isolate_detail', args=[item.pk]), fetch_redirect_response=False)
 
-    def test_correction_endpoint_keeps_reason_and_history_visible(self):
+    def test_correction_endpoint_keeps_automatic_audit_and_history_visible(self):
         item = self.isolate('id_testing', endorsed_at=self.now)
         response = self.client.post(reverse('laboratory_identification_correct', args=[item.pk]),
-            {'kind': 'site', 'organism_code': 'ECO', 'organism_name': 'Escherichia coli',
-             'reason': 'Verified referral amendment'}, follow=True)
-        self.assertContains(response, 'Verified referral amendment')
+            {'kind': 'site', 'organism_code': 'ECO', 'organism_name': 'Escherichia coli'},
+            follow=True)
+        self.assertContains(response, 'Identification correction history')
+        self.assertNotContains(response, '<th>Reason</th>', html=False)
+        correction = item.identification_corrections.get()
+        self.assertEqual(correction.reason, 'Site ID corrected')
+        self.assertEqual(correction.performed_by, self.lab_user)
         self.assertContains(response, 'Klebsiella pneumoniae')
         self.assertContains(response, 'Escherichia coli')
 
@@ -377,7 +381,7 @@ class SimplifiedWorkflowTests(TestCase):
         self.client.force_login(self.lab_user)
         detail = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
         self.assertContains(detail, 'Correct Site ID')
-        # The Site ID correction is the only correction type without a reason field.
+        # No identification correction form should require a manual reason.
         self.assertNotContains(detail, 'Correction reason')
         response = self.client.post(reverse('laboratory_identification_correct', args=[item.pk]), {
             'kind': 'site', 'organism_code': 'ECO',
@@ -390,17 +394,39 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertEqual(correction.previous_code, 'KPN')
         self.assertEqual(correction.new_code, 'ECO')
         self.assertEqual(correction.performed_by, self.lab_user)
-        self.assertEqual(correction.reason, 'Site ID corrected (no reason supplied)')
+        self.assertEqual(correction.reason, 'Site ID corrected')
 
-    def test_final_id_correction_still_requires_a_reason(self):
+    def test_final_id_correction_requires_no_reason_and_preserves_audit(self):
         item = self.isolate(
             'biobanked', identification_source='main_lab',
             final_organism='Klebsiella pneumoniae', approved_organism_code='KPN',
         )
-        with self.assertRaises(WorkflowError):
-            self.services().correct_identification(
-                item.pk, 'final', 'ECO', 'Escherichia coli', '', self.lab_user)
-        self.assertFalse(item.identification_corrections.exists())
+        self.services().correct_identification(
+            item.pk, 'final', 'ECO', 'Escherichia coli', '', self.lab_user)
+        correction = item.identification_corrections.get()
+        self.assertEqual(correction.reason, 'Final ID corrected')
+        self.assertEqual(correction.previous_code, 'KPN')
+        self.assertEqual(correction.new_code, 'ECO')
+        self.assertEqual(correction.performed_by, self.lab_user)
+
+    def test_main_lab_correction_form_has_no_reason_input(self):
+        item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
+        original = LaboratoryIdentification.objects.create(
+            isolate=item, whonet_organism_code='KPN',
+            organism_reported='Klebsiella pneumoniae',
+            recorded_by=self.main_user)
+        self.client.force_login(self.main_user)
+        detail = self.client.get(reverse('main_lab_isolate_detail', args=[item.pk]))
+        self.assertNotContains(detail, 'Correction reason')
+        url = reverse('laboratory_identification_correct', args=[item.pk])
+        response = self.client.post(url, {
+            'kind': 'main_lab', 'result_id': original.pk,
+            'organism_code': 'ECO', 'organism_name': 'Escherichia coli',
+        })
+        self.assertEqual(response.status_code, 302)
+        correction = item.identification_corrections.get()
+        self.assertEqual(correction.reason, 'Main Lab result corrected')
+        self.assertEqual(correction.performed_by, self.main_user)
 
     def test_main_lab_completion_import_is_atomic_and_does_not_return_cassettes(self):
         from django.core.files.uploadedfile import SimpleUploadedFile

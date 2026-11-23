@@ -4,7 +4,7 @@
     {% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}">
     <input type="hidden" name="kind" value="{{ correction_kind }}">
     {% if correction_result %}<input type="hidden" name="result_id" value="{{ correction_result.pk }}">{% endif %}
-    <p class="small text-muted">Previous values remain in history. A Main Lab result correction leaves the confirmed Final ID unchanged.</p>
+    <p class="small text-muted">Changes are recorded automatically with the previous and updated values, date, and user. Main Lab result corrections do not change the confirmed Final ID.</p>
     <div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
       <label>Corrected organism (search code or name)</label>
       <input class="form-control" type="search" data-organism-search placeholder="Search organism code or name" aria-label="Corrected organism search">
@@ -14,9 +14,6 @@
         <input class="form-control" name="organism_name" data-organism-name readonly required aria-label="Corrected organism name">
       </div>
     </div>
-    {% if correction_kind != 'site' %}
-    <label class="mt-3">Correction reason<textarea class="form-control" name="reason" required maxlength="1000"></textarea></label>
-    {% endif %}
     <button type="submit" class="btn btn-outline-primary">Save correction</button>
   </form>
 </details>
