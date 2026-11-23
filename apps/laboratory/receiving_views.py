@@ -153,8 +153,19 @@ def laboratory_receiving_workspace(request, receiving_id):
         readiness = id_handoff_readiness(accession, isolates)
         accession.can_endorse_id = readiness["ready"]
         accession.id_handoff_reason = readiness["reason"]
+        # Step 4 represents work *before* Main Lab endorsement/retrieval.
+        # Never describe already tested isolates as outstanding revival.
+        preparation_pending = sum(
+            item.status in (
+                "revival_pending", "revival_queued", "revival_in_progress",
+                "revival_failed", "revived", "id_queued"
+            ) and not item.endorsed_at and not item.retrieved_at
+            and not item.id_completed_at and not item.identifications.exists()
+            for item in isolates
+        )
         workflow_rows.append({
             "accession": accession, "stages": stages,
+            "preparation_pending": preparation_pending,
             "count": len(isolates), "expected": accession.isolate_count,
             "can_handoff": can_edit and accession.can_endorse_id,
             "can_prepare": can_edit and not isolates,
