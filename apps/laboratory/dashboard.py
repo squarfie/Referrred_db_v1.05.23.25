@@ -28,12 +28,8 @@ def render_laboratory_dashboard(request, queue=None):
         from apps.laboratory.receiving_views import _laboratory_workflow_receipts
         all_receipts = _laboratory_workflow_receipts(all_receipts)
         tab_definitions = [
-            ("pending", "Awaiting Lab Receipt", ReferralReceipt.Status.ENDORSED),
-            ("received", "For Accessioning", ReferralReceipt.Status.LAB_RECEIVED),
-            ("main_lab", "With Main Lab", "main_lab"),
-            ("id_complete", "Ready for Lyophilization", "id_complete"),
-            ("processing", "Bench A Processing", "processing"),
-            ("pending_batch", "Batch Creation Pending", "pending_batch"),
+            ("action", "Needs Action", "action"),
+            ("main_lab", "Awaiting Main Lab", "main_lab"),
             ("complete", "Completed", "complete"),
             ("all", "All Records", None),
         ]
@@ -50,16 +46,34 @@ def render_laboratory_dashboard(request, queue=None):
     legacy_status = (request.GET.get("status") or "").strip()
     valid_statuses = {value for value, _label in ReferralReceipt.Status.choices}
 
-    # Keep old ?status=... links working. Explicit ?tab=... takes precedence.
-    # A legacy status without a corresponding role tab uses All Records.
-    selected_tab = explicit_tab or "pending"
-    if not explicit_tab and legacy_status in valid_statuses:
-        selected_tab = next(
-            (key for key, _label, value in tab_definitions if value == legacy_status),
-            "all",
-        )
-    if selected_tab not in tab_status:
-        selected_tab = "pending"
+    if is_lab_worklist:
+        # Existing bookmarks remain usable without restoring seven visible tabs.
+        legacy_tabs = {
+            "pending": ("action", "receipt"),
+            "received": ("action", "accessioning"),
+            "id_complete": ("action", "lyophilization"),
+            "processing": ("action", "processing"),
+            "pending_batch": ("action", "batch_creation"),
+        }
+        selected_tab, legacy_filter = legacy_tabs.get(explicit_tab, (explicit_tab, ""))
+        selected_tab = selected_tab if selected_tab in tab_status else "action"
+        if not explicit_tab and legacy_status == ReferralReceipt.Status.ENDORSED:
+            selected_tab, legacy_filter = "action", "receipt"
+        elif not explicit_tab and legacy_status == ReferralReceipt.Status.LAB_RECEIVED:
+            selected_tab, legacy_filter = "all", ""
+        stage = (request.GET.get("stage") or legacy_filter).strip()
+        valid_stages = {"receipt", "accessioning", "processing", "lyophilization", "batch_creation"}
+        stage = stage if selected_tab == "action" and stage in valid_stages else ""
+    else:
+        selected_tab = explicit_tab or "pending"
+        if not explicit_tab and legacy_status in valid_statuses:
+            selected_tab = next(
+                (key for key, _label, value in tab_definitions if value == legacy_status),
+                "all",
+            )
+        if selected_tab not in tab_status:
+            selected_tab = "pending"
+        stage = ""
 
     query = (request.GET.get("q") or "").strip()
     receipts = all_receipts
@@ -70,47 +84,102 @@ def render_laboratory_dashboard(request, queue=None):
             | Q(site__SiteName__icontains=query)
         )
 
-    # Counts are for the full queue and do not change with search or pagination.
-    lab_counts = {
-        key: all_receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow=key).count()
-        for key in ("received", "main_lab", "id_complete", "processing", "complete")
-    } if is_lab_worklist else {}
     if is_lab_worklist:
-        # Independent task queue: a scientifically completed receipt may still
-        # have an accession range whose Raw Data batch has not been generated.
+        action_filter = (
+            Q(status=ReferralReceipt.Status.ENDORSED)
+            | Q(status=ReferralReceipt.Status.LAB_RECEIVED,
+                lab_workflow__in=("received", "processing", "id_complete"))
+        )
+        main_lab_filter = Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="main_lab")
+        completed_filter = Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="complete")
         pending_batch_filter = Q(
             status=ReferralReceipt.Status.LAB_RECEIVED,
             pk__in=pending_batch_accessions().values("laboratory_receiving__receipt_id"),
         )
-        lab_counts["pending_batch"] = all_receipts.filter(pending_batch_filter).distinct().count()
+        tab_filters = {
+            "action": action_filter,
+            "main_lab": main_lab_filter,
+            "complete": completed_filter,
+        }
+        stage_filters = {
+            "receipt": Q(status=ReferralReceipt.Status.ENDORSED),
+            "accessioning": Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="received"),
+            "processing": Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="processing"),
+            "lyophilization": Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="id_complete"),
+            # Raw Data batch creation is an independent administrative task,
+            # so it may overlap any scientific workflow stage.
+            "batch_creation": pending_batch_filter,
+        }
+        pending_batch_count = all_receipts.filter(pending_batch_filter).distinct().count()
+        lab_counts = {
+            "action": all_receipts.filter(action_filter).count(),
+            "main_lab": all_receipts.filter(main_lab_filter).count(),
+            "complete": all_receipts.filter(completed_filter).count(),
+        }
+        lab_summary_cards = [
+            {"key": "pending_receipt", "label": "Pending Receipt",
+             "count": all_receipts.filter(status=ReferralReceipt.Status.ENDORSED).count(),
+             "tab": "action", "stage": "receipt"},
+            {"key": "action", "label": "Needs Action", "count": lab_counts["action"],
+             "tab": "action", "stage": ""},
+            {"key": "main_lab", "label": "With Main Lab", "count": lab_counts["main_lab"],
+             "tab": "main_lab", "stage": ""},
+            {"key": "complete", "label": "Completed", "count": lab_counts["complete"],
+             "tab": "complete", "stage": ""},
+        ]
+        if selected_tab in tab_filters:
+            receipts = receipts.filter(tab_filters[selected_tab])
+        if selected_tab == "action" and stage:
+            # Batch creation is intentionally independent of the primary
+            # workflow tab, including scientifically completed receipts.
+            if stage == "batch_creation":
+                receipts = all_receipts.filter(pending_batch_filter)
+                if query:
+                    receipts = receipts.filter(
+                        Q(tracking_number__icontains=query)
+                        | Q(site__SiteCode__icontains=query)
+                        | Q(site__SiteName__icontains=query)
+                    )
+            else:
+                receipts = receipts.filter(stage_filters[stage])
+    else:
+        pending_batch_count = 0
+        lab_summary_cards = []
+        selected_status = tab_status[selected_tab]
+        if not explicit_tab and legacy_status in valid_statuses:
+            receipts = receipts.filter(status=legacy_status)
+        elif selected_status is not None:
+            receipts = receipts.filter(status=selected_status)
+
     tabs = [
         {
             "key": key,
             "label": label,
-            "count": lab_counts[key] if key in lab_counts else (sum(counts.values()) if tab_filter is None else counts.get(tab_filter, 0)),
+            "count": (
+                lab_counts[key] if is_lab_worklist and key in lab_counts
+                else all_receipts.count() if is_lab_worklist
+                else sum(counts.values()) if tab_filter is None
+                else counts.get(tab_filter, 0)
+            ),
             "active": key == selected_tab,
         }
         for key, label, tab_filter in tab_definitions
     ]
-    selected_status = tab_status[selected_tab]
-    if is_lab_worklist and selected_tab == "pending_batch":
-        receipts = receipts.filter(pending_batch_filter).distinct()
-    elif is_lab_worklist and selected_tab in lab_counts and not (not explicit_tab and legacy_status in valid_statuses):
-        receipts = receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow=selected_tab)
-    elif not explicit_tab and legacy_status in valid_statuses:
-        receipts = receipts.filter(status=legacy_status)
-    elif selected_status is not None and selected_tab != "returned":
-        receipts = receipts.filter(status=selected_status)
-
+    stage_labels = {
+        "receipt": "Pending Receipt",
+        "accessioning": "Accessioning",
+        "processing": "Processing",
+        "lyophilization": "Lyophilization",
+        "batch_creation": "Batch Creation",
+    }
     page_obj = Paginator(
         receipts.order_by("-created_at", "-pk"),
         25,
     ).get_page(request.GET.get("page"))
-    if not (is_lab_worklist and selected_tab == "returned"):
-        for receipt in page_obj:
-            receipt.can_delete_from_queue = (
-                not is_lab_worklist and can_delete_receipt_safely(receipt, request.user)
-            )
+    for receipt in page_obj:
+        receipt.can_delete_from_queue = (
+            not is_lab_worklist and can_delete_receipt_safely(receipt, request.user)
+        )
     return render(
         request,
         "laboratory/dashboard.html" if is_lab_worklist else "receiving/dashboard.html",
@@ -118,9 +187,23 @@ def render_laboratory_dashboard(request, queue=None):
             "page_obj": page_obj,
             "q": query, "origin_url": request.get_full_path(),
             "active_tab": selected_tab,
-            "active_tab_label": next(tab["label"] for tab in tabs if tab["active"]),
+            "active_tab_label": (
+                stage_labels[stage] if is_lab_worklist and stage
+                else next(tab["label"] for tab in tabs if tab["active"])
+            ),
             "receiving_tabs": tabs,
-            "lab_summary_cards": [tab for tab in tabs if tab["key"] != "all"] if is_lab_worklist else [],
+            "lab_summary_cards": lab_summary_cards,
+            "pending_batch_count": pending_batch_count,
+            "active_stage": stage,
+            "stage_filters": [
+                {"key": key, "label": label}
+                for key, label in (
+                    ("receipt", "Receipt"),
+                    ("accessioning", "Accessioning"),
+                    ("processing", "Processing"),
+                    ("lyophilization", "Lyophilization"),
+                )
+            ] if is_lab_worklist else [],
             "received_count": counts.get(ReferralReceipt.Status.RECEIVED, 0),
             "endorsed_count": counts.get(ReferralReceipt.Status.ENDORSED, 0),
             "lab_received_count": counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0),
