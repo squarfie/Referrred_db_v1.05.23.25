@@ -1673,8 +1673,10 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 3: Organism inventory",
             "Step 4: Revival &amp; Site ID",
             "Step 5: Final Processing",
-            "Batch Generation",
+            "<h2>Batch Generation</h2>",
         ]
+        # Match the actual step heading, not the earlier Batch Generation
+        # label in the worksheet's progress-summary cards.
         positions = [text.index(label) for label in labels]
         self.assertEqual(positions, sorted(positions))
         self.assertContains(response, "Fastidious Organisms")
@@ -2607,11 +2609,13 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertContains(response, "Proceed to lyophilization")
         isolate.status = LaboratoryIsolate.Status.ID_REVIEWED
         isolate.final_organism = "Klebsiella pneumoniae"
-        isolate.save(update_fields=("status", "final_organism"))
+        isolate.approved_organism_code = "KPN"
+        isolate.save(update_fields=("status", "final_organism", "approved_organism_code"))
         response = self.client.get(url)
         self.assertNotContains(response, 'name="whonet_code"')
         self.assertNotContains(response, 'name="whonet_organism_name"')
         self.assertContains(response, 'Recorded ID:')
+        self.assertContains(response, 'KPN')
 
 
     def test_review_rejects_mismatched_code_and_name(self):
