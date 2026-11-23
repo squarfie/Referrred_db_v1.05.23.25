@@ -366,9 +366,12 @@ class SimplifiedWorkflowTests(TestCase):
     def test_correction_endpoint_keeps_automatic_audit_and_history_visible(self):
         item = self.isolate('id_testing', endorsed_at=self.now)
         response = self.client.post(reverse('laboratory_identification_correct', args=[item.pk]),
-            {'kind': 'site', 'organism_code': 'ECO', 'organism_name': 'Escherichia coli',
-             'reason': 'Verified referral amendment'}, follow=True)
-        self.assertContains(response, 'Verified referral amendment')
+            {'kind': 'site', 'organism_code': 'ECO', 'organism_name': 'Escherichia coli'},
+            follow=True)
+        self.assertContains(response, 'Site ID corrected')
+        correction = item.identification_corrections.get()
+        self.assertEqual(correction.reason, 'Site ID corrected')
+        self.assertEqual(correction.performed_by, self.lab_user)
         self.assertContains(response, 'Klebsiella pneumoniae')
         self.assertContains(response, 'Escherichia coli')
 
