@@ -360,12 +360,10 @@ def laboratory_lyophilization_complete(request, isolate_id):
         complete_lyophilization(
             isolate_id, request.POST.get("date_harvested"),
             request.POST.get("date_lyophilized"), request.user,
+            # Existing integrations may still POST organism fields. The
+            # workflow validates them against Main Lab ID, never adopts them.
+            whonet_code=(request.POST.get("whonet_code") or "").strip(),
             whonet_organism_name=(request.POST.get("whonet_organism_name") or "").strip(),
-            whonet_code=(resolve_organism(
-                code=request.POST.get("whonet_code") or "",
-                name=request.POST.get("whonet_organism_name") or "",
-                require_code=True,
-            )[0] if request.POST.get("whonet_code") or request.POST.get("whonet_organism_name") else ""),
         )
         messages.success(request, "Harvest and lyophilization recorded.")
     except (WorkflowError, ValidationError) as exc:
