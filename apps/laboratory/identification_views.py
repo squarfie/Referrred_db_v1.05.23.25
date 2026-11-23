@@ -43,7 +43,7 @@ def laboratory_proceed_lyophilization(request, isolate_id):
     get_object_or_404(LaboratoryIsolate, pk=isolate_id)
     try:
         proceed_to_lyophilization(isolate_id, request.user)
-        messages.success(request, 'Ready to record harvest and lyophilization. Confirm Final ID with final storage afterward.')
+        messages.success(request, 'Main Lab Final ID is available. Record harvest and lyophilization, then enter storage details.')
     except WorkflowError as exc:
         messages.error(request, str(exc))
     return redirect(detail_url(request, isolate_id))
