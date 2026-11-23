@@ -517,12 +517,13 @@ def laboratory_record_id(request, isolate_id):
         instrument_code = (request.POST.get("organism_reported_code") or "").strip()
         instrument_name = (request.POST.get("organism_reported") or "").strip()
         # The Main Lab form uses a single confirmed ID in the usual case.
-        # A separate instrument result is optional, but must be a complete
-        # code/name pair if provided. Legacy clients can still send only an
-        # instrument result, with the existing service supplying the Final ID.
-        if bool(instrument_code) != bool(instrument_name):
-            raise WorkflowError("Select both code and organism for the optional instrument result.")
-        record_identification(isolate_id, instrument_code or final_code,
+        # A separate instrument result is optional. Its name is required
+        # when a code is supplied, but an unlisted instrument organism may
+        # legitimately have a name without a WHONET code.
+        # Legacy clients can still send only an instrument result.
+        if instrument_code and not instrument_name:
+            raise WorkflowError("Enter the organism name for the optional instrument result.")
+        record_identification(isolate_id, instrument_code if instrument_name else final_code,
             instrument_name or final_name, request.user,
             instrument=(request.POST.get("instrument") or "").strip(),
             cassette_reference=(request.POST.get("cassette_reference") or "").strip(),
