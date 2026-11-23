@@ -30,7 +30,8 @@ class ReceiptWorkflowTabsTests(TestCase):
             LaboratoryIsolate.objects.create(accession_range=accession, accession_number=number, **self.completed_fields())
         self.assertIn(self.receipt.pk, self.ids('pending_batch'))
         response = self.client.get(reverse('laboratory_receiving_dashboard'), {'tab': 'pending_batch', 'q': 'no-match'})
-        self.assertEqual(next(t['count'] for t in response.context['receiving_tabs'] if t['key'] == 'pending_batch'), 1)
+        self.assertEqual(response.context['pending_batch_count'], 1)
+        self.assertEqual(response.context['active_stage'], 'batch_creation')
         self.assertEqual(response.context['page_obj'].paginator.count, 0)
         accession.batch = Batch_Table.objects.create(bat_Batch_Code='CREATED-TAB-TEST')
         accession.save()
@@ -119,14 +120,16 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertEqual(next(t['count'] for t in response.context['receiving_tabs'] if t['key'] == 'complete'), 1)
         self.assertEqual(response.context['page_obj'].paginator.count, 0)
         response = self.client.get(reverse('laboratory_receiving_dashboard'), {'tab': 'complete'})
-        self.assertContains(response, 'Workflow Complete')
+        self.assertContains(response, 'Completed')
 
     def test_laboratory_cards_match_tabs_and_secretariat_keeps_courier_cards(self):
         self.create_pending_accession()
         response = self.client.get(reverse('laboratory_receiving_dashboard'))
         cards = response.context['lab_summary_cards']
-        self.assertEqual([card['key'] for card in cards], ['pending', 'received', 'main_lab', 'id_complete', 'processing', 'pending_batch', 'complete'])
-        self.assertEqual(next(card['count'] for card in cards if card['key'] == 'received'), 1)
+        self.assertEqual([card['key'] for card in cards], ['pending_receipt', 'action', 'main_lab', 'complete'])
+        self.assertEqual([tab['key'] for tab in response.context['receiving_tabs']],
+                         ['action', 'main_lab', 'complete', 'all'])
+        self.assertEqual(next(card['count'] for card in cards if card['key'] == 'action'), 1)
         self.assertNotContains(response, '<div class="receiving-stat-label">Isolates Received</div>')
         user = User.objects.create_user('tab-secretariat')
         user.groups.add(Group.objects.get_or_create(name='Secretariat')[0])
@@ -135,6 +138,50 @@ class ReceiptWorkflowTabsTests(TestCase):
         self.assertEqual(response.context['lab_summary_cards'], [])
         self.assertContains(response, '<div class="receiving-stat-label">Isolates Received</div>')
         self.assertNotContains(response, 'Pending Main Lab Identification')
+
+    def test_four_tabs_and_task_filters_keep_workflow_receipts_distinct(self):
+        accession = self.create_pending_accession()
+        url = reverse('laboratory_receiving_dashboard')
+        response = self.client.get(url)
+        self.assertEqual(response.context['active_tab'], 'action')
+        self.assertIn(self.receipt.pk, [r.pk for r in response.context['page_obj']])
+        self.assertEqual(len(response.context['receiving_tabs']), 4)
+        self.assertIn(self.receipt.pk, self.ids('action'))
+        self.assertIn(self.receipt.pk, self.ids('received'))  # legacy bookmark
+        self.assertNotIn(self.receipt.pk, self.ids('main_lab'))
+        self.assertNotIn(self.receipt.pk, self.ids('complete'))
+        for number in accession.accession_numbers:
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number, status='id_testing')
+        self.assertIn(self.receipt.pk, self.ids('main_lab'))
+        self.assertNotIn(self.receipt.pk, self.ids('action'))
+        self.assertEqual(self.client.get(url, {'tab': 'action', 'stage': 'processing'})
+                         .context['page_obj'].paginator.count, 0)
+
+    def test_batch_creation_is_a_separate_task_not_a_fifth_tab(self):
+        accession = self.create_pending_accession()
+        for number in accession.accession_numbers:
+            LaboratoryIsolate.objects.create(
+                accession_range=accession, accession_number=number, **self.completed_fields())
+        url = reverse('laboratory_receiving_dashboard')
+        completed = self.client.get(url, {'tab': 'complete'})
+        self.assertIn(self.receipt.pk, [r.pk for r in completed.context['page_obj']])
+        self.assertEqual(completed.context['pending_batch_count'], 1)
+        self.assertEqual(len(completed.context['receiving_tabs']), 4)
+        task = self.client.get(url, {'tab': 'action', 'stage': 'batch_creation'})
+        self.assertEqual(task.context['active_stage'], 'batch_creation')
+        self.assertIn(self.receipt.pk, [r.pk for r in task.context['page_obj']])
+        self.assertContains(task, 'Create Batch')
+
+    def test_subfilters_are_preserved_on_search_and_pagination(self):
+        self.create_pending_accession()
+        url = reverse('laboratory_receiving_dashboard')
+        response = self.client.get(url, {
+            'tab': 'action', 'stage': 'accessioning', 'q': self.receipt.tracking_number})
+        self.assertEqual(response.context['active_stage'], 'accessioning')
+        self.assertIn(self.receipt.pk, [r.pk for r in response.context['page_obj']])
+        self.assertContains(response, 'name="stage" value="accessioning"')
+        self.assertContains(response, 'tab=action&amp;stage=accessioning')
 
     def test_mixed_id_and_returned_receipt_stays_pending_until_last_id_return(self):
         accession = self.create_pending_accession()
