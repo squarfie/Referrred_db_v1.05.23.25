@@ -191,7 +191,13 @@ def finalize_banking(isolate_id, details, code, name, user):
 def correct_identification(isolate_id, kind, code, name, reason, user, *, result_id=None):
     if kind not in LaboratoryIdentificationCorrection.Kind.values:
         raise WorkflowError('Select Site ID, Main Lab result or Final ID.')
-    allowed = can_access_main_lab(user) if kind == 'main_lab' else can_review_id_results(user)
+    # For new Main Lab cases, only Main Lab may correct the Final ID.
+    # Keep the historical Bench A correction path for pre-simplification
+    # records that have no Main Lab ID completion timestamp.
+    item = _locked(isolate_id)
+    allowed = (can_access_main_lab(user) if kind == 'main_lab'
+               or (kind == 'final' and item.id_completed_at)
+               else can_review_id_results(user))
     if not allowed:
         raise WorkflowError('Your role cannot correct this identification.')
     reason = (reason or '').strip()
@@ -202,7 +208,6 @@ def correct_identification(isolate_id, kind, code, name, reason, user, *, result
     if not reason or len(reason) > 1000:
         raise WorkflowError('A correction reason of at most 1,000 characters is required for Main Lab or Final ID changes.')
     code, name = _organism(code, name)
-    item = _locked(isolate_id)
     original, revision = None, None
     if kind == 'main_lab':
         try:
