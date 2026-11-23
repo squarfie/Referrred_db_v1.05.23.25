@@ -524,12 +524,16 @@ def laboratory_biobank_save(request, isolate_id):
         "supplementary_location": 100, "preservation_method": 100, "container": 100,
         "storage_location": 150, "storage_box": 100, "box_position": 30,
     }
-    details = {key: (request.POST.get(key) or "").strip() for key in limits}
+    # Full forms submit their fields; partial inventory corrections must not
+    # erase unrelated storage slots simply because a field was omitted.
+    details = {key: (request.POST.get(key) or "").strip() for key in limits if key in request.POST}
     if any(len(details[key]) > maximum for key, maximum in limits.items()):
         messages.error(request, "One or more biobank fields exceed their maximum length.")
         return redirect(detail_url(request, isolate_id))
     details["remarks"] = (request.POST.get("remarks") or "").strip()
     for field in ("lyo_date_encoded", "supplementary_date_encoded"):
+        if field not in request.POST:
+            continue
         value = (request.POST.get(field) or "").strip()
         if value:
             try:
@@ -543,8 +547,9 @@ def laboratory_biobank_save(request, isolate_id):
             details[field] = date
         else:
             details[field] = None
-    details["skimmed_milk"] = request.POST.get("skimmed_milk") == "on"
-    details["tsbg"] = request.POST.get("tsbg") == "on"
+    for option in ("skimmed_milk", "tsbg"):
+        if option in request.POST:
+            details[option] = request.POST[option] == "on"
     try:
         item = get_object_or_404(LaboratoryIsolate, pk=isolate_id)
         if item.status == LaboratoryIsolate.Status.READY_FOR_BIOBANK and item.identification_source == "main_lab" and item.lyophilization_started_at:
