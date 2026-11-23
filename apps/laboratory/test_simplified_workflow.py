@@ -114,23 +114,29 @@ class SimplifiedWorkflowTests(TestCase):
         bank.refresh_from_db()
         self.assertEqual(bank.box_position, 'A1')
 
-    def test_final_banking_without_return_or_review_requires_bench_a_confirmation(self):
+    def test_final_id_is_available_before_lyophilization_and_bench_a_only_banks(self):
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
         service = self.services()
-        service.record_identification(item.pk, 'KPN', 'Klebsiella pneumoniae', self.main_user)
-        service.proceed_to_lyophilization(item.pk, self.lab_user)
+        service.record_identification(
+            item.pk, 'KPN', 'Klebsiella pneumoniae', self.main_user,
+            final_code='ECO', final_name='Escherichia coli')
         item.refresh_from_db()
-        self.assertEqual(item.final_organism, '')
-        complete_lyophilization(item.pk, timezone.localdate().isoformat(), timezone.localdate().isoformat(), self.lab_user)
-        with self.assertRaises(WorkflowError):
-            save_biobank(item.pk, {'storage_box': 'Final', 'box_position': 'B1'}, self.lab_user)
+        self.assertEqual(item.final_organism, 'Escherichia coli')
+        self.assertEqual(item.approved_organism_code, 'ECO')
+        self.assertEqual(item.final_identified_by, self.main_user)
+        self.assertIsNotNone(item.final_identified_at)
+        self.assertEqual(item.identifications.first().whonet_organism_code, 'KPN')
+        service.proceed_to_lyophilization(item.pk, self.lab_user)
+        complete_lyophilization(
+            item.pk, timezone.localdate().isoformat(), timezone.localdate().isoformat(), self.lab_user)
+        self.assertEqual(item.biobank.whonet_code, 'ECO')
         service.finalize_banking(item.pk, {'storage_box': 'Final', 'box_position': 'B1'},
-                                 'KPN', 'Klebsiella pneumoniae', self.lab_user)
+                                 None, None, self.lab_user)
         item.refresh_from_db()
         self.assertEqual(item.status, 'biobanked')
+        self.assertEqual(item.final_identified_by, self.main_user)
         self.assertIsNone(item.returned_at)
         self.assertIsNone(item.reviewed_at)
-        self.assertIsNotNone(item.final_identified_at)
 
     def test_final_id_correction_is_audited_without_reopening_banking(self):
         item = self.isolate('biobanked', identification_source='main_lab', final_organism='Klebsiella pneumoniae',
@@ -335,7 +341,7 @@ class SimplifiedWorkflowTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.status, 'ready_for_biobank')
         self.assertEqual(item.biobank.whonet_code, 'KPN')
-        self.assertEqual(item.final_organism, '')
+        self.assertEqual(item.final_organism, 'Klebsiella pneumoniae')
 
     def test_lyophilization_cannot_override_the_main_lab_organism(self):
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
@@ -350,17 +356,18 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertIsNone(item.lyophilization_completed_at)
         self.assertFalse(LaboratoryBiobank.objects.filter(isolate=item, date_lyophilized__isnull=False).exists())
 
-    def test_unlisted_main_lab_result_requires_correction_before_lyophilization(self):
+    def test_unlisted_instrument_result_needs_an_explicit_main_lab_final_id(self):
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
         service = self.services()
-        service.record_identification(item.pk, '', 'Unlisted instrument identification', self.main_user)
-        service.proceed_to_lyophilization(item.pk, self.lab_user)
-        day = timezone.localdate().isoformat()
         with self.assertRaises(WorkflowError):
-            complete_lyophilization(item.pk, day, day, self.lab_user, whonet_code='ECO')
+            service.record_identification(item.pk, '', 'Unlisted instrument identification', self.main_user)
+        service.record_identification(
+            item.pk, '', 'Unlisted instrument identification', self.main_user,
+            final_code='ECO', final_name='Escherichia coli')
         item.refresh_from_db()
-        self.assertIsNone(item.lyophilization_completed_at)
         self.assertEqual(item.status, 'id_complete')
+        self.assertEqual(item.approved_organism_code, 'ECO')
+        self.assertEqual(item.final_organism, 'Escherichia coli')
         self.assertEqual(item.identifications.get().organism_reported, 'Unlisted instrument identification')
 
     def test_main_lab_can_correct_completed_storage_without_changing_final_id(self):
