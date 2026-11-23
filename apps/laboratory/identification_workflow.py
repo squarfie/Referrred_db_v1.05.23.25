@@ -86,14 +86,14 @@ def record_physical_return(isolate_id, user):
     item = _locked(isolate_id)
     if item.returned_at:
         return item
-    if item.status not in (S.ID_TESTING, S.ID_COMPLETE, S.ID_REVIEWED, S.READY_FOR_BIOBANK, S.BIOBANKED):
-        raise WorkflowError('The isolate is not ready for physical cassette return.')
+    if item.status not in (S.ID_COMPLETE, S.ID_RETURNED, S.ID_REVIEWED, S.READY_FOR_BIOBANK, S.BIOBANKED):
+        raise WorkflowError('Complete ID testing before recording the physical cassette return.')
     if not item.identifications.filter(cassette_reference__gt='').exists():
         raise WorkflowError('Record an ID result with a cassette reference before physical cassette return.')
+    # Physical return is an independent custody fact. It must not mark ID
+    # testing complete or replace a scientifically meaningful workflow status.
     item.returned_at, item.returned_by = timezone.now(), user
-    if item.status == S.ID_TESTING:
-        item.status = S.ID_RETURNED
-    item.save(update_fields=['status', 'returned_at', 'returned_by'])
+    item.save(update_fields=['returned_at', 'returned_by'])
     return item
 
 
