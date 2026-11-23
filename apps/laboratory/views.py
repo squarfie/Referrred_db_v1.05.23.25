@@ -530,7 +530,8 @@ def laboratory_biobank_save(request, isolate_id):
     if any(len(value) > limits[key] for key, value in details.items()):
         messages.error(request, "One or more biobank fields exceed their maximum length.")
         return redirect(detail_url(request, isolate_id))
-    details["remarks"] = (request.POST.get("remarks") or "").strip()
+    if "remarks" in request.POST:
+        details["remarks"] = (request.POST.get("remarks") or "").strip()
     for field in ("lyo_date_encoded", "supplementary_date_encoded"):
         if field not in request.POST:
             continue
