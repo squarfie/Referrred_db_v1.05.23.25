@@ -441,9 +441,11 @@ def complete_lyophilization(isolate_id, harvested, lyophilized, user, whonet_cod
         raise WorkflowError("Only Bench A or Admin may record lyophilization.")
     item = lock_isolate(isolate_id)
     new_flow = bool(item.lyophilization_started_at and (item.id_completed_at or item.returned_at))
-    proposal = item.identifications.first() if new_flow else None
-    organism_name = proposal.organism_reported if proposal else item.final_organism
-    organism_code = proposal.whonet_organism_code if proposal else item.approved_organism_code
+    # Bench A uses the Final ID recorded by Main Lab, not a new selection.
+    organism_name = item.final_organism
+    organism_code = item.approved_organism_code
+    if new_flow and item.id_completed_at and not (item.final_identified_at and organism_name and organism_code):
+        raise WorkflowError('Main Lab Final ID is required before lyophilization.')
     site_banking = item.identification_source == "site" and item.status in (S.READY_FOR_BIOBANK, S.SITE_BANKED)
     if (item.status != S.ID_REVIEWED and not site_banking and not (new_flow and item.status in (S.ID_COMPLETE, S.ID_RETURNED, S.REVIVED))) or not organism_name:
         raise WorkflowError("Confirm Main Laboratory identification or select site-ID banking before recording lyophilization.")
