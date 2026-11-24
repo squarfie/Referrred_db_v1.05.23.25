@@ -656,7 +656,7 @@ def laboratory_receiving_detail(request, receiving_id):
         "receipt": receipt, "events": events,
         "can_print_label": False, "can_permanently_delete": False,
         "can_endorse": False,
-        "can_confirm_lab": can_confirm and receipt.status == ReferralReceipt.Status.ENDORSED,
+        "can_confirm_lab": False,  # Confirmation belongs to unified Receiving.
         "can_work_lab": receipt.status == ReferralReceipt.Status.LAB_RECEIVED,
         "laboratory_detail": True,
     })
