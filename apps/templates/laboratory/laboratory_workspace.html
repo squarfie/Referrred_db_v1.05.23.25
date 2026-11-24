@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}{% load static %}
 {% block title %}Laboratory receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2"><style>
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worksheet-1"><style>
 .receiving-organism-grid input[type="number"] {appearance:auto;-moz-appearance:auto;}
 .receiving-organism-grid input[type="number"]::-webkit-inner-spin-button {opacity:1;}
 </style>{% endblock stylesheets %}
@@ -15,10 +15,19 @@
   <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-1"></i>Receiving &amp; Accessioning</a>
   <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}">Laboratory Record</a>
   <a class="btn btn-info" href="{% url 'laboratory_receiving_register' %}">Monthly Inventory</a></div></header>
-  <div class="receiving-content">{% if return_to %}<p><a class="btn btn-outline-primary" href="{{ return_to }}">Back to filtered worklist</a></p>{% endif %}
+  <div class="receiving-content">
+    <nav class="receiving-stepnav" aria-label="Worksheet steps">
+      <a href="#receiving-summary"><b>1</b>Receiving</a>
+      <a href="#accessioning"><b>2</b>Accessioning</a>
+      <a href="#organism-inventory"><b>3</b>Organisms</a>
+      <a href="#revival"><b>4</b>Revival &amp; Site ID</a>
+      <a href="#final-processing"><b>5</b>Final Processing</a>
+      <a href="#batch-generation"><b>6</b>Batch</a>
+    </nav>
+    {% if return_to %}<p><a class="btn btn-outline-primary" href="{{ return_to }}">Back to filtered worklist</a></p>{% endif %}
     <div class="alert alert-info receiving-notice"><i class="fas fa-user-check"></i><div><strong>The LAB Encoder decides acceptance or rejection.</strong> The system validates the totals but does not classify isolates automatically.</div></div>
-    
-  <section class="receiving-surface receiving-form-card mb-4"><div class="receiving-card-header"><h2>Step 1: Receiving and acceptance summary</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
+
+  <section class="receiving-surface receiving-form-card mb-4" id="receiving-summary"><div class="receiving-card-header"><h2>Step 1: Receiving and acceptance summary</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
     <div class="receiving-card-body">
       <form method="post" novalidate>
         {% csrf_token %}
@@ -145,7 +154,7 @@
         <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Save new range</button></div>
       </form>
       {% endif %}
-      <p class="small text-muted mb-2">First record actual revival outcomes and Site IDs for every viable isolate. You may temporarily bank using the Site ID. Once viable isolates have completed revival and their Site IDs are encoded, endorse the ready batch directly from Laboratory Receiving to Main Laboratory for ID testing. This is distinct from the initial Receiving handoff.</p>
+      <p class="receiving-help-panel mb-3">First record actual revival outcomes and Site IDs for every viable isolate. You may temporarily bank using the Site ID. Once viable isolates have completed revival and their Site IDs are encoded, endorse the ready batch directly from Laboratory Receiving to Main Laboratory for ID testing. This is distinct from the initial Receiving handoff.</p>
       <div class="table-responsive">
         <table class="table receiving-table receiving-accession-edit-table">
           <thead><tr><th>Date referred</th><th>Start</th><th>End</th><th>Batch no.</th><th>Total batches</th><th>Isolates</th><th>Status</th><th>Actions</th></tr></thead>
@@ -194,9 +203,9 @@
                 <form id="accession-edit-{{ item.pk }}" method="post" action="{% url 'laboratory_accession_edit' item.pk %}">{% csrf_token %}</form>
                 <button type="submit" form="accession-edit-{{ item.pk }}" class="btn btn-sm btn-outline-primary mb-1">Save edits</button>
                 {% endif %}
-                <form method="post" action="{% url 'laboratory_batch_transition' item.pk 'prepare' %}" class="d-inline">
+                <!-- <form method="post" action="{% url 'laboratory_batch_transition' item.pk 'prepare' %}" class="d-inline">
                   {% csrf_token %}<button class="btn btn-sm btn-info mb-1" type="submit">Record revival</button>
-                </form>
+                </form> -->
                 {% if not item.batch %}
                 <form method="post" action="{% url 'laboratory_accession_delete' item.pk %}" class="d-inline" onsubmit="return confirm('Delete accession range {{ item.reference_range }} and its recorded organism counts?');">
                   {% csrf_token %}<input type="hidden" name="confirmation" value="DELETE">
@@ -215,6 +224,7 @@
     </div>
   </section>
 
+  <!-- Step 3: inventory section -->
   <section class="receiving-surface receiving-form-card mb-4" id="organism-inventory">
     <div class="receiving-card-header">
       <h2>Step 3: Organism inventory</h2>
@@ -278,32 +288,66 @@
     </div>
   </section>
 
+  <!-- Step 4: revival section -->
   <section class="receiving-surface receiving-form-card mb-4" id="revival">
-    <div class="receiving-card-header"><h2>Step 4: Revival &amp; Site ID</h2><p>Record the revival outcome and the Site ID supplied on the sentinel referral form. Separate failed revivals from isolates ready for Main Lab endorsement or temporary storage.</p></div>
+    <div class="receiving-card-header d-flex justify-content-between align-items-start flex-wrap">
+      <div>
+        <h2>Step 4: Revival &amp; Site ID</h2>
+        <p>Record the revival outcome and the Site ID supplied on the sentinel referral form. Separate failed revivals from isolates ready for Main Lab endorsement or temporary storage.</p>
+      </div>
+      <div class="d-flex flex-wrap justify-content-end align-items-center ml-auto" style="gap: 6px;">
+        {% for row in workflow_rows %}
+          {% if row.awaiting_record %}
+            <span class="badge badge-warning">{{ row.accession.reference_range }}: {{ row.awaiting_record }} To Record</span>
+          {% endif %}
+          {% if row.failed_count %}
+            <span class="badge badge-danger">{{ row.accession.reference_range }}: {{ row.failed_count }} Failed / Retry</span>
+          {% endif %}
+          {% if row.ready_count %}
+            <span class="badge badge-info">{{ row.accession.reference_range }}: {{ row.ready_count }} Ready for Handoff</span>
+          {% endif %}
+          {% if not row.preparation_pending and row.count %}
+            <span class="badge badge-success">{{ row.accession.reference_range }}: Bench A Preparation Done</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
     <div class="receiving-card-body">
       {% for row in workflow_rows %}
-      <div class="border rounded p-3 mb-2 d-flex justify-content-between align-items-center flex-wrap">
-        <div><strong>{{ row.accession.reference_range }}</strong>
-          <span class="text-muted small">· {{ row.preparation_pending }} pre-handoff item{{ row.preparation_pending|pluralize }} of {{ row.count }} accessions</span></div>
-        <div>
-          {% if row.awaiting_record %}<span class="badge badge-warning mr-2">{{ row.awaiting_record }} To Record</span>{% endif %}
-          {% if row.failed_count %}<span class="badge badge-danger mr-2">{{ row.failed_count }} Failed / Retry</span>{% endif %}
-          {% if row.ready_count %}<span class="badge badge-info mr-2">{{ row.ready_count }} Ready for Handoff</span>{% endif %}
-          {% if not row.preparation_pending and row.count %}<span class="badge badge-success mr-2">Bench A Preparation Done</span>{% endif %}
-          {% if row.preparation_pending %}
-          <a class="btn btn-sm btn-outline-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing">Manage Revival &amp; Site ID</a>
-          {% endif %}
-          {% if can_edit and row.count %}
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing&amp;history=1">Review / Edit Saved Revival</a>
-          {% endif %}
-          {% if row.can_handoff and can_edit %}<form method="post" class="d-inline" action="{% url 'laboratory_endorse_id' row.accession.pk %}">{% csrf_token %}
-          <button class="btn btn-sm btn-primary" type="submit">Endorse Batch to Main Lab</button></form>{% endif %}
+        <div class="border rounded p-3 mb-2 d-flex justify-content-between align-items-center flex-wrap">
+          <div>
+            <strong>{{ row.accession.reference_range }}</strong>
+            <span class="text-muted small">· {{ row.preparation_pending }} pre-handoff item{{ row.preparation_pending|pluralize }} of {{ row.count }} accessions</span>
+          </div>
+          <div class="d-flex justify-content-end align-items-center flex-wrap" style="gap: 6px;">
+            {% if can_edit and not row.accession.isolate_records.exists %}
+              <form method="post" action="{% url 'laboratory_batch_transition' row.accession.pk 'prepare' %}" class="d-inline mb-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-info mb-0">Record revival</button>
+              </form>
+            {% endif %}
+            {% if row.preparation_pending and row.accession.isolate_records.exists %}
+              <a class="btn btn-sm btn-outline-primary mb-0" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing">Manage Revival &amp; Site ID</a>
+            {% endif %}
+            {% if can_edit and row.count %}
+              <a class="btn btn-sm btn-outline-secondary mb-0" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing&amp;history=1">Review / Edit Saved Revival</a>
+            {% endif %}
+            {% if row.can_handoff and can_edit %}
+              <form method="post" class="d-inline mb-0" action="{% url 'laboratory_endorse_id' row.accession.pk %}">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-primary mb-0" type="submit">Endorse Batch to Main Lab</button>
+              </form>
+            {% endif %}
+          </div>
         </div>
-      </div>
-      {% empty %}<p class="text-muted">Accession ranges must be created before revival.</p>{% endfor %}
+      {% empty %}
+        <p class="text-muted">Accession ranges must be created before revival.</p>
+      {% endfor %}
       <p class="small text-muted mb-0">Main Lab acknowledgment, testing, and Final ID entry occur only in the Main Laboratory workspace.</p>
     </div>
   </section>
+
   <section class="receiving-surface receiving-form-card mb-4" id="final-processing">
     <div class="receiving-card-header">
       <h2>Step 5: Final Processing</h2>
@@ -371,6 +415,7 @@
     {% empty %}<p class="text-muted mb-0">No isolates in this status. Choose another tab to view other work.</p>{% endfor %}
     </div>
   </section>
+
   <section class="receiving-surface receiving-form-card mb-4" id="batch-generation">
     <div class="receiving-card-header">
       <h2>Batch Generation</h2>

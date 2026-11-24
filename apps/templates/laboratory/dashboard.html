@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worklist-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -21,7 +21,7 @@
     <section class="receiving-stat-grid{% if is_lab_worklist %} is-laboratory{% endif %}" aria-label="Receiving status summary">
       {% if is_lab_worklist %}
       {% for card in lab_summary_cards %}
-      <a class="receiving-surface receiving-stat {% if card.key == 'complete' %}is-complete{% endif %}" href="{% url receiving_queue_url %}?tab={{ card.tab }}{% if card.stage %}&amp;stage={{ card.stage }}{% endif %}" style="color:inherit;text-decoration:none">
+      <a class="receiving-surface receiving-stat {% if card.key == 'complete' %}is-complete{% endif %}{% if card.tab == active_tab and card.stage|default:'' == active_stage|default:'' %} is-active{% endif %}" {% if card.tab == active_tab and card.stage|default:'' == active_stage|default:'' %}aria-current="page"{% endif %} href="{% url receiving_queue_url %}?tab={{ card.tab }}{% if card.stage %}&amp;stage={{ card.stage }}{% endif %}">
         <span class="receiving-stat-icon" aria-hidden="true"><i class="fas {% if card.key == 'complete' %}fa-check-circle{% elif card.key == 'main_lab' %}fa-microscope{% elif card.key == 'processing' %}fa-vials{% else %}fa-box-open{% endif %}"></i></span><div><div class="receiving-stat-label">{{ card.label }}</div><div class="receiving-stat-value">{{ card.count }}</div></div>
       </a>
       {% endfor %}
@@ -51,10 +51,11 @@
         </form>
       </div>
 
-      {% if is_lab_worklist and pending_batch_count %}
-      <div class="alert alert-info mx-3 mt-3 mb-2" role="status">
-        <strong>{{ pending_batch_count }} receipt{{ pending_batch_count|pluralize }}</strong> pending Raw Data batch creation.
-        <a href="{% url receiving_queue_url %}?tab=action&amp;stage=batch_creation">View batch tasks</a>
+      {% if is_lab_worklist and pending_batch_count and active_stage != 'batch_creation' %}
+      <div class="receiving-batch-notice" role="status">
+        <i class="fas fa-layer-group" aria-hidden="true"></i>
+        <span><strong>{{ pending_batch_count }} receipt{{ pending_batch_count|pluralize }}</strong> pending Raw Data batch creation.</span>
+        <a class="btn btn-sm btn-outline-primary" href="{% url receiving_queue_url %}?tab=action&amp;stage=batch_creation">View batch tasks</a>
       </div>
       {% endif %}
 
@@ -67,13 +68,27 @@
           </a>
         {% endfor %}
       </nav>
+
       {% if is_lab_worklist and active_tab == 'action' %}
       <nav class="receiving-tabs receiving-task-filters" aria-label="Bench A task filters">
-        <a class="receiving-tab {% if not active_stage %}active{% endif %}" href="{% url receiving_queue_url %}?tab=action{% if q %}&amp;q={{ q|urlencode }}{% endif %}">All Tasks</a>
+        <span class="receiving-filter-label">Task</span>
         {% for filter in stage_filters %}
-        <a class="receiving-tab {% if active_stage == filter.key %}active{% endif %}" href="{% url receiving_queue_url %}?tab=action&amp;stage={{ filter.key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ filter.label }} <span class="receiving-tab-count {% if filter.count %}has-pending{% else %}is-zero{% endif %}" aria-label="{{ filter.count }} pending receipt{{ filter.count|pluralize }}">{{ filter.count }}</span></a>
+          <a class="receiving-tab {% if active_stage == filter.key %}active{% endif %}"
+             {% if active_stage == filter.key %}aria-current="page"{% endif %}
+             href="{% url receiving_queue_url %}?tab=action&amp;stage={{ filter.key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
+            {{ filter.label }}
+            <span class="receiving-tab-count {% if filter.count %}has-pending{% else %}is-zero{% endif %}"
+                  aria-label="{{ filter.count }} pending receipt{{ filter.count|pluralize }}">{{ filter.count }}</span>
+          </a>
         {% endfor %}
-        {% if active_stage == 'batch_creation' %}<span class="receiving-tab active">Batch Creation</span>{% endif %}
+
+        {% if active_stage == 'batch_creation' %}
+          <span class="receiving-tab active">Batch Creation</span>
+        {% endif %}
+
+        <a class="receiving-tab {% if not active_stage %}active{% endif %}"
+           {% if not active_stage %}aria-current="page"{% endif %}
+           href="{% url receiving_queue_url %}?tab=action{% if q %}&amp;q={{ q|urlencode }}{% endif %}">All Tasks</a>
       </nav>
       {% endif %}
 
@@ -87,7 +102,7 @@
             <td data-label="Referring site"><strong>{{ receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ receipt.site.SiteName }}</span></td>
             <td data-label="Receiving date">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
             <td data-label="Received by">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</td>
-            <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if is_lab_worklist and receipt.status == 'lab_received' %}{% if receipt.lab_workflow == 'complete' %}Completed{% elif receipt.lab_workflow == 'main_lab' %}With Main Lab{% elif receipt.lab_workflow == 'id_complete' %}Ready for Lyophilization{% elif receipt.lab_workflow == 'processing' %}Processing{% else %}Accessioning{% endif %}{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
+            <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}{% if is_lab_worklist and receipt.status == 'lab_received' %} wf-{{ receipt.lab_workflow|default:'accessioning' }}{% endif %}"><i class="fas fa-circle" aria-hidden="true"></i>{% if is_lab_worklist and receipt.status == 'lab_received' %}{% if receipt.lab_workflow == 'complete' %}Completed{% elif receipt.lab_workflow == 'main_lab' %}With Main Lab{% elif receipt.lab_workflow == 'id_complete' %}Ready for Lyophilization{% elif receipt.lab_workflow == 'processing' %}Processing{% else %}Accessioning{% endif %}{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
             <td class="receiving-actions text-right"><div class="receiving-action-group">
               {% if can_manage_secretariat and receipt.status == 'received' %}
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Endorse / Open</a>
@@ -97,7 +112,7 @@
               {% elif can_read_lab and receipt.status == 'lab_received' %}
                 <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}?next={{ origin_url|urlencode }}{% if active_stage == 'batch_creation' %}#batch-generation{% endif %}"><i class="fas fa-microscope mr-1"></i>{% if active_stage == 'batch_creation' %}Create Batch{% else %}Open Worksheet{% endif %}</a>
               {% endif %}
-              <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_worklist %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}">Open</a>
+              <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_worklist %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}"><i class="fas fa-eye mr-1"></i>Details</a>
               {% if receipt.can_delete_from_queue %}
               <form method="post" action="{% url 'receiving_delete_permanently' receipt.receiving_id %}" class="d-inline" onsubmit="var typed = window.prompt('Delete this receiving record permanently? Type DELETE PERMANENTLY to confirm.'); if (typed !== 'DELETE PERMANENTLY') return false; this.querySelector('[name=confirmation]').value = typed; return true;">
                 {% csrf_token %}<input type="hidden" name="confirmation" value="">

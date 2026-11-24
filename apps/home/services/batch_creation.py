@@ -70,6 +70,11 @@ def build_batch_code(site_code, referral_date, batch_no, total_batch, ref_no_raw
     return f"{site_code}_{referral_date:%m%d%Y}_{batch_no}.{total_batch}_{ref_no_raw}"
 
 
+# def build_batch_code(site_code, referral_date, batch_no, total_batch, ref_no_raw):
+#     year_short = referral_date.strftime("%y")
+#     return f"{year_short}ARS_{site_code}_{batch_no}.{total_batch}_{ref_no_raw}"
+
+
 def batch_accession_summary(accession_numbers):
     if not accession_numbers:
         return ""

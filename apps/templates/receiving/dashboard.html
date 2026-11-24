@@ -1,13 +1,13 @@
 {% extends "layouts/base.html" %}
 {% load static %}
-{% block title %}Receiving {% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock stylesheets %}
+{% block title %}Receiving{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worklist-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
     <div class="receiving-hero-main">
       <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-      <div><p class="receiving-eyebrow">Isolate custody</p><h1>Isolate Tracking</h1>
+      <div><p class="receiving-eyebrow">Receiving Dashboard</p><h1>Receiving and Isolate Tracking</h1>
         <p class="receiving-hero-subtitle">Record courier arrivals and endorse received isolates to Laboratory Receiving.</p>
       </div>
     </div>
@@ -41,7 +41,7 @@
         </form>
       </div>
 
-      <nav class="receiving-tabs" aria-label="Receiving worklist tabs">
+      <nav class="receiving-tabs receiving-workflow-tabs" aria-label="Receiving worklist tabs">
         {% for tab in receiving_tabs %}
           <a class="receiving-tab {% if tab.active %}active{% endif %}"
              {% if tab.active %}aria-current="page"{% endif %}
@@ -53,20 +53,20 @@
 
       <div class="table-responsive"><table class="table receiving-table">
         <caption class="sr-only">Courier batch receiving isolates</caption>
-        <thead><tr><th scope="col">Tracking number</th><th scope="col">Referring site</th><th scope="col">Isolates received</th><th scope="col">Received by</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+        <thead><tr><th scope="col">Tracking number</th><th scope="col">Referring site</th><th scope="col">Receiving date</th><th scope="col">Received by</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
         <tbody>
         {% for receipt in page_obj %}
           <tr>
             <td data-label="Tracking number"><span class="receiving-tracking">{{ receipt.tracking_number }}</span></td>
             <td data-label="Referring site"><strong>{{ receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ receipt.site.SiteName }}</span></td>
-            <td data-label="Date received">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
+            <td data-label="Receiving date">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
             <td data-label="Received by">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</td>
             <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{{ receipt.get_status_display }}</span></td>
             <td class="receiving-actions text-right"><div class="receiving-action-group">
               {% if can_manage_secretariat and receipt.status == 'received' %}
-                <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Endorse / Open</a>
+                <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}"><i class="fas fa-paper-plane mr-1"></i>Endorse / Open</a>
               {% endif %}
-              <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}">Open</a>
+              <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}"><i class="fas fa-eye mr-1"></i>Details</a>
               {% if receipt.can_delete_from_queue %}
               <form method="post" action="{% url 'receiving_delete_permanently' receipt.receiving_id %}" class="d-inline" onsubmit="var typed = window.prompt('Delete this receiving record permanently? Type DELETE PERMANENTLY to confirm.'); if (typed !== 'DELETE PERMANENTLY') return false; this.querySelector('[name=confirmation]').value = typed; return true;">
                 {% csrf_token %}<input type="hidden" name="confirmation" value="">
@@ -76,7 +76,12 @@
             </div></td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="receiving-empty"><i class="fas fa-box-open" aria-hidden="true"></i>No isolatesfound in this tab.</td></tr>
+          <tr><td colspan="6" class="receiving-empty">
+            <i class="fas fa-box-open" aria-hidden="true"></i>No isolates found in this tab.
+            {% if can_manage_secretariat and active_tab == 'received' and not q %}
+              <div class="mt-3"><a class="btn btn-sm btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-1"></i>New receipt</a></div>
+            {% endif %}
+          </td></tr>
         {% endfor %}
         </tbody>
       </table></div>

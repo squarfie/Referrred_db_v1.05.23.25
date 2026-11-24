@@ -1,23 +1,37 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}{{ scan_title }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-scan-1">{% endblock %}
 {% block content %}
 <main class="receiving-page">
-  <header class="receiving-hero"><div><p class="receiving-eyebrow">Scan and receive</p><h1>{{ scan_identifier }}</h1></div></header>
+  <header class="receiving-hero">
+    <div class="receiving-hero-main">
+      <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-qrcode"></i></span>
+      <div><p class="receiving-eyebrow">Scan and receive</p><h1>{{ scan_identifier }}</h1></div>
+    </div>
+  </header>
   <div class="receiving-content">
-    <section class="receiving-surface receiving-card">
-      <div class="receiving-card-header"><h2>{{ scan_title }}</h2></div>
-      <div class="receiving-card-body">
-        <p role="status">{{ scan_description }}</p>
-        <p>Receiver: <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>. Receipt date and time are recorded automatically.</p>
-        <form method="post" action="{{ scan_action }}" id="scan-receive-form">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-primary">Receive and continue</button>
-          <noscript><p>Automatic receipt needs JavaScript. Use Receive and continue to proceed.</p></noscript>
-        </form>
-      </div>
-    </section>
+    <div class="receiving-scan-wrap">
+      <section class="receiving-surface receiving-card">
+        <div class="receiving-card-header"><h2>{{ scan_title }}</h2></div>
+        <div class="receiving-card-body">
+          <p class="receiving-scan-status" role="status">{{ scan_description }}</p>
+          <div class="receiving-scan-receiver">
+            <i class="fas fa-user-check" aria-hidden="true"></i>
+            <div>
+              <span class="receiving-info-label">Receiver</span>
+              <span class="receiving-info-value">{{ request.user.get_full_name|default:request.user.username }}</span>
+              <div class="receiving-info-secondary">Receipt date and time are recorded automatically.</div>
+            </div>
+          </div>
+          <form method="post" action="{{ scan_action }}" id="scan-receive-form" class="receiving-scan-actions">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary"><i class="fas fa-check-circle mr-2" aria-hidden="true"></i>Receive and continue</button>
+            <noscript><p class="receiving-scan-note">Automatic receipt needs JavaScript. Use Receive and continue to proceed.</p></noscript>
+          </form>
+        </div>
+      </section>
+    </div>
   </div>
 </main>
 {% endblock %}

@@ -1,59 +1,70 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}New receiving record{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-form-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page" data-page="receiving-intake">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-clipboard-check"></i></span><div><p class="receiving-eyebrow">Receiving intake</p><h1>Receive courier batch</h1><p class="receiving-hero-subtitle">Create the permanent custody record before endorsement to the laboratory.</p></div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'secretariat_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-2"></i>Back to Receiving</a></div></header>
   <div class="receiving-content"><div class="receiving-form-wrap"><section class="receiving-surface receiving-form-card">
-    <div class="receiving-card-header"><h2>Courier and receipt information</h2><p>Required fields create the first custody event and QR-linked record.</p></div>
+    <div class="receiving-card-header"><h2>Courier and receipt information</h2><p>Required fields (<span class="required-mark">*</span>) create the first custody event and QR-linked record.</p></div>
     <div class="receiving-card-body"><form method="post" novalidate>{% csrf_token %}
       {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+
+      <h3 class="receiving-form-section">Shipment</h3>
       <div class="row">
           <!-- ReferralReceipt.tracking_number -->
           <div class="col-md-6 mb-3 receiving-field receiving-field--tracking_number" data-model="ReferralReceipt" data-field="tracking_number">
-            <label for="{{ form.tracking_number.id_for_label }}">{{ form.tracking_number.label }}</label>
+            <label for="{{ form.tracking_number.id_for_label }}">{{ form.tracking_number.label }}{% if form.tracking_number.field.required %}<span class="required-mark" aria-hidden="true">*</span>{% endif %}</label>
             {{ form.tracking_number }}
             {% if form.tracking_number.help_text %}<small class="form-text text-muted">{{ form.tracking_number.help_text }}</small>{% endif %}
             {% for error in form.tracking_number.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
           </div>
           <!-- ReferralReceipt.site -->
           <div class="col-md-6 mb-3 receiving-field receiving-field--site" data-model="ReferralReceipt" data-field="site">
-            <label for="{{ form.site.id_for_label }}">{{ form.site.label }}</label>
+            <label for="{{ form.site.id_for_label }}">{{ form.site.label }}{% if form.site.field.required %}<span class="required-mark" aria-hidden="true">*</span>{% endif %}</label>
             {{ form.site }}
             {% if form.site.help_text %}<small class="form-text text-muted">{{ form.site.help_text }}</small>{% endif %}
             {% for error in form.site.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
           </div>
+      </div>
+
+      <h3 class="receiving-form-section">Dates</h3>
+      <div class="row">
           <!-- ReferralReceipt.date_sent -->
-          <div class="col-md-6 mb-3 receiving-field receiving-field--date_sent" data-model="ReferralReceipt" data-field="date_sent">
-            <label for="{{ form.date_sent.id_for_label }}">{{ form.date_sent.label }}</label>
+          <div class="col-md-4 mb-3 receiving-field receiving-field--date_sent" data-model="ReferralReceipt" data-field="date_sent">
+            <label for="{{ form.date_sent.id_for_label }}">{{ form.date_sent.label }}{% if form.date_sent.field.required %}<span class="required-mark" aria-hidden="true">*</span>{% endif %}</label>
             {{ form.date_sent }}
             {% if form.date_sent.help_text %}<small class="form-text text-muted">{{ form.date_sent.help_text }}</small>{% endif %}
             {% for error in form.date_sent.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
           </div>
           <!-- ReferralReceipt.date_received -->
-          <div class="col-md-6 mb-3 receiving-field receiving-field--date_received" data-model="ReferralReceipt" data-field="date_received">
-            <label for="{{ form.date_received.id_for_label }}">{{ form.date_received.label }}</label>
+          <div class="col-md-4 mb-3 receiving-field receiving-field--date_received" data-model="ReferralReceipt" data-field="date_received">
+            <label for="{{ form.date_received.id_for_label }}">{{ form.date_received.label }}{% if form.date_received.field.required %}<span class="required-mark" aria-hidden="true">*</span>{% endif %}</label>
             {{ form.date_received }}
             {% if form.date_received.help_text %}<small class="form-text text-muted">{{ form.date_received.help_text }}</small>{% endif %}
             {% for error in form.date_received.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
           </div>
           <!-- ReferralReceipt.time_received -->
-          <div class="col-md-6 mb-3 receiving-field receiving-field--time_received" data-model="ReferralReceipt" data-field="time_received">
-            <label for="{{ form.time_received.id_for_label }}">{{ form.time_received.label }}</label>
+          <div class="col-md-4 mb-3 receiving-field receiving-field--time_received" data-model="ReferralReceipt" data-field="time_received">
+            <label for="{{ form.time_received.id_for_label }}">{{ form.time_received.label }}{% if form.time_received.field.required %}<span class="required-mark" aria-hidden="true">*</span>{% endif %}</label>
             {{ form.time_received }}
             {% if form.time_received.help_text %}<small class="form-text text-muted">{{ form.time_received.help_text }}</small>{% endif %}
             {% for error in form.time_received.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
           </div>
+      </div>
+      <div class="receiving-help-panel mb-3"><i class="fas fa-info-circle" aria-hidden="true"></i><div>The receiving date and time must represent when the courier batch was actually received and must not be set to a future date or time.</div></div>
+
+      <h3 class="receiving-form-section">Notes</h3>
+      <div class="row">
           <!-- ReferralReceipt.remarks -->
           <div class="col-md-12 mb-3 receiving-field receiving-field--remarks" data-model="ReferralReceipt" data-field="remarks">
-            <label for="{{ form.remarks.id_for_label }}">{{ form.remarks.label }}</label>
+            <label for="{{ form.remarks.id_for_label }}">{{ form.remarks.label }}{% if form.remarks.field.required %}<span class="required-mark" aria-hidden="true">*</span>{% endif %}</label>
             {{ form.remarks }}
             {% if form.remarks.help_text %}<small class="form-text text-muted">{{ form.remarks.help_text }}</small>{% endif %}
             {% for error in form.remarks.errors %}<div class="text-danger small mt-1" role="alert">{{ error }}</div>{% endfor %}
           </div>
       </div>
-      <div class="receiving-help-panel mb-3"><i class="fas fa-info-circle mr-2" aria-hidden="true"></i>The receiving date and time must represent when the courier batch was actually received and must not be set to a future date or time.</div>
+
       <div class="receiving-form-actions"><a class="btn btn-outline-secondary" href="{% url 'secretariat_receiving_dashboard' %}">Cancel</a><button class="btn btn-primary" type="submit"><i class="fas fa-save mr-2"></i>Save receiving record</button></div>
     </form></div>
   </section></div></div>

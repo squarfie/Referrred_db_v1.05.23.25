@@ -93,38 +93,64 @@
           {% if user_access.nav_can_secretariat_receiving %}
           <li class="nav-item"><a class="nav-link {% if current_url == 'secretariat_receiving_dashboard' or current_url == 'receiving_detail' or current_url == 'receiving_create' or current_url == 'receiving_endorse' %}active{% endif %}" href="{% url 'secretariat_receiving_dashboard' %}"><i class="fas fa-inbox text-primary" aria-hidden="true"></i><span class="nav-link-text">Receiving</span></a></li>
           {% endif %}
-          {% if user_access.nav_can_add_batch or user_access.nav_can_view_raw or user_access.nav_can_view_final or user_access.nav_can_view_wgs or user_access.nav_can_upload_wgs or user_access.nav_can_view_concordance %}
-          <li class="nav-item sidenav-workspace" data-group-container="data-management">
-          <button type="button" class="nav-link sidenav-workspace-toggle"
-                  id="sidebarDataManagementToggle" data-sidebar-group="data-management"
-                  aria-controls="sidebarDataManagementItems" aria-expanded="false"
-                  aria-label="Data Management" title="Data Management">
-            <i class="fas fa-database text-primary" aria-hidden="true"></i>
-            <span class="nav-link-text">Data Management</span>
-            <i class="fas fa-chevron-down sidenav-workspace-chevron" aria-hidden="true"></i>
-          </button>
-          <ul class="navbar-nav sidenav-workspace-items" id="sidebarDataManagementItems" hidden>
-            {% if user_access.nav_can_add_batch %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'batch_create_view' %}active{% endif %}" href="{% url 'batch_create_view' %}"><i class="fas fa-plus-circle text-primary" aria-hidden="true"></i><span class="nav-link-text">Add Batch</span></a></li>
-            {% endif %}
-            {% if user_access.nav_can_view_raw %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'show_data' %}active{% endif %}" href="{% url 'show_data' %}"><i class="ni ni-bullet-list-67 text-primary" aria-hidden="true"></i><span class="nav-link-text">Raw Data</span></a></li>
-            {% endif %}
-            {% if user_access.nav_can_view_final %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'show_final_table' %}active{% endif %}" href="{% url 'show_final_table' %}"><i class="fas fa-suitcase text-primary" aria-hidden="true"></i><span class="nav-link-text">Final Data</span></a></li>
-            {% endif %}
-            {% if user_access.nav_can_view_wgs %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'view_wgs_overview' %}active{% endif %}" href="{% url 'view_wgs_overview' %}"><i class="ni ni-atom text-primary" aria-hidden="true"></i><span class="nav-link-text">WGS Data</span></a></li>
-            {% endif %}
-            {% if user_access.nav_can_upload_wgs %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'upload_wgs_view' %}active{% endif %}" href="{% url 'upload_wgs_view' %}"><i class="fas fa-paperclip text-primary" aria-hidden="true"></i><span class="nav-link-text">WGS Upload</span></a></li>
-            {% endif %}
-            {% if user_access.nav_can_view_concordance %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'concordance_history' %}active{% endif %}" href="{% url 'concordance_history' %}"><i class="fas fa-chart-bar text-primary" aria-hidden="true"></i><span class="nav-link-text">Concordance</span></a></li>
-            {% endif %}
-          </ul>
+         
+
+          <!-- Data Management: direct navigation, controlled by role permissions -->
+
+          {% if user_access.nav_can_add_batch %}
+          <li class="nav-item">
+            <a class="nav-link {% if current_url == 'batch_create_view' %}active{% endif %}" href="{% url 'batch_create_view' %}">
+              <i class="fas fa-plus-circle text-primary" aria-hidden="true"></i>
+              <span class="nav-link-text">Add Batch</span>
+            </a>
           </li>
           {% endif %}
+
+          {% if user_access.nav_can_view_raw %}
+          <li class="nav-item">
+            <a class="nav-link {% if current_url == 'show_data' %}active{% endif %}" href="{% url 'show_data' %}">
+              <i class="ni ni-bullet-list-67 text-primary" aria-hidden="true"></i>
+              <span class="nav-link-text">Raw Data</span>
+            </a>
+          </li>
+          {% endif %}
+
+          {% if user_access.nav_can_view_final %}
+          <li class="nav-item">
+            <a class="nav-link {% if current_url == 'show_final_table' %}active{% endif %}" href="{% url 'show_final_table' %}">
+              <i class="fas fa-suitcase text-primary" aria-hidden="true"></i>
+              <span class="nav-link-text">Final Data</span>
+            </a>
+          </li>
+          {% endif %}
+
+          {% if user_access.nav_can_view_wgs %}
+          <li class="nav-item">
+            <a class="nav-link {% if current_url == 'view_wgs_overview' %}active{% endif %}" href="{% url 'view_wgs_overview' %}">
+              <i class="ni ni-atom text-primary" aria-hidden="true"></i>
+              <span class="nav-link-text">WGS Data</span>
+            </a>
+          </li>
+          {% endif %}
+
+          {% if user_access.nav_can_upload_wgs %}
+          <li class="nav-item">
+            <a class="nav-link {% if current_url == 'upload_wgs_view' %}active{% endif %}" href="{% url 'upload_wgs_view' %}">
+              <i class="fas fa-paperclip text-primary" aria-hidden="true"></i>
+              <span class="nav-link-text">WGS Upload</span>
+            </a>
+          </li>
+          {% endif %}
+
+          {% if user_access.nav_can_view_concordance %}
+          <li class="nav-item">
+            <a class="nav-link {% if current_url == 'concordance_history' %}active{% endif %}" href="{% url 'concordance_history' %}">
+              <i class="fas fa-chart-bar text-primary" aria-hidden="true"></i>
+              <span class="nav-link-text">Concordance</span>
+            </a>
+          </li>
+          {% endif %}
+
 
           {% if user_access.nav_can_laboratory_receiving or user_access.nav_can_main_lab or user_access.can_view_lab_testing %}
           <li class="nav-item sidenav-workspace" data-group-container="laboratory-operations">
@@ -138,7 +164,8 @@
           </button>
           <ul class="navbar-nav sidenav-workspace-items" id="sidebarLaboratoryOperationsItems" hidden>
             {% if user_access.nav_can_laboratory_receiving %}
-            <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_receiving_dashboard' or current_url == 'laboratory_receiving_detail' or current_url == 'receiving_lab_confirm' or current_url == 'laboratory_receiving_workspace' or current_url == 'laboratory_accession_add' or current_url == 'laboratory_accession_edit' or current_url == 'laboratory_accession_delete' or current_url == 'laboratory_batch_create' or current_url == 'laboratory_receiving_register' or current_url == 'laboratory_receiving_register_pdf' or current_url == 'laboratory_worklist' or current_url == 'laboratory_processing_worklist' or current_url == 'laboratory_batch_detail' or current_url == 'laboratory_isolate_detail' %}active{% endif %}" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-box-open text-primary" aria-hidden="true"></i><span class="nav-link-text">Bench A / Laboratory Receiving</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if current_url == 'laboratory_receiving_dashboard' or current_url == 'laboratory_receiving_detail' or current_url == 'receiving_lab_confirm' or current_url == 'laboratory_receiving_workspace' or current_url == 'laboratory_accession_add' or current_url == 'laboratory_accession_edit' or current_url == 'laboratory_accession_delete' or current_url == 'laboratory_batch_create' or current_url == 'laboratory_receiving_register' or current_url == 'laboratory_receiving_register_pdf' or current_url == 'laboratory_worklist' or current_url == 'laboratory_processing_worklist' or current_url == 'laboratory_batch_detail' or current_url == 'laboratory_isolate_detail' %}active{% endif %}" href="{% url 'laboratory_receiving_dashboard' %}">
+              <i class="fas fa-box-open text-primary" aria-hidden="true"></i><span class="nav-link-text">Bench A</span></a></li>
             {% endif %}
 
             {% if user_access.nav_can_main_lab %}

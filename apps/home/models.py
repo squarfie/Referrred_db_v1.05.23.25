@@ -123,7 +123,6 @@ class Batch_Table(models.Model):
                         "bat_Referral_Date",
                         "bat_BatchNo",
                         "bat_Total_batch",
-                        "bat_RefNo",
                         "bat_Site_NameGen",
                         "bat_Batch_Name",
                     ]

@@ -261,7 +261,7 @@
 
           <!-- Row B: 3 columns -->
           <div class="field-grid-3">
-            <div class="field-block">
+            <div>
               <label class="field-label">Reference No</label>
               {{ form.bat_RefNo|append_attr:"class: form-control" }}
             </div>
@@ -412,99 +412,234 @@ $(document).ready(function () {
   const $siteNameGen = $('#id_bat_Site_NameGen');
   const $batchName   = $('#id_bat_Batch_Name');
 
+  // Track whether the encoder manually changed Reference No.
+  // Do not overwrite an existing value when editing or returning
+  // to a form that already contains a reference.
+  let manualReference = IS_EDITING || Boolean($refNo.val().trim());
+
+  // Preserve existing editing restrictions except Reference No.
   if (IS_EDITING) {
-    [$siteCode, $refDate, $batchNum, $refNo, $totalBatch, $batchName, $siteNameGen].forEach(function($el) {
-      $el.prop('readonly', true).css('pointer-events', 'none');
+    [
+      $siteCode,
+      $refDate,
+      $batchNum,
+      $totalBatch,
+      $batchName,
+      $siteNameGen
+    ].forEach(function ($el) {
+      $el.prop('readonly', true)
+         .css('pointer-events', 'none');
     });
   }
 
-  if (!IS_EDITING) {
-    $refNo.prop('readonly', true).attr('placeholder', 'Auto-generated (0001-0001)');
-  }
+  // Reference No must remain editable.
+  $refNo.prop('readonly', false)
+        .prop('disabled', false)
+        .css('pointer-events', 'auto')
+        .attr('placeholder', 'Auto-generated or enter 0001-0002');
 
   function generateReferenceNo() {
-    if (IS_EDITING) return;
-    const batch = $batchNum.val().trim();
-    const total = $totalBatch.val().trim();
-    if (!/^[0-9]{1,4}$/.test(batch) || !/^[0-9]{1,4}$/.test(total)) {
+    if (IS_EDITING || manualReference) {
+      return;
+    }
+
+    const batch = String($batchNum.val() || '').trim();
+    const total = String($totalBatch.val() || '').trim();
+
+    if (
+      !/^[0-9]{1,4}$/.test(batch) ||
+      !/^[0-9]{1,4}$/.test(total)
+    ) {
       $refNo.val('');
       return;
     }
+
     const start = Number(batch);
     const end = Number(total);
+
     if (start < 1 || end < start || end > 9999) {
       $refNo.val('');
       return;
     }
-    $refNo.val(String(start).padStart(4, '0') + '-' + String(end).padStart(4, '0'));
-  }
 
+    const generatedRef =
+      String(start).padStart(4, '0') + '-' +
+      String(end).padStart(4, '0');
+
+    $refNo.val(generatedRef);
+  }
 
   function debounce(fn, delay) {
     let timer;
-    return function () { clearTimeout(timer); timer = setTimeout(fn, delay); };
+
+    return function () {
+      clearTimeout(timer);
+      timer = setTimeout(fn, delay);
+    };
   }
 
   function generateBatchName() {
     const site  = $siteCode.val();
     const date  = $refDate.val();
     const batch = $batchNum.val();
-    const ref   = $refNo.val();
+    const ref   = $refNo.val().trim();
     const total = $totalBatch.val();
-    if (!site || !date || !batch || !total || !ref) { $batchName.val(''); return; }
+
+    if (!site || !date || !batch || !total || !ref) {
+      $batchName.val('');
+      return;
+    }
+
     const parts = date.split('-');
-    $batchName.val(`${site}_${parts[1]}${parts[2]}${parts[0]}_${batch}.${total}_${ref}`);
+
+    if (parts.length !== 3) {
+      $batchName.val('');
+      return;
+    }
+
+    // Preserve the current batch-code format.
+    const generatedBatchName =
+      `${site}_${parts[1]}${parts[2]}${parts[0]}_${batch}.${total}_${ref}`;
+
+    $batchName.val(generatedBatchName);
   }
 
-  const debouncedGenerateBatchName = debounce(generateBatchName, 300);
+  const debouncedGenerateBatchName =
+    debounce(generateBatchName, 300);
 
+  // Automatically update the site name.
   $siteCode.on('change', function () {
     const site = this.value;
-    if (!site) { $siteNameGen.val(''); $batchName.val(''); return; }
+
+    if (!site) {
+      $siteNameGen.val('');
+      $batchName.val('');
+      return;
+    }
+
     $.ajax({
       url: "{% url 'get_clinic_code' %}",
-      data: { site_code: site },
+      data: {
+        site_code: site
+      },
       dataType: 'json',
-      success: function (data) { $siteNameGen.val(data.site_name || ''); generateBatchName(); }
+      success: function (data) {
+        $siteNameGen.val(data.site_name || '');
+        generateBatchName();
+      }
     });
   });
 
-  $refNo.on('input change', debouncedGenerateBatchName);
+  // Manual Reference No overrides automatic generation.
+  $refNo.on('input', function () {
+    manualReference = true;
+    debouncedGenerateBatchName();
+  });
+
+  $refNo.on('change', generateBatchName);
+
   $refDate.on('input change', debouncedGenerateBatchName);
+
   function updateGeneratedFields() {
     generateReferenceNo();
     generateBatchName();
   }
+
   $batchNum.on('input change', updateGeneratedFields);
   $totalBatch.on('input change', updateGeneratedFields);
 
-  function bindStaffField(staffSelector, licenseSelector, licenseKey) {
+  function bindStaffField(
+    staffSelector,
+    licenseSelector,
+    licenseKey
+  ) {
     $(staffSelector).on('change', function () {
       const staffId = $(this).val();
-      if (!staffId) { $(licenseSelector).val(''); return; }
+
+      if (!staffId) {
+        $(licenseSelector).val('');
+        return;
+      }
+
       $.ajax({
         url: "{% url 'get_ars_staff_details' %}",
-        data: { ars_staff_id: staffId, license_field: licenseKey },
+        data: {
+          ars_staff_id: staffId,
+          license_field: licenseKey
+        },
         dataType: 'json',
-        success: function (data) { $(licenseSelector).val(data[licenseKey] || ''); }
+        success: function (data) {
+          $(licenseSelector).val(data[licenseKey] || '');
+        }
       });
     });
   }
 
-  bindStaffField('#id_bat_Encoder',    '#id_bat_Enc_Lic',  'bat_Enc_Lic');
-  bindStaffField('#id_bat_Checker',    '#id_bat_Chec_Lic', 'bat_Chec_Lic');
-  bindStaffField('#id_bat_Verifier',   '#id_bat_Ver_Lic',  'bat_Ver_Lic');
-  bindStaffField('#id_bat_LabManager', '#id_bat_Lab_Lic',  'bat_Lab_Lic');
-  bindStaffField('#id_bat_Head',       '#id_bat_Head_Lic', 'bat_Head_Lic');
+  bindStaffField(
+    '#id_bat_Encoder',
+    '#id_bat_Enc_Lic',
+    'bat_Enc_Lic'
+  );
 
+  bindStaffField(
+    '#id_bat_Checker',
+    '#id_bat_Chec_Lic',
+    'bat_Chec_Lic'
+  );
+
+  bindStaffField(
+    '#id_bat_Verifier',
+    '#id_bat_Ver_Lic',
+    'bat_Ver_Lic'
+  );
+
+  bindStaffField(
+    '#id_bat_LabManager',
+    '#id_bat_Lab_Lic',
+    'bat_Lab_Lic'
+  );
+
+  bindStaffField(
+    '#id_bat_Head',
+    '#id_bat_Head_Lic',
+    'bat_Head_Lic'
+  );
+
+  // Initial field generation.
   updateGeneratedFields();
   $siteCode.trigger('change');
-  ['#id_bat_Encoder','#id_bat_Checker','#id_bat_Verifier','#id_bat_LabManager','#id_bat_Head']
-    .forEach(s => $(s).trigger('change'));
 
+  [
+    '#id_bat_Encoder',
+    '#id_bat_Checker',
+    '#id_bat_Verifier',
+    '#id_bat_LabManager',
+    '#id_bat_Head'
+  ].forEach(function (selector) {
+    $(selector).trigger('change');
+  });
+
+  // Reset the form and restore automatic reference generation.
   window.refresh = function () {
     document.getElementById('accession-form').reset();
+
+    manualReference = false;
+
+    $refNo.val('');
+
     updateGeneratedFields();
+
+    $siteCode.trigger('change');
+
+    [
+      '#id_bat_Encoder',
+      '#id_bat_Checker',
+      '#id_bat_Verifier',
+      '#id_bat_LabManager',
+      '#id_bat_Head'
+    ].forEach(function (selector) {
+      $(selector).trigger('change');
+    });
   };
 });
 </script>

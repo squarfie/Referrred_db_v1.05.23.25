@@ -19,7 +19,7 @@ def _render_secretariat_dashboard(request, queue=None):
     counts = {row['status']: row['total'] for row in all_receipts.values('status').annotate(total=Count('id'))}
     can_manage_secretariat = can_manage_secretariat_receiving(request.user)
     queue_url_name = 'laboratory_receiving_dashboard' if queue == 'laboratory' else 'secretariat_receiving_dashboard' if queue == 'secretariat' else 'receiving_dashboard'
-    tab_definitions = [('pending', 'Pending Endorsement', ReferralReceipt.Status.RECEIVED), ('endorsed', 'Endorsed', ReferralReceipt.Status.ENDORSED), ('received', 'Lab Received', ReferralReceipt.Status.LAB_RECEIVED), ('all', 'All Records', None)]
+    tab_definitions = [('pending', 'Received', ReferralReceipt.Status.RECEIVED), ('endorsed', 'Endorsed', ReferralReceipt.Status.ENDORSED), ('received', 'Lab Received', ReferralReceipt.Status.LAB_RECEIVED), ('all', 'All Records', None)]
     tab_status = {key: value for key, _label, value in tab_definitions}
     explicit_tab = (request.GET.get('tab') or '').strip()
     legacy_status = (request.GET.get('status') or '').strip()

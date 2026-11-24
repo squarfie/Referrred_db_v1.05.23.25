@@ -301,3 +301,169 @@ button.receiving-batch-warning {border:0;background:transparent;padding:.12rem .
 button.receiving-batch-warning:focus-visible {outline:2px solid #b52b2b;border-radius:3px;}
 body > .tooltip {z-index:100200;}
 body > .tooltip .tooltip-inner {max-width:370px;text-align:left;white-space:normal;overflow-wrap:anywhere;padding:.65rem .8rem;font-size:.78rem;line-height:1.45;}
+
+
+
+
+/*additional styles for laboratory receiving interface*/
+
+/* Sub tabs: segmented control */
+/* ===== Receiving worklist layout refinements (append to receiving.css) ===== */
+
+/* Stat cards: clickable affordance + active state */
+a.receiving-stat { color: inherit; text-decoration: none; transition: transform .15s, box-shadow .15s, border-color .15s; }
+a.receiving-stat:hover, a.receiving-stat:focus-visible { color: inherit; text-decoration: none; transform: translateY(-2px); border-color: var(--receiving-cyan); box-shadow: 0 14px 30px rgba(15,58,95,.16); }
+a.receiving-stat.is-active { border-color: var(--receiving-cyan); box-shadow: 0 0 0 2px rgba(0,188,212,.35), 0 12px 30px rgba(15,58,95,.1); }
+.receiving-stat-grid.is-laboratory { grid-template-columns: repeat(4, minmax(0,1fr)); }
+@media (max-width: 991.98px) { .receiving-stat-grid.is-laboratory { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 575.98px) { .receiving-stat-grid.is-laboratory { grid-template-columns: 1fr; } }
+
+/* Batch notice: replaces the loud cyan alert */
+.receiving-batch-notice { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; margin: .85rem 1rem 0; padding: .55rem .85rem; border: 1px solid #bde5ec; border-left: 4px solid var(--receiving-cyan); border-radius: 8px; background: #f0fbfd; color: #245a65; font-size: .82rem; }
+.receiving-batch-notice > span { flex: 1 1 220px; }
+.receiving-batch-notice .btn { margin: 0; }
+
+/* Primary tabs = underline style; task filters = small chips with a label */
+.receiving-workflow-tabs { gap: .25rem; padding: 0 1rem; border-bottom: 1px solid var(--receiving-border); }
+.receiving-workflow-tabs .receiving-tab { padding: .8rem .9rem; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; font-size: .82rem; }
+.receiving-workflow-tabs .receiving-tab:hover, .receiving-workflow-tabs .receiving-tab:focus { color: #087f95; border-bottom-color: rgba(0,188,212,.5); }
+.receiving-workflow-tabs .receiving-tab.active { color: var(--receiving-navy); background: transparent; border-bottom-color: var(--receiving-cyan); }
+.receiving-workflow-tabs .receiving-tab.active .receiving-tab-count { color: #fff; background: var(--receiving-navy); }
+.receiving-task-filters { align-items: center; gap: .4rem; }
+.receiving-filter-label { margin-right: .25rem; color: var(--receiving-muted); font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.receiving-task-filters .receiving-tab { padding: .3rem .65rem; border-radius: 999px; }
+
+/* Table: column widths, tracking number, actions kept together */
+.receiving-table tbody td { padding: .95rem 1rem; }
+.receiving-table .receiving-tracking { font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; word-break: break-all; }
+.receiving-table td.receiving-actions { min-width: 0; width: 1%; white-space: nowrap; }
+.receiving-action-group { flex-wrap: nowrap; justify-content: flex-end; max-width: none; }
+.receiving-action-group .btn { white-space: nowrap; }
+@media (min-width: 768px) {
+  .receiving-table th:nth-child(1) { width: 22%; }
+  .receiving-table th:nth-child(5) { width: 150px; }
+}
+@media (max-width: 767.98px) { .receiving-action-group { flex-wrap: wrap; } }
+
+/* Status pills by laboratory stage */
+.receiving-status .fa-circle { font-size: .45rem; }
+.receiving-status.wf-accessioning { color: #15558a; background: #e6f3ff; border-color: #b9dcf8; }
+.receiving-status.wf-processing, .receiving-status.wf-id_complete { color: #8a6100; background: #fff5cf; border-color: #efd271; }
+.receiving-status.wf-main_lab { color: #5b3f9a; background: #efe9fb; border-color: #cdbdf0; }
+.receiving-status.wf-complete { color: #116149; background: #def6eb; border-color: #9edabb; }
+
+/* Sub tabs: segmented control (must come after the rules above) */
+.receiving-task-filters {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .2rem;
+  width: fit-content; max-width: calc(100% - 2rem);
+  margin: .75rem 1rem; padding: .25rem;
+  background: #e9f0f5; border: 0; border-radius: 9px;
+}
+.receiving-task-filters .receiving-tab {
+  padding: .35rem .8rem; border: 0; border-radius: 7px;
+  background: transparent; color: #4a6378;
+  font-size: .76rem; font-weight: 600; line-height: 1.4;
+}
+.receiving-task-filters .receiving-tab:hover,
+.receiving-task-filters .receiving-tab:focus { color: var(--receiving-navy); background: rgba(255,255,255,.6); }
+.receiving-task-filters .receiving-tab.active { background: #fff; color: var(--receiving-navy); box-shadow: 0 1px 3px rgba(15,58,95,.2); }
+.receiving-task-filters .receiving-tab-count { height: 19px; min-width: 21px; font-size: .68rem; }
+.receiving-task-filters .receiving-tab.active .receiving-tab-count { background: var(--receiving-navy); color: #fff; }
+.receiving-task-filters .receiving-filter-label { padding: 0 .5rem 0 .6rem; }
+
+
+/* ===== Laboratory worksheet refinements ===== */
+html { scroll-behavior: smooth; }
+.receiving-form-card { scroll-margin-top: 4.5rem; }
+
+/* Step navigator */
+.receiving-stepnav { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: 1rem; padding: .4rem; border: 1px solid var(--receiving-border); border-radius: 10px; background: rgba(255,255,255,.95); box-shadow: 0 6px 18px rgba(15,58,95,.1); backdrop-filter: blur(6px); }
+.receiving-stepnav a { display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .7rem; border-radius: 7px; color: #173f63; font-size: .78rem; font-weight: 700; }
+.receiving-stepnav a:hover, .receiving-stepnav a:focus { color: #087f95; background: #e9f7fa; text-decoration: none; }
+.receiving-stepnav b { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; color: #fff; background: var(--receiving-navy); font-size: .68rem; }
+
+/* Step cards: accent bar so sections are easy to tell apart */
+.receiving-form-card > .receiving-card-header { border-left: 4px solid var(--receiving-cyan); }
+.receiving-form-card .badge { padding: .35em .75em; border-radius: 999px; font-size: .68rem; letter-spacing: .03em; text-transform: uppercase; }
+.receiving-accession-edit-table tbody td { padding: .7rem 1rem; }
+.receiving-help-panel { line-height: 1.5; }
+
+/* Organism grid: spinners only on hover/focus, wider cells, pinned Action column */
+.receiving-organism-grid .organism-grid-number { width: 64px; min-width: 64px; }
+.receiving-organism-grid input[type="number"]:not(:hover):not(:focus)::-webkit-inner-spin-button { opacity: 0; }
+.receiving-organism-grid thead tr:first-child th:last-child,
+.receiving-organism-grid tr[data-inventory-row] > td:last-child { position: sticky; right: 0; z-index: 2; background: #f7fbff; box-shadow: -2px 0 3px rgba(10,45,64,.12); }
+.receiving-organism-grid thead tr:first-child th:last-child { z-index: 3; background: #143e56; }
+
+/* Un-pin the Action column in the organism grid */
+.receiving-organism-grid thead tr:first-child th:last-child,
+.receiving-organism-grid tr[data-inventory-row] > td:last-child {
+  position: static;
+  z-index: auto;
+  box-shadow: none;
+}
+.receiving-organism-grid thead tr:first-child th:last-child { background: #143e56; }
+.receiving-organism-grid tr[data-inventory-row] > td:last-child { background: transparent; }
+
+/* Un-pin the Accession range column in the organism grid */
+.receiving-organism-grid .organism-grid-sticky,
+.receiving-organism-grid thead .organism-grid-sticky {
+  position: static;
+  z-index: auto;
+  box-shadow: none;
+}
+.receiving-organism-grid tbody .organism-grid-sticky { background: #f7fbff; }
+.receiving-organism-grid thead .organism-grid-sticky { background: #143e56; }
+
+
+/* Step 5: status tabs as a segmented control, rows as clickable cards */
+#final-processing .receiving-tabs { width: fit-content; max-width: 100%; gap: .2rem !important; padding: .25rem; border: 0; border-radius: 9px; background: #e9f0f5; overflow: visible; }
+#final-processing .receiving-tab { padding: .35rem .8rem; border: 0; border-radius: 7px; background: transparent; color: #4a6378; font-size: .76rem; font-weight: 600; }
+#final-processing .receiving-tab:hover { background: rgba(255,255,255,.6); color: var(--receiving-navy); }
+#final-processing .receiving-tab.active { background: #fff; color: var(--receiving-navy); box-shadow: 0 1px 3px rgba(15,58,95,.2); }
+#final-processing .receiving-tab.active .receiving-tab-count { background: var(--receiving-navy); color: #fff; }
+#final-processing details { background: #fff; }
+#final-processing details > summary { list-style: none; }
+#final-processing details > summary::-webkit-details-marker { display: none; }
+#final-processing details > summary:hover { background: #f3fafc; }
+#final-processing details[open] > summary { background: #edf8fc; }
+
+/* ===== Receiving detail page additions (append to receiving.css) ===== */
+
+/* Custody progress stepper */
+.receiving-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin: 0 0 1.15rem; padding: 1rem 1.15rem; list-style: none; }
+.receiving-steps li { position: relative; display: flex; align-items: center; gap: .7rem; min-width: 0; color: var(--receiving-muted); font-size: .82rem; font-weight: 700; }
+.receiving-steps li > span { flex: 0 0 30px; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #c9d8e6; border-radius: 50%; background: #fff; color: #7b8fa5; font-size: .78rem; }
+.receiving-steps li small { display: block; margin-top: .1rem; color: var(--receiving-muted); font-size: .7rem; font-weight: 500; }
+.receiving-steps li.is-done { color: #116149; }
+.receiving-steps li.is-done > span { border-color: #2fa77c; background: #2fa77c; color: #fff; }
+.receiving-steps li.is-current { color: var(--receiving-navy); }
+.receiving-steps li.is-current > span { border-color: var(--receiving-cyan); color: var(--receiving-navy); box-shadow: 0 0 0 3px rgba(0,188,212,.2); }
+@media (max-width: 767.98px) { .receiving-steps { grid-template-columns: 1fr; } }
+
+/* Activity card: fit its content instead of always reserving a tall box */
+.receiving-activity-card { height: auto; max-height: 36.6rem; }
+
+/* Card headers get the same accent edge as the worksheet */
+.receiving-card > .receiving-card-header { border-left: 4px solid var(--receiving-cyan); }
+
+
+/* ===== Receiving intake form additions (append to receiving.css) ===== */
+.receiving-form-section { display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem; color: var(--receiving-navy); font-size: .74rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.receiving-form-section::after { content: ""; flex: 1; height: 1px; background: var(--receiving-border); }
+.receiving-form-section:not(:first-child) { margin-top: .5rem; }
+.receiving-form-card .required-mark { margin-left: .15rem; color: #c33c36; }
+.receiving-form-card .receiving-card-body .receiving-form-actions { margin-top: 1.25rem; padding-top: 1.1rem; border-top: 1px solid var(--receiving-border); }
+.receiving-form-card .receiving-help-panel { display: flex; align-items: flex-start; gap: .6rem; line-height: 1.5; }
+.receiving-form-card .receiving-help-panel i { margin: .2rem 0 0; color: var(--receiving-teal); }
+.receiving-form-card textarea.form-control { min-height: 96px; }
+
+
+/* ===== Scan and receive page additions (append to receiving.css) ===== */
+.receiving-scan-wrap { max-width: 560px; margin: 0 auto; }
+.receiving-scan-status { margin: 0 0 1.1rem; padding: .85rem 1rem; border: 1px solid #bde5ec; border-left: 4px solid var(--receiving-cyan); border-radius: 9px; background: rgba(226,248,251,.86); color: #245a65; font-size: .88rem; line-height: 1.5; }
+.receiving-scan-receiver { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.1rem; padding: .75rem 1rem; border: 1px solid var(--receiving-border); border-radius: 9px; background: #f7fbfe; }
+.receiving-scan-receiver > i { flex: 0 0 36px; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e9f4ff; color: var(--receiving-blue); }
+.receiving-scan-receiver .receiving-info-secondary { margin: 0; }
+.receiving-scan-actions .btn { width: 100%; margin: 0; padding: .75rem 1rem; font-size: .95rem; }
+.receiving-scan-note { margin: .75rem 0 0; color: var(--receiving-muted); font-size: .76rem; text-align: center; }
