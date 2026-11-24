@@ -25,10 +25,13 @@ def custody_roles(user):
     if user.groups.filter(name__iexact=ROLE_HEAD).exists():
         roles.add(ROLE_HEAD)
     profile = get_staff_profile(user)
-    if profile and ROLE_HEAD.lower() in {
-        part.strip().lower()
-        for part in str(profile.Staff_Role or "").replace(",", "|").split("|")
-    }:
+    if profile and (
+        profile.Is_Default_Head
+        or ROLE_HEAD.lower() in {
+            part.strip().lower()
+            for part in str(profile.Staff_Role or "").replace(",", "|").split("|")
+        }
+    ):
         roles.add(ROLE_HEAD)
     return roles
 
