@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.home.permissions import (
-    ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_LAB_ENCODER,
+    ROLE_ADMIN, ROLE_CHECKER, ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_LAB_STAFF,
     ROLE_LAB_MANAGER, ROLE_SECRETARIAT, ROLE_VERIFIER, get_user_roles,
     get_staff_profile,
 )
@@ -12,8 +12,8 @@ from .models import BatchCustody, BatchCustodyEvent
 
 ROLE_HEAD = "Head"
 DESTINATION_ROLES = (
-    ROLE_SECRETARIAT, ROLE_LAB_ENCODER, ROLE_ENCODER, ROLE_CHECKER,
-    ROLE_VERIFIER, ROLE_LAB_MANAGER, ROLE_HEAD,
+    ROLE_SECRETARIAT, ROLE_LAB_ENCODER, ROLE_LAB_STAFF, ROLE_ENCODER,
+    ROLE_CHECKER, ROLE_VERIFIER, ROLE_LAB_MANAGER, ROLE_HEAD,
 )
 
 
