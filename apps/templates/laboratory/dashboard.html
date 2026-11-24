@@ -21,7 +21,7 @@
     <section class="receiving-stat-grid{% if is_lab_worklist %} is-laboratory{% endif %}" aria-label="Receiving status summary">
       {% if is_lab_worklist %}
       {% for card in lab_summary_cards %}
-      <a class="receiving-surface receiving-stat {% if card.key == 'complete' %}is-complete{% endif %}{% if card.tab == active_tab and card.stage|default:'' == active_stage|default:'' %} is-active{% endif %}" {% if card.tab == active_tab and card.stage|default:'' == active_stage|default:'' %}aria-current="page"{% endif %} href="{% url receiving_queue_url %}?tab={{ card.tab }}{% if card.stage %}&amp;stage={{ card.stage }}{% endif %}">
+      <a class="receiving-surface receiving-stat {% if card.key == 'complete' %}is-complete{% endif %}{% if card.tab == active_tab and card.stage|default:'' == active_stage|default:'' %} is-active{% endif %}" {% if card.tab == active_tab and card.stage|default:'' == active_stage|default:'' %}aria-current="page"{% endif %} href="{% url receiving_queue_url %}?tab={{ card.tab }}{% if card.stage %}&amp;stage={{ card.stage }}{% endif %}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
         <span class="receiving-stat-icon" aria-hidden="true"><i class="fas {% if card.key == 'complete' %}fa-check-circle{% elif card.key == 'main_lab' %}fa-microscope{% elif card.key == 'processing' %}fa-vials{% else %}fa-box-open{% endif %}"></i></span><div><div class="receiving-stat-label">{{ card.label }}</div><div class="receiving-stat-value">{{ card.count }}</div></div>
       </a>
       {% endfor %}
@@ -42,11 +42,24 @@
           {% if active_stage %}<input type="hidden" name="stage" value="{{ active_stage }}">{% endif %}
           <label class="form-control-label" for="receiving-search">Search receipts</label>
           <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
+            <label class="mb-0" for="receiving-year">Year</label>
+            <select class="form-control" id="receiving-year" name="year" style="width:auto;min-width:110px" onchange="this.form.submit()">
+              {% for year in available_years %}
+                <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+              {% endfor %}
+              <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All years</option>
+            </select>
+            <label class="mb-0" for="receiving-per-page">Rows</label>
+            <select class="form-control" id="receiving-per-page" name="per_page" style="width:auto;min-width:75px" onchange="this.form.submit()">
+              {% for size in allowed_page_sizes %}
+                <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+              {% endfor %}
+            </select>
             <div class="receiving-search-wrap"><i class="fas fa-search" aria-hidden="true"></i>
               <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Tracking number, site code or name">
             </div>
             <button class="btn btn-primary mb-0" type="submit">Search</button>
-            <a class="btn btn-outline-secondary mb-0" href="{% url receiving_queue_url %}?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}">Reset</a>
+            <a class="btn btn-outline-secondary mb-0" href="{% url receiving_queue_url %}?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}">Reset</a>
           </div>
         </form>
       </div>
@@ -55,7 +68,7 @@
       <div class="receiving-batch-notice" role="status">
         <i class="fas fa-layer-group" aria-hidden="true"></i>
         <span><strong>{{ pending_batch_count }} receipt{{ pending_batch_count|pluralize }}</strong> pending Raw Data batch creation.</span>
-        <a class="btn btn-sm btn-outline-primary" href="{% url receiving_queue_url %}?tab=action&amp;stage=batch_creation">View batch tasks</a>
+        <a class="btn btn-sm btn-outline-primary" href="{% url receiving_queue_url %}?tab=action&amp;stage=batch_creation&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">View batch tasks</a>
       </div>
       {% endif %}
 
@@ -63,7 +76,7 @@
         {% for tab in receiving_tabs %}
           <a class="receiving-tab {% if tab.active %}active{% endif %}"
              {% if tab.active %}aria-current="page"{% endif %}
-             href="{% url receiving_queue_url %}?tab={{ tab.key }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+             href="{% url receiving_queue_url %}?tab={{ tab.key }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
             {{ tab.label }} <span class="receiving-tab-count">{{ tab.count }}</span>
           </a>
         {% endfor %}
@@ -75,7 +88,7 @@
         {% for filter in stage_filters %}
           <a class="receiving-tab {% if active_stage == filter.key %}active{% endif %}"
              {% if active_stage == filter.key %}aria-current="page"{% endif %}
-             href="{% url receiving_queue_url %}?tab=action&amp;stage={{ filter.key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
+             href="{% url receiving_queue_url %}?tab=action&amp;stage={{ filter.key }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
             {{ filter.label }}
             <span class="receiving-tab-count {% if filter.count %}has-pending{% else %}is-zero{% endif %}"
                   aria-label="{{ filter.count }} pending receipt{{ filter.count|pluralize }}">{{ filter.count }}</span>
@@ -88,7 +101,7 @@
 
         <a class="receiving-tab {% if not active_stage %}active{% endif %}"
            {% if not active_stage %}aria-current="page"{% endif %}
-           href="{% url receiving_queue_url %}?tab=action{% if q %}&amp;q={{ q|urlencode }}{% endif %}">All Tasks</a>
+           href="{% url receiving_queue_url %}?tab=action&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">All Tasks</a>
       </nav>
       {% endif %}
 
@@ -127,14 +140,14 @@
         </tbody>
       </table></div>
       <div class="receiving-board-pagination">
-        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} receipt{{ page_obj.paginator.count|pluralize }}</span>
+        <span>Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} receipt{{ page_obj.paginator.count|pluralize }} · Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
         {% if page_obj.paginator.num_pages > 1 %}
           <nav class="receiving-pagination" aria-label="Receiving isolates pages">
             {% if page_obj.has_previous %}
-              <a href="?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;q={{ q|urlencode }}&amp;page={{ page_obj.previous_page_number }}">&larr; Previous</a>
+              <a href="?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;page={{ page_obj.previous_page_number }}">&larr; Previous</a>
             {% else %}<span></span>{% endif %}
             {% if page_obj.has_next %}
-              <a href="?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;q={{ q|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next &rarr;</a>
+              <a href="?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next &rarr;</a>
             {% else %}<span></span>{% endif %}
           </nav>
         {% endif %}
