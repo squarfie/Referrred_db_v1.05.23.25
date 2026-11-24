@@ -19,7 +19,7 @@
 
     <!-- Custody progress at a glance -->
     <ol class="receiving-surface receiving-steps" aria-label="Custody progress">
-      <li class="is-done"><span><i class="fas fa-check" aria-hidden="true"></i></span><div>Received at Receiving<small>{{ receipt.date_received|date:"M j, Y" }} {{ receipt.time_received|time:"g:i A" }}</small></div></li>
+      <li class="is-done"><span><i class="fas fa-check" aria-hidden="true"></i></span><div>Isolates Received<small>{{ receipt.date_received|date:"M j, Y" }} {{ receipt.time_received|time:"g:i A" }}</small></div></li>
       <li class="{% if receipt.endorsed_at or receipt.status == 'endorsed' or receipt.status == 'lab_received' %}is-done{% else %}is-current{% endif %}"><span>{% if receipt.endorsed_at or receipt.status == 'endorsed' or receipt.status == 'lab_received' %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}2{% endif %}</span><div>Endorsed to Laboratory<small>{% if receipt.endorsed_at %}{{ receipt.endorsed_at|date:"M j, Y g:i A" }}{% else %}Pending{% endif %}</small></div></li>
       <li class="{% if receipt.lab_date_received or receipt.status == 'lab_received' %}is-done{% elif receipt.status == 'endorsed' %}is-current{% endif %}"><span>{% if receipt.lab_date_received or receipt.status == 'lab_received' %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}3{% endif %}</span><div>Received by Laboratory<small>{% if receipt.lab_date_received %}{{ receipt.lab_date_received|date:"M j, Y" }} {{ receipt.lab_time_received|time:"g:i A" }}{% else %}Pending{% endif %}</small></div></li>
     </ol>
@@ -50,7 +50,7 @@
         <section class="receiving-surface receiving-card">
           <div class="receiving-card-header"><h2>Custody chain</h2><p>Recorded handoffs for this physical courier batch.</p></div>
           <div class="receiving-card-body"><div class="receiving-info-grid is-three">
-            <div><span class="receiving-info-label">Received at Receiving</span><span class="receiving-info-value">{{ receipt.date_received|date:"M j, Y" }} {{ receipt.time_received|time:"g:i A" }}</span><div class="receiving-info-secondary">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</div></div>
+            <div><span class="receiving-info-label">Isolates Received</span><span class="receiving-info-value">{{ receipt.date_received|date:"M j, Y" }} {{ receipt.time_received|time:"g:i A" }}</span><div class="receiving-info-secondary">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</div></div>
             <div><span class="receiving-info-label">Endorsement</span>{% if receipt.endorsed_at %}<span class="receiving-info-value">{{ receipt.endorsed_at|date:"M j, Y g:i A" }}</span><div class="receiving-info-secondary">{% if receipt.endorsed_by %}{{ receipt.endorsed_by.get_full_name|default:receipt.endorsed_by.username }}{% else %}—{% endif %}</div>{% else %}<span class="text-muted">Pending</span>{% endif %}</div>
             <div><span class="receiving-info-label">Laboratory receipt</span>{% if receipt.lab_date_received %}<span class="receiving-info-value">{{ receipt.lab_date_received|date:"M j, Y" }} {{ receipt.lab_time_received|time:"g:i A" }}</span><div class="receiving-info-secondary">{% if receipt.lab_received_by %}{{ receipt.lab_received_by.get_full_name|default:receipt.lab_received_by.username }}{% else %}—{% endif %}</div>{% else %}<span class="text-muted">Pending</span>{% endif %}</div>
           </div></div>
