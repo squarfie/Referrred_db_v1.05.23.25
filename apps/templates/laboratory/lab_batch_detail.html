@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Laboratory Batch {{ accession.batch_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-batch-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -12,18 +12,18 @@
       </div>
     </div>
     <div class="receiving-hero-actions">
-      <a class="btn btn-info" href="{% url 'laboratory_batch_labels' accession.pk %}" target="_blank">Print batch stickers</a>
-      <a class="btn btn-outline-light" href="{% if area == 'biobank' %}{% url 'laboratory_biobank_list' %}{% elif area == 'processing' %}{% url 'laboratory_processing_worklist' %}{% else %}{% url 'laboratory_receiving_dashboard' %}{% endif %}?area={{ area }}{% if show_history %}&history=1{% endif %}&amp;next={{ return_to|urlencode }}">All Batches</a>
-      {% if user_access.is_admin or user_access.is_lab_encoder %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_workspace' accession.laboratory_receiving.receipt.receiving_id %}">Receiving Worksheet</a>{% endif %}
+      <a class="btn btn-outline-light" href="{% if area == 'biobank' %}{% url 'laboratory_biobank_list' %}{% elif area == 'processing' %}{% url 'laboratory_processing_worklist' %}{% else %}{% url 'laboratory_receiving_dashboard' %}{% endif %}?area={{ area }}{% if show_history %}&amp;history=1{% endif %}&amp;next={{ return_to|urlencode }}"><i class="fas fa-arrow-left mr-1"></i>All Batches</a>
+      {% if user_access.is_admin or user_access.is_lab_encoder %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_workspace' accession.laboratory_receiving.receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Receiving Worksheet</a>{% endif %}
+      <a class="btn btn-info" href="{% url 'laboratory_batch_labels' accession.pk %}" target="_blank" rel="noopener"><i class="fas fa-print mr-1"></i>Print batch stickers</a>
     </div>
   </header>
   <div class="receiving-content">
-    <section class="receiving-surface">
+    <section class="receiving-surface receiving-card">
       <div class="receiving-card-header"><h2>Isolates in this batch</h2>
       <p>{% if area == 'processing' and not show_history %}Bench A records revival and the Site ID from the sentinel referral form. These are pre-handoff tasks only. Isolates leave this worklist when Main Lab testing begins; subsequent processing takes place in Step 5 of the Receiving Worksheet.{% else %}Review accession history and recorded actions. Main Lab identification and Final ID entry occur in the Main Laboratory workspace.{% endif %}</p></div>
       <div class="receiving-card-body">
         {% if area == 'processing' and not show_history %}
-        <nav class="receiving-tabs d-flex flex-wrap mb-3" style="gap:.5rem" aria-label="Bench A pre-handoff tasks">
+        <nav class="receiving-tabs receiving-task-filters receiving-segmented-flush" aria-label="Bench A pre-handoff tasks">
           {% for tab in revival_tabs %}
           <a class="receiving-tab {% if active_revival_tab == tab.key %}active{% endif %}"
              href="?area=processing&amp;revival_tab={{ tab.key }}{% if return_to %}&amp;next={{ return_to|urlencode }}{% endif %}"
@@ -32,41 +32,41 @@
           </a>
           {% endfor %}
         </nav>
-        <p class="small text-muted mb-3">
+        <p class="receiving-note mb-3"><i class="fas fa-info-circle" aria-hidden="true"></i><span>
           {% if active_revival_tab == 'record' %}Record actual revival outcomes and transcribe the sentinel site's reported ID from its referral form.
           {% elif active_revival_tab == 'failed' %}Review failed revival outcomes and retry where appropriate. Non-viable isolates are closed and remain in the history.
           {% elif active_revival_tab == 'ready' %}Revival and Site ID recording are complete; choose temporary storage or endorse the ready batch to Main Lab.
           {% else %}All isolates awaiting Bench A work or handoff; Main Lab work is excluded.{% endif %}
-        </p>
+        </span></p>
         {% endif %}
         {% if can_review and id_handoff.queued_count %}
-        <div class="receiving-help-panel mb-3">
-          <p>{{ id_handoff.queued_count }} accession{{ id_handoff.queued_count|pluralize }} ready at Bench A for direct endorsement to Main Lab.</p>
+        <div class="receiving-handoff">
+          <p><i class="fas fa-paper-plane mr-2" aria-hidden="true"></i><strong>{{ id_handoff.queued_count }} accession{{ id_handoff.queued_count|pluralize }}</strong> ready at Bench A for direct endorsement to Main Lab.</p>
           {% if id_handoff.ready %}
           <form method="post" action="{% url 'laboratory_endorse_id' accession.pk %}" class="receiving-form-actions">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}"><button type="submit" class="btn btn-primary">Endorse whole batch to Main Lab</button></form>
-          {% else %}<p class="mb-0">{{ id_handoff.reason }} <a href="{% url 'laboratory_receiving_workspace' accession.laboratory_receiving.receipt.receiving_id %}#accessioning">Review batch readiness</a></p>{% endif %}
+          {% else %}<p>{{ id_handoff.reason }} <a href="{% url 'laboratory_receiving_workspace' accession.laboratory_receiving.receipt.receiving_id %}#accessioning">Review batch readiness</a></p>{% endif %}
         </div>
         {% endif %}
         <div class="table-responsive"><table class="table receiving-table">
-        <thead><tr><th>Accession</th><th>Workflow status</th><th>Site-reported ID</th><th>Main Lab results</th><th>ID returned / by</th><th>Banking ID / source</th><th>Next action / owner</th><th>Action</th></tr></thead>
+        <thead><tr><th>Accession</th><th>Workflow status</th><th>Site-reported ID</th><th>Main Lab results</th><th>ID returned / by</th><th>Banking ID / source</th><th>Next action / owner</th><th class="receiving-nowrap">Action</th></tr></thead>
         <tbody>
         {% for isolate in isolates %}
         <tr>
-          <td><strong>{{ isolate.accession_number }}</strong></td>
+          <td><strong class="receiving-tracking">{{ isolate.accession_number }}</strong></td>
           <td>{% if area == 'processing' and not show_history %}
-            {% if isolate.status == 'revival_failed' %}Failed — Review / Retry
-            {% elif isolate.status == 'revived' and not isolate.site_organism_code %}Site ID to Record
-            {% elif isolate.status == 'revived' or isolate.status == 'id_queued' %}Ready for Handoff
-            {% else %}Revival Outcome to Record{% endif %}
-          {% else %}{{ isolate.get_status_display }}{% endif %}</td>
+            {% if isolate.status == 'revival_failed' %}<span class="badge badge-danger">Failed — Review / Retry</span>
+            {% elif isolate.status == 'revived' and not isolate.site_organism_code %}<span class="badge badge-warning">Site ID to Record</span>
+            {% elif isolate.status == 'revived' or isolate.status == 'id_queued' %}<span class="badge badge-info">Ready for Handoff</span>
+            {% else %}<span class="badge badge-warning">Revival Outcome to Record</span>{% endif %}
+          {% else %}<span class="badge badge-light">{{ isolate.get_status_display }}</span>{% endif %}</td>
           <td>{% if isolate.reported_site_id %}{{ isolate.reported_site_id.0 }} &middot; {{ isolate.reported_site_id.1 }}{% else %}<span class="text-muted">Not recorded</span>{% endif %}</td>
           <td>{{ isolate.identifications.count }}</td>
-          <td>{% if isolate.returned_at %}{{ isolate.returned_at|date:"M j, Y g:i A" }}<span class="receiving-site-name">{% if isolate.returned_by %}{{ isolate.returned_by.get_full_name|default:isolate.returned_by.username }}{% else %}—{% endif %}</span>{% else %}Pending{% endif %}</td>
+          <td>{% if isolate.returned_at %}{{ isolate.returned_at|date:"M j, Y g:i A" }}<span class="receiving-site-name">{% if isolate.returned_by %}{{ isolate.returned_by.get_full_name|default:isolate.returned_by.username }}{% else %}—{% endif %}</span>{% else %}<span class="text-muted">Pending</span>{% endif %}</td>
           <td>{{ isolate.final_organism|default:"Pending identification" }}{% if isolate.identification_source %}<span class="receiving-site-name">{{ isolate.get_identification_source_display }}</span>{% endif %}</td>
           <td><strong>{{ isolate.next_action.label }}</strong><span class="receiving-site-name">{{ isolate.next_action.owner }}</span>{% if not isolate.next_action.allowed %}<span class="small text-muted">Assigned to another role</span>{% endif %}</td>
-          <td><a class="btn btn-sm btn-primary" href="{% url 'laboratory_isolate_detail' isolate.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}&amp;next={{ return_to|urlencode }}#{{ isolate.next_action.section }}">{% if isolate.next_action.allowed %}Open Isolate{% else %}View Isolate{% endif %}</a></td>
+          <td class="receiving-nowrap"><a class="btn btn-sm {% if isolate.next_action.allowed %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'laboratory_isolate_detail' isolate.pk %}?area={{ area }}{% if show_history %}&amp;history=1{% endif %}&amp;next={{ return_to|urlencode }}#{{ isolate.next_action.section }}"><i class="fas {% if isolate.next_action.allowed %}fa-folder-open{% else %}fa-eye{% endif %} mr-1" aria-hidden="true"></i>{% if isolate.next_action.allowed %}Open Isolate{% else %}View Isolate{% endif %}</a></td>
         </tr>
-        {% empty %}<tr><td colspan="8" class="text-muted text-center">{% if area == 'processing' and not show_history %}No isolates need revival or Site ID preparation in this batch. Check Step 5 for later-stage work.{% else %}No isolate records available for this batch.{% endif %}</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="8" class="receiving-empty"><i class="fas fa-vial" aria-hidden="true"></i>{% if area == 'processing' and not show_history %}No isolates need revival or Site ID preparation in this batch. Check Step 5 for later-stage work.{% else %}No isolate records available for this batch.{% endif %}</td></tr>{% endfor %}
         </tbody></table></div>
       </div>
     </section>

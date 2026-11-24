@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worklist-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-filters-4">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -37,31 +37,6 @@
         <div><h2 class="receiving-board-title">{{ active_tab_label }}</h2>
           <p class="receiving-board-subtitle">{% if is_lab_worklist %}{% if active_stage == 'batch_creation' %}Accession ranges awaiting Raw Data batch creation. This task is independent of laboratory completion.{% elif active_tab == 'action' %}Receipts awaiting Bench A work: receipt, accessioning, processing or lyophilization.{% elif active_tab == 'main_lab' %}Batches currently with Main Laboratory for identification.{% elif active_tab == 'complete' %}All required laboratory steps are complete, or isolates were properly closed as non-viable.{% else %}All courier receipts and laboratory records.{% endif %} Counts are receipts, not isolates.{% else %}View courier receiving records by status.{% endif %}</p>
         </div>
-        <form method="get" class="receiving-board-search">
-          <input type="hidden" name="tab" value="{{ active_tab }}">
-          {% if active_stage %}<input type="hidden" name="stage" value="{{ active_stage }}">{% endif %}
-          <label class="form-control-label" for="receiving-search">Search receipts</label>
-          <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
-            <label class="mb-0" for="receiving-year">Year</label>
-            <select class="form-control" id="receiving-year" name="year" style="width:auto;min-width:110px" onchange="this.form.submit()">
-              {% for year in available_years %}
-                <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
-              {% endfor %}
-              <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All years</option>
-            </select>
-            <label class="mb-0" for="receiving-per-page">Rows</label>
-            <select class="form-control" id="receiving-per-page" name="per_page" style="width:auto;min-width:75px" onchange="this.form.submit()">
-              {% for size in allowed_page_sizes %}
-                <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
-              {% endfor %}
-            </select>
-            <div class="receiving-search-wrap"><i class="fas fa-search" aria-hidden="true"></i>
-              <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Tracking number, site code or name">
-            </div>
-            <button class="btn btn-primary mb-0" type="submit">Search</button>
-            <a class="btn btn-outline-secondary mb-0" href="{% url receiving_queue_url %}?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}">Reset</a>
-          </div>
-        </form>
       </div>
 
       {% if is_lab_worklist and pending_batch_count and active_stage != 'batch_creation' %}
@@ -72,15 +47,45 @@
       </div>
       {% endif %}
 
-      <nav class="receiving-tabs receiving-workflow-tabs" aria-label="Bench A worklist tabs">
-        {% for tab in receiving_tabs %}
-          <a class="receiving-tab {% if tab.active %}active{% endif %}"
-             {% if tab.active %}aria-current="page"{% endif %}
-             href="{% url receiving_queue_url %}?tab={{ tab.key }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
-            {{ tab.label }} <span class="receiving-tab-count">{{ tab.count }}</span>
-          </a>
-        {% endfor %}
-      </nav>
+      <div class="receiving-tabbar">
+        <nav class="receiving-tabs receiving-workflow-tabs" aria-label="Bench A worklist tabs">
+          {% for tab in receiving_tabs %}
+            <a class="receiving-tab {% if tab.active %}active{% endif %}"
+               {% if tab.active %}aria-current="page"{% endif %}
+               href="{% url receiving_queue_url %}?tab={{ tab.key }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
+              {{ tab.label }} <span class="receiving-tab-count">{{ tab.count }}</span>
+            </a>
+          {% endfor %}
+        </nav>
+        <form method="get" class="receiving-filters receiving-filters--inline" aria-label="Filter receipts">
+          <input type="hidden" name="tab" value="{{ active_tab }}">
+          {% if active_stage %}<input type="hidden" name="stage" value="{{ active_stage }}">{% endif %}
+          <div class="receiving-filter receiving-filter--inline">
+            <label for="receiving-year">Year</label>
+            <select class="form-control" id="receiving-year" name="year" onchange="this.form.submit()">
+              {% for year in available_years %}
+                <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+              {% endfor %}
+              <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All years</option>
+            </select>
+          </div>
+          <div class="receiving-filter receiving-filter--inline">
+            <label for="receiving-per-page">Rows</label>
+            <select class="form-control" id="receiving-per-page" name="per_page" onchange="this.form.submit()">
+              {% for size in allowed_page_sizes %}
+                <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="receiving-search-group">
+            <div class="receiving-search-wrap"><i class="fas fa-search" aria-hidden="true"></i>
+              <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Tracking no., site code or name" aria-label="Search receipts">
+            </div>
+            <button class="btn btn-primary" type="submit">Search</button>
+          </div>
+          <a class="receiving-filter-reset" href="{% url receiving_queue_url %}?tab={{ active_tab }}{% if active_stage %}&amp;stage={{ active_stage }}{% endif %}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}"><i class="fas fa-undo-alt mr-1" aria-hidden="true"></i>Reset</a>
+        </form>
+      </div>
 
       {% if is_lab_worklist and active_tab == 'action' %}
       <nav class="receiving-tabs receiving-task-filters" aria-label="Bench A task filters">

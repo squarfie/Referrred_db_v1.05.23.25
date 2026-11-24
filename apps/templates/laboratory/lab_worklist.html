@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Laboratory Batch Worklist{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-batches-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
@@ -9,52 +9,55 @@
     <p class="receiving-hero-subtitle">{% if area == "processing" %}Revival, direct banking using site ID, or Main Lab ID followed by lyophilization and banking, grouped by accession batch.{% else %}Record identification results and return cassettes to Laboratory Receiving, grouped by accession batch.{% endif %}</p>
   </div></div>
   <div class="receiving-hero-actions">
-    {% if can_test and area != "processing" %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}"><i class="fas fa-file-upload mr-1"></i> Upload ID Results</a>{% endif %}
-    {% if area == 'identification' %}<a class="btn btn-outline-light" href="{% url 'main_lab_dashboard' %}">Main Laboratory</a>{% else %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}">Bench A Dashboard</a>{% endif %}
+    {% if area == 'identification' %}<a class="btn btn-outline-light" href="{% url 'main_lab_dashboard' %}"><i class="fas fa-arrow-left mr-1"></i>Main Laboratory</a>{% else %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-1"></i>Bench A Dashboard</a>{% endif %}
+    {% if can_test and area != "processing" %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}"><i class="fas fa-file-upload mr-1"></i>Upload ID Results</a>{% endif %}
   </div></header>
   <div class="receiving-content">
-    <section class="receiving-surface">
+    <section class="receiving-surface receiving-card">
       <div class="receiving-card-header"><h2>Batch worklist</h2><p>Open a batch to see each accession, its next action and the responsible role. Active work is shown by default.</p></div>
       <div class="receiving-card-body">
-        <nav class="receiving-tabs" aria-label="Worklist scope">
-          <a class="receiving-tab {% if not show_history %}active{% endif %}" {% if not show_history %}aria-current="page"{% endif %} href="?area={{ area }}">Active work <span class="receiving-tab-count" aria-label="{{ scope_counts.active }} isolate{{ scope_counts.active|pluralize }}">{{ scope_counts.active }}</span></a>
-          <a class="receiving-tab {% if show_history %}active{% endif %}" {% if show_history %}aria-current="page"{% endif %} href="?area={{ area }}&history=1">{% if area == 'processing' %}Returned from Main Lab / history{% else %}History{% endif %} <span class="receiving-tab-count" aria-label="{{ scope_counts.history }} isolate{{ scope_counts.history|pluralize }}">{{ scope_counts.history }}</span></a>
-        </nav>
-        <p class="small text-muted mt-2">Tab badges count isolates across the full queue. The table groups accessions by batch; returned isolates can still have active processing.</p>
-        <form method="get" class="form-row align-items-end mb-3">
-          <input type="hidden" name="area" value="{{ area }}">{% if show_history %}<input type="hidden" name="history" value="1">{% endif %}
-          <div class="col-md-5 mb-2"><label for="id-q">Accession number</label><input id="id-q" name="q" value="{{ query }}" class="form-control" placeholder="e.g. 26ARS_RI0001"></div>
-          <div class="col-md-4 mb-2"><label for="id-status">Testing status</label><select id="id-status" name="status" class="form-control">
-            <option value="">All work stages</option>{% for value,label in statuses %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-          </select></div>
-          <div class="col-md-auto mb-2"><button type="submit" class="btn btn-primary mb-0">Filter</button></div>
-        </form>
+        <div class="receiving-filterbar">
+          <nav class="receiving-tabs receiving-task-filters" aria-label="Worklist scope">
+            <a class="receiving-tab {% if not show_history %}active{% endif %}" {% if not show_history %}aria-current="page"{% endif %} href="?area={{ area }}">Active work <span class="receiving-tab-count" aria-label="{{ scope_counts.active }} isolate{{ scope_counts.active|pluralize }}">{{ scope_counts.active }}</span></a>
+            <a class="receiving-tab {% if show_history %}active{% endif %}" {% if show_history %}aria-current="page"{% endif %} href="?area={{ area }}&amp;history=1">{% if area == 'processing' %}Returned from Main Lab / history{% else %}History{% endif %} <span class="receiving-tab-count" aria-label="{{ scope_counts.history }} isolate{{ scope_counts.history|pluralize }}">{{ scope_counts.history }}</span></a>
+          </nav>
+          <form method="get" class="receiving-filterbar-form" aria-label="Filter batches">
+            <input type="hidden" name="area" value="{{ area }}">{% if show_history %}<input type="hidden" name="history" value="1">{% endif %}
+            <div class="receiving-field-inline receiving-field-inline--q"><label for="id-q">Accession number</label><input id="id-q" name="q" value="{{ query }}" class="form-control" placeholder="e.g. 26ARS_RI0001"></div>
+            <div class="receiving-field-inline receiving-field-inline--status"><label for="id-status">Testing status</label><select id="id-status" name="status" class="form-control">
+              <option value="">All work stages</option>{% for value,label in statuses %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select></div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-filter mr-1" aria-hidden="true"></i>Filter</button>
+            <a class="receiving-filter-reset" href="?area={{ area }}{% if show_history %}&amp;history=1{% endif %}"><i class="fas fa-undo-alt mr-1" aria-hidden="true"></i>Reset</a>
+          </form>
+        </div>
+        <p class="receiving-note mb-3"><i class="fas fa-info-circle" aria-hidden="true"></i><span>Tab badges count isolates across the full queue. The table groups accessions by batch; returned isolates can still have active processing.</span></p>
         <div class="table-responsive">
-          <table class="table receiving-table">
+          <table class="table receiving-table receiving-stage-table">
             <caption class="sr-only">Accession batches and workflow stage counts</caption>
-            <thead><tr><th scope="col">Batch / accession range</th><th scope="col">Referring site / tracking</th><th scope="col">Isolates</th><th scope="col">Awaiting revival</th><th scope="col">Temporary bank or endorse</th><th scope="col">Awaiting endorsement / temporary</th><th scope="col">Awaiting Main Lab ID</th><th scope="col">Returned</th><th scope="col">ID complete / ready for lyophilization</th><th scope="col">Awaiting lyophilization</th><th scope="col">Awaiting biobank</th><th scope="col">Completed</th><th scope="col">Action</th></tr></thead>
+            <thead><tr><th scope="col">Batch / accession range</th><th scope="col">Referring site / tracking</th><th scope="col">Isolates</th><th scope="col">Awaiting revival</th><th scope="col">Temporary bank or endorse</th><th scope="col">Awaiting endorsement / temporary</th><th scope="col">Awaiting Main Lab ID</th><th scope="col">Returned</th><th scope="col">ID complete / ready for lyophilization</th><th scope="col">Awaiting lyophilization</th><th scope="col">Awaiting biobank</th><th scope="col">Completed</th><th scope="col" class="receiving-nowrap">Action</th></tr></thead>
             <tbody>
             {% for row in batches %}
               <tr>
                 <td data-label="Batch"><strong>Batch {{ row.accession.batch_number }} / {{ row.accession.total_batches }}</strong><span class="receiving-site-name">{{ row.accession.reference_range }}{% if row.accession.batch %} · {{ row.accession.batch.bat_Batch_Code }}{% endif %}</span></td>
-                <td data-label="Site">{{ row.accession.laboratory_receiving.receipt.site.SiteCode }}<span class="receiving-site-name">{{ row.accession.laboratory_receiving.receipt.tracking_number }}</span></td>
-                <td data-label="Isolates">{{ row.count }} / {{ row.accession.isolate_count }}</td>
-                <td data-label="Awaiting revival">{{ row.awaiting_revival_count }}</td>
-                <td data-label="Temporary bank or endorse">{{ row.awaiting_disposition_count }}</td>
-                <td data-label="Awaiting endorsement / temporary">{{ row.awaiting_endorsement_count }}</td>
-                <td data-label="Awaiting ID">{{ row.awaiting_id_count }}</td>
-                <td data-label="Returned">{{ row.returned_count }}</td>
-                <td data-label="Awaiting review">{{ row.awaiting_review_count }}</td>
-                <td data-label="Awaiting lyophilization">{{ row.awaiting_lyophilization_count }}</td>
-                <td data-label="Awaiting biobank">{{ row.awaiting_biobank_count }}</td>
-                <td data-label="Completed">{{ row.completed_count }}</td>
-                <td data-label="Action" class="receiving-actions"><div class="receiving-action-group"><a class="btn btn-sm btn-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area={{ area }}{% if show_history %}&history=1{% endif %}">Open Batch</a></div></td>
+                <td data-label="Site"><strong>{{ row.accession.laboratory_receiving.receipt.site.SiteCode }}</strong><span class="receiving-site-name receiving-tracking">{{ row.accession.laboratory_receiving.receipt.tracking_number }}</span></td>
+                <td data-label="Isolates" class="receiving-count">{{ row.count }} / {{ row.accession.isolate_count }}</td>
+                <td data-label="Awaiting revival" class="receiving-count{% if not row.awaiting_revival_count %} is-zero{% endif %}">{{ row.awaiting_revival_count }}</td>
+                <td data-label="Temporary bank or endorse" class="receiving-count{% if not row.awaiting_disposition_count %} is-zero{% endif %}">{{ row.awaiting_disposition_count }}</td>
+                <td data-label="Awaiting endorsement / temporary" class="receiving-count{% if not row.awaiting_endorsement_count %} is-zero{% endif %}">{{ row.awaiting_endorsement_count }}</td>
+                <td data-label="Awaiting ID" class="receiving-count{% if not row.awaiting_id_count %} is-zero{% endif %}">{{ row.awaiting_id_count }}</td>
+                <td data-label="Returned" class="receiving-count{% if not row.returned_count %} is-zero{% endif %}">{{ row.returned_count }}</td>
+                <td data-label="Awaiting review" class="receiving-count{% if not row.awaiting_review_count %} is-zero{% endif %}">{{ row.awaiting_review_count }}</td>
+                <td data-label="Awaiting lyophilization" class="receiving-count{% if not row.awaiting_lyophilization_count %} is-zero{% endif %}">{{ row.awaiting_lyophilization_count }}</td>
+                <td data-label="Awaiting biobank" class="receiving-count{% if not row.awaiting_biobank_count %} is-zero{% endif %}">{{ row.awaiting_biobank_count }}</td>
+                <td data-label="Completed" class="receiving-count is-done{% if not row.completed_count %} is-zero{% endif %}">{{ row.completed_count }}</td>
+                <td data-label="Action" class="receiving-actions receiving-nowrap"><div class="receiving-action-group"><a class="btn btn-sm btn-primary" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area={{ area }}{% if show_history %}&amp;history=1{% endif %}"><i class="fas fa-folder-open mr-1" aria-hidden="true"></i>Open Batch</a></div></td>
               </tr>
-            {% empty %}<tr><td colspan="13" class="text-center text-muted">No isolate batches match the filters. Record revival first; only isolates endorsed to Main Lab appear in Identification Testing.</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="13" class="receiving-empty"><i class="fas fa-vials" aria-hidden="true"></i>No isolate batches match the filters. Record revival first; only isolates endorsed to Main Lab appear in Identification Testing.</td></tr>{% endfor %}
             </tbody>
           </table>
         </div>
-        <p class="small text-muted mt-2 mb-0">Showing up to 250 matching accession batches. Narrow results with accession or status filters.</p>
+        <p class="receiving-note mt-3 mb-0"><i class="fas fa-info-circle" aria-hidden="true"></i><span>Showing up to 250 matching accession batches. Narrow results with accession or status filters.</span></p>
       </div>
     </section>
   </div>

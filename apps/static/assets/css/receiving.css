@@ -559,3 +559,53 @@ html { scroll-behavior: smooth; }
 .receiving-tabbar .receiving-filters--inline select.form-control:not([size]):not([multiple]),
 .receiving-tabbar .receiving-filters--inline .btn { height: 2.3rem !important; }
 .receiving-tabbar .receiving-filters--inline .receiving-filter-reset { line-height: 2.3rem; }
+
+
+
+
+
+/* ===== Laboratory batch detail page additions (append to receiving.css) ===== */
+
+/* Revival tabs: segmented control that sits flush inside the card body */
+.receiving-task-filters.receiving-segmented-flush { margin: 0 0 1rem; max-width: 100%; overflow-x: auto; }
+
+/* Status pills inside tables */
+.receiving-table .badge { padding: .35em .75em; border-radius: 999px; font-size: .68rem; font-weight: 700; letter-spacing: .03em; white-space: nowrap; }
+.receiving-table .badge-light { color: #3f566b; background: #eef3f7; border: 1px solid #d5e4ee; }
+.receiving-table .badge-danger { color: #8f2a26; background: #fde8e6; border: 1px solid #f3b9b4; }
+.receiving-table .badge-warning { color: #8a6100; background: #fff5cf; border: 1px solid #efd271; }
+.receiving-table .badge-info { color: #0e6a7a; background: #e2f8fb; border: 1px solid #a9e1ea; }
+
+/* Action column stays on one line */
+.receiving-table td.receiving-nowrap, .receiving-table th.receiving-nowrap { white-space: nowrap; width: 1%; }
+
+/* Handoff callout */
+.receiving-handoff { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.25rem; margin-bottom: 1rem; padding: .8rem 1rem; border: 1px solid #bde5ec; border-left: 4px solid var(--receiving-cyan); border-radius: 9px; background: #f0fbfd; color: #245a65; font-size: .86rem; }
+.receiving-handoff p { margin: 0; }
+.receiving-handoff form { margin: 0; }
+.receiving-handoff .btn { margin: 0; }
+
+
+
+/* ===== Laboratory batch worklist additions (append to receiving.css) ===== */
+
+/* Scope tabs (left) + filters (right) on one row */
+.receiving-filterbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: .75rem 1.25rem; margin-bottom: 1rem; }
+.receiving-filterbar .receiving-task-filters { margin: 0; flex: 0 1 auto; }
+.receiving-filterbar-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem; margin: 0; }
+.receiving-filterbar-form .receiving-field-inline { display: flex; flex-direction: column; min-width: 0; }
+.receiving-filterbar-form label { margin: 0 0 .3rem; color: #2b4a63; font-size: .7rem; font-weight: 700; letter-spacing: .05em; line-height: 1.4; text-transform: uppercase; }
+.receiving-filterbar-form .form-control { height: 2.3rem !important; margin: 0 !important; padding-top: 0; padding-bottom: 0; font-size: .84rem; }
+.receiving-filterbar-form .receiving-field-inline--q { width: 230px; }
+.receiving-filterbar-form .receiving-field-inline--status { width: 190px; }
+.receiving-filterbar-form .btn { height: 2.3rem; margin: 0 !important; display: inline-flex; align-items: center; }
+.receiving-filterbar-form .receiving-filter-reset { line-height: 2.3rem; }
+@media (max-width: 767.98px) { .receiving-filterbar-form, .receiving-filterbar-form .receiving-field-inline--q, .receiving-filterbar-form .receiving-field-inline--status { width: 100%; } }
+
+/* Stage-count table: centred counts, zeros fade back, non-zero stands out */
+.receiving-stage-table th:nth-child(n+3):not(:last-child) { min-width: 92px; text-align: center; white-space: normal; line-height: 1.3; }
+.receiving-stage-table td.receiving-count { text-align: center; font-variant-numeric: tabular-nums; font-size: .95rem; font-weight: 800; color: var(--receiving-navy); }
+.receiving-stage-table td.receiving-count.is-zero { color: #b3c2d0; font-weight: 400; }
+.receiving-stage-table td.receiving-count.is-done:not(.is-zero) { color: #116149; }
+.receiving-stage-table td.receiving-nowrap, .receiving-stage-table th.receiving-nowrap { white-space: nowrap; width: 1%; }
+.receiving-stage-table tbody tr:hover { background: #f3fafc; }
