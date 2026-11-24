@@ -73,8 +73,18 @@ def endorse_batch(*, batch_id, user, destination_role, remarks=""):
         raise ValidationError("Select a different destination role.")
     if len(remarks) > 1000:
         raise ValidationError("The endorsement reason must be 1000 characters or fewer.")
-    if destination_role not in (ROLE_LAB_ENCODER, ROLE_ENCODER, ROLE_CHECKER, ROLE_VERIFIER, ROLE_LAB_MANAGER, ROLE_HEAD) and not remarks.strip():
-        raise ValidationError("A reason is required for this destination.")
+    normal_next = {
+        ROLE_SECRETARIAT: ROLE_LAB_ENCODER,
+        ROLE_LAB_ENCODER: ROLE_ENCODER,
+        ROLE_ENCODER: ROLE_CHECKER,
+        ROLE_CHECKER: ROLE_VERIFIER,
+        ROLE_VERIFIER: ROLE_LAB_MANAGER,
+        ROLE_LAB_MANAGER: ROLE_HEAD,
+    }
+    if destination_role != normal_next.get(custody.current_role) and not remarks.strip():
+        raise ValidationError("Provide a reason for endorsements outside the normal sequence.")
+    if hasattr(custody.batch, "tat_entry") and custody.batch.tat_entry.tat_Status_Release == "Released":
+        raise ValidationError("Released batches cannot be endorsed again.")
     now = timezone.now()
     origin = custody.current_role
     custody.pending_role = destination_role
