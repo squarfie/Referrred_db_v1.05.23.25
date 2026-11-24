@@ -750,7 +750,7 @@ class LaboratoryBiobank(models.Model):
 class BatchCustody(models.Model):
     """One authoritative custody state per generated batch, independent of approval."""
     batch = models.OneToOneField(
-        "home.Batch_Table", on_delete=models.PROTECT, related_name="receiving_custody"
+        "home.Batch_Table", on_delete=models.CASCADE, related_name="receiving_custody"
     )
     current_role = models.CharField(max_length=40)
     pending_role = models.CharField(max_length=40, blank=True, default="")
@@ -788,7 +788,7 @@ class BatchCustodyEvent(models.Model):
         UNDONE = "undone", "Endorsement Recalled"
 
     custody = models.ForeignKey(
-        BatchCustody, on_delete=models.PROTECT, related_name="events"
+        BatchCustody, on_delete=models.CASCADE, related_name="events"
     )
     action = models.CharField(max_length=20, choices=Action.choices)
     from_role = models.CharField(max_length=40)
