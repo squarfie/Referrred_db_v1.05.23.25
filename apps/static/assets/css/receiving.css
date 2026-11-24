@@ -100,7 +100,7 @@
 .receiving-stat-value { margin-top: 0.1rem; color: var(--receiving-navy); font-size: 1.55rem; font-weight: 700; line-height: 1; }
 
 .receiving-filter { margin-bottom: 1.15rem; padding: 1rem 1.1rem; }
-.receiving-filter .form-control { min-height: 40px; border-color: #d7e3ef; border-radius: 8px; }
+.receiving-filter .form-control { min-height: 30px; border-color: #d7e3ef; border-radius: 8px; }
 .receiving-filter .form-control:focus, .receiving-form-card .form-control:focus { border-color: var(--receiving-cyan); box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.12); }
 .receiving-search-wrap { position: relative; }
 .receiving-search-wrap i { position: absolute; top: 50%; left: 13px; z-index: 2; color: #8ba0b5; transform: translateY(-50%); }
