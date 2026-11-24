@@ -976,6 +976,42 @@ class ReceivingTemplateTests(TestCase):
             )
         return ReferralReceipt.objects.create(**values)
 
+    def test_unified_pending_shows_existing_laboratory_receipts(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, receipt.tracking_number)
+        self.assertContains(response, "Confirm receipt")
+        self.assertContains(
+            response,
+            self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id),
+        )
+        self.assertContains(response, 'class="receiving-tabbar"')
+        self.assertContains(response, 'class="receiving-filters receiving-filters--inline"')
+
+    def test_unified_received_shows_confirmed_laboratory_receipts(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "received"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, receipt.tracking_number)
+        self.assertContains(response, "Open Worksheet")
+
+    def test_unified_receiving_does_not_expose_lab_intake_to_checker(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        checker = self.create_user("template_checker_receipt", home_permissions.ROLE_CHECKER)
+        self.client.force_login(checker)
+        response = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, receipt.tracking_number)
+
     def test_dashboard_uses_layout_displays_counts_and_receiving_menu(self):
         self.create_receipt(ReferralReceipt.Status.RECEIVED)
         self.create_receipt(ReferralReceipt.Status.ENDORSED)
