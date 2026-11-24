@@ -55,7 +55,10 @@ def _tab_filter(queryset, tab, user):
             events__from_role__in=roles,
         ).distinct()
     if tab == "completed":
-        return queryset.filter(batch__tat_entry__tat_Status_Release="Released")
+        return queryset.filter(
+            Q(batch__tat_entry__tat_Status_Release="Released")
+            | Q(batch__verification_cases__status__in=("signed_by_head", "released"))
+        ).distinct()
     return queryset
 
 
