@@ -1396,6 +1396,12 @@ def batch_create_view(request):
                 )
                 return render(request, "home/Batchname_form.html", {"form": form, "editing": False})
 
+            from apps.receiving.handoffs import custody_roles, initialize_custody
+            from apps.home.permissions import ROLE_CHECKER, ROLE_ENCODER
+            initial_role = ROLE_ENCODER if ROLE_ENCODER in custody_roles(request.user) else (
+                ROLE_CHECKER if ROLE_CHECKER in custody_roles(request.user) else ROLE_ENCODER
+            )
+            initialize_custody(batch=result.batch, user=request.user, initial_role=initial_role)
             if result.recovered_orphan:
                 messages.warning(request, "Recovered an empty orphan batch shell.")
             messages.success(
