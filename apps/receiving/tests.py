@@ -990,9 +990,10 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, "Isolates Received")
         self.assertContains(response, "Endorsed to Laboratory")
         self.assertContains(response, "Received by Laboratory")
-        # The sidebar now routes Secretariat users to their dedicated worklist.
+        # The sidebar opens the unified, role-scoped Receiving worklist.
         self.assertContains(
-            response, 'href="/receiving/secretariat/"', html=False
+            response, 'href="' + self.route("receiving_workflow_dashboard") + '"',
+            html=False,
         )
         self.assertContains(response, "/static/assets/css/receiving.css")
         self.assertContains(response, 'class="receiving-page"')
@@ -1100,9 +1101,14 @@ class ReceivingTemplateTests(TestCase):
     def test_secretariat_new_receipt_back_and_cancel_stay_secretariat(self):
         self.client.force_login(self.secretariat)
         response = self.client.get(self.route("receiving_create"))
+        # Back and Cancel still return to the courier intake worklist;
+        # the sidebar Receiving link now points to the unified worklist.
         self.assertContains(response,
             'href="' + self.route("secretariat_receiving_dashboard") + '"',
-            count=3, html=False)
+            count=2, html=False)
+        self.assertContains(response,
+            'href="' + self.route("receiving_workflow_dashboard") + '"',
+            count=1, html=False)
 
     def test_lab_encoder_sees_only_confirmation_for_endorsed_receipt(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
