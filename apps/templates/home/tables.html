@@ -1282,6 +1282,7 @@
     </div>
 
     <div class="batch-header-actions">
+      <a class="btn btn-sm btn-outline-info" href="{% url 'receiving_workflow_dashboard' %}?tab=received"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
       {% if user_access.can_create %}
         <a class="btn btn-sm btn-primary" href="{% url 'batch_create_view' %}" title="Create a new batch">
           <i class="fas fa-plus mr-1"></i>Add Batch
