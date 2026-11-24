@@ -414,9 +414,9 @@ $(document).ready(function () {
   const $siteNameGen = $('#id_bat_Site_NameGen');
   const $batchName   = $('#id_bat_Batch_Name');
 
-  // -----------------------------------------------
-  // EDITING RESTRICTIONS
-  // -----------------------------------------------
+  // =====================================================
+  // 1. EDITING RESTRICTIONS
+  // =====================================================
 
   if (IS_EDITING) {
     [
@@ -432,60 +432,104 @@ $(document).ready(function () {
     });
   }
 
-  // Reference No remains manually editable.
+  // Reference No is always manually entered.
   $refNo.prop('readonly', false)
         .prop('disabled', false)
         .css('pointer-events', 'auto')
-        .attr('placeholder', 'Enter reference range, e.g. 2-3');
+        .attr('placeholder', 'Enter range, e.g. 2-3')
+        .attr('inputmode', 'numeric')
+        .attr('autocomplete', 'off');
 
-  // -----------------------------------------------
-  // REAL-TIME REFERENCE NUMBER FORMATTING
-  // -----------------------------------------------
+  // =====================================================
+  // 2. REAL-TIME REFERENCE NUMBER FORMATTING
+  // =====================================================
 
   let refStart = '';
   let refEnd = '';
   let hasHyphen = false;
 
-  function parseReference(value) {
-    const cleaned = String(value || '')
-      .replace(/[^\d-]/g, '');
+  // Store the last valid formatted value.
+  let lastValidReference = '';
 
-    const parts = cleaned.split('-');
-
-    // Remove display padding, keeping the actual typed number.
-    refStart = (parts[0] || '')
-      .replace(/^0+(?=\d)/, '')
-      .slice(0, 4);
-
-    refEnd = (parts[1] || '')
-      .replace(/^0+(?=\d)/, '')
-      .slice(0, 4);
-
-    hasHyphen = cleaned.includes('-');
+  function padReference(value) {
+    if (!value) return '';
+    return String(value).padStart(4, '0');
   }
 
-  function renderReference() {
-    let formatted = '';
+  // Parse a complete value from an existing form or paste.
+  function parseReference(value) {
+    const text = String(value || '').trim();
 
-    if (refStart) {
-      formatted = refStart.padStart(4, '0');
+    if (!text) {
+      refStart = '';
+      refEnd = '';
+      hasHyphen = false;
+      return true;
     }
 
-    if (hasHyphen && refStart) {
+    // Accept numbers with an optional range separator.
+    const match = text.match(
+      /^(\d{1,4})(?:\s*-\s*(\d{0,4}))?$/
+    );
+
+    if (!match) {
+      return false;
+    }
+
+    const start = Number(match[1]);
+    const endText = match[2] || '';
+
+    if (start < 1 || start > 9999) {
+      return false;
+    }
+
+    if (endText && Number(endText) > 9999) {
+      return false;
+    }
+
+    refStart = String(start);
+    refEnd = endText
+      ? String(Number(endText))
+      : '';
+
+    hasHyphen = text.includes('-');
+
+    return true;
+  }
+
+  function getFormattedReference() {
+    if (!refStart) return '';
+
+    let formatted = padReference(refStart);
+
+    if (hasHyphen) {
       formatted += '-';
 
       if (refEnd) {
-        formatted += refEnd.padStart(4, '0');
+        formatted += padReference(refEnd);
       }
     }
 
+    return formatted;
+  }
+
+  function renderReference() {
+    const formatted = getFormattedReference();
+
     $refNo.val(formatted);
+    lastValidReference = formatted;
 
     const input = $refNo[0];
 
     if (input && document.activeElement === input) {
-      const end = formatted.length;
-      input.setSelectionRange(end, end);
+      try {
+        input.setSelectionRange(
+          formatted.length,
+          formatted.length
+        );
+      } catch (error) {
+        // Ignore unsupported selection operations.
+      }
     }
 
     generateBatchName();
@@ -495,16 +539,48 @@ $(document).ready(function () {
     refStart = '';
     refEnd = '';
     hasHyphen = false;
-
     renderReference();
   }
 
-  // Load the existing value without changing it.
-  parseReference($refNo.val());
+  function showReferenceError(message) {
+    const input = $refNo[0];
 
-  // Format digits immediately on keypress.
+    if (!input) return;
+
+    input.setCustomValidity(message);
+    input.reportValidity();
+
+    // Clear after reporting; backend still validates on save.
+    input.setCustomValidity('');
+  }
+
+  function replaceReference(value) {
+    if (!parseReference(value)) {
+      showReferenceError(
+        'Invalid reference range. Use 2-3 or 0274-0277.'
+      );
+      return false;
+    }
+
+    renderReference();
+    return true;
+  }
+
+  // Load any existing reference without inventing a range.
+  if (!parseReference($refNo.val())) {
+    refStart = '';
+    refEnd = '';
+    hasHyphen = false;
+  }
+
+  // =====================================================
+  // 3. KEYBOARD INPUT HANDLING
+  // =====================================================
+
   $refNo.on('keydown', function (event) {
 
+    // Preserve standard shortcuts:
+    // Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X, undo, etc.
     if (
       event.ctrlKey ||
       event.metaKey ||
@@ -515,31 +591,71 @@ $(document).ready(function () {
 
     const input = this;
 
+    const selectionStart = input.selectionStart;
+    const selectionEnd = input.selectionEnd;
+
+    const hasSelection =
+      selectionStart !== selectionEnd;
+
     const selectedAll =
-      input.selectionStart === 0 &&
-      input.selectionEnd === input.value.length &&
-      input.value.length > 0;
+      hasSelection &&
+      selectionStart === 0 &&
+      selectionEnd === input.value.length;
+
+    // Allow navigation and tabbing.
+    const allowedKeys = [
+      'Tab',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowUp',
+      'ArrowDown',
+      'Home',
+      'End',
+      'Escape',
+      'Enter'
+    ];
+
+    if (allowedKeys.includes(event.key)) {
+      return;
+    }
+
+    // -----------------------------------------------
+    // DIGITS 0-9
+    // -----------------------------------------------
 
     if (/^[0-9]$/.test(event.key)) {
       event.preventDefault();
 
+      // Ctrl+A followed by a digit replaces the range.
       if (selectedAll) {
         refStart = '';
         refEnd = '';
         hasHyphen = false;
       }
 
+      // Interpret typing as appending to a segment.
+      // Partial selections are not overwritten silently.
+      if (hasSelection && !selectedAll) {
+        return;
+      }
+
       if (!hasHyphen) {
         if (refStart.length < 4) {
           refStart += event.key;
         }
-      } else if (refEnd.length < 4) {
-        refEnd += event.key;
+      } else {
+        if (refEnd.length < 4) {
+          refEnd += event.key;
+        }
       }
 
       renderReference();
       return;
     }
+
+    // -----------------------------------------------
+    // HYPHEN / RANGE SEPARATOR
+    // -----------------------------------------------
 
     if (event.key === '-') {
       event.preventDefault();
@@ -549,13 +665,19 @@ $(document).ready(function () {
         return;
       }
 
-      if (refStart && !hasHyphen) {
+      if (!refStart || hasSelection) return;
+
+      if (!hasHyphen) {
         hasHyphen = true;
       }
 
       renderReference();
       return;
     }
+
+    // -----------------------------------------------
+    // BACKSPACE
+    // -----------------------------------------------
 
     if (event.key === 'Backspace') {
       event.preventDefault();
@@ -564,6 +686,8 @@ $(document).ready(function () {
         resetReference();
         return;
       }
+
+      if (hasSelection) return;
 
       if (hasHyphen && refEnd) {
         refEnd = refEnd.slice(0, -1);
@@ -577,22 +701,41 @@ $(document).ready(function () {
       return;
     }
 
+    // -----------------------------------------------
+    // DELETE
+    // -----------------------------------------------
+
     if (event.key === 'Delete') {
       event.preventDefault();
 
       if (selectedAll) {
         resetReference();
-      } else if (hasHyphen && refEnd) {
+        return;
+      }
+
+      if (hasSelection) return;
+
+      if (hasHyphen && refEnd) {
         refEnd = '';
       } else {
         resetReference();
+        return;
       }
 
       renderReference();
+      return;
+    }
+
+    // Block other printable characters.
+    if (event.key.length === 1) {
+      event.preventDefault();
     }
   });
 
-  // Support pasting a reference range.
+  // =====================================================
+  // 4. PASTE VALIDATION
+  // =====================================================
+
   $refNo.on('paste', function (event) {
     event.preventDefault();
 
@@ -600,58 +743,97 @@ $(document).ready(function () {
       event.originalEvent.clipboardData;
 
     const pasted = clipboard
-      ? clipboard.getData('text')
+      ? clipboard.getData('text').trim()
       : '';
 
-    parseReference(pasted);
-    renderReference();
+    if (!pasted) return;
+
+    // Do not silently remove letters or other characters.
+    replaceReference(pasted);
   });
 
-  // Fallback for autocomplete, mobile input,
-  // and other input methods.
+  // =====================================================
+  // 5. INPUT FALLBACK
+  // Mobile keyboards, autocomplete, autofill, etc.
+  // =====================================================
+
   $refNo.on('input', function () {
-    parseReference(this.value);
-    renderReference();
+
+    const value = this.value;
+
+    if (parseReference(value)) {
+      renderReference();
+    } else {
+      // Restore valid value instead of silently
+      // deleting invalid characters.
+      $refNo.val(lastValidReference);
+    }
   });
 
-  // -----------------------------------------------
-  // BATCH NAME GENERATION
-  // -----------------------------------------------
+  // =====================================================
+  // 6. BATCH NAME GENERATION
+  // =====================================================
 
   function debounce(fn, delay) {
     let timer;
 
     return function () {
       clearTimeout(timer);
-
       timer = setTimeout(fn, delay);
     };
   }
 
   function generateBatchName() {
 
-    const site  = $siteCode.val();
-    const date  = $refDate.val();
+    const site = String($siteCode.val() || '').trim();
+    const date = String($refDate.val() || '').trim();
+
     const batch = String($batchNum.val() || '').trim();
     const total = String($totalBatch.val() || '').trim();
-    const ref   = String($refNo.val() || '').trim();
 
-    // Only show a complete range in the batch name.
-    const validReference =
-      /^(\d{4})-(\d{4})$/.test(ref);
+    const ref = String($refNo.val() || '').trim();
+
+    // A complete range is required for the preview.
+    const refMatch = ref.match(
+      /^(\d{4})-(\d{4})$/
+    );
 
     if (
       !site ||
       !date ||
       !batch ||
       !total ||
-      !validReference
+      !refMatch
     ) {
       $batchName.val('');
       return;
     }
 
-    const [startRef, endRef] = ref.split('-').map(Number);
+    // Validate batch numbering.
+    if (
+      !/^\d{1,4}$/.test(batch) ||
+      !/^\d{1,4}$/.test(total)
+    ) {
+      $batchName.val('');
+      return;
+    }
+
+    const batchNumber = Number(batch);
+    const totalBatches = Number(total);
+
+    if (
+      batchNumber < 1 ||
+      totalBatches < 1 ||
+      batchNumber > totalBatches ||
+      totalBatches > 9999
+    ) {
+      $batchName.val('');
+      return;
+    }
+
+    // Validate accession range.
+    const startRef = Number(refMatch[1]);
+    const endRef = Number(refMatch[2]);
 
     if (
       startRef < 1 ||
@@ -662,18 +844,42 @@ $(document).ready(function () {
       return;
     }
 
-    const parts = date.split('-');
+    // Django DateInput provides YYYY-MM-DD.
+    const dateMatch = date.match(
+      /^(\d{4})-(\d{2})-(\d{2})$/
+    );
 
-    if (parts.length !== 3) {
+    if (!dateMatch) {
       $batchName.val('');
       return;
     }
 
-    // Preserve current batch naming convention:
+    const year = dateMatch[1];
+    const month = dateMatch[2];
+    const day = dateMatch[3];
+
+    // Check that the date exists.
+    const parsedDate = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day)
+    );
+
+    if (
+      parsedDate.getFullYear() !== Number(year) ||
+      parsedDate.getMonth() !== Number(month) - 1 ||
+      parsedDate.getDate() !== Number(day)
+    ) {
+      $batchName.val('');
+      return;
+    }
+
+    // Existing batch naming convention:
     // SITE_MMDDYYYY_BATCH.TOTAL_START-END
 
     const generatedBatchName =
-      `${site}_${parts[1]}${parts[2]}${parts[0]}_${batch}.${total}_${ref}`;
+      `${site}_${month}${day}${year}_` +
+      `${batchNumber}.${totalBatches}_${ref}`;
 
     $batchName.val(generatedBatchName);
   }
@@ -681,13 +887,20 @@ $(document).ready(function () {
   const debouncedGenerateBatchName =
     debounce(generateBatchName, 300);
 
-  // -----------------------------------------------
-  // SITE NAME LOOKUP
-  // -----------------------------------------------
+  // =====================================================
+  // 7. SITE NAME LOOKUP
+  // =====================================================
+
+  let siteLookupRequest = null;
 
   $siteCode.on('change', function () {
 
     const site = this.value;
+
+    if (siteLookupRequest) {
+      siteLookupRequest.abort();
+      siteLookupRequest = null;
+    }
 
     if (!site) {
       $siteNameGen.val('');
@@ -695,22 +908,42 @@ $(document).ready(function () {
       return;
     }
 
-    $.ajax({
+    // Generate the name immediately.
+    generateBatchName();
+
+    siteLookupRequest = $.ajax({
       url: "{% url 'get_clinic_code' %}",
       data: {
         site_code: site
       },
       dataType: 'json',
+
       success: function (data) {
+        // Ignore stale responses if the selection changed.
+        if ($siteCode.val() !== site) return;
+
         $siteNameGen.val(data.site_name || '');
         generateBatchName();
+      },
+
+      error: function (xhr, status) {
+        if (status === 'abort') return;
+
+        console.error(
+          'Unable to retrieve site information.',
+          status
+        );
+      },
+
+      complete: function () {
+        siteLookupRequest = null;
       }
     });
   });
 
-  // -----------------------------------------------
-  // FIELD CHANGE LISTENERS
-  // -----------------------------------------------
+  // =====================================================
+  // 8. FIELD CHANGE LISTENERS
+  // =====================================================
 
   $refDate.on(
     'input change',
@@ -727,9 +960,16 @@ $(document).ready(function () {
     debouncedGenerateBatchName
   );
 
-  // -----------------------------------------------
-  // STAFF LICENSE AUTOFILL
-  // -----------------------------------------------
+  // NOTE:
+  // Reference No is not generated from Batch No
+  // or Total Batch.
+  //
+  // Reference No updates the batch name automatically
+  // through renderReference().
+
+  // =====================================================
+  // 9. STAFF LICENSE AUTOFILL
+  // =====================================================
 
   function bindStaffField(
     staffSelector,
@@ -753,9 +993,20 @@ $(document).ready(function () {
           license_field: licenseKey
         },
         dataType: 'json',
+
         success: function (data) {
+          // Prevent stale requests overwriting newer selections.
+          if ($(staffSelector).val() !== staffId) return;
+
           $(licenseSelector).val(
             data[licenseKey] || ''
+          );
+        },
+
+        error: function (xhr, status) {
+          console.error(
+            'Unable to retrieve staff license.',
+            status
           );
         }
       });
@@ -792,9 +1043,9 @@ $(document).ready(function () {
     'bat_Head_Lic'
   );
 
-  // -----------------------------------------------
-  // INITIAL PAGE LOAD
-  // -----------------------------------------------
+  // =====================================================
+  // 10. INITIAL PAGE LOAD
+  // =====================================================
 
   renderReference();
   $siteCode.trigger('change');
@@ -809,15 +1060,24 @@ $(document).ready(function () {
     $(selector).trigger('change');
   });
 
-  // -----------------------------------------------
-  // RESET FUNCTION
-  // -----------------------------------------------
+  // =====================================================
+  // 11. FORM RESET
+  // =====================================================
 
   window.refresh = function () {
 
-    document.getElementById('accession-form').reset();
+    const form = document.getElementById(
+      'accession-form'
+    );
+
+    if (!form) return;
+
+    form.reset();
 
     resetReference();
+
+    $siteNameGen.val('');
+    $batchName.val('');
 
     generateBatchName();
 
@@ -837,4 +1097,3 @@ $(document).ready(function () {
 });
 </script>
 {% endblock javascripts %}
-

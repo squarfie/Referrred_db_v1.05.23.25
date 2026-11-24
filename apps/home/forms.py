@@ -412,8 +412,17 @@ class BatchTable_form(forms.ModelForm):
             widgets = {
             'bat_Referral_Date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date', 'placeholder': 'MM/DD/YYYY'}),
             'bat_RefNo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ex. 0001-0002'}),
-            'bat_BatchNo' :forms.DateInput(attrs={'class': 'form-control', 'placeholder': 'ex. 1'}),
-            'bat_Total_batch' :forms.DateInput(attrs={'class': 'form-control', 'placeholder': 'ex. 1'}),
+            'bat_BatchNo': forms.TextInput(attrs={
+                'class': 'form-control',
+                'inputmode': 'numeric',
+                'placeholder': 'ex. 1',
+            }),
+
+            'bat_Total_batch': forms.TextInput(attrs={
+                'class': 'form-control',
+                'inputmode': 'numeric',
+                'placeholder': 'ex. 2',
+            }),
             'bat_Date_Accomplished': forms.DateInput(attrs={'class': 'form-control', 'type': 'date', 'placeholder': 'MM/DD/YYYY'}),
             
             # Add more fields as needed
@@ -430,8 +439,6 @@ class BatchTable_form(forms.ModelForm):
             # Reference No is derived from Batch No / Total Batch, not user-entered.
             self.fields['bat_BatchNo'].required = True
             self.fields['bat_Total_batch'].required = True
-            self.fields['bat_RefNo'].required = False
-            # self.fields['bat_RefNo'].widget.attrs['readonly'] = True
             self.fields['bat_RefNo'].required = True
             self.fields['bat_RefNo'].widget.attrs.pop('readonly', None)
             self.fields['bat_RefNo'].widget.attrs.pop('disabled', None)
