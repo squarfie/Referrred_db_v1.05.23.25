@@ -55,7 +55,10 @@ def _render_secretariat_dashboard(request, queue=None):
         receipts = receipts.filter(status=legacy_status)
     elif selected_status is not None and selected_tab != 'returned':
         receipts = receipts.filter(status=selected_status)
-    page_obj = Paginator(receipts.order_by('-created_at', '-pk'), 25).get_page(request.GET.get('page'))
+    allowed_page_sizes = (10, 25, 50)
+    per_page_raw = (request.GET.get('per_page') or '').strip()
+    per_page = int(per_page_raw) if per_page_raw in ('10', '25', '50') else 25
+    page_obj = Paginator(receipts.order_by('-created_at', '-pk'), per_page).get_page(request.GET.get('page'))
     for receipt in page_obj:
         receipt.can_delete_from_queue = can_delete_receipt_safely(receipt, request.user)
-    return render(request, 'receiving/dashboard.html', {'page_obj': page_obj, 'q': query, 'active_tab': selected_tab, 'active_tab_label': next((tab['label'] for tab in tabs if tab['active'])), 'receiving_tabs': tabs, 'lab_summary_cards': [], 'received_count': counts.get(ReferralReceipt.Status.RECEIVED, 0), 'endorsed_count': counts.get(ReferralReceipt.Status.ENDORSED, 0), 'lab_received_count': counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0), 'can_manage_secretariat': can_manage_secretariat, 'can_confirm_lab': False, 'can_read_lab': False, 'receiving_queue_url': queue_url_name, 'is_lab_worklist': False, 'show_main_lab_returns': False, 'selected_year': selected_year, 'available_years': available_years})
+    return render(request, 'receiving/dashboard.html', {'page_obj': page_obj, 'q': query, 'active_tab': selected_tab, 'active_tab_label': next((tab['label'] for tab in tabs if tab['active'])), 'receiving_tabs': tabs, 'lab_summary_cards': [], 'received_count': counts.get(ReferralReceipt.Status.RECEIVED, 0), 'endorsed_count': counts.get(ReferralReceipt.Status.ENDORSED, 0), 'lab_received_count': counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0), 'can_manage_secretariat': can_manage_secretariat, 'can_confirm_lab': False, 'can_read_lab': False, 'receiving_queue_url': queue_url_name, 'is_lab_worklist': False, 'show_main_lab_returns': False, 'selected_year': selected_year, 'available_years': available_years, 'per_page': per_page, 'allowed_page_sizes': allowed_page_sizes})
