@@ -13,13 +13,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.home.permissions import ROLE_ADMIN
+from apps.home.permissions import ROLE_ADMIN, ROLE_SECRETARIAT
+from apps.laboratory.permissions import can_read_laboratory_receiving, can_confirm_lab_receipt
 from apps.receiving.permissions import receiving_read_required
 from .handoffs import (
     DESTINATION_ROLES, confirm_batch_receipt, custody_roles,
     endorse_batch, undo_batch_endorsement,
 )
-from .models import BatchCustody, BatchCustodyEvent
+from .models import BatchCustody, BatchCustodyEvent, ReferralReceipt
 
 TABS = (
     ("pending", "Pending"),
@@ -62,6 +63,45 @@ def _tab_filter(queryset, tab, user):
     return queryset
 
 
+def visible_receipts(user):
+    """Existing physical receipts, never cloned into batch custody.
+
+    Lab Encoders receive the laboratory queue; Secretariat receives courier
+    intake records. Other workflow roles see only their authorized batches.
+    """
+    roles = custody_roles(user)
+    qs = ReferralReceipt.objects.select_related("site", "received_by", "endorsed_by")
+    if ROLE_ADMIN in roles:
+        return qs
+    if can_read_laboratory_receiving(user):
+        return qs.filter(status__in=(
+            ReferralReceipt.Status.ENDORSED, ReferralReceipt.Status.LAB_RECEIVED,
+        ))
+    if ROLE_SECRETARIAT in roles:
+        return qs
+    return qs.none()
+
+
+def _receipt_tab_filter(receipts, tab, user):
+    roles = custody_roles(user)
+    lab = can_read_laboratory_receiving(user)
+    if tab == "pending":
+        # Physical Laboratory receipt is the pending incoming endorsement.
+        return receipts.filter(status=ReferralReceipt.Status.ENDORSED) if lab else receipts.none()
+    if tab == "received":
+        if lab:
+            return receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED)
+        return receipts.filter(status=ReferralReceipt.Status.RECEIVED)
+    if tab == "endorsed":
+        return receipts.filter(status=ReferralReceipt.Status.ENDORSED) if ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles else receipts.none()
+    if tab == "completed":
+        if lab:
+            from apps.laboratory.receiving_views import _laboratory_workflow_receipts
+            return _laboratory_workflow_receipts(receipts).filter(lab_workflow="complete")
+        return receipts.none()
+    return receipts
+
+
 @login_required
 @receiving_read_required
 def workflow_dashboard(request):
@@ -74,8 +114,10 @@ def workflow_dashboard(request):
     query = (request.GET.get("q") or "").strip()
     current_year = timezone.localdate().year
     base = visible_custodies(request.user)
+    physical_receipts = visible_receipts(request.user)
     years = sorted(
         {value.year for value in base.exclude(batch__bat_Referral_Date__isnull=True).dates("batch__bat_Referral_Date", "year")}
+        | {value.year for value in physical_receipts.dates("date_received", "year")}
         | {current_year},
         reverse=True,
     )
@@ -88,7 +130,42 @@ def workflow_dashboard(request):
     if selected_year != "all":
         base = base.filter(batch__bat_Referral_Date__year=selected_year)
 
-    counts = {key: _tab_filter(base, key, request.user).count() for key, _ in TABS}
+    # Physical courier and Bench A receipts are surfaced alongside batch
+    # handoffs. A receipt exists before a downstream batch can be generated.
+    receipt_base = visible_receipts(request.user)
+    if selected_year != "all":
+        receipt_base = receipt_base.filter(date_received__year=selected_year)
+    receipt_counts = {
+        key: _receipt_tab_filter(receipt_base, key, request.user).count()
+        for key, _ in TABS
+    }
+    courier_rows = _receipt_tab_filter(receipt_base, tab, request.user)
+    if query:
+        courier_rows = courier_rows.filter(
+            Q(tracking_number__icontains=query)
+            | Q(site__SiteCode__icontains=query)
+            | Q(site__SiteName__icontains=query)
+        )
+    courier_page_obj = Paginator(
+        courier_rows.order_by("-created_at", "-pk"), per_page,
+    ).get_page(request.GET.get("courier_page"))
+    is_lab_receiving = can_read_laboratory_receiving(request.user)
+    for receipt in courier_page_obj:
+        receipt.can_confirm_unified = (
+            is_lab_receiving
+            and can_confirm_lab_receipt(request.user)
+            and receipt.status == ReferralReceipt.Status.ENDORSED
+        )
+        receipt.can_endorse_unified = (
+            ROLE_SECRETARIAT in custody_roles(request.user) or ROLE_ADMIN in custody_roles(request.user)
+        ) and receipt.status == ReferralReceipt.Status.RECEIVED
+        receipt.can_open_worksheet = (
+            is_lab_receiving and receipt.status == ReferralReceipt.Status.LAB_RECEIVED
+        )
+    counts = {
+        key: _tab_filter(base, key, request.user).count() + receipt_counts[key]
+        for key, _ in TABS
+    }
     rows = _tab_filter(base, tab, request.user)
     if query:
         rows = rows.filter(
@@ -116,6 +193,10 @@ def workflow_dashboard(request):
 
     return render(request, "receiving/workflow_dashboard.html", {
         "page_obj": page_obj,
+        "courier_page_obj": courier_page_obj,
+        "courier_count": courier_page_obj.paginator.count,
+        "is_lab_receiving": is_lab_receiving,
+        "can_create_receipt": bool(request.user.is_authenticated),
         "tabs": [{"key": key, "label": label, "count": counts[key], "active": key == tab} for key, label in TABS],
         "active_tab": tab,
         "active_tab_label": dict(TABS)[tab],
