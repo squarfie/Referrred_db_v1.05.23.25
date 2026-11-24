@@ -590,6 +590,9 @@ def laboratory_batch_create(request, accession_id):
         except BatchCreationError as exc:
             messages.error(request, str(exc))
         else:
+            from apps.receiving.handoffs import initialize_custody
+            from apps.home.permissions import ROLE_LAB_ENCODER
+            initialize_custody(batch=result.batch, user=request.user, initial_role=ROLE_LAB_ENCODER)
             accession.batch = result.batch
             accession.batch_created_at = timezone.now()
             accession.save(update_fields=("batch", "batch_created_at"))
