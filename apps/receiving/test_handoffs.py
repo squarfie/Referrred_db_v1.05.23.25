@@ -109,6 +109,19 @@ class UnifiedReceivingHandoffTests(TestCase):
         hidden = self.client.get(reverse("receiving_workflow_detail", args=[self.batch.pk]))
         self.assertEqual(hidden.status_code, 404)
 
+    def test_unified_worklist_reuses_existing_inline_receiving_filters(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        self.client.force_login(self.lab)
+        response = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="receiving-tabbar"')
+        self.assertContains(response, 'class="receiving-filters receiving-filters--inline"')
+        self.assertContains(response, 'class="receiving-search-group"')
+        self.assertContains(response, 'class="receiving-filter-reset"')
+        self.assertNotContains(response, 'class="receiving-board-search"')
+        markup = response.content.decode()
+        self.assertLess(markup.index('class="receiving-tabbar"'), markup.index('class="table-responsive"'))
+
     def test_transition_endpoints_reject_get_and_wrong_role(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
         endorse_url = reverse("receiving_workflow_endorse", args=[self.batch.pk])
