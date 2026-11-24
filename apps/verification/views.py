@@ -847,6 +847,26 @@ def send_batch_to_verifier(request, batch_id):
         messages.error(request, "Only the Final Encoder can endorse Final Data for verification.")
         return redirect(next_url or _case_detail_url(case.id))
 
+    # Synchronize newly tracked batches with custody before changing verification.
+    # Legacy batches without custody retain their existing verification workflow.
+    from apps.receiving.models import BatchCustody
+    from apps.receiving.handoffs import endorse_batch
+    from django.core.exceptions import ValidationError, PermissionDenied
+
+    if BatchCustody.objects.filter(batch=batch).exists():
+        try:
+            endorse_batch(
+                batch_id=batch.pk,
+                user=request.user,
+                destination_role=ROLE_VERIFIER,
+                remarks=note or "Raw Data verification submission" if is_raw_endorsement else (
+                    note or "Final Data verification submission"
+                ),
+            )
+        except (ValidationError, PermissionDenied) as exc:
+            messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc))
+            return redirect(next_url or _case_detail_url(case.id))
+
     # Both Raw and Final cases are assigned to the selected verifier.
     if is_final_endorsement:
         case.assigned_checker = request.user
