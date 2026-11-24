@@ -1079,7 +1079,7 @@ class ReceivingTemplateTests(TestCase):
         self.client.force_login(staff)
         dashboard = self.client.get(self.route("receiving_dashboard"))
         self.assertEqual(dashboard.status_code, 200)
-        self.assertContains(dashboard, "Pending Endorsement")
+        self.assertContains(dashboard, "Lab Received")
         shared = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
         self.assertEqual(shared.status_code, 200)
         self.assertNotContains(shared, "Confirm laboratory receipt")
@@ -1170,7 +1170,7 @@ class ReceivingTemplateTests(TestCase):
         )
 
         self.assertContains(secretariat_dashboard, "New receipt")
-        self.assertContains(secretariat_dashboard, "Pending Endorsement")
+        self.assertContains(secretariat_dashboard, "Endorsed")
         self.assertNotContains(secretariat_dashboard, "Confirm receipt")
         self.assertContains(laboratory_dashboard, "Pending Receipt")
         self.assertContains(laboratory_dashboard, "Confirm receipt")
@@ -1429,7 +1429,7 @@ class SharedBatchCreationServiceTests(TestCase):
         self.assertEqual(caught.exception.batch.pk, first.batch.pk)
         self.assertEqual(Batch_Table.objects.count(), 1)
 
-    def test_existing_create_batch_page_uses_same_existing_batch_table(self):
+    def test_existing_create_batch_page_uses_manually_entered_reference_range(self):
         group, _ = Group.objects.get_or_create(name=home_permissions.ROLE_ENCODER)
         self.user.groups.add(group)
         self.client.force_login(self.user)
@@ -1440,7 +1440,7 @@ class SharedBatchCreationServiceTests(TestCase):
             "bat_Referral_Date": "2026-11-19",
             "bat_BatchNo": "90",
             "bat_Total_batch": "94",
-            "bat_RefNo": "ignored-by-form",
+            "bat_RefNo": "90-94",
         })
 
         self.assertEqual(response.status_code, 302)
