@@ -1,10 +1,15 @@
 from django.urls import path
-from . import scan_views, views
+from . import scan_views, views, workflow_views
 
 urlpatterns = [
     path("", views.receiving_dashboard, name="receiving_dashboard"),
     path("secretariat/", views.secretariat_receiving_dashboard, name="secretariat_receiving_dashboard"),
     path("new/", views.receiving_create, name="receiving_create"),
+    path("workflow/", workflow_views.workflow_dashboard, name="receiving_workflow_dashboard"),
+    path("workflow/<int:batch_id>/", workflow_views.workflow_detail, name="receiving_workflow_detail"),
+    path("workflow/<int:batch_id>/endorse/", workflow_views.workflow_endorse, name="receiving_workflow_endorse"),
+    path("workflow/<int:batch_id>/confirm/", workflow_views.workflow_confirm, name="receiving_workflow_confirm"),
+    path("workflow/<int:batch_id>/undo/", workflow_views.workflow_undo, name="receiving_workflow_undo"),
     path("<uuid:receiving_id>/delete-permanently/", views.receiving_delete_permanently, name="receiving_delete_permanently"),
     path("<uuid:receiving_id>/", views.receiving_detail, name="receiving_detail"),
     path("<uuid:receiving_id>/qr.png", views.receiving_qr, name="receiving_qr"),
