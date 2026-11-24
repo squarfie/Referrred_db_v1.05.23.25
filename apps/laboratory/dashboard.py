@@ -2,6 +2,7 @@
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.shortcuts import render
+from django.utils import timezone
 from .models import ReferralReceipt
 from apps.receiving.permissions import can_manage_secretariat_receiving
 from .permissions import can_confirm_lab_receipt, can_read_laboratory_receiving
@@ -10,6 +11,26 @@ from .batch_status import pending_batch_accessions
 
 def render_laboratory_dashboard(request, queue=None):
     all_receipts = ReferralReceipt.objects.select_related("site", "received_by")
+    current_year = timezone.localdate().year
+    year_param = (request.GET.get("year") or "").strip()
+    available_years = sorted(
+        {value.year for value in ReferralReceipt.objects.dates("date_received", "year")}
+        | {current_year},
+        reverse=True,
+    )
+    selected_year = current_year
+    if year_param == "all":
+        selected_year = "all"
+    elif year_param.isascii() and year_param.isdecimal():
+        requested_year = int(year_param)
+        if requested_year in available_years:
+            selected_year = requested_year
+    if selected_year != "all":
+        all_receipts = all_receipts.filter(date_received__year=selected_year)
+
+    per_page_raw = (request.GET.get("per_page") or "").strip()
+    allowed_page_sizes = (10, 25, 50)
+    per_page = int(per_page_raw) if per_page_raw in ("10", "25", "50") else 25
     counts = {
         row["status"]: row["total"]
         for row in all_receipts.values("status").annotate(total=Count("id"))
@@ -181,7 +202,7 @@ def render_laboratory_dashboard(request, queue=None):
     }
     page_obj = Paginator(
         receipts.order_by("-created_at", "-pk"),
-        25,
+        per_page,
     ).get_page(request.GET.get("page"))
     for receipt in page_obj:
         receipt.can_delete_from_queue = (
@@ -220,5 +241,9 @@ def render_laboratory_dashboard(request, queue=None):
             "receiving_queue_url": queue_url_name,
             "is_lab_worklist": is_lab_worklist,
             "show_main_lab_returns": False,
+            "selected_year": selected_year,
+            "available_years": available_years,
+            "per_page": per_page,
+            "allowed_page_sizes": allowed_page_sizes,
         },
     )
