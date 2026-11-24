@@ -2797,6 +2797,6 @@ class SecretariatReceivingYearPaginationTests(TestCase):
             {"tab": "all", "year": str(year), "q": "YEAR-TEST", "per_page": "10"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f"year={year}&amp;per_page=10", html=False)
-        self.assertContains(response, "per_page=10&amp;q=YEAR-TEST&amp;page=2", html=False)
+        self.assertContains(response, f"year={year}&per_page=10", html=False)
+        self.assertContains(response, "per_page=10&q=YEAR-TEST&page=2", html=False)
         self.assertEqual(response.context["page_obj"].paginator.count, 13)
