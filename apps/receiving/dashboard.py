@@ -2,6 +2,7 @@
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.shortcuts import render
+from django.utils import timezone
 from .models import ReferralReceipt
 from .permissions import can_manage_secretariat_receiving
 from apps.laboratory.permissions import can_read_laboratory_receiving
@@ -16,6 +17,21 @@ def render_receiving_dashboard(request, queue=None):
 
 def _render_secretariat_dashboard(request, queue=None):
     all_receipts = ReferralReceipt.objects.select_related('site', 'received_by')
+    current_year = timezone.localdate().year
+    year_param = (request.GET.get('year') or '').strip()
+    available_years = sorted(
+        {value.year for value in ReferralReceipt.objects.dates('date_received', 'year')} | {current_year},
+        reverse=True,
+    )
+    selected_year = current_year
+    if year_param == 'all':
+        selected_year = 'all'
+    elif year_param.isascii() and year_param.isdecimal():
+        requested_year = int(year_param)
+        if requested_year in available_years:
+            selected_year = requested_year
+    if selected_year != 'all':
+        all_receipts = all_receipts.filter(date_received__year=selected_year)
     counts = {row['status']: row['total'] for row in all_receipts.values('status').annotate(total=Count('id'))}
     can_manage_secretariat = can_manage_secretariat_receiving(request.user)
     queue_url_name = 'laboratory_receiving_dashboard' if queue == 'laboratory' else 'secretariat_receiving_dashboard' if queue == 'secretariat' else 'receiving_dashboard'
@@ -42,4 +58,4 @@ def _render_secretariat_dashboard(request, queue=None):
     page_obj = Paginator(receipts.order_by('-created_at', '-pk'), 25).get_page(request.GET.get('page'))
     for receipt in page_obj:
         receipt.can_delete_from_queue = can_delete_receipt_safely(receipt, request.user)
-    return render(request, 'receiving/dashboard.html', {'page_obj': page_obj, 'q': query, 'active_tab': selected_tab, 'active_tab_label': next((tab['label'] for tab in tabs if tab['active'])), 'receiving_tabs': tabs, 'lab_summary_cards': [], 'received_count': counts.get(ReferralReceipt.Status.RECEIVED, 0), 'endorsed_count': counts.get(ReferralReceipt.Status.ENDORSED, 0), 'lab_received_count': counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0), 'can_manage_secretariat': can_manage_secretariat, 'can_confirm_lab': False, 'can_read_lab': False, 'receiving_queue_url': queue_url_name, 'is_lab_worklist': False, 'show_main_lab_returns': False})
+    return render(request, 'receiving/dashboard.html', {'page_obj': page_obj, 'q': query, 'active_tab': selected_tab, 'active_tab_label': next((tab['label'] for tab in tabs if tab['active'])), 'receiving_tabs': tabs, 'lab_summary_cards': [], 'received_count': counts.get(ReferralReceipt.Status.RECEIVED, 0), 'endorsed_count': counts.get(ReferralReceipt.Status.ENDORSED, 0), 'lab_received_count': counts.get(ReferralReceipt.Status.LAB_RECEIVED, 0), 'can_manage_secretariat': can_manage_secretariat, 'can_confirm_lab': False, 'can_read_lab': False, 'receiving_queue_url': queue_url_name, 'is_lab_worklist': False, 'show_main_lab_returns': False, 'selected_year': selected_year, 'available_years': available_years})
