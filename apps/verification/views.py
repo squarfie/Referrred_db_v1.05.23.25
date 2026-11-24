@@ -864,6 +864,7 @@ def send_batch_to_verifier(request, batch_id):
                 ),
             )
         except (ValidationError, PermissionDenied) as exc:
+            transaction.set_rollback(True)
             messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc))
             return redirect(next_url or _case_detail_url(case.id))
 
@@ -917,6 +918,28 @@ def withdraw_verification_case(request, case_id):
     if case.status in {VerificationCase.STATUS_SIGNED_BY_HEAD, VerificationCase.STATUS_RELEASED}:
         messages.error(request, "Signed or released cases cannot be withdrawn.")
         return redirect(next_url or _case_detail_url(case.id))
+
+    # When custody is tracked, withdrawal may recall only an unconfirmed handoff.
+    from apps.receiving.handoffs import undo_batch_endorsement
+    from apps.receiving.models import BatchCustody
+    from django.core.exceptions import ValidationError, PermissionDenied
+    custody = (
+        BatchCustody.objects.select_for_update().filter(batch_id=case.final_batch_id).first()
+        if case.final_batch_id else None
+    )
+    if custody:
+        if custody.pending_role:
+            if custody.pending_role != ROLE_VERIFIER:
+                messages.error(request, "This batch is awaiting receipt by another role.")
+                return redirect(next_url or _case_detail_url(case.id))
+            try:
+                undo_batch_endorsement(batch_id=case.final_batch_id, user=request.user)
+            except (ValidationError, PermissionDenied) as exc:
+                messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc))
+                return redirect(next_url or _case_detail_url(case.id))
+        else:
+            messages.error(request, "Custody was already confirmed. Return the batch through Receiving instead.")
+            return redirect(next_url or _case_detail_url(case.id))
 
     case.status = VerificationCase.STATUS_WITHDRAWN
     case.withdrawn_at = timezone.now()
