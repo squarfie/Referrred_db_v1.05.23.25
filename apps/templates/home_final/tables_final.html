@@ -988,7 +988,7 @@
                               data-site="{{ batch_group.site_code|default:'No site' }}"
                               data-count="{{ batch_group.count }}"
                               title="Endorse final encoding to verifier">
-                        <i class="fas fa-paper-plane"></i>Send
+                        <i class="fas fa-paper-plane"></i>Endorse
                       </button>
                       {% else %}
                       {% if batch_group.verification_can_withdraw %}
@@ -997,10 +997,10 @@
                             action="{% url 'withdraw_verification_case' batch_group.verification_case_id %}"
                             class="batch-workflow-form"
                             onclick="event.stopPropagation();"
-                            onsubmit="event.stopPropagation(); return confirm('Undo sending {{ batch_group.code|escapejs }} to verification?');">
+                            onsubmit="event.stopPropagation(); return confirm('Withdraw the verification submission for {{ batch_group.code|escapejs }}?');">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button type="submit" class="batch-workflow-undo" title="Undo send to verifier">
+                        <button type="submit" class="batch-workflow-undo" title="Withdraw verification submission">
                           <i class="fas fa-undo"></i> Undo
                         </button>
                       </form>
@@ -1015,7 +1015,7 @@
                               data-site="{{ batch_group.site_code|default:'No site' }}"
                               data-count="{{ batch_group.count }}"
                               title="Endorse final encoding to verifier">
-                        <i class="fas fa-paper-plane"></i>Send
+                        <i class="fas fa-paper-plane"></i>Endorse
                       </button>
                     {% endif %}
                   {% endif %}
@@ -1491,7 +1491,7 @@
     <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none;">
       <div class="modal-header modal-header-workflow">
         <h6 class="modal-title" id="sendVerificationModalLabel">
-          <i class="fas fa-paper-plane mr-2"></i>Send Final Batch
+          <i class="fas fa-paper-plane mr-2"></i>Endorse Final Batch
         </h6>
         <div class="d-flex align-items-center" style="gap:0.5rem;">
           <a href="{% url 'verification_dashboard' %}" class="btn btn-sm btn-light">
@@ -1503,7 +1503,7 @@
         </div>
       </div>
       <div class="modal-body" style="text-align:left; background:#f8fbfd;">
-        <p class="text-muted small mb-3">Final Encoder sends this batch to the selected verifier.</p>
+        <p class="text-muted small mb-3">Final Encoder endorses this batch for verification by the selected verifier.</p>
         <div class="workflow-batch-card">
           <div class="d-flex justify-content-between align-items-start" style="gap:0.75rem;">
             <div>
@@ -1523,7 +1523,7 @@
             </select>
             <input type="text" name="note" class="form-control form-control-md" placeholder="Optional note">
             <button type="submit" class="btn btn-sm btn-success">
-              <i class="fas fa-paper-plane mr-1"></i>Send
+              <i class="fas fa-paper-plane mr-1"></i>Endorse
             </button>
           </form>
         </div>
