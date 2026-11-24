@@ -67,7 +67,7 @@ class ReceivingPermissionTests(TestCase):
         response = self.client.get(reverse("laboratory_receiving_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Laboratory Receiving")
-        self.assertContains(response, "Pending Receipt")
+        self.assertContains(response, "Pending Accessioning")
         self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=action")
         self.assertNotContains(response, "Pending Endorsement")
         shared = self.client.get(reverse("secretariat_receiving_dashboard"))
@@ -779,7 +779,7 @@ class ReceivingViewTests(TestCase):
         confirmed = self.client.post(url, payload)
         self.assertRedirects(
             confirmed,
-            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+            self.route("laboratory_receiving_dashboard") + "?tab=action&stage=accessioning&year=all",
             fetch_redirect_response=False,
         )
         receipt.refresh_from_db()
@@ -795,7 +795,7 @@ class ReceivingViewTests(TestCase):
         })
         self.assertRedirects(
             response,
-            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+            self.route("laboratory_receiving_dashboard") + "?tab=action&stage=accessioning&year=all",
             fetch_redirect_response=False,
         )
         receipt.refresh_from_db()
@@ -1214,7 +1214,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(secretariat_dashboard, "New receipt")
         self.assertContains(secretariat_dashboard, "Endorsed")
         self.assertNotContains(secretariat_dashboard, "Confirm receipt")
-        self.assertContains(laboratory_dashboard, "Pending Receipt")
+        self.assertContains(laboratory_dashboard, "Pending Accessioning")
         self.assertContains(laboratory_dashboard, "Confirm receipt")
         self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
@@ -2864,7 +2864,10 @@ class LaboratoryReceivingYearPaginationTests(TestCase):
             received_by=self.user,
             endorsed_at=timezone.make_aware(datetime(year, 1, 4, 10, 0)),
             endorsed_by=self.user,
-            status=ReferralReceipt.Status.ENDORSED,
+            status=ReferralReceipt.Status.LAB_RECEIVED,
+            lab_date_received=date(year, 1, 4),
+            lab_time_received=time(11, 0),
+            lab_received_by=self.user,
         )
 
     def test_current_year_is_default_and_history_can_be_selected(self):
@@ -2909,13 +2912,13 @@ class LaboratoryReceivingYearPaginationTests(TestCase):
             self.make_receipt(number, year)
         response = self.client.get(
             self.url,
-            {"tab": "action", "stage": "receipt", "year": str(year),
+            {"tab": "action", "stage": "accessioning", "year": str(year),
              "per_page": "10", "q": "LAB-YEAR"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "receiving-year")
         self.assertContains(response, "receiving-per-page")
-        self.assertContains(response, f"stage=receipt&amp;year={year}&amp;per_page=10", html=False)
+        self.assertNotContains(response, f"stage=receipt&amp;year={year}&amp;per_page=10", html=False)
         self.assertContains(response, f"stage=accessioning&amp;year={year}&amp;per_page=10", html=False)
         self.assertContains(response, "per_page=10&amp;q=LAB-YEAR&amp;page=2", html=False)
         self.assertEqual(response.context["page_obj"].paginator.count, 11)
