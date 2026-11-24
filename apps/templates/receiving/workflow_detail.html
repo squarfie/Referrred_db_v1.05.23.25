@@ -1,0 +1,48 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Receiving Activity{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worklist-1">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero">
+    <div class="receiving-hero-main">
+      <span class="receiving-hero-icon"><i class="fas fa-history"></i></span>
+      <div>
+        <p class="receiving-eyebrow">Batch Receiving History</p>
+        <h1>{{ custody.batch.bat_Batch_Code }}</h1>
+        <p class="receiving-hero-subtitle">Handoff activity is recorded separately from checking, verification and approval.</p>
+      </div>
+    </div>
+    <div class="receiving-hero-actions">
+      <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}">Back to Receiving</a>
+    </div>
+  </header>
+  <div class="receiving-content">
+    <section class="receiving-surface receiving-table-card">
+      <div class="receiving-board-toolbar">
+        <div><h2 class="receiving-board-title">Current custody</h2>
+          <p class="receiving-board-subtitle">Current holder: {{ custody.current_role }}{% if custody.pending_role %} · Awaiting confirmation by {{ custody.pending_role }}{% endif %}</p>
+        </div>
+      </div>
+      <div class="p-4">
+        <h3 class="h4">Activity and tracking history</h3>
+        <div class="receiving-timeline">
+          {% for event in events %}
+          <div class="receiving-timeline-item">
+            <span class="receiving-timeline-dot"></span>
+            <div class="receiving-timeline-title">{{ event.get_action_display }}</div>
+            <div class="receiving-timeline-meta">{{ event.performed_at|date:"M j, Y g:i A" }} ·
+              {% if event.performed_by %}{{ event.performed_by.get_full_name|default:event.performed_by.username }}{% else %}Former user{% endif %}
+            </div>
+            <div class="receiving-timeline-note">{{ event.from_role }}{% if event.to_role %} → {{ event.to_role }}{% endif %}{% if event.remarks %} · {{ event.remarks }}{% endif %}</div>
+          </div>
+          {% empty %}
+          <p>No batch handoff events have been recorded.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    <p class="mt-3"><a href="{% url 'show_batches' %}?batch_code={{ custody.batch.bat_Batch_Code|urlencode }}">Open batch information</a></p>
+  </div>
+</main>
+{% endblock %}
