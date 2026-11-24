@@ -992,6 +992,38 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, 'class="receiving-tabbar"')
         self.assertContains(response, 'class="receiving-filters receiving-filters--inline"')
 
+    def test_confirmation_moves_receipt_from_receiving_pending_to_bench_a(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        pending_before = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertContains(pending_before, receipt.tracking_number)
+
+        bench_before = self.client.get(
+            self.route("laboratory_receiving_dashboard"), {"tab": "action"}
+        )
+        self.assertNotContains(bench_before, receipt.tracking_number)
+
+        from apps.receiving.services import confirm_lab_receipt
+        confirm_lab_receipt(
+            receipt_id=receipt.pk,
+            user=self.lab_encoder,
+            lab_date_received=date(2026, 11, 12),
+            lab_time_received=time(10, 0),
+        )
+
+        pending_after = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertNotContains(pending_after, receipt.tracking_number)
+        bench_after = self.client.get(
+            self.route("laboratory_receiving_dashboard"),
+            {"tab": "action", "stage": "accessioning", "year": "all"},
+        )
+        self.assertContains(bench_after, receipt.tracking_number)
+        self.assertContains(bench_after, "Open Worksheet")
+
     def test_unified_received_shows_confirmed_laboratory_receipts(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         self.client.force_login(self.lab_encoder)
