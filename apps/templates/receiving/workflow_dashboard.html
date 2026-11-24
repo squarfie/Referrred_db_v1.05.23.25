@@ -14,7 +14,7 @@
       </div>
     </div>
     <div class="receiving-hero-actions">
-      <a class="btn btn-outline-light" href="{% url 'secretariat_receiving_dashboard' %}">Courier intake records</a>
+      <a class="btn btn-outline-light" href="{% url 'secretariat_receiving_dashboard' %}">Courier intake history</a>
       <a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>
     </div>
   </header>
@@ -64,6 +64,71 @@
           <a class="receiving-filter-reset" href="{% url 'receiving_workflow_dashboard' %}?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}"><i class="fas fa-undo-alt mr-1" aria-hidden="true"></i>Reset</a>
         </form>
       </div>
+      {% if courier_count %}
+      <div class="receiving-board-toolbar">
+        <div>
+          <h3 class="receiving-board-title">{% if is_lab_receiving %}Laboratory Receipts{% else %}Courier Receipts{% endif %}</h3>
+          <p class="receiving-board-subtitle">Physical shipment custody and receipt confirmation, using the existing laboratory and Secretariat records.</p>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table receiving-table">
+          <caption class="sr-only">Courier and laboratory receiving records</caption>
+          <thead><tr>
+            <th scope="col">Tracking number</th>
+            <th scope="col">Referring site</th>
+            <th scope="col">Receiving date</th>
+            <th scope="col">Received by</th>
+            <th scope="col">Status</th>
+            <th scope="col">Actions</th>
+          </tr></thead>
+          <tbody>
+          {% for receipt in courier_page_obj %}
+            <tr>
+              <td data-label="Tracking number"><span class="receiving-tracking">{{ receipt.tracking_number }}</span></td>
+              <td data-label="Referring site"><strong>{{ receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ receipt.site.SiteName }}</span></td>
+              <td data-label="Receiving date">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
+              <td data-label="Received by">{% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</td>
+              <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{{ receipt.get_status_display }}</span></td>
+              <td class="receiving-actions text-right"><div class="receiving-action-group">
+                {% if receipt.can_confirm_unified %}
+                <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm receipt</a>
+                {% endif %}
+                {% if receipt.can_endorse_unified %}
+                <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
+                {% endif %}
+                {% if receipt.can_open_worksheet %}
+                <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Open Worksheet</a>
+                {% endif %}
+                <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_receiving %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}"><i class="fas fa-eye mr-1"></i>Details</a>
+              </div></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="receiving-board-pagination">
+        <span>Showing {{ courier_page_obj.start_index }}–{{ courier_page_obj.end_index }} of {{ courier_page_obj.paginator.count }} receipts · Page {{ courier_page_obj.number }} of {{ courier_page_obj.paginator.num_pages }}</span>
+        {% if courier_page_obj.paginator.num_pages > 1 %}
+        <nav class="receiving-pagination" aria-label="Physical receiving pages">
+          {% if courier_page_obj.has_previous %}
+          <a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.previous_page_number }}">Previous</a>
+          {% endif %}
+          {% if courier_page_obj.has_next %}
+          <a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.next_page_number }}">Next</a>
+          {% endif %}
+        </nav>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if page_obj.paginator.count %}
+      <div class="receiving-board-toolbar">
+        <div>
+          <h3 class="receiving-board-title">Generated Batches</h3>
+          <p class="receiving-board-subtitle">Role-to-role custody and endorsement after laboratory batch generation.</p>
+        </div>
+      </div>
+      {% endif %}
       <div class="table-responsive">
         <table class="table receiving-table">
           <caption class="sr-only">Batch custody and endorsement records</caption>
@@ -114,7 +179,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="receiving-empty">No batch handoffs found in this tab. Existing courier receiving records remain available under Courier intake records.</td></tr>
+            <tr><td colspan="6" class="receiving-empty">No generated batch handoffs found in this tab.</td></tr>
             {% endfor %}
           </tbody>
         </table>
