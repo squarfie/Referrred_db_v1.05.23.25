@@ -192,6 +192,7 @@
         </div>
       </div>
       <div class="verification-hero-actions">
+        <a href="{% url 'receiving_workflow_dashboard' %}?tab=received" class="hero-back-btn"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
         <span class="hero-chip"><i class="fas fa-route"></i>{{ case.get_status_display }}</span>
         {% if tat_summary and tat_summary.days is not None %}
         <span class="hero-chip tat-{{ tat_summary.pressure|default:'none' }}" title="Target TAT: {{ tat_summary.target_days }} days">
