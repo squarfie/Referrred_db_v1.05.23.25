@@ -249,7 +249,7 @@ class Referred_Form(forms.ModelForm):
             'Date_Admis' :forms.DateInput(attrs={'class': 'form-control', 'type': 'date', 'placeholder': 'MM/DD/YYYY'}),
             'Spec_Date' :forms.DateInput(attrs={'class': 'form-control', 'type': 'date', 'placeholder': 'MM/DD/YYYY'}),
             'Date_Accomplished_ARSP' :forms.DateInput(attrs={'class': 'form-control', 'type': 'date', 'placeholder': 'MM/DD/YYYY'}),
-            'RefNo' :forms.DateInput(attrs={'class': 'form-control', 'placeholder': 'ex. 0001'}),
+            'RefNo' :forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ex. 0001'}),
             'BatchNo' :forms.DateInput(attrs={'class': 'form-control', 'placeholder': 'ex. 1.1'}),
             'Growth_others' :forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ex. after 24 hrs of incubation'}),
             'Site_Pre_ed': forms.TextInput(attrs={'class': 'form-control'}),
@@ -432,8 +432,12 @@ class BatchTable_form(forms.ModelForm):
             self.fields['bat_Total_batch'].required = True
             self.fields['bat_RefNo'].required = False
             # self.fields['bat_RefNo'].widget.attrs['readonly'] = True
+            self.fields['bat_RefNo'].required = True
             self.fields['bat_RefNo'].widget.attrs.pop('readonly', None)
             self.fields['bat_RefNo'].widget.attrs.pop('disabled', None)
+            self.fields['bat_RefNo'].widget.attrs['placeholder'] = (
+                'Enter reference range, e.g. 2-3'
+            )
 
             # self.fields['bat_RefNo'].widget.attrs['placeholder'] = 'Auto-generated (0001-0001)'
             self.fields['bat_AccessionNo'].widget.attrs['readonly'] = True  # AccessionNo read-only
@@ -478,6 +482,7 @@ class BatchTable_form(forms.ModelForm):
         #         cleaned_data['bat_RefNo'] = f'{start:04d}-{end:04d}'
         #     return cleaned_data
 
+
         def clean(self):
             cleaned_data = super().clean()
 
@@ -485,49 +490,56 @@ class BatchTable_form(forms.ModelForm):
             total_batch = str(cleaned_data.get('bat_Total_batch') or '').strip()
             ref_no = str(cleaned_data.get('bat_RefNo') or '').strip()
 
-            if not (
-                batch_no.isascii() and batch_no.isdecimal()
-                and total_batch.isascii() and total_batch.isdecimal()
-            ):
-                raise forms.ValidationError(
-                    'Batch No and Total Batch must be whole numbers.'
+            # Validate batch numbering independently of the reference range.
+            if batch_no and total_batch:
+                if not (
+                    batch_no.isascii() and batch_no.isdecimal()
+                    and total_batch.isascii() and total_batch.isdecimal()
+                ):
+                    raise forms.ValidationError(
+                        'Batch No and Total Batch must be whole numbers.'
+                    )
+
+                batch = int(batch_no)
+                total = int(total_batch)
+
+                if not (1 <= batch <= total <= 9999):
+                    raise forms.ValidationError(
+                        'Batch No must be between 1 and Total Batch, '
+                        'with a maximum of 9999.'
+                    )
+
+            # Reference No is manually entered, never derived from
+            # Batch No or Total Batch.
+            if ref_no:
+                match = re.fullmatch(
+                    r'(\d{1,4})(?:\s*-\s*(\d{1,4}))?',
+                    ref_no,
+                    flags=re.ASCII
                 )
 
-            batch = int(batch_no)
-            total = int(total_batch)
+                if not match:
+                    self.add_error(
+                        'bat_RefNo',
+                        'Enter a valid reference range, e.g. 2-3 or 274-277.'
+                    )
+                else:
+                    start = int(match.group(1))
+                    end = int(match.group(2) or match.group(1))
 
-            if not (1 <= batch <= total <= 9999):
-                raise forms.ValidationError(
-                    'Batch No and Total Batch must be between 1 and 9999, '
-                    'and Batch No cannot exceed Total Batch.'
-                )
+                    if not (1 <= start <= end <= 9999):
+                        self.add_error(
+                            'bat_RefNo',
+                            'Reference numbers must be between 1 and 9999. '
+                            'Start number cannot exceed end number.'
+                        )
+                    else:
+                        cleaned_data['bat_RefNo'] = (
+                            f'{start:04d}-{end:04d}'
+                        )
 
-            # Auto-generate only when the field is empty.
-            if not ref_no:
-                ref_no = f'{batch:04d}-{total:04d}'
-
-            # Validate either the generated or manually entered reference.
-            match = re.fullmatch(r'(\d{1,4})-(\d{1,4})', ref_no)
-
-            if not match:
-                self.add_error(
-                    'bat_RefNo',
-                    'Enter a valid range, e.g. 0001-0002.'
-                )
-                return cleaned_data
-
-            start, end = map(int, match.groups())
-
-            if not (1 <= start <= end <= 9999):
-                self.add_error(
-                    'bat_RefNo',
-                    'Reference range must be between 0001 and 9999, '
-                    'with the starting number not exceeding the ending number.'
-                )
-                return cleaned_data
-
-            cleaned_data['bat_RefNo'] = f'{start:04d}-{end:04d}'
             return cleaned_data
+
 
 
          # --- Custom cleaning methods to save Staff_Name as string ---

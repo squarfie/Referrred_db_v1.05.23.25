@@ -262,7 +262,7 @@
           <!-- Row B: 3 columns -->
           <div class="field-grid-3">
             <div>
-              <label class="field-label">Reference No</label>
+              <label class="field-label">Accession Reference Range</label>
               {{ form.bat_RefNo|append_attr:"class: form-control" }}
             </div>
 
@@ -399,9 +399,11 @@
 
 {% endblock content %}
 
+
 {% block javascripts %}
 <script>
 $(document).ready(function () {
+
   const IS_EDITING = {{ editing|yesno:"true,false" }};
 
   const $siteCode    = $('#id_bat_SiteCode');
@@ -412,12 +414,10 @@ $(document).ready(function () {
   const $siteNameGen = $('#id_bat_Site_NameGen');
   const $batchName   = $('#id_bat_Batch_Name');
 
-  // Track whether the encoder manually changed Reference No.
-  // Do not overwrite an existing value when editing or returning
-  // to a form that already contains a reference.
-  let manualReference = IS_EDITING || Boolean($refNo.val().trim());
+  // -----------------------------------------------
+  // EDITING RESTRICTIONS
+  // -----------------------------------------------
 
-  // Preserve existing editing restrictions except Reference No.
   if (IS_EDITING) {
     [
       $siteCode,
@@ -432,60 +432,232 @@ $(document).ready(function () {
     });
   }
 
-  // Reference No must remain editable.
+  // Reference No remains manually editable.
   $refNo.prop('readonly', false)
         .prop('disabled', false)
         .css('pointer-events', 'auto')
-        .attr('placeholder', 'Auto-generated or enter 0001-0002');
+        .attr('placeholder', 'Enter reference range, e.g. 2-3');
 
-  function generateReferenceNo() {
-    if (IS_EDITING || manualReference) {
-      return;
+  // -----------------------------------------------
+  // REAL-TIME REFERENCE NUMBER FORMATTING
+  // -----------------------------------------------
+
+  let refStart = '';
+  let refEnd = '';
+  let hasHyphen = false;
+
+  function parseReference(value) {
+    const cleaned = String(value || '')
+      .replace(/[^\d-]/g, '');
+
+    const parts = cleaned.split('-');
+
+    // Remove display padding, keeping the actual typed number.
+    refStart = (parts[0] || '')
+      .replace(/^0+(?=\d)/, '')
+      .slice(0, 4);
+
+    refEnd = (parts[1] || '')
+      .replace(/^0+(?=\d)/, '')
+      .slice(0, 4);
+
+    hasHyphen = cleaned.includes('-');
+  }
+
+  function renderReference() {
+    let formatted = '';
+
+    if (refStart) {
+      formatted = refStart.padStart(4, '0');
     }
 
-    const batch = String($batchNum.val() || '').trim();
-    const total = String($totalBatch.val() || '').trim();
+    if (hasHyphen && refStart) {
+      formatted += '-';
+
+      if (refEnd) {
+        formatted += refEnd.padStart(4, '0');
+      }
+    }
+
+    $refNo.val(formatted);
+
+    const input = $refNo[0];
+
+    if (input && document.activeElement === input) {
+      const end = formatted.length;
+      input.setSelectionRange(end, end);
+    }
+
+    generateBatchName();
+  }
+
+  function resetReference() {
+    refStart = '';
+    refEnd = '';
+    hasHyphen = false;
+
+    renderReference();
+  }
+
+  // Load the existing value without changing it.
+  parseReference($refNo.val());
+
+  // Format digits immediately on keypress.
+  $refNo.on('keydown', function (event) {
 
     if (
-      !/^[0-9]{1,4}$/.test(batch) ||
-      !/^[0-9]{1,4}$/.test(total)
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey
     ) {
-      $refNo.val('');
       return;
     }
 
-    const start = Number(batch);
-    const end = Number(total);
+    const input = this;
 
-    if (start < 1 || end < start || end > 9999) {
-      $refNo.val('');
+    const selectedAll =
+      input.selectionStart === 0 &&
+      input.selectionEnd === input.value.length &&
+      input.value.length > 0;
+
+    if (/^[0-9]$/.test(event.key)) {
+      event.preventDefault();
+
+      if (selectedAll) {
+        refStart = '';
+        refEnd = '';
+        hasHyphen = false;
+      }
+
+      if (!hasHyphen) {
+        if (refStart.length < 4) {
+          refStart += event.key;
+        }
+      } else if (refEnd.length < 4) {
+        refEnd += event.key;
+      }
+
+      renderReference();
       return;
     }
 
-    const generatedRef =
-      String(start).padStart(4, '0') + '-' +
-      String(end).padStart(4, '0');
+    if (event.key === '-') {
+      event.preventDefault();
 
-    $refNo.val(generatedRef);
-  }
+      if (selectedAll) {
+        resetReference();
+        return;
+      }
+
+      if (refStart && !hasHyphen) {
+        hasHyphen = true;
+      }
+
+      renderReference();
+      return;
+    }
+
+    if (event.key === 'Backspace') {
+      event.preventDefault();
+
+      if (selectedAll) {
+        resetReference();
+        return;
+      }
+
+      if (hasHyphen && refEnd) {
+        refEnd = refEnd.slice(0, -1);
+      } else if (hasHyphen) {
+        hasHyphen = false;
+      } else {
+        refStart = refStart.slice(0, -1);
+      }
+
+      renderReference();
+      return;
+    }
+
+    if (event.key === 'Delete') {
+      event.preventDefault();
+
+      if (selectedAll) {
+        resetReference();
+      } else if (hasHyphen && refEnd) {
+        refEnd = '';
+      } else {
+        resetReference();
+      }
+
+      renderReference();
+    }
+  });
+
+  // Support pasting a reference range.
+  $refNo.on('paste', function (event) {
+    event.preventDefault();
+
+    const clipboard =
+      event.originalEvent.clipboardData;
+
+    const pasted = clipboard
+      ? clipboard.getData('text')
+      : '';
+
+    parseReference(pasted);
+    renderReference();
+  });
+
+  // Fallback for autocomplete, mobile input,
+  // and other input methods.
+  $refNo.on('input', function () {
+    parseReference(this.value);
+    renderReference();
+  });
+
+  // -----------------------------------------------
+  // BATCH NAME GENERATION
+  // -----------------------------------------------
 
   function debounce(fn, delay) {
     let timer;
 
     return function () {
       clearTimeout(timer);
+
       timer = setTimeout(fn, delay);
     };
   }
 
   function generateBatchName() {
+
     const site  = $siteCode.val();
     const date  = $refDate.val();
-    const batch = $batchNum.val();
-    const ref   = $refNo.val().trim();
-    const total = $totalBatch.val();
+    const batch = String($batchNum.val() || '').trim();
+    const total = String($totalBatch.val() || '').trim();
+    const ref   = String($refNo.val() || '').trim();
 
-    if (!site || !date || !batch || !total || !ref) {
+    // Only show a complete range in the batch name.
+    const validReference =
+      /^(\d{4})-(\d{4})$/.test(ref);
+
+    if (
+      !site ||
+      !date ||
+      !batch ||
+      !total ||
+      !validReference
+    ) {
+      $batchName.val('');
+      return;
+    }
+
+    const [startRef, endRef] = ref.split('-').map(Number);
+
+    if (
+      startRef < 1 ||
+      endRef < startRef ||
+      endRef > 9999
+    ) {
       $batchName.val('');
       return;
     }
@@ -497,7 +669,9 @@ $(document).ready(function () {
       return;
     }
 
-    // Preserve the current batch-code format.
+    // Preserve current batch naming convention:
+    // SITE_MMDDYYYY_BATCH.TOTAL_START-END
+
     const generatedBatchName =
       `${site}_${parts[1]}${parts[2]}${parts[0]}_${batch}.${total}_${ref}`;
 
@@ -507,8 +681,12 @@ $(document).ready(function () {
   const debouncedGenerateBatchName =
     debounce(generateBatchName, 300);
 
-  // Automatically update the site name.
+  // -----------------------------------------------
+  // SITE NAME LOOKUP
+  // -----------------------------------------------
+
   $siteCode.on('change', function () {
+
     const site = this.value;
 
     if (!site) {
@@ -530,30 +708,37 @@ $(document).ready(function () {
     });
   });
 
-  // Manual Reference No overrides automatic generation.
-  $refNo.on('input', function () {
-    manualReference = true;
-    debouncedGenerateBatchName();
-  });
+  // -----------------------------------------------
+  // FIELD CHANGE LISTENERS
+  // -----------------------------------------------
 
-  $refNo.on('change', generateBatchName);
+  $refDate.on(
+    'input change',
+    debouncedGenerateBatchName
+  );
 
-  $refDate.on('input change', debouncedGenerateBatchName);
+  $batchNum.on(
+    'input change',
+    debouncedGenerateBatchName
+  );
 
-  function updateGeneratedFields() {
-    generateReferenceNo();
-    generateBatchName();
-  }
+  $totalBatch.on(
+    'input change',
+    debouncedGenerateBatchName
+  );
 
-  $batchNum.on('input change', updateGeneratedFields);
-  $totalBatch.on('input change', updateGeneratedFields);
+  // -----------------------------------------------
+  // STAFF LICENSE AUTOFILL
+  // -----------------------------------------------
 
   function bindStaffField(
     staffSelector,
     licenseSelector,
     licenseKey
   ) {
+
     $(staffSelector).on('change', function () {
+
       const staffId = $(this).val();
 
       if (!staffId) {
@@ -569,7 +754,9 @@ $(document).ready(function () {
         },
         dataType: 'json',
         success: function (data) {
-          $(licenseSelector).val(data[licenseKey] || '');
+          $(licenseSelector).val(
+            data[licenseKey] || ''
+          );
         }
       });
     });
@@ -605,8 +792,11 @@ $(document).ready(function () {
     'bat_Head_Lic'
   );
 
-  // Initial field generation.
-  updateGeneratedFields();
+  // -----------------------------------------------
+  // INITIAL PAGE LOAD
+  // -----------------------------------------------
+
+  renderReference();
   $siteCode.trigger('change');
 
   [
@@ -619,15 +809,17 @@ $(document).ready(function () {
     $(selector).trigger('change');
   });
 
-  // Reset the form and restore automatic reference generation.
+  // -----------------------------------------------
+  // RESET FUNCTION
+  // -----------------------------------------------
+
   window.refresh = function () {
+
     document.getElementById('accession-form').reset();
 
-    manualReference = false;
+    resetReference();
 
-    $refNo.val('');
-
-    updateGeneratedFields();
+    generateBatchName();
 
     $siteCode.trigger('change');
 
@@ -641,6 +833,8 @@ $(document).ready(function () {
       $(selector).trigger('change');
     });
   };
+
 });
 </script>
 {% endblock javascripts %}
+
