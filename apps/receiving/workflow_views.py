@@ -134,8 +134,61 @@ def workflow_dashboard(request):
 def workflow_detail(request, batch_id):
     custody = get_object_or_404(visible_custodies(request.user), batch_id=batch_id)
     events = custody.events.select_related("performed_by").order_by("performed_at", "pk")
+    activity = [
+        {
+            "when": event.performed_at,
+            "label": event.get_action_display(),
+            "actor": event.performed_by,
+            "description": (
+                f"{event.from_role} → {event.to_role}" if event.to_role else event.from_role
+            ) + (f" — {event.remarks}" if event.remarks else ""),
+            "source": "Custody",
+        }
+        for event in events
+    ]
+    linked_accession = getattr(custody.batch, "laboratory_accession", None)
+    receipt = linked_accession.laboratory_receiving.receipt if linked_accession else None
+    if receipt:
+        for event in receipt.events.select_related("performed_by").order_by("occurred_at", "pk"):
+            activity.append({
+                "when": event.occurred_at,
+                "label": event.get_event_type_display(),
+                "actor": event.performed_by,
+                "description": event.remarks or receipt.tracking_number,
+                "source": "Courier and Laboratory",
+            })
+    verification_cases = custody.batch.verification_cases.select_related(
+        "assigned_checker", "assigned_verifier", "assigned_lab_manager", "assigned_head"
+    )
+    verification_events = (
+        ("sent_to_verifier_at", "Submitted for verification", "sent_by_checker"),
+        ("verifier_decision_at", "Verifier decision recorded", "verifier_decision_by"),
+        ("sent_to_lab_manager_at", "Submitted to Lab Manager", "sent_to_lab_manager_by"),
+        ("lab_manager_decision_at", "Lab Manager decision recorded", "lab_manager_decision_by"),
+        ("sent_to_head_at", "Submitted to Head", "sent_to_head_by"),
+        ("head_decision_at", "Head decision recorded", "head_decision_by"),
+        ("signed_by_head_at", "Signed by Head", "signed_by_head"),
+    )
+    for case in verification_cases:
+        for date_field, label, actor_field in verification_events:
+            when = getattr(case, date_field, None)
+            if when:
+                activity.append({
+                    "when": when, "label": label,
+                    "actor": getattr(case, actor_field, None),
+                    "description": case.get_status_display(),
+                    "source": "Verification",
+                })
+        if case.released_at:
+            activity.append({
+                "when": case.released_at, "label": "Released",
+                "actor": None, "description": "Official release recorded",
+                "source": "Verification",
+            })
+    activity.sort(key=lambda entry: entry["when"])
     return render(request, "receiving/workflow_detail.html", {
-        "custody": custody, "events": events,
+        "custody": custody, "activity": activity,
+        "receipt": receipt,
     })
 
 
