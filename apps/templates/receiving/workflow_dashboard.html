@@ -1,0 +1,132 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Receiving{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worklist-1">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero">
+    <div class="receiving-hero-main">
+      <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span>
+      <div>
+        <p class="receiving-eyebrow">Receiving Dashboard</p>
+        <h1>Receiving and Isolate Tracking</h1>
+        <p class="receiving-hero-subtitle">Role-based batch endorsements, receipt acknowledgments and activity tracking.</p>
+      </div>
+    </div>
+    <div class="receiving-hero-actions">
+      <a class="btn btn-outline-light" href="{% url 'secretariat_receiving_dashboard' %}">Courier intake records</a>
+      <a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>
+    </div>
+  </header>
+  <div class="receiving-content">
+    <section class="receiving-surface receiving-table-card" aria-label="Unified receiving worklist">
+      <div class="receiving-board-toolbar">
+        <div>
+          <h2 class="receiving-board-title">{{ active_tab_label }}</h2>
+          <p class="receiving-board-subtitle">Batch-level handoffs are tracked independently from scientific checking and approval.</p>
+        </div>
+        <form method="get" class="receiving-board-search">
+          <input type="hidden" name="tab" value="{{ active_tab }}">
+          <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
+            <label class="mb-0" for="receiving-year">Year</label>
+            <select class="form-control" id="receiving-year" name="year" style="width:auto;min-width:110px" onchange="this.form.submit()">
+              {% for year in available_years %}
+              <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+              {% endfor %}
+              <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All years</option>
+            </select>
+            <label class="mb-0" for="receiving-per-page">Rows</label>
+            <select class="form-control" id="receiving-per-page" name="per_page" style="width:auto;min-width:75px" onchange="this.form.submit()">
+              {% for size in allowed_page_sizes %}
+              <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+              {% endfor %}
+            </select>
+            <div class="receiving-search-wrap">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Batch code, site code or reference no">
+            </div>
+            <button class="btn btn-primary mb-0" type="submit">Search</button>
+            <a class="btn btn-outline-secondary mb-0" href="{% url 'receiving_workflow_dashboard' %}?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}">Reset</a>
+          </div>
+        </form>
+      </div>
+      <nav class="receiving-tabs receiving-workflow-tabs" aria-label="Receiving status tabs">
+        {% for tab in tabs %}
+        <a class="receiving-tab {% if tab.active %}active{% endif %}" {% if tab.active %}aria-current="page"{% endif %}
+           href="{% url 'receiving_workflow_dashboard' %}?tab={{ tab.key }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
+          {{ tab.label }} <span class="receiving-tab-count">{{ tab.count }}</span>
+        </a>
+        {% endfor %}
+      </nav>
+      <div class="table-responsive">
+        <table class="table receiving-table">
+          <caption class="sr-only">Batch custody and endorsement records</caption>
+          <thead><tr><th>Batch</th><th>Current holder</th><th>Awaiting receipt by</th><th>Last activity</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for custody in page_obj %}
+            <tr>
+              <td data-label="Batch"><span class="receiving-tracking">{{ custody.batch.bat_Batch_Code }}</span></td>
+              <td data-label="Current holder">{{ custody.current_role }}</td>
+              <td data-label="Awaiting receipt by">{{ custody.pending_role|default:"—" }}</td>
+              <td data-label="Last activity">{{ custody.updated_at|date:"M j, Y g:i A" }}</td>
+              <td data-label="Status">
+                {% if custody.pending_role %}<span class="receiving-status receiving-status-endorsed">Pending confirmation</span>
+                {% else %}<span class="receiving-status receiving-status-lab_received">Received</span>{% endif %}
+              </td>
+              <td data-label="Actions" class="receiving-actions">
+                <div class="receiving-action-group">
+                  <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_workflow_detail' custody.batch_id %}"><i class="fas fa-history mr-1"></i>Details</a>
+                  {% if custody.can_confirm %}
+                  <form method="post" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}
+                    <button class="btn btn-sm btn-success mb-1" type="submit">Confirm Receipt</button>
+                  </form>
+                  {% endif %}
+                  {% if custody.can_undo %}
+                  <form method="post" action="{% url 'receiving_workflow_undo' custody.batch_id %}">{% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger mb-1" type="submit">Undo</button>
+                  </form>
+                  {% endif %}
+                  {% if custody.can_endorse %}
+                  <details>
+                    <summary class="btn btn-sm btn-info mb-1">Endorse</summary>
+                    <form method="post" action="{% url 'receiving_workflow_endorse' custody.batch_id %}" class="mt-2" style="min-width:200px;">
+                      {% csrf_token %}
+                      <label class="form-control-label" for="destination-{{ custody.pk }}">Endorse to</label>
+                      <select class="form-control mb-2" id="destination-{{ custody.pk }}" name="destination_role" required>
+                        <option value="">Select a role</option>
+                        {% for role in destination_roles %}{% if role != custody.current_role %}
+                        <option value="{{ role }}">{{ role }}</option>
+                        {% endif %}{% endfor %}
+                      </select>
+                      <label class="form-control-label" for="remarks-{{ custody.pk }}">Reason (required for nonstandard routing)</label>
+                      <input class="form-control mb-2" id="remarks-{{ custody.pk }}" name="remarks" maxlength="1000">
+                      <button type="submit" class="btn btn-sm btn-primary">Submit endorsement</button>
+                    </form>
+                  </details>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="receiving-empty">No batch handoffs found in this tab. Existing courier receiving records remain available under Courier intake records.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="receiving-board-pagination">
+        <span>Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} batches · Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="receiving-pagination" aria-label="Batch receiving pages">
+          {% if page_obj.has_previous %}
+          <a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>
+          {% endif %}
+          {% if page_obj.has_next %}
+          <a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next</a>
+          {% endif %}
+        </nav>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</main>
+{% endblock %}
