@@ -3,9 +3,9 @@
 {% block title %}Confirm laboratory receipt{% endblock %}
 {% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2">{% endblock stylesheets %}
 {% block content %}
-<main class="receiving-page" data-page="laboratory-custody">
+<main class="receiving-page" data-page="receiving-custody">
   <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-microscope"></i></span>
-    <div><p class="receiving-eyebrow">Laboratory custody</p><h1>Confirm laboratory receipt</h1><p class="receiving-hero-subtitle">{{ receipt.tracking_number }} · {{ receipt.site.SiteCode }}</p></div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}"><i class="fas fa-arrow-left mr-2"></i>Back to record</a></div></header>
+    <div><p class="receiving-eyebrow">Receiving</p><h1>Confirm laboratory receipt</h1><p class="receiving-hero-subtitle">{{ receipt.tracking_number }} · {{ receipt.site.SiteCode }}</p></div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=pending"><i class="fas fa-arrow-left mr-2"></i>Back to record</a></div></header>
   <div class="receiving-content"><div class="receiving-form-wrap"><section class="receiving-surface receiving-form-card">
     <div class="receiving-card-header"><h2>Custody acknowledgment</h2><p>Review the physical label and tracking details before recording the handoff.</p></div>
     <div class="receiving-card-body">
@@ -32,7 +32,7 @@
         </div>
         <p class="text-muted small">Enter the actual time the laboratory took custody. It cannot precede endorsement or be later than the current time.</p>
         <div class="receiving-form-actions">
-          <a class="btn btn-outline-secondary" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}">Cancel</a>
+          <a class="btn btn-outline-secondary" href="{% url 'receiving_workflow_dashboard' %}?tab=pending">Cancel</a>
           <button class="btn btn-primary" type="submit"><i class="fas fa-check-circle mr-2"></i>Confirm laboratory receipt</button>
         </div>
       </form>
