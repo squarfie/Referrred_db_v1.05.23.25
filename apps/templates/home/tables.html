@@ -1463,7 +1463,7 @@
                           data-site="{{ batch_group.site_code|default:'No site' }}"
                           data-count="{{ batch_group.count }}"
                           title="Endorse raw data for all verifiers">
-                    <i class="fas fa-paper-plane"></i>Send
+                    <i class="fas fa-paper-plane"></i>Endorse
                   </button>
                   {% elif batch_group.verification_can_withdraw and user_access.can_send_raw_to_verification %}
                   <form method="post"
@@ -2000,7 +2000,7 @@
     <div class="modal-content" style="border-radius:12px; overflow:hidden; border:none;">
       <div class="modal-header modal-header-workflow">
         <h6 class="modal-title" id="sendRawVerificationModalLabel">
-          <i class="fas fa-paper-plane mr-2"></i>Send Raw Batch
+          <i class="fas fa-paper-plane mr-2"></i>Endorse Raw Batch
         </h6>
         <div class="d-flex align-items-center" style="gap:0.5rem;">
           <a href="{% url 'verification_dashboard' %}" class="btn btn-sm btn-light">
@@ -2032,7 +2032,7 @@
             </select>
             <input type="text" name="note" class="form-control form-control-md" placeholder="Optional note">
             <button type="submit" class="btn btn-sm btn-success">
-              <i class="fas fa-paper-plane mr-1"></i>Send
+              <i class="fas fa-paper-plane mr-1"></i>Endorse
             </button>
           </form>
         </div>
