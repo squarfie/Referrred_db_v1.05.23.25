@@ -1151,7 +1151,8 @@ class GroupedSidebarNavigationTests(TestCase):
 
     def test_lab_encoder_gets_laboratory_receiving_and_wgs_data(self):
         markup = self._render_sidebar("LAB Encoder", "laboratory_receiving_dashboard")
-        self.assertIn("Bench A / Laboratory Receiving", markup)
+        self.assertIn(">Bench A</span>", markup)
+        self.assertNotIn("Bench A / Laboratory Receiving", markup)
         self.assertIn('href="/receiving/laboratory-receiving/"', markup)
         self.assertIn("WGS Data", markup)
         self.assertIn("Running TAT", markup)
@@ -1160,23 +1161,33 @@ class GroupedSidebarNavigationTests(TestCase):
     def test_workspace_groups_follow_secretariat_before_verification_and_tat(self):
         markup = self._render_sidebar("Admin", "verification_dashboard")
         secretariat_pos = markup.index('href="/receiving/secretariat/"')
-        data_management_pos = markup.index('data-group-container="data-management"')
+        data_management_links = (
+            'href="/batch/"',
+            'href="/show/"',
+            'href="/final/show_final_table"',
+            'href="/upload/wgs/data-overview"',
+            'href="/upload/data_center/"',
+            'href="/final/concordance_history/"',
+        )
+        data_management_positions = [markup.index(link) for link in data_management_links]
         laboratory_pos = markup.index('data-group-container="laboratory-operations"')
         verification_pos = markup.index(">Verification</span>")
         tat_pos = markup.index(">Running TAT</span>")
 
-        self.assertLess(secretariat_pos, data_management_pos)
-        self.assertLess(data_management_pos, laboratory_pos)
+        self.assertNotIn('data-group-container="data-management"', markup)
+        self.assertLess(secretariat_pos, data_management_positions[0])
+        self.assertEqual(data_management_positions, sorted(data_management_positions))
+        self.assertLess(data_management_positions[-1], laboratory_pos)
         self.assertLess(laboratory_pos, verification_pos)
         self.assertLess(verification_pos, tat_pos)
 
     def test_group_controls_have_accessible_ids_and_browser_assets(self):
         markup = self._render_sidebar("Admin", "show_data")
-        self.assertIn('id="sidebarDataManagementToggle"', markup)
-        self.assertIn('aria-controls="sidebarDataManagementItems"', markup)
+        self.assertNotIn('id="sidebarDataManagementToggle"', markup)
+        self.assertNotIn('aria-controls="sidebarDataManagementItems"', markup)
         self.assertIn('id="sidebarLaboratoryOperationsToggle"', markup)
         self.assertIn('aria-controls="sidebarLaboratoryOperationsItems"', markup)
-        self.assertEqual(markup.count('data-sidebar-group='), 2)
+        self.assertEqual(markup.count('data-sidebar-group='), 1)
         self.assertIn('class="navbar-nav sidenav-workspace-items"', markup)
         self.assertIn('>WGS Upload</span>', markup)
 
