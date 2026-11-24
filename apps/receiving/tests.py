@@ -55,7 +55,7 @@ class ReceivingPermissionTests(TestCase):
         response = self.client.get(reverse("secretariat_receiving_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Isolate Tracking")
-        self.assertContains(response, "Pending Endorsement")
+        self.assertContains(response, "Lab Received")
         self.assertContains(response, reverse("secretariat_receiving_dashboard") + "?tab=pending")
         self.assertNotContains(response, "Pending Lab Receipt")
         denied = self.client.get(reverse("laboratory_receiving_dashboard"))
@@ -852,7 +852,7 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(response.context["page_obj"].paginator.count, 1)
         self.assertContains(response, "PENDING-001")
         self.assertNotContains(response, "ENDORSED-001")
-        self.assertContains(response, "Pending Endorsement")
+        self.assertContains(response, "Lab Received")
 
     def test_lab_encoder_default_tab_is_needs_action(self):
         self.create_receipt("PENDING-001", ReferralReceipt.Status.RECEIVED)
@@ -2729,3 +2729,74 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
         self.assertNotContains(response, "Finalize the accepted/rejected decision")
         self.assertNotContains(response, 'name="is_finalized"')
+
+
+class SecretariatReceivingYearPaginationTests(TestCase):
+    """Secretariat dashboard keeps the year and page size scoped to the worklist."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="receiving-year-test", password="test-pass")
+        self.user.groups.add(Group.objects.get_or_create(name=home_permissions.ROLE_SECRETARIAT)[0])
+        self.site = SiteData.objects.create(SiteCode="YR", SiteName="Year Filter Hospital")
+        self.url = reverse("secretariat_receiving_dashboard")
+        self.client.force_login(self.user)
+
+    def make_receipt(self, number, year):
+        return ReferralReceipt.objects.create(
+            tracking_number=f"YEAR-TEST-{number}",
+            site=self.site,
+            date_sent=date(year, 1, 4),
+            date_received=date(year, 1, 5),
+            time_received=time(9, 0),
+            received_by=self.user,
+            status=ReferralReceipt.Status.RECEIVED,
+        )
+
+    def test_defaults_to_current_receiving_year_and_can_show_history(self):
+        current_year = timezone.localdate().year
+        old = self.make_receipt(1, current_year - 1)
+        current = self.make_receipt(2, current_year)
+
+        response = self.client.get(self.url, {"tab": "all"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["selected_year"], current_year)
+        self.assertEqual(list(response.context["page_obj"].object_list), [current])
+        self.assertEqual(response.context["received_count"], 1)
+
+        historical = self.client.get(self.url, {"tab": "all", "year": current_year - 1})
+        self.assertEqual(list(historical.context["page_obj"].object_list), [old])
+
+        all_years = self.client.get(self.url, {"tab": "all", "year": "all"})
+        self.assertEqual(all_years.context["page_obj"].paginator.count, 2)
+        self.assertEqual(all_years.context["received_count"], 2)
+
+    def test_all_records_is_paginated_and_page_size_is_bounded(self):
+        current_year = timezone.localdate().year
+        for number in range(1, 53):
+            self.make_receipt(number, current_year)
+
+        response = self.client.get(self.url, {"tab": "all", "per_page": "10"})
+        self.assertEqual(len(response.context["page_obj"].object_list), 10)
+        self.assertEqual(response.context["page_obj"].paginator.num_pages, 6)
+        self.assertContains(response, "per_page=10")
+
+        second_page = self.client.get(self.url, {"tab": "all", "per_page": "10", "page": "2"})
+        self.assertEqual(second_page.context["page_obj"].number, 2)
+        self.assertEqual(len(second_page.context["page_obj"].object_list), 10)
+
+        invalid_size = self.client.get(self.url, {"tab": "all", "per_page": "10000"})
+        self.assertEqual(invalid_size.context["per_page"], 25)
+        self.assertEqual(len(invalid_size.context["page_obj"].object_list), 25)
+
+    def test_tabs_and_pagination_preserve_year_search_and_page_size(self):
+        year = timezone.localdate().year
+        for number in range(1, 14):
+            self.make_receipt(number, year)
+        response = self.client.get(
+            self.url,
+            {"tab": "all", "year": str(year), "q": "YEAR-TEST", "per_page": "10"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f"year={year}&amp;per_page=10", html=False)
+        self.assertContains(response, "per_page=10&amp;q=YEAR-TEST&amp;page=2", html=False)
+        self.assertEqual(response.context["page_obj"].paginator.count, 13)
