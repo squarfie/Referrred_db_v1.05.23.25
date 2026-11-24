@@ -1082,7 +1082,7 @@ class ReceivingTemplateTests(TestCase):
         lab_queue_url = self.route("laboratory_receiving_dashboard")
         response = self.client.get(lab_url)
         self.assertContains(response, 'href="' + lab_queue_url + '"', html=False)
-        self.assertContains(response, 'href="' + self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id) + '"', html=False)
+        self.assertNotContains(response, 'href="' + self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id) + '"', html=False)
         self.assertNotContains(response, "Endorse to laboratory")
         self.assertNotContains(response, "New receipt")
         self.assertNotContains(response, "Print batch label")
@@ -1092,16 +1092,19 @@ class ReceivingTemplateTests(TestCase):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.lab_encoder)
         response = self.client.get(self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id))
-        target = self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
+        target = self.route("receiving_workflow_dashboard") + "?tab=pending"
         self.assertContains(response, 'href="' + target + '"', count=2, html=False)
         self.assertNotContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
 
-    def test_lab_dashboard_open_links_to_lab_specific_record(self):
+    def test_lab_dashboard_excludes_unconfirmed_receipts(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.lab_encoder)
         response = self.client.get(self.route("laboratory_receiving_dashboard"))
-        self.assertContains(response, 'href="' + self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
-        self.assertNotContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
+        self.assertNotContains(response, receipt.tracking_number)
+        self.assertNotContains(response, "Confirm receipt")
+        pending = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "pending"})
+        self.assertContains(pending, receipt.tracking_number)
+        self.assertContains(pending, "Confirm receipt")
 
     def test_secretariat_dashboard_open_links_to_secretariat_record(self):
         receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
@@ -1215,14 +1218,14 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(secretariat_dashboard, "Endorsed")
         self.assertNotContains(secretariat_dashboard, "Confirm receipt")
         self.assertContains(laboratory_dashboard, "Pending Accessioning")
-        self.assertContains(laboratory_dashboard, "Confirm receipt")
+        self.assertNotContains(laboratory_dashboard, "Confirm receipt")
         self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
         self.assertNotContains(detail, "Confirm laboratory receipt")
         lab_detail = self.client.get(
             self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
         )
-        self.assertContains(lab_detail, "Confirm laboratory receipt")
+        self.assertNotContains(lab_detail, "Confirm laboratory receipt")
         self.assertNotContains(lab_detail, "Endorse to laboratory")
 
     def test_detail_displays_events_in_chronological_order(self):
