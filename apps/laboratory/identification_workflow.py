@@ -272,3 +272,5 @@ def correct_identification(isolate_id, kind, code, name, reason, user, *, result
         previous_code=previous[0], previous_name=previous[1], new_code=code, new_name=name,
         reason=reason, performed_by=user, original_result=original, revised_result=revision)
     return item
+
+

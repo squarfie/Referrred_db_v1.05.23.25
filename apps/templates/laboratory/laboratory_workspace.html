@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}{% load static %}
 {% block title %}Laboratory receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worksheet-1"><style>
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worksheet-4"><style>
 .receiving-organism-grid input[type="number"] {appearance:auto;-moz-appearance:auto;}
 .receiving-organism-grid input[type="number"]::-webkit-inner-spin-button {opacity:1;}
 </style>{% endblock stylesheets %}
@@ -17,17 +17,17 @@
   <a class="btn btn-info" href="{% url 'laboratory_receiving_register' %}">Monthly Inventory</a></div></header>
   <div class="receiving-content">
     <nav class="receiving-stepnav" aria-label="Worksheet steps">
-      <a href="#receiving-summary"><b>1</b>Receiving</a>
-      <a href="#accessioning"><b>2</b>Accessioning</a>
-      <a href="#organism-inventory"><b>3</b>Organisms</a>
-      <a href="#revival"><b>4</b>Revival &amp; Site ID</a>
-      <a href="#final-processing"><b>5</b>Final Processing</a>
-      <a href="#batch-generation"><b>6</b>Batch</a>
+      <a href="#receiving-summary"{% if step_done.summary %} class="is-done"{% endif %}><b>{% if step_done.summary %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}1{% endif %}</b>Receiving{% if step_done.summary %}<span class="sr-only"> (completed)</span>{% endif %}</a>
+      <a href="#accessioning"{% if step_done.accessioning %} class="is-done"{% endif %}><b>{% if step_done.accessioning %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}2{% endif %}</b>Accessioning{% if step_done.accessioning %}<span class="sr-only"> (completed)</span>{% endif %}</a>
+      <a href="#organism-inventory"{% if step_done.organisms %} class="is-done"{% endif %}><b>{% if step_done.organisms %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}3{% endif %}</b>Organisms{% if step_done.organisms %}<span class="sr-only"> (completed)</span>{% endif %}</a>
+      <a href="#revival"{% if step_done.revival %} class="is-done"{% endif %}><b>{% if step_done.revival %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}4{% endif %}</b>Revival &amp; Site ID{% if step_done.revival %}<span class="sr-only"> (completed)</span>{% endif %}</a>
+      <a href="#final-processing"{% if step_done.final %} class="is-done"{% endif %}><b>{% if step_done.final %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}5{% endif %}</b>Final Processing{% if step_done.final %}<span class="sr-only"> (completed)</span>{% endif %}</a>
+      <a href="#batch-generation"{% if step_done.batch %} class="is-done"{% endif %}><b>{% if step_done.batch %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}6{% endif %}</b>Batch{% if step_done.batch %}<span class="sr-only"> (completed)</span>{% endif %}</a>
     </nav>
     {% if return_to %}<p><a class="btn btn-outline-primary" href="{{ return_to }}">Back to filtered worklist</a></p>{% endif %}
     <div class="alert alert-info receiving-notice"><i class="fas fa-user-check"></i><div><strong>The LAB Encoder decides acceptance or rejection.</strong> The system validates the totals but does not classify isolates automatically.</div></div>
 
-  <section class="receiving-surface receiving-form-card mb-4" id="receiving-summary"><div class="receiving-card-header"><h2>Step 1: Receiving and acceptance summary</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
+  <section class="receiving-surface receiving-form-card mb-4{% if step_done.summary %} is-complete{% endif %}" id="receiving-summary"><div class="receiving-card-header"><h2>Step 1: Receiving and acceptance summary</h2><p>Record the completed acceptance and rejection totals, then save before assigning accession ranges.</p></div>
     <div class="receiving-card-body">
       <form method="post" novalidate>
         {% csrf_token %}
@@ -106,7 +106,7 @@
       </div>
   </section>
 
-  <section class="receiving-surface receiving-form-card mb-4" id="accessioning">
+  <section class="receiving-surface receiving-form-card mb-4{% if step_done.accessioning %} is-complete{% endif %}" id="accessioning">
     <div class="receiving-card-header">
       <h2>Step 2: Accessioning</h2>
       <p>Save accession ranges before recording the organisms. Ungenerated ranges can be edited or removed here.</p>
@@ -225,7 +225,7 @@
   </section>
 
   <!-- Step 3: inventory section -->
-  <section class="receiving-surface receiving-form-card mb-4" id="organism-inventory">
+  <section class="receiving-surface receiving-form-card mb-4{% if step_done.organisms %} is-complete{% endif %}" id="organism-inventory">
     <div class="receiving-card-header">
       <h2>Step 3: Organism inventory</h2>
       <p>Add organisms within each accession range. All counts share that range's isolate total. Record the site-reported organism for each individual accession during revival.</p>
@@ -281,15 +281,15 @@
           </tbody>
         </table>
       </div>
-      <p class="small text-muted mb-0 mt-2">Blank cells count as zero. The total for each row cannot exceed the number of isolates in its accession range. Scroll horizontally to view all organism groups.</p>
+      <p class="receiving-note mb-0 mt-2"><i class="fas fa-info-circle" aria-hidden="true"></i>Blank cells count as zero. The total for each row cannot exceed the number of isolates in its accession range. Scroll horizontally to view all organism groups.</p>
       {% else %}
-      <p class="text-muted mb-0">Create an accession range in Step 2 before entering organism counts.</p>
+      <p class="receiving-empty-note"><i class="fas fa-inbox" aria-hidden="true"></i>Create an accession range in Step 2 before entering organism counts.</p>
       {% endif %}
     </div>
   </section>
 
   <!-- Step 4: revival section -->
-  <section class="receiving-surface receiving-form-card mb-4" id="revival">
+  <section class="receiving-surface receiving-form-card mb-4{% if step_done.revival %} is-complete{% endif %}" id="revival">
     <div class="receiving-card-header d-flex justify-content-between align-items-start flex-wrap">
       <div>
         <h2>Step 4: Revival &amp; Site ID</h2>
@@ -342,13 +342,13 @@
           </div>
         </div>
       {% empty %}
-        <p class="text-muted">Accession ranges must be created before revival.</p>
+        <p class="receiving-empty-note"><i class="fas fa-inbox" aria-hidden="true"></i>Accession ranges must be created before revival.</p>
       {% endfor %}
-      <p class="small text-muted mb-0">Main Lab acknowledgment, testing, and Final ID entry occur only in the Main Laboratory workspace.</p>
+      <p class="receiving-note mb-0"><i class="fas fa-info-circle" aria-hidden="true"></i>Main Lab acknowledgment, testing, and Final ID entry occur only in the Main Laboratory workspace.</p>
     </div>
   </section>
 
-  <section class="receiving-surface receiving-form-card mb-4" id="final-processing">
+  <section class="receiving-surface receiving-form-card mb-4{% if step_done.final %} is-complete{% endif %}" id="final-processing">
     <div class="receiving-card-header">
       <h2>Step 5: Final Processing</h2>
       <p class="mb-0">Select a status to see only the relevant isolates. Bench A records lyophilization and final storage; Main Laboratory owns Final ID entry.</p>
@@ -412,11 +412,11 @@
         </div>
       </details>
     {% endwith %}
-    {% empty %}<p class="text-muted mb-0">No isolates in this status. Choose another tab to view other work.</p>{% endfor %}
+    {% empty %}<p class="receiving-empty-note"><i class="fas fa-vial" aria-hidden="true"></i>No isolates in this status. Choose another tab to view other work.</p>{% endfor %}
     </div>
   </section>
 
-  <section class="receiving-surface receiving-form-card mb-4" id="batch-generation">
+  <section class="receiving-surface receiving-form-card mb-4{% if step_done.batch %} is-complete{% endif %}" id="batch-generation">
     <div class="receiving-card-header">
       <h2>Batch Generation</h2>
       <p>Review the accession range and its organism inventory before creating the batch. Generated batches cannot be edited or deleted through this worksheet.</p>
@@ -469,6 +469,36 @@
   </section>
   </div>
 </main>
+<script>
+  // Step navigator: highlight the step currently in view.
+  (function () {
+    var links = document.querySelectorAll('.receiving-stepnav a[href^="#"]');
+    if (!links.length || !('IntersectionObserver' in window)) return;
+    var byId = {};
+    links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+    var visible = {};
+    function paint() {
+      var current = null;
+      links.forEach(function (a) {
+        var id = a.getAttribute('href').slice(1);
+        if (visible[id] && !current) current = id;
+      });
+      links.forEach(function (a) {
+        var on = a.getAttribute('href').slice(1) === current;
+        a.classList.toggle('is-active', on);
+        if (on) a.setAttribute('aria-current', 'step'); else a.removeAttribute('aria-current');
+      });
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+      paint();
+    }, { rootMargin: '-80px 0px -55% 0px', threshold: 0 });
+    Object.keys(byId).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) io.observe(el);
+    });
+  })();
+</script>
 <script>
   // Bootstrap appends the tooltip to <body>, outside the table's scroll/stacking context.
   // The native title remains usable if the tooltip plugin cannot initialize.

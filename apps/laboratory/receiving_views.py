@@ -338,6 +338,16 @@ def laboratory_receiving_workspace(request, receiving_id):
             query["next"] = breadcrumb
         return worksheet_path + "?" + urlencode(query) + "#final-processing"
     worksheet_return = final_tab_return(final_tab)
+
+    step_done = worksheet_step_done(
+        form=form,
+        ranges=ranges,
+        organism_rows=organism_rows,
+        workflow_rows=workflow_rows,
+        final_tabs=final_tabs,
+        batch_rows=batch_rows,
+    )
+
     return render(request, "laboratory/laboratory_workspace.html", {
         "return_to": return_url(request),
         "receipt": receipt, "record": record, "form": form,
@@ -349,6 +359,7 @@ def laboratory_receiving_workspace(request, receiving_id):
         "worksheet_next_in_progress": final_tab_return("in_progress"),
         "worksheet_next_biobank": final_tab_return("biobank"),
         "worksheet_next_completed": final_tab_return("completed"),
+        "step_done": step_done,
     })
 
 
@@ -684,3 +695,57 @@ def receiving_lab_confirm(request, receiving_id):
         "laboratory/lab_receipt_form.html",
         {"form": form, "receipt": receipt},
     )
+
+
+
+
+### for receiving worksheet step navigator
+
+"""Completion flags for the laboratory worksheet step navigator."""
+
+
+def _g(obj, name, default=None):
+    """Read a key from a dict or an attribute from an object."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+def worksheet_step_done(form, ranges, organism_rows, workflow_rows, final_tabs, batch_rows):
+    """Return {step_key: bool} used as `step_done` in the worksheet template."""
+    inst = getattr(form, "instance", None)
+    total = _g(inst, "total_isolates_received") or 0
+    accepted = _g(inst, "isolates_accepted") or 0
+    rejected = _g(inst, "isolates_rejected") or 0
+
+    # Step 1: totals saved and consistent, with a date recorded.
+    summary = bool(total) and (accepted + rejected == total) and bool(_g(inst, "date_accepted"))
+
+    # Step 2: at least one accession range saved.
+    accessioning = bool(list(ranges))
+
+    # Step 3: every range has organism counts saved.
+    organisms = bool(organism_rows) and all((_g(r, "fixed_total") or 0) > 0 for r in organism_rows)
+
+    # Step 4: every range has revival recorded and nothing left pre-handoff.
+    revival = bool(workflow_rows) and all(
+        (_g(r, "count") or 0) > 0 and not _g(r, "preparation_pending") for r in workflow_rows
+    )
+
+    # Step 5: all isolates completed. Uses tab counts so the active tab filter does not matter.
+    counts = {_g(t, "key"): (_g(t, "count") or 0) for t in final_tabs}
+    final = counts.get("all", 0) > 0 and counts.get("completed", 0) == counts.get("all", 0)
+
+    # Batch generation: every range has a batch.
+    batch = bool(batch_rows) and all(bool(_g(_g(r, "accession"), "batch")) for r in batch_rows)
+
+    return {
+        "summary": summary,
+        "accessioning": accessioning,
+        "organisms": organisms,
+        "revival": revival,
+        "final": final,
+        "batch": batch,
+    }

@@ -467,3 +467,52 @@ html { scroll-behavior: smooth; }
 .receiving-scan-receiver .receiving-info-secondary { margin: 0; }
 .receiving-scan-actions .btn { width: 100%; margin: 0; padding: .75rem 1rem; font-size: .95rem; }
 .receiving-scan-note { margin: .75rem 0 0; color: var(--receiving-muted); font-size: .76rem; text-align: center; }
+
+
+
+/* ===== Worksheet step navigator: active state + quieter info notice ===== */
+.receiving-stepnav a { transition: background .15s, color .15s; }
+.receiving-stepnav a.is-active { color: #fff; background: var(--receiving-navy); }
+.receiving-stepnav a.is-active b { color: var(--receiving-navy); background: var(--receiving-cyan); }
+.receiving-stepnav a.is-active:hover { color: #fff; background: var(--receiving-navy); }
+
+/* Info notices: light panel instead of the solid cyan banner */
+.receiving-notice.alert-info { color: #245a65; background: #f0fbfd; border: 1px solid #bde5ec; border-left: 4px solid var(--receiving-cyan); box-shadow: none; }
+.receiving-notice.alert-info i { color: var(--receiving-teal); }
+.receiving-notice.alert-info a { color: var(--receiving-blue); font-weight: 600; }
+
+/* ===== Readability: descriptions, helper text, notes, empty states ===== */
+.receiving-page .receiving-card-header p { color: #4d6378; font-size: .84rem; font-weight: 500; line-height: 1.5; }
+.receiving-page .receiving-card-header h2 { font-size: 1.05rem; }
+.receiving-page .text-muted, .receiving-page .small.text-muted, .receiving-page small.text-muted { color: #566b80 !important; }
+.receiving-page .small.text-muted, .receiving-page small.text-muted { font-size: .82rem; }
+.receiving-page .receiving-form-card label { color: #2b4a63; font-size: .8rem; }
+.receiving-page .form-text { font-size: .76rem; }
+
+/* Footnote under a section */
+.receiving-note { display: flex; align-items: flex-start; gap: .55rem; padding: .6rem .8rem; border-radius: 8px; background: #f3f8fb; color: #3f566b; font-size: .82rem; font-weight: 500; line-height: 1.5; }
+.receiving-note > i { margin-top: .2rem; color: var(--receiving-teal); }
+
+/* Empty state inside a step */
+.receiving-empty-note { display: flex; align-items: center; justify-content: center; gap: .6rem; margin: 0; padding: 1.4rem 1rem; border: 1px dashed #c3d6e4; border-radius: 10px; background: rgba(247,251,254,.9); color: #4d6378; font-size: .88rem; font-weight: 500; text-align: center; }
+.receiving-empty-note > i { color: #8fb0c8; font-size: 1.1rem; }
+
+/* Step 4 accession rows: clearer title + counts */
+#revival .border.rounded { background: #fff; border-color: var(--receiving-border) !important; }
+#revival .border.rounded strong { color: var(--receiving-navy); font-size: .95rem; }
+#revival .border.rounded .text-muted.small { color: #566b80 !important; font-size: .82rem; }
+
+
+/* ===== Completed steps on the laboratory worksheet ===== */
+.receiving-stepnav a.is-done { color: #116149; }
+.receiving-stepnav a.is-done b,
+.receiving-stepnav a.is-done:hover b,
+.receiving-stepnav a.is-active.is-done b { color: #fff; background: #2fa77c; }
+.receiving-stepnav a.is-done b i { font-size: .62rem; }
+.receiving-stepnav a.is-active.is-done { color: #fff; }
+
+.receiving-form-card.is-complete > .receiving-card-header { border-left-color: #2fa77c; }
+.receiving-form-card.is-complete > .receiving-card-header h2::after {
+  content: "\2713  Completed"; margin-left: .65rem; padding: .15rem .6rem; border: 1px solid #9edabb; border-radius: 999px;
+  background: #def6eb; color: #116149; font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle;
+}
