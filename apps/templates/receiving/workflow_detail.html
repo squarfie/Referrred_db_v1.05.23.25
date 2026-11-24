@@ -27,17 +27,17 @@
       <div class="p-4">
         <h3 class="h4">Activity and tracking history</h3>
         <div class="receiving-timeline">
-          {% for event in events %}
+          {% for event in activity %}
           <div class="receiving-timeline-item">
             <span class="receiving-timeline-dot"></span>
-            <div class="receiving-timeline-title">{{ event.get_action_display }}</div>
-            <div class="receiving-timeline-meta">{{ event.performed_at|date:"M j, Y g:i A" }} ·
-              {% if event.performed_by %}{{ event.performed_by.get_full_name|default:event.performed_by.username }}{% else %}Former user{% endif %}
+            <div class="receiving-timeline-title">{{ event.label }} <small class="text-muted">({{ event.source }})</small></div>
+            <div class="receiving-timeline-meta">{{ event.when|date:"M j, Y g:i A" }} ·
+              {% if event.actor %}{{ event.actor.get_full_name|default:event.actor.username }}{% else %}System or previous user{% endif %}
             </div>
-            <div class="receiving-timeline-note">{{ event.from_role }}{% if event.to_role %} → {{ event.to_role }}{% endif %}{% if event.remarks %} · {{ event.remarks }}{% endif %}</div>
+            <div class="receiving-timeline-note">{{ event.description }}</div>
           </div>
           {% empty %}
-          <p>No batch handoff events have been recorded.</p>
+          <p>No activity has been recorded for this batch.</p>
           {% endfor %}
         </div>
       </div>
