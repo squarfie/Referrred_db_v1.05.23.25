@@ -89,11 +89,19 @@ def _receipt_tab_filter(receipts, tab, user):
         # Physical Laboratory receipt is the pending incoming endorsement.
         return receipts.filter(status=ReferralReceipt.Status.ENDORSED) if lab else receipts.none()
     if tab == "received":
+        if ROLE_ADMIN in roles:
+            return receipts.filter(status__in=(
+                ReferralReceipt.Status.RECEIVED, ReferralReceipt.Status.LAB_RECEIVED,
+            ))
         if lab:
             return receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED)
         return receipts.filter(status=ReferralReceipt.Status.RECEIVED)
     if tab == "endorsed":
-        return receipts.filter(status=ReferralReceipt.Status.ENDORSED) if ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles else receipts.none()
+        if ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles:
+            return receipts.filter(status__in=(
+                ReferralReceipt.Status.ENDORSED, ReferralReceipt.Status.LAB_RECEIVED,
+            ))
+        return receipts.none()
     if tab == "completed":
         if lab:
             from apps.laboratory.receiving_views import _laboratory_workflow_receipts
