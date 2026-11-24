@@ -687,9 +687,10 @@ def receiving_lab_confirm(request, receiving_id):
                 messages.warning(request, str(exc))
             else:
                 confirmed = True
-                messages.success(request, "Laboratory receipt confirmed. Open the laboratory worksheet to record the manual acceptance decision.")
+                messages.success(request, "Laboratory receipt confirmed. The shipment is now pending accessioning in Bench A.")
             if confirmed:
-                return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
+                from django.urls import reverse
+                return redirect(reverse("laboratory_receiving_dashboard") + "?tab=action&stage=accessioning&year=all")
             return redirect("laboratory_receiving_detail", receiving_id=receiving_id)
     else:
         form = LabReceiptForm(receipt=receipt)
