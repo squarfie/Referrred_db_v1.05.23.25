@@ -1395,6 +1395,9 @@ def batch_create_view(request):
                     "Cannot create batch because accession(s) already exist: " + ", ".join(filter(None, labels)),
                 )
                 return render(request, "home/Batchname_form.html", {"form": form, "editing": False})
+            except BatchCreationError as exc:
+                messages.error(request, str(exc))
+                return render(request, "home/Batchname_form.html", {"form": form, "editing": False})
 
             from apps.receiving.handoffs import custody_roles, initialize_custody
             from apps.home.permissions import ROLE_CHECKER, ROLE_ENCODER
