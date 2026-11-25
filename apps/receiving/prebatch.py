@@ -95,6 +95,7 @@ def create_dmu_batch(*, handoff_id, user):
         batch_number=accession.batch_number,
         total_batches=accession.total_batches,
         created_by=user,
+        authorized_handoff_id=handoff.pk,
     )
     initialize_custody(batch=result.batch, user=user, initial_role=ROLE_ENCODER)
     accession.batch = result.batch
