@@ -1,5 +1,6 @@
-"""Regression tests: Bench A endorses accession; DMU confirms, then creates."""
+"""Regression tests: Bench A endorsement and atomic DMU receipt/batch creation."""
 from datetime import date, time, datetime
+from unittest.mock import patch
 from django.utils import timezone
 
 from django.contrib.auth.models import Group, User
@@ -16,6 +17,7 @@ from apps.receiving.models import (
 )
 from apps.receiving.prebatch import (
     endorse_accession_to_dmu, confirm_dmu_accession, create_dmu_batch,
+    confirm_dmu_receipt_and_create_batch,
 )
 
 
@@ -119,49 +121,75 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertEqual(counts.status_code, 302)
         self.assertEqual(self.accession.organism_counts.count(), 0)
 
-    def test_dmu_confirmation_and_batch_creation_are_separate_actions(self):
+    def test_dmu_confirmation_creates_batch_in_one_action(self):
         handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
         with self.assertRaises(ValidationError):
             create_dmu_batch(handoff_id=handoff.pk, user=self.dmu)
         with self.assertRaises(PermissionDenied):
-            confirm_dmu_accession(handoff_id=handoff.pk, user=self.checker)
+            confirm_dmu_receipt_and_create_batch(handoff_id=handoff.pk, user=self.checker)
         with self.assertRaises(PermissionDenied):
-            create_dmu_batch(handoff_id=handoff.pk, user=self.lab)
+            confirm_dmu_receipt_and_create_batch(handoff_id=handoff.pk, user=self.lab)
         self.assertFalse(Batch_Table.objects.filter(bat_SiteCode="PBD").exists())
 
         self.client.force_login(self.dmu)
         pending = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "pending"})
         self.assertContains(pending, "PBD-COURIER-001")
+        self.assertContains(pending, ">Confirm Receipt</button>")
         self.assertContains(pending, reverse("receiving_dmu_confirm", args=[handoff.pk]))
         self.assertNotContains(pending, reverse("receiving_dmu_create_batch", args=[handoff.pk]))
         self.assertEqual(self.client.get(reverse("receiving_dmu_confirm", args=[handoff.pk])).status_code, 405)
 
         confirmed = self.client.post(reverse("receiving_dmu_confirm", args=[handoff.pk]))
         self.assertEqual(confirmed.status_code, 302)
-        handoff.refresh_from_db()
-        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.CONFIRMED)
-        self.assertFalse(Batch_Table.objects.filter(bat_SiteCode="PBD").exists())
-
-        received = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received"})
-        self.assertContains(received, reverse("receiving_dmu_create_batch", args=[handoff.pk]))
-        self.assertNotContains(received, reverse("receiving_dmu_confirm", args=[handoff.pk]))
-        created = self.client.post(reverse("receiving_dmu_create_batch", args=[handoff.pk]))
-        self.assertEqual(created.status_code, 302)
+        self.assertIn("tab=processing", confirmed["Location"])
         handoff.refresh_from_db()
         self.accession.refresh_from_db()
         self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.CREATED)
+        self.assertEqual(handoff.confirmed_by, self.dmu)
+        self.assertEqual(handoff.created_by, self.dmu)
+        self.assertIsNotNone(handoff.confirmed_at)
         self.assertIsNotNone(self.accession.batch_id)
         self.assertEqual(self.accession.batch.created_by, self.dmu)
         self.assertEqual(self.accession.batch.receiving_custody.current_role, ROLE_ENCODER)
         self.assertEqual(list(handoff.events.values_list("action", flat=True)), [
             "endorsed", "confirmed", "batch_created",
         ])
-        self.assertEqual(
-            self.client.post(reverse("receiving_dmu_create_batch", args=[handoff.pk])).status_code,
-            302,
-        )
+        second = self.client.post(reverse("receiving_dmu_confirm", args=[handoff.pk]))
+        self.assertEqual(second.status_code, 302)
         self.assertEqual(Batch_Table.objects.filter(bat_SiteCode="PBD").count(), 1)
         self.assertEqual(handoff.events.count(), 3)
+
+    def test_atomic_confirmation_rolls_back_when_batch_creation_fails(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        with patch("apps.receiving.prebatch.create_referred_batch", side_effect=BatchCreationError("Batch creation failed")):
+            with self.assertRaises(BatchCreationError):
+                confirm_dmu_receipt_and_create_batch(handoff_id=handoff.pk, user=self.dmu)
+        handoff.refresh_from_db()
+        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.PENDING)
+        self.assertIsNone(handoff.confirmed_by)
+        self.assertEqual(list(handoff.events.values_list("action", flat=True)), ["endorsed"])
+        self.assertFalse(Batch_Table.objects.filter(bat_SiteCode="PBD").exists())
+
+        self.client.force_login(self.dmu)
+        with patch("apps.receiving.prebatch.create_referred_batch", side_effect=BatchCreationError("Batch creation failed")):
+            response = self.client.post(reverse("receiving_dmu_confirm", args=[handoff.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("tab=pending", response["Location"])
+        handoff.refresh_from_db()
+        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.PENDING)
+        self.assertEqual(handoff.events.count(), 1)
+
+    def test_legacy_confirmed_handoff_can_still_create_batch(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        confirm_dmu_accession(handoff_id=handoff.pk, user=self.dmu)
+        self.client.force_login(self.dmu)
+        received = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received"})
+        self.assertContains(received, reverse("receiving_dmu_create_batch", args=[handoff.pk]))
+        created = self.client.post(reverse("receiving_dmu_create_batch", args=[handoff.pk]))
+        self.assertEqual(created.status_code, 302)
+        handoff.refresh_from_db()
+        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.CREATED)
+        self.assertEqual(Batch_Table.objects.filter(bat_SiteCode="PBD").count(), 1)
 
     def test_generic_add_batch_service_cannot_bypass_dmu_receipt(self):
         args = dict(
@@ -206,7 +234,7 @@ class LaboratoryToDMUHandoffTests(TestCase):
         pending = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "pending", "year": "2026"})
         self.assertEqual(pending.status_code, 200)
         self.assertContains(pending, "Accession Handoff")
-        self.assertContains(pending, "Confirm DMU Receipt")
+        self.assertContains(pending, ">Confirm Receipt</button>")
         self.assertContains(pending, 'receiving-status-endorsed"><i class="fas fa-circle" aria-hidden="true"></i>')
         self.assertContains(pending, 'class="btn btn-sm btn-success receiving-action-primary mb-1"')
         self.assertContains(pending, 'receiving-action-detail mb-1')
@@ -217,8 +245,8 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertContains(pending, 'data-label="Date / Activity"')
         self.assertNotContains(pending, 'class="receiving-unified-pagination"')
 
-        confirm_dmu_accession(handoff_id=handoff.pk, user=self.dmu)
+        confirm_dmu_receipt_and_create_batch(handoff_id=handoff.pk, user=self.dmu)
         received = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received", "year": "2026"})
-        self.assertContains(received, "Create Batch")
+        self.assertNotContains(received, reverse("receiving_dmu_create_batch", args=[handoff.pk]))
         self.assertNotContains(received, reverse("receiving_dmu_confirm", args=[handoff.pk]))
         self.assertEqual(received.content.count(b"<thead>"), 1)
