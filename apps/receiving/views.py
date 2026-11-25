@@ -9,7 +9,7 @@ from .activity import receipt_activity
 from .forms import ReferralReceiptForm
 from .models import ReferralReceipt
 from .handoffs import custody_roles, DESTINATION_ROLES
-from .workflow_views import visible_custodies
+from .workflow_views import endorseable_receipt_custodies
 from apps.home.permissions import ROLE_ADMIN, ROLE_LAB_ENCODER
 from .permissions import (can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
 from .qr import build_receipt_scan_url, render_qr_png
@@ -64,20 +64,11 @@ def receiving_detail(request, receiving_id):
     )
     can_manage = can_manage_secretariat_receiving(request.user)
     roles = custody_roles(request.user)
-    # Only show batches the user may legally manage. The receipt itself
-    # may contain several accession ranges and generated batches.
-    linked_custodies = visible_custodies(request.user).filter(
-        batch__laboratory_accession__laboratory_receiving__receipt=receipt,
-    ).select_related("batch")
-    available_endorsements = []
-    for custody in linked_custodies:
-        if (
-            not custody.pending_role
-            and (ROLE_ADMIN in roles or custody.current_role in roles)
-            and not custody.batch.verification_cases.filter(status="released").exists()
-            and getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) != "Released"
-        ):
-            available_endorsements.append(custody)
+    # An endorsement is available only for a linked batch currently owned
+    # by this role; a physical courier receipt alone cannot stand in for it.
+    available_endorsements = list(
+        endorseable_receipt_custodies(receipt, request.user)
+    )
     can_endorse_receipt = can_manage and receipt.status == ReferralReceipt.Status.RECEIVED
     # Preserve the originating unified Receiving tab on the detail back link.
     from_tab = (request.GET.get("from_tab") or "").strip()
@@ -106,7 +97,7 @@ def receiving_detail(request, receiving_id):
             "destination_roles": DESTINATION_ROLES,
             "can_show_endorsement": can_endorse_receipt or (
                 receipt.status == ReferralReceipt.Status.LAB_RECEIVED
-                and (bool(available_endorsements) or ROLE_LAB_ENCODER in roles or ROLE_ADMIN in roles)
+                and bool(available_endorsements)
             ),
             "can_confirm_lab": False,
             "can_work_lab": False,
