@@ -98,7 +98,7 @@ class UnifiedReceivingHandoffTests(TestCase):
     def test_role_scoped_dashboard_and_shortcut_navigation(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
         self.client.force_login(self.lab)
-        dashboard = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received"})
+        dashboard = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "processing"})
         self.assertEqual(dashboard.status_code, 200)
         self.assertEqual(dashboard.context["page_obj"].paginator.count, 1)
         self.assertContains(dashboard, "Endorse")
@@ -113,7 +113,7 @@ class UnifiedReceivingHandoffTests(TestCase):
     def test_unified_worklist_reuses_existing_inline_receiving_filters(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
         self.client.force_login(self.lab)
-        response = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received"})
+        response = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "processing"})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'class="receiving-tabbar"')
         self.assertContains(response, 'class="receiving-filters receiving-filters--inline"')
@@ -132,7 +132,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.client.force_login(self.lab)
         signed = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "completed"})
         self.assertEqual(signed.context["page_obj"].paginator.count, 0)
-        self.assertEqual(signed.context["tabs"][3]["count"], 0)
+        self.assertEqual(next(tab["count"] for tab in signed.context["tabs"] if tab["key"] == "completed"), 0)
         self.assertNotContains(signed, self.batch.bat_Batch_Code)
 
         case.status = VerificationCase.STATUS_RELEASED
