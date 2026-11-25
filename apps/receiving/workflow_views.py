@@ -145,7 +145,7 @@ def _receipt_tab_filter(receipts, tab, user):
         return _receipt_release_counts(
             receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED)
         ).filter(Q(tracked_ranges=0) | Q(tracked_ranges__gt=F("released_ranges")))
-     if tab == "completed":
+    if tab == "completed":
         # All linked accession ranges must have an officially released batch.
         # A receipt without accession ranges is not complete.
         return _receipt_release_counts(
