@@ -173,7 +173,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.assertContains(response, 'class="receiving-filter-reset"')
         self.assertNotContains(response, 'class="receiving-board-search"')
         markup = response.content.decode()
-        self.assertLess(markup.index('class="receiving-tabbar"'), markup.index('class="table-responsive"'))
+        self.assertLess(markup.index('class="receiving-tabbar"'), markup.index('class="table-responsive receiving-unified-scroll"'))
 
     def test_completed_tab_requires_actual_release_not_head_signature(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
