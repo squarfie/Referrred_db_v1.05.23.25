@@ -22,6 +22,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .guidance import next_action
+from .isolate_progress import isolate_worksheet_steps
 from .identification_workflow import record_identification, finalize_banking, final_banking_filter, is_final_banked
 from .navigation import return_url, detail_url
 from .forms import StickerDateRangeForm
@@ -473,6 +474,7 @@ def laboratory_isolate_detail(request, isolate_id):
         'revival_pending', 'revival_queued', 'revival_in_progress', 'revival_failed', 'revived', 'id_queued')
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
+        "isolate_progress": isolate_worksheet_steps(isolate),
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
         "revival_correction_events": ReceivingEvent.objects.filter(
             receipt=isolate.accession_range.laboratory_receiving.receipt,
