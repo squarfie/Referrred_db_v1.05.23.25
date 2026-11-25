@@ -121,6 +121,7 @@ def laboratory_receiving_workspace(request, receiving_id):
     batch_previews = {}
     if can_edit:
         from apps.receiving.prebatch import endorsement_blocker
+        from apps.home.services.batch_creation import build_batch_code
         for accession in ranges:
             if accession.batch_id or hasattr(accession, "dmu_handoff"):
                 continue
@@ -140,6 +141,11 @@ def laboratory_receiving_workspace(request, receiving_id):
                 "warnings": reasons,
                 "message": " ".join(reasons),
                 "blocked": bool(reasons),
+                "expected_batch_code": build_batch_code(
+                    receipt.site.SiteCode, accession.date_referred,
+                    accession.batch_number, accession.total_batches,
+                    accession.reference_range,
+                ),
             }
     batch_rows = [
         {"accession": accession, "preview": batch_previews.get(accession.pk, {})}
