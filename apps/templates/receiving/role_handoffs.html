@@ -18,7 +18,7 @@
           <table class="table receiving-table">
             <thead><tr><th>Batch</th><th>Current holder</th><th>Awaiting receipt</th><th>Updated</th><th>Actions</th></tr></thead>
             <tbody>
-              {% for custody in custodies %}
+              {% for custody in page_obj %}
               <tr>
                 <td><strong>{{ custody.batch.bat_Batch_Code }}</strong></td>
                 <td>{{ custody.current_role }}</td>
@@ -34,6 +34,15 @@
             </tbody>
           </table>
         </div>
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="Role handoff pagination" class="d-flex justify-content-between align-items-center mt-3">
+          <span class="text-muted small">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+          <div>
+            {% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+            {% if page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+          </div>
+        </nav>
+        {% endif %}
       </div>
     </section>
   </div>
