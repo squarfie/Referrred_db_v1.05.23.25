@@ -1113,7 +1113,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(
             received,
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
-            + "#receiving-endorsement",
+            + "?from_tab=received#receiving-endorsement",
         )
         self.assertNotContains(received, "Confirm receipt")
         self.assertContains(received, "Details")
@@ -1122,6 +1122,32 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(detail, 'id="receiving-endorsement"')
         self.assertContains(detail, "Endorse")
         self.assertNotContains(detail, "Open laboratory worksheet")
+
+    def test_detail_back_link_preserves_originating_unified_tab(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id),
+            {"from_tab": "endorsed"},
+        )
+        self.assertContains(
+            response,
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=endorsed"',
+            html=False,
+        )
+        self.assertNotContains(
+            response,
+            'href="' + self.route("secretariat_receiving_dashboard") + '"',
+            html=False,
+        )
+        fallback = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id),
+        )
+        self.assertContains(
+            fallback,
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=pending"',
+            html=False,
+        )
 
     def test_courier_endorsement_requires_correct_destination_when_supplied(self):
         receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
@@ -1186,7 +1212,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
         )
         self.assertContains(
-            response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"',
+            response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '?from_tab=received"',
             html=False,
         )
 
@@ -1275,7 +1301,7 @@ class ReceivingTemplateTests(TestCase):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         self.client.force_login(self.secretariat)
         response = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
-        self.assertContains(response, 'href="' + self.route("secretariat_receiving_dashboard") + '"', html=False)
+        self.assertContains(response, 'href="' + self.route("receiving_workflow_dashboard") + '?tab=received"', html=False)
         self.assertNotContains(response, "Open laboratory worksheet")
         self.assertNotContains(response, "Confirm laboratory receipt")
         self.assertNotContains(response, "Update Lab Receiving")
