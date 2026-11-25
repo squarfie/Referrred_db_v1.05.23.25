@@ -1058,7 +1058,9 @@ class ReceivingTemplateTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Received by DMU")
         self.assertContains(response, "Released")
-        self.assertEqual(response.content.count(b"<li class="), 5)
+        markup = response.content.decode("utf-8")
+        steps = markup.split('<ol class="receiving-surface receiving-steps"', 1)[1].split("</ol>", 1)[0]
+        self.assertEqual(steps.count("<li class="), 5)
         self.assertFalse(response.context["progress"]["dmu_done"])
         self.assertFalse(response.context["progress"]["release_done"])
         self.assertEqual(response.context["progress"]["total"], 0)
