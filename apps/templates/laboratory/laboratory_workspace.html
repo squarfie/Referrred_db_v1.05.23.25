@@ -12,7 +12,7 @@
   </div>
 </div>
 <div class="receiving-hero-actions">
-  <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=received"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
+  <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=processing"><i class="fas fa-history mr-1"></i>Receiving History</a>
   <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-1"></i>Receiving &amp; Accessioning</a>
   <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}">Laboratory Record</a>
   <a class="btn btn-info" href="{% url 'laboratory_receiving_register' %}">Monthly Inventory</a></div></header>
