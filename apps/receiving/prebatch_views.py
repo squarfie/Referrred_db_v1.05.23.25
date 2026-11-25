@@ -7,21 +7,22 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.home.services.batch_creation import BatchCreationError
-from .prebatch import confirm_dmu_accession, create_dmu_batch
+from .prebatch import confirm_dmu_receipt_and_create_batch, create_dmu_batch
 
 
 @login_required
 @require_POST
 def confirm_dmu_handoff(request, handoff_id):
     try:
-        confirm_dmu_accession(handoff_id=handoff_id, user=request.user)
-    except (ValidationError, PermissionDenied) as exc:
-        if isinstance(exc, PermissionDenied):
-            raise
-        messages.error(request, "; ".join(exc.messages))
-    else:
-        messages.success(request, "Accession range received by DMU. You can now create its Raw Data batch.")
-    return redirect(reverse("receiving_workflow_dashboard") + "?tab=received")
+        result = confirm_dmu_receipt_and_create_batch(handoff_id=handoff_id, user=request.user)
+    except PermissionDenied:
+        raise
+    except (ValidationError, BatchCreationError) as exc:
+        detail = "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc)
+        messages.error(request, detail)
+        return redirect(reverse("receiving_workflow_dashboard") + "?tab=pending")
+    messages.success(request, f"Receipt confirmed. Raw Data batch {result.batch.bat_Batch_Code} created.")
+    return redirect(reverse("receiving_workflow_dashboard") + "?tab=processing")
 
 
 @login_required
