@@ -74,4 +74,4 @@ class MainLabProgressTests(MainLabSeparationTests):
         self.client.force_login(self.main_lab_user())
         page = self.client.get(reverse("main_lab_isolate_detail", args=[item.pk]))
         self.assertContains(page, "Identification correction history")
-        self.assertContains(page, "Confirmatory ID verified" if False else "Escherichia coli")
+        self.assertContains(page, "Escherichia coli")
