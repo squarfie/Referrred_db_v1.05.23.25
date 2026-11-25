@@ -45,6 +45,7 @@ from apps.home_final.services import concordance as concordance_service
 from apps.home.services.batch_creation import (
     AccessionConflict,
     BatchAlreadyExists,
+    BatchCreationError,
     InvalidBatchRange,
     create_referred_batch,
     parse_batch_ref_range,
