@@ -24,9 +24,9 @@ class WorkflowUXTests(TestCase):
         batch_url = reverse('laboratory_batch_detail', args=[item.accession_range_id])
         isolate_url = reverse('laboratory_isolate_detail', args=[item.pk])
         response = self.client.get(batch_url + query)
-        self.assertContains(response, isolate_url + query)
+        self.assertContains(response, isolate_url + query.replace("&", "&amp;"), html=False)
         response = self.client.get(isolate_url + query)
-        self.assertContains(response, batch_url + query)
+        self.assertContains(response, batch_url + query.replace("&", "&amp;"), html=False)
 
     def test_result_completion_needs_no_cassette_return(self):
         self.staff()
