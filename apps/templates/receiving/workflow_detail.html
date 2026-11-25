@@ -15,9 +15,37 @@
     </div>
     <div class="receiving-hero-actions">
       <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}">Back to Receiving</a>
+      {% if can_endorse_here %}<a class="btn btn-info" href="#receiving-endorsement"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>{% endif %}
     </div>
   </header>
   <div class="receiving-content">
+    {% if can_endorse_here %}
+    <section id="receiving-endorsement" class="receiving-surface receiving-card mb-4">
+      <div class="receiving-card-header">
+        <h2>Endorse Batch</h2>
+        <p>Select an authorized destination role. The recipient must confirm receipt; endorsement does not grant scientific approval.</p>
+      </div>
+      <div class="receiving-card-body">
+        <form method="post" action="{% url 'receiving_workflow_endorse' custody.batch_id %}">
+          {% csrf_token %}
+          <div class="receiving-field">
+            <label for="batch-destination-role">Destination role or department</label>
+            <select class="form-control" id="batch-destination-role" name="destination_role" required>
+              <option value="">Select destination</option>
+              {% for role in destination_roles %}
+                {% if role != custody.current_role %}
+                <option value="{{ role }}">{{ role }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <label for="batch-handoff-reason" class="mt-2">Reason (required outside normal routing)</label>
+            <input class="form-control" name="remarks" id="batch-handoff-reason" maxlength="1000" placeholder="Enter an endorsement reason when needed">
+          </div>
+          <button type="submit" class="btn btn-info mt-3">Submit Endorsement</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
     <section class="receiving-surface receiving-table-card">
       <div class="receiving-board-toolbar">
         <div><h2 class="receiving-board-title">Current custody</h2>
