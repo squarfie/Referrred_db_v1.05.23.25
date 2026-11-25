@@ -1,63 +1,118 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Main Laboratory{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-batch-accordions">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-main-lab-1">{% endblock stylesheets %}
 {% block content %}
-<main class="receiving-page">
-  <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
-    <p class="receiving-eyebrow">Main Laboratory</p><h1>Identification Testing</h1>
-    <p class="receiving-hero-subtitle">Use For Testing for isolates endorsed directly by Bench A or awaiting retrieval from temporary storage. Confirm the Main Lab Final ID so Bench A can continue with lyophilization.</p>
-  </div></div>
-  <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=received"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>{% if can_test %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}">Upload ID Results</a>{% endif %}</div></header>
+<main class="receiving-page ml-page">
+  <header class="receiving-hero">
+    <div class="receiving-hero-main">
+      <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-microscope"></i></span>
+      <div>
+        <p class="receiving-eyebrow">Main Laboratory</p>
+        <h1>Identification Testing</h1>
+        <p class="receiving-hero-subtitle">Test isolates endorsed directly by Bench A or retrieved from temporary storage. Confirm the Main Lab Final ID so Bench A can continue with lyophilization.</p>
+      </div>
+    </div>
+    <div class="receiving-hero-actions">
+      <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=received"><i class="fas fa-paper-plane mr-1" aria-hidden="true"></i>Endorse</a>
+      {% if can_test %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}"><i class="fas fa-file-upload mr-1" aria-hidden="true"></i>Upload ID Results</a>{% endif %}
+    </div>
+  </header>
+
   <div class="receiving-content">
     <section class="receiving-stat-grid" aria-label="Main Laboratory identification counts">
-      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">For Testing · Direct handoff + Storage</span><div class="receiving-stat-value">{{ counts.for_testing }}</div></article>
-      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">Testing in progress</span><div class="receiving-stat-value">{{ counts.testing }}</div></article>
-      <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">ID testing completed</span><div class="receiving-stat-value">{{ counts.completed }}</div></article>
+      <article class="receiving-surface receiving-stat">
+        <span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span>
+        <div><div class="receiving-stat-label">For testing</div><div class="receiving-stat-value">{{ counts.for_testing }}</div><div class="ml-stat-sub">Direct handoff and temporary storage</div></div>
+      </article>
+      <article class="receiving-surface receiving-stat">
+        <span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-vials"></i></span>
+        <div><div class="receiving-stat-label">Testing in progress</div><div class="receiving-stat-value">{{ counts.testing }}</div></div>
+      </article>
+      <article class="receiving-surface receiving-stat is-complete">
+        <span class="receiving-stat-icon" aria-hidden="true"><i class="fas fa-check-circle"></i></span>
+        <div><div class="receiving-stat-label">ID testing completed</div><div class="receiving-stat-value">{{ counts.completed }}</div></div>
+      </article>
     </section>
-    <section class="receiving-surface receiving-table-card">
-      <div class="receiving-board-toolbar"><h2 class="receiving-board-title">Main Lab Worklist</h2></div>
-      <nav class="receiving-tabs" aria-label="Main Laboratory monitoring tabs">
-      {% for tab in main_lab_tabs %}
-      <a class="receiving-tab {% if selected_tab == tab.key %}active{% endif %}" {% if selected_tab == tab.key %}aria-current="page"{% endif %} href="?tab={{ tab.key }}{% if query %}&amp;q={{ query|urlencode }}{% endif %}">{{ tab.label }} <span class="receiving-tab-count" aria-label="{{ tab.count }} isolate{{ tab.count|pluralize }}">{{ tab.count }}</span></a>
-      {% endfor %}
-      </nav>
-      <form method="get" class="receiving-main-lab-search">
-        <input type="hidden" name="tab" value="{{ selected_tab }}">
-        <div class="form-group"><label for="main-lab-query">Find an accession, site or courier batch</label><input id="main-lab-query" class="form-control" type="search" name="q" value="{{ query }}" placeholder="Accession / site / tracking"></div>
-        <button type="submit" class="btn btn-primary"><i class="fas fa-search mr-1" aria-hidden="true"></i>Search</button>
-        {% if query %}<a class="btn btn-outline-secondary" href="?tab={{ selected_tab }}">Clear search</a>{% endif %}
-      </form>
-      <div class="receiving-card-body">
-        <p class="small text-muted">Expand a site batch to view its matching accessions. Tab badges count isolates; pages contain complete batch groups.</p>
-        {% for batch in main_lab_batches %}
-        <details class="receiving-batch-accordion" id="main-lab-batch-{{ batch.pk }}" {% if query %}open{% endif %}>
-          <summary>
-            <span class="receiving-batch-site">{{ batch.laboratory_receiving.receipt.site.SiteCode }}</span>
-            <span class="receiving-batch-title"><strong>Batch {{ batch.batch_number }} / {{ batch.total_batches }} · {{ batch.reference_range }}</strong><span class="receiving-site-name">{{ batch.date_referred|date:"M j, Y" }} · Courier {{ batch.laboratory_receiving.receipt.tracking_number }}</span></span>
-            <span class="receiving-tab-count" aria-label="{{ batch.main_lab_isolates|length }} matching isolates">{{ batch.main_lab_isolates|length }}</span>
-            <span class="small">isolate{{ batch.main_lab_isolates|length|pluralize }}{% if query %} matching{% endif %}</span>
-          </summary>
-          <div class="table-responsive"><table class="table receiving-table">
-            <caption class="sr-only">Main Laboratory accessions for {{ batch.laboratory_receiving.receipt.site.SiteCode }} batch {{ batch.reference_range }}</caption>
-            <thead><tr><th>Accession</th><th>Main Lab status</th><th>Arrival route</th><th>Action</th></tr></thead><tbody>
-            {% for item in batch.main_lab_isolates %}
-            <tr><td data-label="Accession"><strong>{{ item.accession_number }}</strong></td>
-            <td data-label="Main Lab status">{{ item.get_status_display }}</td>
-            <td data-label="Arrival route">
-              {% if item.status == 'site_banked' %}<strong>Retrieve from temporary storage</strong>
-              {% elif item.status == 'id_pending' %}<strong>Direct Bench A endorsement</strong>{% if item.endorsed_at %}<div class="small text-muted">{{ item.endorsed_at|date:"M j, Y g:i A" }}</div>{% endif %}
-              {% elif item.retrieved_at %}Retrieved from storage
-              {% elif item.endorsed_at %}Endorsed by Bench A
-              {% else %}Historical Main Lab case{% endif %}
-            </td>
-            <td class="receiving-actions"><a class="btn btn-sm btn-primary" href="{% url 'main_lab_isolate_detail' item.pk %}?next={{ origin_url|urlencode }}">{% if item.status == 'site_banked' %}Retrieve for Testing{% elif item.status == 'id_pending' %}Acknowledge for Testing{% else %}Open ID case{% endif %}</a></td></tr>
-            {% endfor %}
-            </tbody></table></div>
-        </details>
-        {% empty %}<p class="text-muted text-center">No isolates in this Main Lab category.</p>{% endfor %}
+
+    <section class="receiving-surface receiving-table-card" aria-labelledby="ml-worklist-title">
+      <div class="receiving-board-toolbar">
+        <div>
+          <h2 class="receiving-board-title" id="ml-worklist-title">Main Lab worklist</h2>
+          <p class="receiving-board-subtitle">Expand a site batch to see its accessions. Tab counts are isolates; each page holds complete batch groups.</p>
+        </div>
       </div>
-      <nav class="receiving-board-pagination" aria-label="Main Laboratory batch pages"><span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} batch{{ page_obj.paginator.count|pluralize:'es' }}</span><div class="receiving-action-group">{% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}{% if page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}</div></nav>
+
+      <div class="receiving-tabbar">
+        <nav class="receiving-tabs receiving-workflow-tabs" aria-label="Main Laboratory monitoring tabs">
+          {% for tab in main_lab_tabs %}
+          <a class="receiving-tab {% if selected_tab == tab.key %}active{% endif %}" {% if selected_tab == tab.key %}aria-current="page"{% endif %} href="?tab={{ tab.key }}{% if query %}&amp;q={{ query|urlencode }}{% endif %}">
+            {{ tab.label }} <span class="receiving-tab-count" aria-label="{{ tab.count }} isolate{{ tab.count|pluralize }}">{{ tab.count }}</span>
+          </a>
+          {% endfor %}
+        </nav>
+        <form method="get" class="receiving-filters receiving-filters--inline ml-search" role="search">
+          <input type="hidden" name="tab" value="{{ selected_tab }}">
+          <div class="receiving-search-group">
+            <div class="receiving-search-wrap">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input id="main-lab-query" class="form-control" type="search" name="q" value="{{ query }}" placeholder="Accession, site or tracking no." aria-label="Find an accession, site or courier batch">
+            </div>
+            <button type="submit" class="btn btn-primary">Search</button>
+          </div>
+          {% if query %}<a class="receiving-filter-reset" href="?tab={{ selected_tab }}"><i class="fas fa-times mr-1" aria-hidden="true"></i>Clear</a>{% endif %}
+        </form>
+      </div>
+
+      <div class="ml-batches">
+        {% for batch in main_lab_batches %}
+        <details class="ml-batch" id="main-lab-batch-{{ batch.pk }}" {% if query %}open{% endif %}>
+          <summary class="ml-batch-summary">
+            <span class="ml-site">{{ batch.laboratory_receiving.receipt.site.SiteCode }}</span>
+            <span class="ml-batch-title">
+              <strong>Batch {{ batch.batch_number }} / {{ batch.total_batches }} · {{ batch.reference_range }}</strong>
+              <span class="ml-batch-meta">{{ batch.date_referred|date:"M j, Y" }} · Courier {{ batch.laboratory_receiving.receipt.tracking_number }}</span>
+            </span>
+            <span class="ml-count"><span class="receiving-tab-count" aria-label="{{ batch.main_lab_isolates|length }} matching isolates">{{ batch.main_lab_isolates|length }}</span> isolate{{ batch.main_lab_isolates|length|pluralize }}{% if query %} matching{% endif %}</span>
+            <span class="ml-chevron" aria-hidden="true"><i class="fas fa-chevron-down"></i></span>
+          </summary>
+          <div class="table-responsive">
+            <table class="table receiving-table ml-table">
+              <caption class="sr-only">Main Laboratory accessions for {{ batch.laboratory_receiving.receipt.site.SiteCode }} batch {{ batch.reference_range }}</caption>
+              <thead><tr><th scope="col">Accession</th><th scope="col">Main Lab status</th><th scope="col">Arrival route</th><th scope="col" class="receiving-nowrap">Action</th></tr></thead>
+              <tbody>
+              {% for item in batch.main_lab_isolates %}
+              <tr>
+                <td data-label="Accession"><span class="receiving-tracking">{{ item.accession_number }}</span></td>
+                <td data-label="Main Lab status"><span class="ml-status">{{ item.get_status_display }}</span></td>
+                <td data-label="Arrival route">
+                  {% if item.status == 'site_banked' %}<strong class="ml-route">Retrieve from temporary storage</strong>
+                  {% elif item.status == 'id_pending' %}<strong class="ml-route">Direct Bench A endorsement</strong>{% if item.endorsed_at %}<span class="ml-route-meta">{{ item.endorsed_at|date:"M j, Y g:i A" }}</span>{% endif %}
+                  {% elif item.retrieved_at %}<span class="ml-route">Retrieved from storage</span>
+                  {% elif item.endorsed_at %}<span class="ml-route">Endorsed by Bench A</span>
+                  {% else %}<span class="ml-route is-muted">Historical Main Lab case</span>{% endif %}
+                </td>
+                <td data-label="Action" class="receiving-actions receiving-nowrap">
+                  <a class="btn btn-sm {% if item.status == 'site_banked' or item.status == 'id_pending' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'main_lab_isolate_detail' item.pk %}?next={{ origin_url|urlencode }}"><i class="fas {% if item.status == 'site_banked' %}fa-box-open{% elif item.status == 'id_pending' %}fa-flask{% else %}fa-eye{% endif %} mr-1" aria-hidden="true"></i>{% if item.status == 'site_banked' %}Retrieve for testing{% elif item.status == 'id_pending' %}Acknowledge for testing{% else %}Open ID case{% endif %}</a>
+                </td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% empty %}
+        <div class="receiving-empty"><i class="fas fa-vial" aria-hidden="true"></i><p>No isolates in this Main Lab category.</p></div>
+        {% endfor %}
+      </div>
+
+      <nav class="receiving-unified-footer" aria-label="Main Laboratory batch pages">
+        <span class="ml-footer-count">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} batch{{ page_obj.paginator.count|pluralize:'es' }}</span>
+        <div class="receiving-unified-pager">
+          {% if page_obj.has_previous %}<a aria-label="Previous page" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>{% else %}<span class="is-disabled"><i class="fas fa-chevron-left" aria-hidden="true"></i></span>{% endif %}
+          {% if page_obj.has_next %}<a aria-label="Next page" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>{% else %}<span class="is-disabled"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>{% endif %}
+        </div>
+      </nav>
     </section>
   </div>
 </main>

@@ -1,84 +1,174 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Main Lab ID — {{ isolate.accession_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-mainlab-id-1"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
-<header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-microscope"></i></span><div>
-<p class="receiving-eyebrow">Main Laboratory · Identification</p><h1>{{ isolate.accession_number }}</h1>
-<p class="receiving-hero-subtitle">Batch {{ isolate.accession_range.reference_range }} · {{ isolate.get_status_display }}</p>
-</div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{{ return_to|default:main_lab_back_url }}">Back to Main Lab</a><a class="btn btn-info" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank">Print accession QR</a></div></header>
-<div class="receiving-content">
-<section class="receiving-surface receiving-card" aria-label="Accession QR">
-  <div class="receiving-card-body receiving-batch-summary has-qr">
-    <div><h2 class="h5">Accession QR</h2><p>Use this accession identifier to receive or resume Main Laboratory ID testing.</p></div>
-    <figure class="receiving-batch-qr"><img src="{% url 'laboratory_isolate_qr' isolate.pk %}" width="168" height="168" alt="Scan accession {{ isolate.accession_number }}"><figcaption><strong>{{ isolate.accession_number }}</strong><span>Scan to receive or resume</span></figcaption></figure>
-  </div>
-</section>
-<section id="identification" class="receiving-surface receiving-form-card mb-4">
-<div class="receiving-card-header"><h2>Main Laboratory ID testing</h2><p>Responsible team: Main Lab. Save the ID result to complete testing and notify Bench A. Physical cassette return is recorded independently.</p></div>
-<div class="receiving-card-body">
-<div class="receiving-help-panel mb-3"><strong>Site-reported organism:</strong> {{ isolate.site_organism_code|default:"—" }} {{ isolate.site_organism_name }}</div>
-{% if isolate.status == 'id_pending' %}
-<p>Waiting for Main Laboratory acknowledgment.</p>
-{% if can_test %}<form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary">Acknowledge ID testing receipt</button></form>{% endif %}
-{% elif isolate.status == 'site_banked' %}
-<form method="post" action="{% url 'laboratory_retrieve_for_testing' isolate.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}"><button class="btn btn-primary" type="submit">Retrieve from Temporary Storage</button></form>
-{% elif isolate.status == 'id_testing' %}
-{% if can_test %}
-<form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="mb-3">{% csrf_token %}
-<p class="small text-muted mb-3">Confirm the Main Lab result below. The site-reported organism is shown above for comparison and is not automatically accepted as the Main Lab result.</p>
-<div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
-<label for="mainlab-final-id-search"><strong>Final ID (Main Lab)</strong> — organism to use for lyophilization and banking</label>
-<input id="mainlab-final-id-search" class="form-control" type="search" data-organism-search placeholder="Search and select confirmed Final ID" required>
-<div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
-<div class="organism-picker-pair">
-<input data-organism-code name="final_organism_code" type="text" readonly required class="form-control" placeholder="Final WHONET code">
-<input data-organism-name name="final_organism" type="text" readonly required class="form-control" placeholder="Final organism">
-</div>
-<p class="small text-muted mt-1 mb-0">This is the confirmed Main Lab identification used by Bench A for lyophilization and banking. It is also saved as the instrument organism unless a different result is recorded below.</p>
-</div>
-<details class="mt-3">
-  <summary>Instrument result differs from confirmed Final ID (optional)</summary>
-  <div class="lab-organism-picker mt-3" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
-    <label for="mainlab-organism-search">Instrument-reported organism</label>
-    <input id="mainlab-organism-search" class="form-control" type="search" data-organism-search placeholder="Search instrument organism name or code">
-    <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
-    <div class="organism-picker-pair">
-      <input data-organism-code name="organism_reported_code" type="text" readonly class="form-control" placeholder="Instrument WHONET code">
-      <input data-organism-name name="organism_reported" type="text" readonly class="form-control" placeholder="Instrument organism name">
+
+  <header class="receiving-hero">
+    <div class="receiving-hero-main">
+      <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-microscope"></i></span>
+      <div>
+        <p class="receiving-eyebrow">Main Laboratory · Identification</p>
+        <h1>{{ isolate.accession_number }}</h1>
+        <p class="receiving-hero-subtitle">Batch {{ isolate.accession_range.reference_range }} · {{ isolate.get_status_display }}</p>
+      </div>
     </div>
-    <p class="small text-muted mt-1 mb-0">Complete both fields only when the instrument's reported identification differs from the confirmed Final ID.</p>
+    <div class="receiving-hero-actions">
+      <a class="btn btn-outline-light" href="{{ return_to|default:main_lab_back_url }}"><i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>Back to Main Lab</a>
+      <a class="btn btn-info" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank" rel="noopener"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print accession QR</a>
+    </div>
+  </header>
+
+  <div class="receiving-content">
+
+    <!-- Accession summary and QR -->
+    <section class="receiving-surface receiving-card" aria-label="Accession summary">
+      <div class="receiving-card-body receiving-batch-summary has-qr">
+        <div>
+          <div class="receiving-info-grid is-three">
+            <div><span class="receiving-info-label">Accession</span><span class="receiving-info-value receiving-tracking">{{ isolate.accession_number }}</span></div>
+            <div><span class="receiving-info-label">Current status</span><span class="receiving-status receiving-status-{{ isolate.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{{ isolate.get_status_display }}</span></div>
+            <div><span class="receiving-info-label">Site-reported organism</span><span class="receiving-info-value">{{ isolate.site_organism_code|default:"—" }}{% if isolate.site_organism_name %} · {{ isolate.site_organism_name }}{% endif %}</span></div>
+          </div>
+          <p class="receiving-note mt-3 mb-0"><i class="fas fa-info-circle" aria-hidden="true"></i><span>Use this accession identifier to receive or resume Main Laboratory ID testing. The site-reported organism is for comparison only and is not automatically accepted as the Main Lab result.</span></p>
+        </div>
+        <figure class="receiving-batch-qr">
+          <img src="{% url 'laboratory_isolate_qr' isolate.pk %}" width="168" height="168" alt="Scan accession {{ isolate.accession_number }}">
+          <figcaption><strong>{{ isolate.accession_number }}</strong><span>Scan to receive or resume</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ID testing -->
+    <section id="identification" class="receiving-surface receiving-form-card mb-4">
+      <div class="receiving-card-header">
+        <h2>Main Laboratory ID testing</h2>
+        <p>Responsible team: Main Lab. Save the ID result to complete testing and notify Bench A. Physical cassette return is recorded independently.</p>
+      </div>
+      <div class="receiving-card-body">
+
+        {% if isolate.status == 'id_pending' %}
+          <div class="receiving-notice alert alert-info" role="status"><i class="fas fa-hourglass-half" aria-hidden="true"></i><div><strong>Waiting for Main Laboratory acknowledgment.</strong> Acknowledge receipt before ID testing begins.</div></div>
+          {% if can_test %}
+          <form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">
+            {% csrf_token %}
+            <div class="receiving-form-actions"><button type="submit" class="btn btn-primary"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Acknowledge ID testing receipt</button></div>
+          </form>
+          {% endif %}
+
+        {% elif isolate.status == 'site_banked' %}
+          <div class="receiving-notice alert alert-info" role="status"><i class="fas fa-box-open" aria-hidden="true"></i><div><strong>Stored in temporary storage.</strong> Retrieve this isolate to begin Main Lab ID testing.</div></div>
+          <form method="post" action="{% url 'laboratory_retrieve_for_testing' isolate.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ return_to }}">
+            <div class="receiving-form-actions"><button class="btn btn-primary" type="submit"><i class="fas fa-box-open mr-1" aria-hidden="true"></i>Retrieve from temporary storage</button></div>
+          </form>
+
+        {% elif isolate.status == 'id_testing' %}
+          {% if can_test %}
+          <form method="post" action="{% url 'laboratory_record_id' isolate.pk %}">
+            {% csrf_token %}
+
+            <div class="receiving-form-section">Final ID</div>
+            <div class="receiving-help-panel mb-3">
+              <div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
+                <label for="mainlab-final-id-search"><strong>Final ID (Main Lab)</strong> — organism used for lyophilization and banking</label>
+                <input id="mainlab-final-id-search" class="form-control" type="search" data-organism-search placeholder="Search and select confirmed Final ID" required>
+                <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
+                <div class="organism-picker-pair">
+                  <input data-organism-code name="final_organism_code" type="text" readonly required class="form-control" placeholder="Final WHONET code">
+                  <input data-organism-name name="final_organism" type="text" readonly required class="form-control" placeholder="Final organism">
+                </div>
+                <p class="small mt-2 mb-0">This is the confirmed identification Bench A uses for lyophilization and banking. It is also saved as the instrument organism unless a different result is recorded below.</p>
+              </div>
+            </div>
+
+            <div class="receiving-form-section">Instrument result <span class="small text-muted" style="text-transform:none;letter-spacing:0;font-weight:500;">(optional)</span></div>
+            <details class="mb-3">
+              <summary class="mb-2">Instrument result differs from the confirmed Final ID</summary>
+              <div class="receiving-help-panel mt-2">
+                <div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
+                  <label for="mainlab-organism-search">Instrument-reported organism</label>
+                  <input id="mainlab-organism-search" class="form-control" type="search" data-organism-search placeholder="Search instrument organism name or code">
+                  <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
+                  <div class="organism-picker-pair">
+                    <input data-organism-code name="final_organism_code" type="text" readonly required class="form-control" placeholder="Code">
+                    <input data-organism-name name="final_organism" type="text" readonly required class="form-control" placeholder="Selected organism appears here after you search">
+                  </div>
+                  <p class="small mt-2 mb-0">Complete both fields only when the instrument's reported identification differs from the confirmed Final ID.</p>
+                </div>
+              </div>
+            </details>
+
+            <div class="receiving-form-section">Run details</div>
+            <div class="receiving-info-grid">
+              <div class="receiving-field"><label for="mainlab-instrument">Instrument</label><input id="mainlab-instrument" class="form-control" name="instrument" maxlength="100"></div>
+              <div class="receiving-field"><label for="mainlab-cassette">Cassette / slot reference</label><input id="mainlab-cassette" class="form-control" name="cassette_reference" maxlength="100"></div>
+            </div>
+
+            <div class="receiving-form-actions">
+              <input type="hidden" name="next" value="{{ return_to }}">
+              <button class="btn btn-primary" type="submit"><i class="fas fa-save mr-1" aria-hidden="true"></i>Save ID result</button>
+            </div>
+          </form>
+          {% else %}
+          <p class="receiving-note mb-0"><i class="fas fa-lock" aria-hidden="true"></i><span>ID testing is in progress. Only Main Laboratory staff can record the result.</span></p>
+          {% endif %}
+
+        {% else %}
+          {% if isolate.approved_organism_code and isolate.final_organism %}
+          <div class="receiving-notice alert alert-success" role="status"><i class="fas fa-check-circle" aria-hidden="true"></i><div><strong>Main Lab ID testing and Final ID entry are complete.</strong> Bench A can proceed to lyophilization using the recorded Final ID. Corrections are available below.</div></div>
+          {% else %}
+          <div class="receiving-notice alert alert-warning" role="alert"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><div><strong>Final ID is not recorded.</strong> Main Laboratory must reconcile the identification before Bench A can proceed.</div></div>
+          {% endif %}
+        {% endif %}
+
+      </div>
+    </section>
+
+    <!-- Resolve missing Final ID -->
+    {% if can_test and not isolate.approved_organism_code and isolate.identifications.exists and isolate.id_completed_at or can_test and not isolate.approved_organism_code and isolate.identifications.exists and isolate.returned_at %}
+    <section class="receiving-surface receiving-form-card mb-4" aria-labelledby="resolve-final-title">
+      <div class="receiving-card-header">
+        <h2 id="resolve-final-title">Resolve missing Final ID</h2>
+        <p>Main Lab testing evidence exists, but this historical record has no confirmed Final ID. Select the confirmed organism. This action is audited and unlocks Bench A Final Processing.</p>
+      </div>
+      <div class="receiving-card-body">
+        {% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Recorded Final ID -->
+    {% if isolate.id_completed_at and isolate.identification_source == 'main_lab' and isolate.final_organism and can_test %}
+    <section class="receiving-surface receiving-form-card mb-4" aria-labelledby="recorded-final-title">
+      <div class="receiving-card-header">
+        <h2 id="recorded-final-title">Main Lab Final ID</h2>
+      </div>
+      <div class="receiving-card-body">
+        <div class="receiving-help-panel mb-3">
+          <strong>{{ isolate.approved_organism_code }} — {{ isolate.final_organism }}</strong>
+          <div class="small mt-1">Recorded by {{ isolate.final_identified_by }} on {{ isolate.final_identified_at|date:"M j, Y g:i A" }}</div>
+        </div>
+        {% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- History -->
+    <section class="receiving-surface receiving-card mb-4" aria-labelledby="history-title">
+      <div class="receiving-card-header">
+        <h2 id="history-title">Instrument result history</h2>
+      </div>
+      <div class="receiving-card-body">
+        {% include "laboratory/_lab_isolate_results.html" %}
+        {% include "laboratory/_identification_correction_history.html" %}
+      </div>
+    </section>
+
+
   </div>
-</details>
-<div class="receiving-info-grid mt-3">
-<div class="form-group"><label for="mainlab-instrument">Instrument</label><input id="mainlab-instrument" class="form-control" name="instrument" maxlength="100"></div>
-<div class="form-group"><label for="mainlab-cassette">Cassette / slot reference</label><input id="mainlab-cassette" class="form-control" name="cassette_reference" maxlength="100"></div>
-</div>
-<div class="receiving-form-actions">
-<input type="hidden" name="next" value="{{ return_to }}">
-<button class="btn btn-primary" type="submit">Save ID result</button>
-</div></form>
-{% endif %}
-{% else %}
-{% if isolate.approved_organism_code and isolate.final_organism %}<p class="alert alert-info">Main Lab ID testing and Final ID entry are complete. Bench A can proceed to lyophilization using the recorded Final ID. Corrections are available in the section below.</p>{% else %}<p class="alert alert-warning">Final ID is not recorded. Main Laboratory must reconcile the identification before Bench A can proceed.</p>{% endif %}
-{% endif %}
-</div></section>
-{% if can_test and not isolate.approved_organism_code and isolate.identifications.exists and isolate.id_completed_at or can_test and not isolate.approved_organism_code and isolate.identifications.exists and isolate.returned_at %}
-<section class="receiving-surface receiving-card mb-3">
-<div class="receiving-card-header"><h2>Resolve Missing Final ID</h2></div>
-<div class="receiving-card-body">
-<p class="alert alert-warning">Main Lab testing evidence exists, but this historical record has no confirmed Final ID. Select the confirmed organism. This action is audited and will unlock Bench A Final Processing.</p>
-{% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}
-</div></section>
-{% endif %}
-{% if isolate.id_completed_at and isolate.identification_source == 'main_lab' and isolate.final_organism and can_test %}
-<section class="receiving-surface receiving-card mb-3"><div class="receiving-card-header"><h2>Main Lab Final ID</h2></div><div class="receiving-card-body">
-<p><strong>{{ isolate.approved_organism_code }} — {{ isolate.final_organism }}</strong> · Recorded by {{ isolate.final_identified_by }} on {{ isolate.final_identified_at|date:"M j, Y g:i A" }}</p>
-{% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}
-</div></section>
-{% endif %}
-<section class="receiving-surface receiving-card"><div class="receiving-card-header"><h2>Instrument result history</h2></div><div class="receiving-card-body">{% include "laboratory/_lab_isolate_results.html" %}{% include "laboratory/_identification_correction_history.html" %}</div></section>
-</div></main>
+</main>
 {% endblock content %}
 {% block javascripts %}{{ block.super }}<script defer src="{% static 'assets/js/laboratory-organism-picker.js' %}"></script>{% endblock javascripts %}
