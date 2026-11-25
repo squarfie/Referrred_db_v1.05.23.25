@@ -115,3 +115,15 @@ def create_dmu_batch(*, handoff_id, user):
     _event(handoff, LaboratoryBatchHandoffEvent.Action.BATCH_CREATED, user,
            f"DMU created batch {result.batch.bat_Batch_Code}.")
     return result
+
+
+@transaction.atomic
+def confirm_dmu_receipt_and_create_batch(*, handoff_id, user):
+    """Single DMU acknowledgment: record receipt and create the Raw Data batch.
+
+    Both steps share an outer transaction. If batch validation or creation
+    fails, the receipt confirmation and its audit event roll back together.
+    Existing confirmed handoffs can still use create_dmu_batch for recovery.
+    """
+    confirm_dmu_accession(handoff_id=handoff_id, user=user)
+    return create_dmu_batch(handoff_id=handoff_id, user=user)
