@@ -206,7 +206,7 @@ class WorkflowUXTests(TestCase):
         self.assertContains(page, 'Open Batch')
         # The main Accessioning Actions column must not carry long workflow
         # blockers. Readiness is still checked on actual endorsement.
-        accession_section = page.content.decode('utf-8').split('id="accessioning"', 1)[1].split('id="organisms"', 1)[0]
+        accession_section = page.content.decode('utf-8').split('id="accessioning"', 1)[1].split('id="organism-inventory"', 1)[0]
         self.assertNotIn('receiving-action-note', accession_section)
         self.assertNotIn('No new revived isolates are ready for endorsement.', accession_section)
 
