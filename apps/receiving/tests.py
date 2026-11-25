@@ -1226,6 +1226,88 @@ class ReceivingTemplateTests(TestCase):
             html=False,
         )
 
+    def test_processing_endorse_works_when_authorized_batch_exists(self):
+        from apps.receiving.models import BatchCustody
+
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        lab_receiving = LaboratoryReceiving.objects.create(
+            receipt=receipt, recorded_by=self.lab_encoder,
+        )
+        batch = Batch_Table.objects.create(
+            bat_Batch_Code="VSM-HANDOFF-0001",
+            bat_SiteCode=self.site.SiteCode,
+            bat_Referral_Date=date(2026, 11, 12),
+            created_by=self.lab_encoder,
+        )
+        LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_receiving,
+            date_referred=date(2026, 11, 10),
+            start_number=1, end_number=1,
+            batch=batch, assigned_by=self.lab_encoder,
+        )
+        BatchCustody.objects.create(
+            batch=batch, current_role=home_permissions.ROLE_LAB_ENCODER,
+        )
+        self.client.force_login(self.lab_encoder)
+        processing = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertContains(
+            processing,
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+            + "?from_tab=processing#receiving-endorsement",
+        )
+        detail = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        )
+        self.assertContains(detail, 'id="receiving-endorsement"')
+        self.assertContains(detail, "Endorse Batch")
+        self.assertContains(detail, home_permissions.ROLE_ENCODER)
+
+    def test_processing_shipment_moves_to_completed_only_after_release(self):
+        from apps.verification.models import VerificationCase
+
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        lab_receiving = LaboratoryReceiving.objects.create(
+            receipt=receipt, recorded_by=self.lab_encoder,
+        )
+        batch = Batch_Table.objects.create(
+            bat_Batch_Code="VSM-RELEASE-0001",
+            bat_SiteCode=self.site.SiteCode,
+            bat_Referral_Date=date(2026, 11, 12),
+            created_by=self.lab_encoder,
+        )
+        LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_receiving,
+            date_referred=date(2026, 11, 10),
+            start_number=1, end_number=1,
+            batch=batch, assigned_by=self.lab_encoder,
+        )
+        case = VerificationCase.objects.create(
+            final_batch=batch, status=VerificationCase.STATUS_SIGNED_BY_HEAD,
+        )
+        self.client.force_login(self.lab_encoder)
+        processing = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertContains(processing, receipt.tracking_number)
+        before = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "completed"}
+        )
+        self.assertNotContains(before, receipt.tracking_number)
+
+        case.status = VerificationCase.STATUS_RELEASED
+        case.save(update_fields=("status",))
+        after = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "completed"}
+        )
+        self.assertContains(after, receipt.tracking_number)
+        self.assertContains(after, "Released")
+        processing_after = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertNotContains(processing_after, receipt.tracking_number)
+
     def test_completed_tab_does_not_treat_lab_receipt_as_released(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         self.client.force_login(self.lab_encoder)
