@@ -2014,27 +2014,24 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}),
         )
 
-    def test_saved_range_creates_batch_in_existing_batch_table(self):
+    def test_saved_range_cannot_be_endorsed_before_lab_processing_finishes(self):
         self.lab_record.total_isolates_received = 5
         self.lab_record.isolates_accepted = 5
         self.lab_record.total_isolates_processed = 5
         self.lab_record.date_accepted = date(2026, 11, 19)
         self.lab_record.save()
-        add_response = self.client.post(
+        response = self.client.post(
             reverse("laboratory_accession_add", kwargs={"receiving_id": self.receipt.receiving_id}),
             {"date_referred": "2026-11-19", "start_number": 90, "end_number": 94,
              "batch_number": 1, "total_batches": 1},
         )
-        self.assertEqual(add_response.status_code, 302)
+        self.assertEqual(response.status_code, 302)
         accession = LaboratoryAccession.objects.get(laboratory_receiving=self.lab_record)
-
-        response = self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
-
+        response = self.client.post(reverse("laboratory_batch_endorse_dmu", args=[accession.pk]))
         self.assertEqual(response.status_code, 302)
         accession.refresh_from_db()
-        self.assertIsNotNone(accession.batch_id)
-        self.assertEqual(accession.batch.bat_Batch_Code, "RI_11192026_1.1_0090-0094")
-        self.assertEqual(Referred_Data.objects.filter(Batch_id=accession.batch).count(), 5)
+        self.assertIsNone(accession.batch_id)
+        self.assertFalse(hasattr(accession, "dmu_handoff"))
 
     def test_monthly_register_and_pdf_are_available(self):
         html = self.client.get(reverse("laboratory_receiving_register"), {"month": 11, "year": 2026})
@@ -2075,7 +2072,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 3: Organism inventory",
             "Step 4: Revival &amp; Site ID",
             "Step 5: Final Processing",
-            "<h2>Batch Generation</h2>",
+            "<h2>Endorse to DMU</h2>",
         ]
         # Match the actual step heading, not the earlier Batch Generation
         # label in the worksheet's progress-summary cards.
@@ -2128,8 +2125,15 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_generated_accession_cannot_be_edited_or_deleted(self):
         accession = self.create_pending_accession()
-        result = self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
-        self.assertEqual(result.status_code, 302)
+        # Historical generated batches remain protected even though new
+        # laboratory work is now endorsed for DMU creation.
+        legacy_batch = Batch_Table.objects.create(
+            bat_Batch_Code="LEGACY-LAB-LOCK-0001",
+            bat_SiteCode=self.site.SiteCode,
+            created_by=self.lab_user,
+        )
+        accession.batch = legacy_batch
+        accession.save(update_fields=("batch",))
         accession.refresh_from_db()
         self.assertIsNotNone(accession.batch_id)
         edit_url = reverse("laboratory_accession_edit", kwargs={"accession_id": accession.pk})
@@ -2201,8 +2205,8 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             kwargs={"receiving_id": self.receipt.receiving_id},
         ))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Cannot create this batch")
-        self.assertContains(response, ">Create Batch</button>")
+        self.assertNotContains(response, "Cannot endorse this accession")
+        self.assertContains(response, ">Endorse to DMU</button>")
 
     def test_batch_conflict_preview_detects_existing_batch_code(self):
         accession = self.create_pending_accession()
@@ -2361,17 +2365,18 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate.refresh_from_db()
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
 
-    def test_create_batch_remains_visible_after_isolates_handed_to_main_lab(self):
+    def test_endorse_to_dmu_waits_until_main_lab_processing_is_complete(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         response = self.client.get(reverse("laboratory_receiving_workspace", kwargs={
             "receiving_id": self.receipt.receiving_id,
         }))
-        self.assertContains(response, "Create Batch")
-        self.assertContains(response, reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
-        self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
+        self.assertContains(response, "Endorse to DMU")
+        self.assertContains(response, reverse("laboratory_batch_endorse_dmu", kwargs={"accession_id": accession.pk}))
+        self.client.post(reverse("laboratory_batch_endorse_dmu", kwargs={"accession_id": accession.pk}))
         accession.refresh_from_db()
-        self.assertIsNotNone(accession.batch_id)
+        self.assertIsNone(accession.batch_id)
+        self.assertFalse(hasattr(accession, "dmu_handoff"))
 
     def test_id_handoff_and_review_follow_roles(self):
         accession = self.create_pending_accession()
