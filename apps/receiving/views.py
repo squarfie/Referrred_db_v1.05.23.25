@@ -5,6 +5,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from .dashboard import render_receiving_dashboard as _render_receiving_dashboard
+from .activity import receipt_activity
 from .forms import ReferralReceiptForm
 from .models import ReferralReceipt
 from .permissions import (can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
@@ -65,6 +66,7 @@ def receiving_detail(request, receiving_id):
         {
             "receipt": receipt,
             "events": events,
+            "activity": receipt_activity(receipt),
             "can_print_label": can_manage,
             "can_permanently_delete": can_delete_receipt_safely(receipt, request.user),
             "can_endorse": can_manage and receipt.status == ReferralReceipt.Status.RECEIVED,
