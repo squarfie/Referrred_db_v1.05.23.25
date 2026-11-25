@@ -660,3 +660,44 @@ html { scroll-behavior: smooth; }
   .receiving-unified-table tbody td.receiving-actions { display: flex; justify-content: flex-end; }
   .receiving-unified-table .receiving-action-group { justify-content: flex-end; }
 }
+
+
+/* Final unified worklist polish: consistent status and action geometry across
+   physical receipts, accession handoffs, and generated batches. */
+@media (min-width: 768px) {
+  .receiving-unified-table tbody td:nth-child(5) { padding-right: .65rem; }
+  .receiving-unified-table tbody td.receiving-actions { padding-left: .65rem; }
+}
+.receiving-unified-table .receiving-status {
+  box-sizing: border-box; min-height: 30px; min-width: 145px;
+  justify-content: flex-start; padding: .35rem .65rem;
+  font-size: .7rem; font-weight: 700;
+}
+.receiving-unified-table .receiving-action-group {
+  display: flex; align-items: center; justify-content: flex-start;
+  flex-wrap: wrap; gap: .4rem;
+}
+.receiving-unified-table .receiving-action-group > form {
+  display: inline-flex; align-items: center; flex: 0 0 auto; padding: 0;
+}
+.receiving-unified-table .receiving-action-group .btn.receiving-action-primary {
+  box-sizing: border-box; flex: 0 0 154px; width: 154px;
+  min-width: 154px; max-width: 154px;
+}
+.receiving-unified-table .receiving-action-group form .btn.receiving-action-primary {
+  width: 154px; min-width: 154px; max-width: 154px;
+}
+.receiving-unified-table .receiving-action-group .btn.receiving-action-detail {
+  box-sizing: border-box; flex: 0 0 76px; width: 76px;
+  min-width: 76px; max-width: 76px;
+}
+@media (max-width: 767.98px) {
+  .receiving-unified-table .receiving-status { min-width: 0; }
+  .receiving-unified-table .receiving-action-group .btn.receiving-action-primary,
+  .receiving-unified-table .receiving-action-group form .btn.receiving-action-primary {
+    width: auto; min-width: 0; max-width: 100%;
+  }
+  .receiving-unified-table .receiving-action-group .btn.receiving-action-detail {
+    width: auto; min-width: 0; max-width: 100%;
+  }
+}
