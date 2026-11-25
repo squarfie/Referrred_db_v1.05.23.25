@@ -152,29 +152,31 @@
           </tbody>
         </table>
       </div>
-      <div class="receiving-unified-pagination">
-      {% if courier_count %}
-      <div class="receiving-board-pagination">
-        <span>Receipts: {{ courier_page_obj.start_index }}–{{ courier_page_obj.end_index }} of {{ courier_count }} · Page {{ courier_page_obj.number }} of {{ courier_page_obj.paginator.num_pages }}</span>
-        {% if courier_page_obj.has_previous %}<a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.previous_page_number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.number }}">Previous receipts</a>{% endif %}
-        {% if courier_page_obj.has_next %}<a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.next_page_number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.number }}">Next receipts</a>{% endif %}
-      </div>
+      {% if courier_page_obj.paginator.num_pages > 1 or prebatch_page_obj.paginator.num_pages > 1 or page_obj.paginator.num_pages > 1 %}
+      <nav class="receiving-unified-pagination" aria-label="Receiving worklist pagination">
+        {% if courier_page_obj.paginator.num_pages > 1 %}
+        <div class="receiving-board-pagination" aria-label="Receipt pages">
+          {% if courier_page_obj.has_previous %}<a aria-label="Previous receipt page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.previous_page_number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.number }}">Previous</a>{% endif %}
+          <span>Page {{ courier_page_obj.number }} of {{ courier_page_obj.paginator.num_pages }}</span>
+          {% if courier_page_obj.has_next %}<a aria-label="Next receipt page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.next_page_number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.number }}">Next</a>{% endif %}
+        </div>
+        {% endif %}
+        {% if prebatch_page_obj.paginator.num_pages > 1 %}
+        <div class="receiving-board-pagination" aria-label="Accession handoff pages">
+          {% if prebatch_page_obj.has_previous %}<a aria-label="Previous accession handoff page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.previous_page_number }}&amp;page={{ page_obj.number }}">Previous</a>{% endif %}
+          <span>Page {{ prebatch_page_obj.number }} of {{ prebatch_page_obj.paginator.num_pages }}</span>
+          {% if prebatch_page_obj.has_next %}<a aria-label="Next accession handoff page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.next_page_number }}&amp;page={{ page_obj.number }}">Next</a>{% endif %}
+        </div>
+        {% endif %}
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="receiving-board-pagination" aria-label="Generated batch pages">
+          {% if page_obj.has_previous %}<a aria-label="Previous generated batch page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+          <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+          {% if page_obj.has_next %}<a aria-label="Next generated batch page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+        </div>
+        {% endif %}
+      </nav>
       {% endif %}
-      {% if prebatch_count %}
-      <div class="receiving-board-pagination">
-        <span>Accession handoffs: {{ prebatch_page_obj.start_index }}–{{ prebatch_page_obj.end_index }} of {{ prebatch_count }} · Page {{ prebatch_page_obj.number }} of {{ prebatch_page_obj.paginator.num_pages }}</span>
-        {% if prebatch_page_obj.has_previous %}<a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.previous_page_number }}&amp;page={{ page_obj.number }}">Previous handoffs</a>{% endif %}
-        {% if prebatch_page_obj.has_next %}<a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.next_page_number }}&amp;page={{ page_obj.number }}">Next handoffs</a>{% endif %}
-      </div>
-      {% endif %}
-      {% if page_obj.paginator.count %}
-      <div class="receiving-board-pagination">
-        <span>Generated batches: {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} · Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_previous %}<a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.previous_page_number }}">Previous batches</a>{% endif %}
-        {% if page_obj.has_next %}<a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.next_page_number }}">Next batches</a>{% endif %}
-      </div>
-      {% endif %}
-      </div>
       {% else %}
       <div class="receiving-empty">
         <i class="fas fa-inbox" aria-hidden="true"></i>
