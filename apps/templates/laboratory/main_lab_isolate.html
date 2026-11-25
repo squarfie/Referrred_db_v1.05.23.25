@@ -88,15 +88,15 @@
             <details class="mb-3">
               <summary class="mb-2">Instrument result differs from the confirmed Final ID</summary>
               <div class="receiving-help-panel mt-2">
-                <div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-endpoint="{% url 'laboratory_organism_search' %}">
+                <div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-optional-organism data-endpoint="{% url 'laboratory_organism_search' %}">
                   <label for="mainlab-organism-search">Instrument-reported organism</label>
                   <input id="mainlab-organism-search" class="form-control" type="search" data-organism-search placeholder="Search instrument organism name or code">
                   <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
                   <div class="organism-picker-pair">
-                    <input data-organism-code name="final_organism_code" type="text" readonly required class="form-control" placeholder="Code">
-                    <input data-organism-name name="final_organism" type="text" readonly required class="form-control" placeholder="Selected organism appears here after you search">
+                    <input data-organism-code name="organism_reported_code" type="text" readonly class="form-control" placeholder="Code (optional for unlisted organism)">
+                    <input data-organism-name name="organism_reported" type="text" readonly class="form-control" placeholder="Selected instrument organism appears here">
                   </div>
-                  <p class="small mt-2 mb-0">Complete both fields only when the instrument's reported identification differs from the confirmed Final ID.</p>
+                  <p class="small mt-2 mb-0">Leave this section empty if the instrument result matches the confirmed Final ID. If it differs, select the instrument organism (unlisted names are allowed).</p>
                 </div>
               </div>
             </details>
