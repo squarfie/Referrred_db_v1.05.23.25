@@ -1,9 +1,9 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Main Lab ID — {{ isolate.accession_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-mainlab-id-1"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-mainlab-id-1"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}"><link rel="stylesheet" href="{% static 'assets/css/main-lab-progress.css' %}?v=20261126-1">{% endblock stylesheets %}
 {% block content %}
-<main class="receiving-page">
+<main class="receiving-page main-lab-detail-page">
 
   <header class="receiving-hero">
     <div class="receiving-hero-main">
@@ -21,6 +21,25 @@
   </header>
 
   <div class="receiving-content">
+
+    <section class="receiving-surface main-lab-progress-card mb-3" aria-label="Main Laboratory workflow progress">
+      <div class="main-lab-progress-heading">
+        <div>
+          <p class="receiving-eyebrow">Main Laboratory workflow</p>
+          <h2>Identification milestones</h2>
+          <p>Scientific identification and physical cassette return are tracked separately.</p>
+        </div>
+        <div class="main-lab-progress-total"><strong>{{ main_lab_progress.completed }} / {{ main_lab_progress.total }}</strong><span>completed</span></div>
+      </div>
+      <ol class="main-lab-progress-steps">
+        {% for step in main_lab_progress.steps %}
+        <li class="{% if step.done %}is-done{% elif step.current %}is-current{% else %}is-pending{% endif %}"{% if step.current %} aria-current="step"{% endif %}>
+          <span class="main-lab-progress-marker">{% if step.done %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}{{ forloop.counter }}{% endif %}</span>
+          <span class="main-lab-progress-label"><strong>{{ step.label }}</strong><small>{{ step.scope }} · {% if step.done %}Completed{% elif step.current %}Next step{% else %}Pending{% endif %}</small></span>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
 
     <!-- Accession summary and QR -->
     <section class="receiving-surface receiving-card" aria-label="Accession summary">
@@ -157,13 +176,15 @@
     {% endif %}
 
     <!-- History -->
-    <section class="receiving-surface receiving-card mb-4" aria-labelledby="history-title">
+    <section class="receiving-surface receiving-card main-lab-history-card mb-4" aria-labelledby="history-title">
       <div class="receiving-card-header">
         <h2 id="history-title">Instrument result history</h2>
       </div>
       <div class="receiving-card-body">
         {% include "laboratory/_lab_isolate_results.html" %}
-        {% include "laboratory/_identification_correction_history.html" %}
+        {% if isolate.identification_corrections.exists %}
+          {% include "laboratory/_identification_correction_history.html" %}
+        {% endif %}
       </div>
     </section>
 
