@@ -1107,23 +1107,30 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(all_records, receipt.tracking_number)
         self.assertNotContains(all_records, "Confirm receipt")
 
-    def test_confirmed_receipt_offers_endorse_and_details_in_received(self):
+    def test_confirmed_receipt_is_processing_without_dead_end_endorse(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         self.client.force_login(self.lab_encoder)
-        received = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "received"})
-        self.assertContains(received, receipt.tracking_number)
-        self.assertContains(received, "Endorse")
-        self.assertContains(
-            received,
-            self.route("receiving_detail", receiving_id=receipt.receiving_id)
-            + "?from_tab=received#receiving-endorsement",
+        received = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "received"}
         )
-        self.assertNotContains(received, "Confirm receipt")
-        self.assertContains(received, "Details")
+        self.assertNotContains(received, receipt.tracking_number)
+        processing = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertContains(processing, receipt.tracking_number)
+        self.assertContains(processing, "Processing")
+        self.assertNotContains(
+            processing,
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+            + "?from_tab=processing#receiving-endorsement",
+        )
+        self.assertNotContains(processing, "Confirm receipt")
+        self.assertContains(processing, "Details")
 
-        detail = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
-        self.assertContains(detail, 'id="receiving-endorsement"')
-        self.assertContains(detail, "Endorse")
+        detail = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        )
+        self.assertNotContains(detail, 'id="receiving-endorsement"')
         self.assertNotContains(detail, "Open laboratory worksheet")
 
     def test_detail_back_link_preserves_originating_unified_tab(self):
@@ -1200,11 +1207,11 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(bench_after, receipt.tracking_number)
         self.assertContains(bench_after, "Open Worksheet")
 
-    def test_unified_received_shows_confirmed_laboratory_receipts(self):
+    def test_unified_processing_shows_confirmed_laboratory_receipts(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         self.client.force_login(self.lab_encoder)
         response = self.client.get(
-            self.route("receiving_workflow_dashboard"), {"tab": "received"}
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, receipt.tracking_number)
@@ -1215,7 +1222,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
         )
         self.assertContains(
-            response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '?from_tab=received"',
+            response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '?from_tab=processing"',
             html=False,
         )
 
@@ -1232,10 +1239,14 @@ class ReceivingTemplateTests(TestCase):
             next(tab["count"] for tab in completed.context["tabs"] if tab["key"] == "completed"),
             0,
         )
+        processing = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertContains(processing, receipt.tracking_number)
         received = self.client.get(
             self.route("receiving_workflow_dashboard"), {"tab": "received"}
         )
-        self.assertContains(received, receipt.tracking_number)
+        self.assertNotContains(received, receipt.tracking_number)
 
     def test_unified_receiving_does_not_expose_lab_intake_to_checker(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
