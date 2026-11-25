@@ -28,28 +28,35 @@ def _event(handoff, action, user, remarks=""):
     )
 
 
+def endorsement_blocker(accession):
+    """Return the next prerequisite before Bench A can endorse the range."""
+    if accession.laboratory_receiving.receipt.status != ReferralReceipt.Status.LAB_RECEIVED:
+        return "Confirm physical receipt in Receiving first."
+    if accession.batch_id:
+        return "The Raw Data batch has already been generated."
+    if LaboratoryBatchHandoff.objects.filter(accession=accession).exists():
+        return "This accession is already endorsed to DMU."
+    isolates = list(accession.isolate_records.all())
+    if len(isolates) != accession.isolate_count:
+        return "Complete laboratory isolate records before endorsing to DMU."
+    if any(
+        item.status != LaboratoryIsolate.Status.NON_VIABLE
+        and not is_final_banked(item)
+        for item in isolates
+    ):
+        return "Complete Bench A final processing or close non-viable isolates first."
+    return ""
+
+
 @transaction.atomic
 def endorse_accession_to_dmu(*, accession_id, user):
     _check_role(user, ROLE_LAB_ENCODER)
     accession = LaboratoryAccession.objects.select_for_update().select_related(
         "laboratory_receiving__receipt",
     ).get(pk=accession_id)
-    receipt = accession.laboratory_receiving.receipt
-    if receipt.status != ReferralReceipt.Status.LAB_RECEIVED:
-        raise ValidationError("The physical laboratory receipt must be confirmed first.")
-    if accession.batch_id:
-        raise ValidationError("This accession range already has a generated batch.")
-    if LaboratoryBatchHandoff.objects.filter(accession=accession).exists():
-        raise ValidationError("This accession range has already been endorsed to DMU.")
-    isolates = list(accession.isolate_records.all())
-    if len(isolates) != accession.isolate_count:
-        raise ValidationError("Complete the laboratory isolate records before endorsing to DMU.")
-    if any(
-        isolate.status != LaboratoryIsolate.Status.NON_VIABLE
-        and not is_final_banked(isolate)
-        for isolate in isolates
-    ):
-        raise ValidationError("Complete Bench A final processing or close non-viable isolates before endorsement.")
+    blocker = endorsement_blocker(accession)
+    if blocker:
+        raise ValidationError(blocker)
     handoff = LaboratoryBatchHandoff.objects.create(
         accession=accession, endorsed_by=user,
     )
