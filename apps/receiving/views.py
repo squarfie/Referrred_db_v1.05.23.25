@@ -83,7 +83,10 @@ def receiving_detail(request, receiving_id):
     from_tab = (request.GET.get("from_tab") or "").strip()
     if from_tab not in {"pending", "received", "endorsed", "completed", "all"}:
         if receipt.status == ReferralReceipt.Status.ENDORSED:
-            from_tab = "endorsed" if can_manage else "pending"
+            # The incoming laboratory acknowledgment is the LAB Encoder's
+            # Pending queue. Courier intake permissions are shared among
+            # authenticated users, so they cannot determine this default.
+            from_tab = "pending" if can_read_laboratory_receiving(request.user) else "endorsed"
         elif receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
             from_tab = "received"
         else:
