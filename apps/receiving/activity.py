@@ -129,3 +129,64 @@ def receipt_activity(receipt):
         item["when"], item["source"], item["label"], item["description"],
     ))
     return activity
+
+
+def receipt_progress_milestones(receipt):
+    """Read-only, shipment-wide DMU and release progress.
+
+    Each physical receipt can have multiple Laboratory accession ranges.
+    Completion requires *all* of its ranges, never only the first batch.
+    No timestamps are inferred from a status change.
+    """
+    ranges = list(
+        LaboratoryAccession.objects.filter(laboratory_receiving__receipt=receipt)
+        .select_related("dmu_handoff", "batch__tat_entry")
+        .prefetch_related("batch__verification_cases")
+    )
+    total = len(ranges)
+    dmu_count = 0
+    dmu_dates = []
+    released_count = 0
+    release_dates = []
+
+    for accession in ranges:
+        handoff = getattr(accession, "dmu_handoff", None)
+        if handoff is not None and handoff.confirmed_at is not None:
+            dmu_count += 1
+            dmu_dates.append(handoff.confirmed_at)
+
+        if not accession.batch_id:
+            continue
+        batch = accession.batch
+        verification_releases = [
+            case.released_at
+            for case in batch.verification_cases.all()
+            if case.status == "released"
+        ]
+        has_verification_release = any(
+            case.status == "released" for case in batch.verification_cases.all()
+        )
+        tat = getattr(batch, "tat_entry", None)
+        has_tat_release = bool(tat and tat.tat_Status_Release == "Released")
+        if not (has_verification_release or has_tat_release):
+            continue
+        released_count += 1
+        # The recorded date can be absent in older released cases; don't
+        # fabricate it from updated_at or the current date.
+        known_dates = [value for value in verification_releases if value]
+        if known_dates:
+            release_dates.append(max(known_dates).date())
+        elif tat and tat.tat_Date_Released:
+            release_dates.append(tat.tat_Date_Released)
+
+    dmu_done = bool(total and dmu_count == total)
+    release_done = bool(total and released_count == total)
+    return {
+        "dmu_done": dmu_done,
+        "dmu_count": dmu_count,
+        "release_done": release_done,
+        "released_count": released_count,
+        "total": total,
+        "dmu_at": max(dmu_dates) if dmu_done and dmu_dates else None,
+        "released_on": max(release_dates) if release_done and len(release_dates) == total else None,
+    }
