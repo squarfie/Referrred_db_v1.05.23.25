@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-worklist-filters-2">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-unified-table-format-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -65,8 +65,8 @@
       </div>
 
       {% if courier_count or prebatch_count or page_obj.paginator.count %}
-      <div class="table-responsive">
-        <table class="table receiving-table">
+      <div class="table-responsive receiving-unified-scroll">
+        <table class="table receiving-table receiving-unified-table">
           <caption class="sr-only">Receiving records, accession handoffs, and generated batch custody</caption>
           <thead><tr>
             <th scope="col">Type</th>
@@ -82,7 +82,7 @@
               <td data-label="Type"><strong>{% if is_lab_receiving %}Laboratory Receipt{% else %}Courier Receipt{% endif %}</strong></td>
               <td data-label="Referring site / Holder"><strong>{{ receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ receipt.site.SiteName }}</span></td>
               <td data-label="Reference / Accession"><span class="receiving-tracking">{{ receipt.tracking_number }}</span><span class="receiving-site-name">Received by: {% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</span></td>
-              <td data-label="Date / Activity">{{ receipt.date_received|date:"M j, Y" }}<span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
+              <td data-label="Date / Activity"><span class="receiving-date">{{ receipt.date_received|date:"M j, Y" }}</span><span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
               <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if active_tab == 'processing' %}Processing{% elif active_tab == 'completed' %}Released{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 {% if receipt.can_confirm_unified %}
@@ -100,7 +100,7 @@
               <td data-label="Type"><strong>Accession Handoff</strong></td>
               <td data-label="Referring site / Holder"><strong>{{ handoff.accession.laboratory_receiving.receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ handoff.accession.laboratory_receiving.receipt.site.SiteName }}</span></td>
               <td data-label="Reference / Accession"><span class="receiving-tracking">{{ handoff.accession.reference_range }}</span><span class="receiving-site-name">Tracking: {{ handoff.accession.laboratory_receiving.receipt.tracking_number }}</span><span class="receiving-site-name">Endorsed by: {{ handoff.endorsed_by.get_full_name|default:handoff.endorsed_by.username }}</span></td>
-              <td data-label="Date / Activity">{{ handoff.endorsed_at|date:"M j, Y g:i A" }}</td>
+              <td data-label="Date / Activity"><span class="receiving-date">{{ handoff.endorsed_at|date:"M j, Y" }}</span><span class="receiving-site-name">{{ handoff.endorsed_at|time:"g:i A" }}</span></td>
               <td data-label="Status"><span class="receiving-status {% if handoff.status == 'pending' %}receiving-status-endorsed{% else %}receiving-status-lab_received{% endif %}">{{ handoff.get_status_display }}</span></td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 {% if handoff.can_confirm_here %}
@@ -118,7 +118,7 @@
               <td data-label="Type"><strong>Generated Batch</strong></td>
               <td data-label="Referring site / Holder"><strong>{{ custody.current_role }}</strong><span class="receiving-site-name">Awaiting: {{ custody.pending_role|default:"—" }}</span></td>
               <td data-label="Reference / Accession"><span class="receiving-tracking">{{ custody.batch.bat_Batch_Code }}</span></td>
-              <td data-label="Date / Activity">{{ custody.updated_at|date:"M j, Y g:i A" }}</td>
+              <td data-label="Date / Activity"><span class="receiving-date">{{ custody.updated_at|date:"M j, Y" }}</span><span class="receiving-site-name">{{ custody.updated_at|time:"g:i A" }}</span></td>
               <td data-label="Status">{% if active_tab == 'completed' %}<span class="receiving-status receiving-status-lab_received"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Released</span>{% elif custody.pending_role %}<span class="receiving-status receiving-status-endorsed">Pending confirmation</span>{% else %}<span class="receiving-status receiving-status-lab_received">Received</span>{% endif %}</td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_workflow_detail' custody.batch_id %}"><i class="fas fa-history mr-1"></i>Details</a>
@@ -152,6 +152,7 @@
           </tbody>
         </table>
       </div>
+      <div class="receiving-unified-pagination">
       {% if courier_count %}
       <div class="receiving-board-pagination">
         <span>Receipts: {{ courier_page_obj.start_index }}–{{ courier_page_obj.end_index }} of {{ courier_count }} · Page {{ courier_page_obj.number }} of {{ courier_page_obj.paginator.num_pages }}</span>
@@ -172,7 +173,9 @@
         {% if page_obj.has_previous %}<a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.previous_page_number }}">Previous batches</a>{% endif %}
         {% if page_obj.has_next %}<a href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.next_page_number }}">Next batches</a>{% endif %}
       </div>
-      {% endif %}      {% else %}
+      {% endif %}
+      </div>
+      {% else %}
       <div class="receiving-empty">
         <i class="fas fa-inbox" aria-hidden="true"></i>
         No receiving or endorsement records found for the selected filters.
