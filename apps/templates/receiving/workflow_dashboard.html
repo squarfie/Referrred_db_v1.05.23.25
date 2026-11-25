@@ -137,6 +137,7 @@
               <td data-label="Referring site">
                 <strong>{{ handoff.accession.laboratory_receiving.receipt.site.SiteCode }}</strong>
                 <span class="receiving-site-name">{{ handoff.accession.laboratory_receiving.receipt.site.SiteName }}</span>
+                <span class="receiving-site-name">Tracking: {{ handoff.accession.laboratory_receiving.receipt.tracking_number }}</span>
               </td>
               <td data-label="Accession range"><span class="receiving-tracking">{{ handoff.accession.reference_range }}</span></td>
               <td data-label="Endorsed by">{{ handoff.endorsed_by.get_full_name|default:handoff.endorsed_by.username }}</td>
