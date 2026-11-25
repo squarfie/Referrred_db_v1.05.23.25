@@ -1051,6 +1051,90 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, "Activity and Tracking History")
         self.assertContains(response, "26VSM0001")
 
+    def test_receipt_progress_shows_dmu_and_release_as_pending_without_accessions(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Received by DMU")
+        self.assertContains(response, "Released")
+        markup = response.content.decode("utf-8")
+        steps = markup.split('<ol class="receiving-surface receiving-steps"', 1)[1].split("</ol>", 1)[0]
+        self.assertEqual(steps.count("<li class="), 5)
+        self.assertFalse(response.context["progress"]["dmu_done"])
+        self.assertFalse(response.context["progress"]["release_done"])
+        self.assertEqual(response.context["progress"]["total"], 0)
+
+    def test_receipt_progress_requires_all_accessions_for_dmu_and_release(self):
+        from apps.receiving.models import LaboratoryBatchHandoff
+        from apps.verification.models import VerificationCase
+
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        lab_receiving = LaboratoryReceiving.objects.create(
+            receipt=receipt, recorded_by=self.lab_encoder,
+        )
+        when = timezone.make_aware(datetime(2026, 11, 12, 12, 0))
+        first = LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_receiving,
+            date_referred=date(2026, 11, 12),
+            start_number=1, end_number=1,
+            assigned_by=self.lab_encoder,
+        )
+        second = LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_receiving,
+            date_referred=date(2026, 11, 12),
+            start_number=2, end_number=2,
+            assigned_by=self.lab_encoder,
+        )
+        first_batch = Batch_Table.objects.create(
+            bat_Batch_Code="VSM-PROGRESS-1", bat_SiteCode=self.site.SiteCode,
+            bat_Referral_Date=date(2026, 11, 12), created_by=self.lab_encoder,
+        )
+        first.batch = first_batch
+        first.save(update_fields=("batch",))
+        first_handoff = LaboratoryBatchHandoff.objects.create(
+            accession=first, endorsed_by=self.lab_encoder,
+            confirmed_by=self.admin, confirmed_at=when,
+            status=LaboratoryBatchHandoff.Status.CREATED,
+        )
+        second_handoff = LaboratoryBatchHandoff.objects.create(
+            accession=second, endorsed_by=self.lab_encoder,
+        )
+        VerificationCase.objects.create(
+            final_batch=first_batch, status=VerificationCase.STATUS_RELEASED,
+            released_at=when + timezone.timedelta(hours=2),
+        )
+        self.client.force_login(self.lab_encoder)
+        url = self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        partial = self.client.get(url)
+        self.assertEqual(partial.context["progress"]["total"], 2)
+        self.assertEqual(partial.context["progress"]["dmu_count"], 1)
+        self.assertEqual(partial.context["progress"]["released_count"], 1)
+        self.assertFalse(partial.context["progress"]["dmu_done"])
+        self.assertFalse(partial.context["progress"]["release_done"])
+        self.assertContains(partial, "1 of 2 confirmed")
+        self.assertContains(partial, "1 of 2 batches released")
+
+        second_handoff.status = LaboratoryBatchHandoff.Status.CREATED
+        second_handoff.confirmed_by = self.admin
+        second_handoff.confirmed_at = when + timezone.timedelta(hours=1)
+        second_handoff.save(update_fields=("status", "confirmed_by", "confirmed_at"))
+        second_batch = Batch_Table.objects.create(
+            bat_Batch_Code="VSM-PROGRESS-2", bat_SiteCode=self.site.SiteCode,
+            bat_Referral_Date=date(2026, 11, 12), created_by=self.lab_encoder,
+        )
+        second.batch = second_batch
+        second.save(update_fields=("batch",))
+        # A released status without a timestamp is valid historical data.
+        VerificationCase.objects.create(
+            final_batch=second_batch, status=VerificationCase.STATUS_RELEASED,
+        )
+        complete = self.client.get(url)
+        self.assertTrue(complete.context["progress"]["dmu_done"])
+        self.assertTrue(complete.context["progress"]["release_done"])
+        self.assertIsNone(complete.context["progress"]["released_on"])
+        self.assertContains(complete, "Recorded · date unavailable")
+
     def test_receipt_history_is_scoped_to_the_requested_shipment(self):
         first = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         other = self.create_receipt(ReferralReceipt.Status.RECEIVED)

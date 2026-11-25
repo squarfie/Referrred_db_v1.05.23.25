@@ -239,6 +239,15 @@ def workflow_dashboard(request):
     ).get_page(request.GET.get("handoff_page"))
     roles = custody_roles(request.user)
     for handoff in prebatch_page_obj:
+        # Show the exact accessions that Raw Data creation will generate.
+        # These come from LaboratoryAccession.accession_numbers, which shares
+        # the same year/site/number format as the batch creation service.
+        expected_accessions = handoff.accession.accession_numbers
+        handoff.expected_accession_display = (
+            expected_accessions[0]
+            if len(expected_accessions) == 1
+            else f"{expected_accessions[0]} – {expected_accessions[-1]}"
+        )
         handoff.can_confirm_here = bool(
             tab == "pending"
             and (ROLE_ADMIN in roles or ROLE_ENCODER in roles)
