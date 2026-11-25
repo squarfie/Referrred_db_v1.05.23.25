@@ -1096,12 +1096,15 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(pending, receipt.tracking_number)
         self.assertContains(pending, "Confirm receipt")
 
+        self.assertContains(pending, "Details")
         endorsed = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "endorsed"})
         self.assertNotContains(endorsed, "Confirm receipt")
-        self.assertContains(endorsed, receipt.tracking_number)
-        self.assertContains(endorsed, "Details")
+        # The LAB Encoder is the recipient, not the sender. The incoming
+        # receipt belongs to Pending, not their outgoing Endorsed queue.
+        self.assertNotContains(endorsed, receipt.tracking_number)
 
         all_records = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "all"})
+        self.assertContains(all_records, receipt.tracking_number)
         self.assertNotContains(all_records, "Confirm receipt")
 
     def test_confirmed_receipt_offers_endorse_and_details_in_received(self):
