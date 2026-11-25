@@ -104,7 +104,7 @@
               <td data-label="Status"><span class="receiving-status {% if handoff.status == 'pending' %}receiving-status-endorsed{% else %}receiving-status-lab_received{% endif %}"><i class="fas fa-circle" aria-hidden="true"></i>{{ handoff.get_status_display }}</span></td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 {% if handoff.can_confirm_here %}
-                <form method="post" action="{% url 'receiving_dmu_confirm' handoff.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success receiving-action-primary mb-1" type="submit"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Confirm DMU Receipt</button></form>
+                <form method="post" action="{% url 'receiving_dmu_confirm' handoff.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success receiving-action-primary mb-1" type="submit"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Confirm Receipt</button></form>
                 {% endif %}
                 {% if handoff.can_create_here %}
                 <form method="post" action="{% url 'receiving_dmu_create_batch' handoff.pk %}">{% csrf_token %}<button class="btn btn-sm btn-info receiving-action-primary mb-1" type="submit">Create Batch</button></form>
