@@ -1369,17 +1369,20 @@ class ReceivingTemplateTests(TestCase):
         self.assertNotContains(secretariat_dashboard, "Monthly Inventory")
         self.assertNotContains(secretariat_dashboard, "Open worksheet")
 
-    def test_secretariat_new_receipt_back_and_cancel_stay_secretariat(self):
+    def test_new_receipt_back_and_cancel_use_unified_receiving(self):
         self.client.force_login(self.secretariat)
         response = self.client.get(self.route("receiving_create"))
-        # Back and Cancel still return to the courier intake worklist;
-        # the sidebar Receiving link now points to the unified worklist.
-        self.assertContains(response,
+        # Back and Cancel return to the unified Receiving worklist.
+        self.assertContains(
+            response,
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=received"',
+            count=2, html=False,
+        )
+        self.assertNotContains(
+            response,
             'href="' + self.route("secretariat_receiving_dashboard") + '"',
-            count=2, html=False)
-        self.assertContains(response,
-            'href="' + self.route("receiving_workflow_dashboard") + '"',
-            count=1, html=False)
+            html=False,
+        )
 
     def test_lab_encoder_sees_only_confirmation_for_endorsed_receipt(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
