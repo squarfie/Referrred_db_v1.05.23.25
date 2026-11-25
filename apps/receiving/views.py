@@ -8,6 +8,9 @@ from .dashboard import render_receiving_dashboard as _render_receiving_dashboard
 from .activity import receipt_activity
 from .forms import ReferralReceiptForm
 from .models import ReferralReceipt
+from .handoffs import custody_roles, DESTINATION_ROLES
+from .workflow_views import visible_custodies
+from apps.home.permissions import ROLE_ADMIN
 from .permissions import (can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
 from .qr import build_receipt_scan_url, render_qr_png
 from .services import (InvalidReceivingTransition, create_receipt, delete_receipt_permanently, can_delete_receipt_safely, endorse_receipt)
@@ -60,6 +63,22 @@ def receiving_detail(request, receiving_id):
         "occurred_at", "recorded_at", "id"
     )
     can_manage = can_manage_secretariat_receiving(request.user)
+    roles = custody_roles(request.user)
+    # Only show batches the user may legally manage. The receipt itself
+    # may contain several accession ranges and generated batches.
+    linked_custodies = visible_custodies(request.user).filter(
+        batch__laboratory_accession__laboratory_receiving__receipt=receipt,
+    ).select_related("batch")
+    available_endorsements = []
+    for custody in linked_custodies:
+        if (
+            not custody.pending_role
+            and (ROLE_ADMIN in roles or custody.current_role in roles)
+            and not custody.batch.verification_cases.filter(status="released").exists()
+            and getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) != "Released"
+        ):
+            available_endorsements.append(custody)
+    can_endorse_receipt = can_manage and receipt.status == ReferralReceipt.Status.RECEIVED
     return render(
         request,
         "receiving/receipt_detail.html",
@@ -69,7 +88,13 @@ def receiving_detail(request, receiving_id):
             "activity": receipt_activity(receipt),
             "can_print_label": can_manage,
             "can_permanently_delete": can_delete_receipt_safely(receipt, request.user),
-            "can_endorse": can_manage and receipt.status == ReferralReceipt.Status.RECEIVED,
+            "can_endorse": can_endorse_receipt,
+            "linked_endorsements": available_endorsements,
+            "destination_roles": DESTINATION_ROLES,
+            "can_show_endorsement": can_endorse_receipt or (
+                receipt.status == ReferralReceipt.Status.LAB_RECEIVED
+                and (bool(available_endorsements) or "Lab Encoder" in roles or ROLE_ADMIN in roles)
+            ),
             "can_confirm_lab": False,
             "can_work_lab": False,
             "laboratory_detail": False,
