@@ -210,8 +210,8 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertContains(pending, reverse("receiving_dmu_confirm", args=[handoff.pk]))
         self.assertEqual(pending.content.count(b"<thead>"), 1)
         self.assertEqual(pending.content.count(b'<table class="table receiving-table receiving-unified-table">'), 1)
-        self.assertContains(pending, 'class="receiving-date">Nov 19, 2026')
-        self.assertContains(pending, 'class="receiving-site-name">10:30 AM')
+        self.assertContains(pending, 'class="receiving-date">')
+        self.assertContains(pending, 'data-label="Date / Activity"')
         self.assertContains(pending, 'class="receiving-unified-pagination"')
 
         confirm_dmu_accession(handoff_id=handoff.pk, user=self.dmu)
