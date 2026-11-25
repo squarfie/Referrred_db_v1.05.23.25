@@ -20,13 +20,12 @@ from .handoffs import (
     DESTINATION_ROLES, confirm_batch_receipt, custody_roles,
     endorse_batch, undo_batch_endorsement,
 )
-from .models import BatchCustody, BatchCustodyEvent, ReferralReceipt
+from .models import BatchCustody, ReferralReceipt
 
 TABS = (
     ("pending", "Pending"),
     ("received", "Received"),
     ("processing", "Processing"),
-    ("endorsed", "Endorsed"),
     ("completed", "Completed"),
     ("all", "All Records"),
 )
@@ -62,12 +61,7 @@ def _tab_filter(queryset, tab, user):
             | Q(batch__verification_cases__status="released")
         ).distinct()
         return active if ROLE_ADMIN in roles else active.filter(current_role__in=roles)
-    if tab == "endorsed":
-        return queryset.filter(events__action=BatchCustodyEvent.Action.ENDORSED).distinct() if ROLE_ADMIN in roles else queryset.filter(
-            events__action=BatchCustodyEvent.Action.ENDORSED,
-            events__from_role__in=roles,
-        ).distinct()
-    if tab == "completed":
+     if tab == "completed":
         # Only explicitly released records belong in the Completed tab.
         # Laboratory work completion and Head signing do not equal release.
         return queryset.filter(
@@ -151,13 +145,7 @@ def _receipt_tab_filter(receipts, tab, user):
         return _receipt_release_counts(
             receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED)
         ).filter(Q(tracked_ranges=0) | Q(tracked_ranges__gt=F("released_ranges")))
-    if tab == "endorsed":
-        if ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles:
-            return receipts.filter(status__in=(
-                ReferralReceipt.Status.ENDORSED, ReferralReceipt.Status.LAB_RECEIVED,
-            ))
-        return receipts.none()
-    if tab == "completed":
+     if tab == "completed":
         # All linked accession ranges must have an officially released batch.
         # A receipt without accession ranges is not complete.
         return _receipt_release_counts(
@@ -171,6 +159,9 @@ def _receipt_tab_filter(receipts, tab, user):
 def workflow_dashboard(request):
     """Role-scoped batch custody dashboard; original courier intake stays available."""
     tab = (request.GET.get("tab") or "pending").strip()
+    # Old bookmarked Endorsed links now open the full, authorized history.
+    if tab == "endorsed":
+        tab = "all"
     if tab not in dict(TABS):
         tab = "pending"
     per_page_str = (request.GET.get("per_page") or "25").strip()
@@ -260,7 +251,7 @@ def workflow_dashboard(request):
             and (ROLE_ADMIN in roles or custody.endorsed_by_id != request.user.pk)
         )
         custody.can_undo = bool(
-            tab == "endorsed"
+            tab == "all"
             and custody.pending_role and (
                 ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk
             )
