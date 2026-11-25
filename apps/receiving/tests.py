@@ -1345,6 +1345,9 @@ class ReceivingTemplateTests(TestCase):
         )
         self.assertContains(detail, 'id="receiving-endorsement"')
         self.assertContains(detail, "Endorse Batch")
+        self.assertContains(detail, 'class="col-md-6 mb-2"', count=2)
+        self.assertContains(detail, f'id="linked-destination-{batch.receiving_custody.pk}"')
+        self.assertContains(detail, f'id="linked-remarks-{batch.receiving_custody.pk}"')
         self.assertContains(detail, home_permissions.ROLE_ENCODER)
         submitted = self.client.post(
             self.route("receiving_workflow_endorse", batch_id=batch.pk),
