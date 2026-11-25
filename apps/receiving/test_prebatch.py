@@ -278,5 +278,7 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertNotContains(received, reverse("receiving_dmu_create_batch", args=[handoff.pk]))
         self.assertNotContains(received, reverse("receiving_dmu_confirm", args=[handoff.pk]))
         self.assertEqual(received.context["prebatch_count"], 0)
+        self.accession.refresh_from_db()
+        self.assertIsNotNone(self.accession.batch_id)
         processing = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "processing", "year": "2026"})
         self.assertContains(processing, self.accession.batch.bat_Batch_Code)
