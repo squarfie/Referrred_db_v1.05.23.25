@@ -9,6 +9,7 @@
     if (!search || !code || !name || !results) return;
     const endpoint = picker.dataset.endpoint;
     const allowUnlisted = picker.hasAttribute("data-allow-unlisted");
+    const optionalOrganism = picker.hasAttribute("data-optional-organism");
     let requestId = 0;
     let controller = null;
 
@@ -99,6 +100,15 @@
       }
     });
     picker.closest("form")?.addEventListener("submit", function (event) {
+      // A completely blank optional instrument result must never block the
+      // mandatory Final ID selection. If the user started entering one,
+      // require an actual selection (including an explicit unlisted name).
+      const unusedOptional = optionalOrganism &&
+        !search.value.trim() && !code.value.trim() && !name.value.trim();
+      if (unusedOptional) {
+        search.setCustomValidity("");
+        return;
+      }
       if (!name.value || (!code.value && !allowUnlisted)) {
         event.preventDefault();
         search.setCustomValidity("Choose an organism from the search results.");
