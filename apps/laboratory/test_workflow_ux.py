@@ -190,6 +190,26 @@ class WorkflowUXTests(TestCase):
         self.assertContains(page, '1 Failed / Retry')
         self.assertContains(page, '1 Ready for Handoff')
 
+    def test_worksheet_uses_single_active_revival_action_and_keeps_accession_actions_clear(self):
+        accession = self.create_pending_accession()
+        LaboratoryIsolate.objects.create(
+            accession_range=accession,
+            accession_number='UX-PENDING-REVIVAL',
+            status='revival_pending',
+        )
+        page = self.client.get(reverse(
+            'laboratory_receiving_workspace', args=[self.receipt.receiving_id],
+        ))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'Manage Revival &amp; Site ID', html=False)
+        self.assertNotContains(page, 'Review / Edit Saved Revival')
+        self.assertContains(page, 'Open Batch')
+        # The main Accessioning Actions column must not carry long workflow
+        # blockers. Readiness is still checked on actual endorsement.
+        accession_section = page.content.decode('utf-8').split('id="accessioning"', 1)[1].split('id="organisms"', 1)[0]
+        self.assertNotIn('receiving-action-note', accession_section)
+        self.assertNotIn('No new revived isolates are ready for endorsement.', accession_section)
+
     def test_manage_revival_disappears_when_no_pre_handoff_tasks_remain(self):
         accession = self.create_pending_accession()
         LaboratoryIsolate.objects.create(
