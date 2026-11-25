@@ -212,7 +212,7 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertEqual(pending.content.count(b'<table class="table receiving-table receiving-unified-table">'), 1)
         self.assertContains(pending, 'class="receiving-date">')
         self.assertContains(pending, 'data-label="Date / Activity"')
-        self.assertContains(pending, 'class="receiving-unified-pagination"')
+        self.assertNotContains(pending, 'class="receiving-unified-pagination"')
 
         confirm_dmu_accession(handoff_id=handoff.pk, user=self.dmu)
         received = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received", "year": "2026"})
