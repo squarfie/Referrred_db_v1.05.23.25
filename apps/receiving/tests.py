@@ -1263,6 +1263,14 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(detail, 'id="receiving-endorsement"')
         self.assertContains(detail, "Endorse Batch")
         self.assertContains(detail, home_permissions.ROLE_ENCODER)
+        submitted = self.client.post(
+            self.route("receiving_workflow_endorse", batch_id=batch.pk),
+            {"destination_role": home_permissions.ROLE_ENCODER},
+        )
+        self.assertEqual(submitted.status_code, 302)
+        custody = BatchCustody.objects.get(batch=batch)
+        self.assertEqual(custody.pending_role, home_permissions.ROLE_ENCODER)
+        self.assertEqual(custody.current_role, home_permissions.ROLE_LAB_ENCODER)
 
     def test_processing_shipment_moves_to_completed_only_after_release(self):
         from apps.verification.models import VerificationCase
