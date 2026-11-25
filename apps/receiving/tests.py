@@ -1089,6 +1089,56 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, 'class="receiving-tabbar"')
         self.assertContains(response, 'class="receiving-filters receiving-filters--inline"')
 
+    def test_confirm_receipt_button_is_exclusive_to_pending_tab(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        pending = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "pending"})
+        self.assertContains(pending, receipt.tracking_number)
+        self.assertContains(pending, "Confirm receipt")
+
+        endorsed = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "endorsed"})
+        self.assertNotContains(endorsed, "Confirm receipt")
+        self.assertContains(endorsed, receipt.tracking_number)
+        self.assertContains(endorsed, "Details")
+
+        all_records = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "all"})
+        self.assertNotContains(all_records, "Confirm receipt")
+
+    def test_confirmed_receipt_offers_endorse_and_details_in_received(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.lab_encoder)
+        received = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "received"})
+        self.assertContains(received, receipt.tracking_number)
+        self.assertContains(received, "Endorse")
+        self.assertContains(
+            received,
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+            + "#receiving-endorsement",
+        )
+        self.assertNotContains(received, "Confirm receipt")
+        self.assertContains(received, "Details")
+
+        detail = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertContains(detail, 'id="receiving-endorsement"')
+        self.assertContains(detail, "Endorse")
+        self.assertNotContains(detail, "Open laboratory worksheet")
+
+    def test_courier_endorsement_requires_correct_destination_when_supplied(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
+        self.client.force_login(self.secretariat)
+        detail = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertContains(detail, 'name="destination_role"')
+        self.assertContains(detail, "Laboratory Receiving (Bench A)")
+        url = self.route("receiving_endorse", receiving_id=receipt.receiving_id)
+        denied = self.client.post(url, {"destination_role": home_permissions.ROLE_VERIFIER})
+        self.assertEqual(denied.status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        approved = self.client.post(url, {"destination_role": home_permissions.ROLE_LAB_ENCODER})
+        self.assertEqual(approved.status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+
     def test_confirmation_moves_receipt_from_receiving_pending_to_bench_a(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.lab_encoder)
