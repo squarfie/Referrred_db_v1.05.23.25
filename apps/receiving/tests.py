@@ -1039,7 +1039,16 @@ class ReceivingTemplateTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, receipt.tracking_number)
-        self.assertContains(response, "Open Worksheet")
+        self.assertNotContains(response, "Open Worksheet")
+        self.assertNotContains(response, "Open laboratory worksheet")
+        self.assertNotContains(
+            response,
+            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+        )
+        self.assertContains(
+            response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"',
+            html=False,
+        )
 
     def test_unified_receiving_does_not_expose_lab_intake_to_checker(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
