@@ -73,6 +73,14 @@ def receipt_activity(receipt):
             "Bench A", code, accession.assigned_by)
         add(accession.batch_created_at, "Raw Data batch generated",
             "Batch", code)
+        # Pre-batch endorsement is recorded against the accession range,
+        # before a Batch_Table can exist.
+        handoff = getattr(accession, "dmu_handoff", None)
+        if handoff:
+            for event in handoff.events.select_related("performed_by").all():
+                add(event.performed_at, event.get_action_display(),
+                    "DMU Handoff", f"{code}: {event.remarks}".strip(" :"),
+                    event.performed_by)
 
         for isolate in accession.isolate_records.all():
             for field, label, actor_field, source in ISOLATE_MILESTONES:
