@@ -101,7 +101,7 @@ def laboratory_receiving_workspace(request, receiving_id):
             return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
     else:
         form = LaboratoryReceivingForm(instance=record)
-    ranges = list(record.accession_ranges.select_related("batch").prefetch_related("organism_counts", "additional_organism_counts", "isolate_records"))
+    ranges = list(record.accession_ranges.select_related("batch", "dmu_handoff").prefetch_related("organism_counts", "additional_organism_counts", "isolate_records"))
     organism_rows = []
     for accession in ranges:
         values = {count.organism_code: count.count for count in accession.organism_counts.all()}
@@ -561,49 +561,30 @@ def laboratory_organism_add(request, accession_id):
 @lab_receiving_required
 @require_POST
 def laboratory_batch_create(request, accession_id):
-    with transaction.atomic():
-        accession = get_object_or_404(
-            LaboratoryAccession.objects.select_for_update().select_related(
-                "laboratory_receiving__receipt__site"
-            ), pk=accession_id,
-        )
-        receipt = accession.laboratory_receiving.receipt
-        if accession.batch_id:
-            messages.info(request, "This accession range already has a generated batch.")
-            return redirect("laboratory_receiving_workspace", receiving_id=receipt.receiving_id)
-        try:
-            result = create_referred_batch(
-                site_code=receipt.site.SiteCode,
-                site_name=receipt.site.SiteName,
-                referral_date=accession.date_referred,
-                start_number=accession.start_number,
-                end_number=accession.end_number,
-                batch_number=accession.batch_number,
-                total_batches=accession.total_batches,
-                created_by=request.user,
-            )
-        except BatchAlreadyExists as exc:
-            messages.error(request, f"Batch {exc.batch.bat_Batch_Code} already exists and was not overwritten.")
-        except AccessionConflict as exc:
-            labels = [row.get("AccessionNo") or row.get("f_AccessionNo") for row in exc.conflicts[:5]]
-            messages.error(request, "Accession conflict: " + ", ".join(filter(None, labels)))
-        except BatchCreationError as exc:
-            messages.error(request, str(exc))
-        else:
-            from apps.receiving.handoffs import initialize_custody
-            from apps.home.permissions import ROLE_LAB_ENCODER
-            initialize_custody(batch=result.batch, user=request.user, initial_role=ROLE_LAB_ENCODER)
-            accession.batch = result.batch
-            accession.batch_created_at = timezone.now()
-            accession.save(update_fields=("batch", "batch_created_at"))
-            ReceivingEvent.objects.create(
-                receipt=receipt,
-                event_type=ReceivingEvent.EventType.BATCH_CREATED,
-                performed_by=request.user,
-                remarks=f"Created {result.batch.bat_Batch_Code} with {result.isolate_count} isolate(s).",
-            )
-            messages.success(request, f"Batch {result.batch.bat_Batch_Code} created in the existing Batch Table.")
-    return redirect("laboratory_receiving_workspace", receiving_id=receipt.receiving_id)
+    """Legacy URL retained, but never creates Batch_Table for a LAB Encoder."""
+    return laboratory_batch_endorse_dmu(request, accession_id)
+
+
+@login_required
+@lab_receiving_required
+@require_POST
+def laboratory_batch_endorse_dmu(request, accession_id):
+    from apps.receiving.prebatch import endorse_accession_to_dmu
+
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_related("laboratory_receiving__receipt"),
+        pk=accession_id,
+    )
+    try:
+        endorse_accession_to_dmu(accession_id=accession_id, user=request.user)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    else:
+        messages.success(request, "Prepared accession range endorsed to DMU. Awaiting DMU confirmation in Receiving.")
+    return redirect(
+        "laboratory_receiving_workspace",
+        receiving_id=accession.laboratory_receiving.receipt.receiving_id,
+    )
 
 
 def _register_context(request):
@@ -742,8 +723,13 @@ def worksheet_step_done(form, ranges, organism_rows, workflow_rows, final_tabs, 
     counts = {_g(t, "key"): (_g(t, "count") or 0) for t in final_tabs}
     final = counts.get("all", 0) > 0 and counts.get("completed", 0) == counts.get("all", 0)
 
-    # Batch generation: every range has a batch.
-    batch = bool(batch_rows) and all(bool(_g(_g(r, "accession"), "batch")) for r in batch_rows)
+    # Bench A is finished after an accession is endorsed to DMU or a
+    # historical batch has already been generated. DMU owns new creation.
+    batch = bool(batch_rows) and all(
+        bool(_g(_g(r, "accession"), "batch"))
+        or bool(_g(_g(r, "accession"), "dmu_handoff"))
+        for r in batch_rows
+    )
 
     return {
         "summary": summary,
