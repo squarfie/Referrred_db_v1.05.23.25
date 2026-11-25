@@ -1097,15 +1097,14 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(pending, "Confirm receipt")
 
         self.assertContains(pending, "Details")
-        endorsed = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "endorsed"})
-        self.assertNotContains(endorsed, "Confirm receipt")
-        # The LAB Encoder is the recipient, not the sender. The incoming
-        # receipt belongs to Pending, not their outgoing Endorsed queue.
-        self.assertNotContains(endorsed, receipt.tracking_number)
-
         all_records = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "all"})
         self.assertContains(all_records, receipt.tracking_number)
         self.assertNotContains(all_records, "Confirm receipt")
+        self.assertContains(all_records, "Details")
+        self.assertNotContains(all_records, '>Endorsed <span class="receiving-tab-count"', html=False)
+        legacy = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "endorsed"})
+        self.assertEqual(legacy.context["active_tab"], "all")
+        self.assertContains(legacy, receipt.tracking_number)
 
     def test_confirmed_receipt_is_processing_without_dead_end_endorse(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
@@ -1142,7 +1141,7 @@ class ReceivingTemplateTests(TestCase):
         )
         self.assertContains(
             response,
-            'href="' + self.route("receiving_workflow_dashboard") + '?tab=endorsed"',
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=all"',
             html=False,
         )
         self.assertNotContains(
