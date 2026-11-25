@@ -94,9 +94,9 @@
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm receipt</a>
                 {% endif %}
                 {% if receipt.can_endorse_unified %}
-                <a class="btn btn-sm btn-info mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}#receiving-endorsement"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
+                <a class="btn btn-sm btn-info mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}?from_tab={{ active_tab }}#receiving-endorsement"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
                 {% endif %}
-                <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}"><i class="fas fa-eye mr-1"></i>Details</a>
+                <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}?from_tab={{ active_tab }}"><i class="fas fa-eye mr-1"></i>Details</a>
               </div></td>
             </tr>
           {% endfor %}
