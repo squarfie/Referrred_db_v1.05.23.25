@@ -244,6 +244,23 @@ class UnifiedReceivingHandoffTests(TestCase):
         role_detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
         self.assertContains(role_detail, "Endorse Batch")
 
+    def test_released_verification_case_cannot_be_endorsed_by_direct_post(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        VerificationCase.objects.create(
+            final_batch=self.batch, status=VerificationCase.STATUS_RELEASED,
+        )
+        self.client.force_login(self.lab)
+        detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
+        self.assertNotContains(detail, "Endorse Batch")
+        response = self.client.post(
+            reverse("receiving_workflow_endorse", args=[self.batch.pk]),
+            {"destination_role": ROLE_ENCODER},
+        )
+        self.assertEqual(response.status_code, 302)
+        custody = BatchCustody.objects.get(batch=self.batch)
+        self.assertEqual(custody.pending_role, "")
+        self.assertEqual(custody.events.filter(action=BatchCustodyEvent.Action.ENDORSED).count(), 0)
+
     def test_transition_endpoints_reject_get_and_wrong_role(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
         endorse_url = reverse("receiving_workflow_endorse", args=[self.batch.pk])
