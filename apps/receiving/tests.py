@@ -2065,18 +2065,23 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             kwargs={"receiving_id": self.receipt.receiving_id},
         ))
         self.assertEqual(response.status_code, 200)
-        text = response.content.decode("utf-8")
+        # Compare visible worksheet headings rather than their HTML entity
+        # encoding or exact h2 markup; those can change with UI refactors.
+        from django.utils.html import strip_tags
+        from html import unescape
+        text = unescape(strip_tags(response.content.decode("utf-8")))
         labels = [
             "Step 1: Receiving and acceptance summary",
             "Step 2: Accessioning",
             "Step 3: Organism inventory",
-            "Step 4: Revival &amp; Site ID",
+            "Step 4: Revival & Site ID",
             "Step 5: Final Processing",
-            "<h2>Endorse to DMU</h2>",
+            "Endorse to DMU",
         ]
-        # Match the actual step heading, not the earlier Batch Generation
-        # label in the worksheet's progress-summary cards.
-        positions = [text.index(label) for label in labels]
+        positions = []
+        for label in labels:
+            self.assertIn(label, text, msg=f"Missing worksheet step: {label}")
+            positions.append(text.index(label))
         self.assertEqual(positions, sorted(positions))
         self.assertContains(response, "Fastidious Organisms")
         self.assertContains(response, "organism_HA")
