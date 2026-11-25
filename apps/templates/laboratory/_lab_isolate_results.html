@@ -1,7 +1,43 @@
-<div class="table-responsive"><table class="table receiving-table"><thead><tr><th>Recorded / tested</th><th>Organism</th><th>Instrument</th><th>Cassette/slot</th><th>Source</th><th>Entered by</th></tr></thead><tbody>
-{% for result in isolate.identifications.all %}
-<tr><td>{{ result.recorded_at|date:"M j, Y g:i A" }}<br><span class="text-muted small">Tested: {{ result.tested_at|date:"M j, Y g:i A"|default:"Not recorded" }}</span></td><td>{% if result.whonet_organism_code %}<strong>{{ result.whonet_organism_code }}</strong> <span class="text-muted small">&mdash;</span> {% endif %}{{ result.organism_reported }}</td><td>{{ result.instrument|default:"&mdash;" }}</td><td>{{ result.cassette_reference|default:"&mdash;" }}</td><td>{{ result.get_source_display }}</td><td>{{ result.recorded_by|default:"&mdash;" }}</td></tr>
-{% if can_test and not result.corrections.exists %}<tr><td colspan="6">{% include 'laboratory/_identification_correction_form.html' with correction_kind='main_lab' correction_result=result %}</td></tr>{% endif %}
-{% empty %}<tr><td colspan="6" class="text-muted">No instrument results recorded yet.</td></tr>
-{% if can_test and not result.corrections.exists %}<tr><td colspan="6">{% include 'laboratory/_identification_correction_form.html' with correction_kind='main_lab' correction_result=result %}</td></tr>{% endif %}{% endfor %}
-</tbody></table></div>
+{% comment %}Instrument results for an isolate. Each result can have one Main Lab correction panel.{% endcomment %}
+{% with results=isolate.identifications.all %}
+<div class="ir-wrap">
+  <div class="table-responsive">
+    <table class="table receiving-table ir-table">
+      <caption class="sr-only">Instrument results recorded for this isolate</caption>
+      <thead><tr>
+        <th scope="col">Recorded / tested</th>
+        <th scope="col">Organism</th>
+        <th scope="col">Instrument</th>
+        <th scope="col">Cassette / slot</th>
+        <th scope="col">Source</th>
+        <th scope="col">Entered by</th>
+      </tr></thead>
+      <tbody>
+      {% for result in results %}
+        <tr>
+          <td data-label="Recorded / tested">
+            <span class="ir-date">{{ result.recorded_at|date:"M j, Y g:i A" }}</span>
+            <span class="ir-meta">Tested: {% if result.tested_at %}{{ result.tested_at|date:"M j, Y g:i A" }}{% else %}Not recorded{% endif %}</span>
+          </td>
+          <td data-label="Organism">
+            {% if result.whonet_organism_code %}<span class="ir-code">{{ result.whonet_organism_code }}</span>{% endif %}
+            <span class="ir-organism">{{ result.organism_reported|default:"—" }}</span>
+          </td>
+          <td data-label="Instrument"><span class="ir-mono">{{ result.instrument|default:"—" }}</span></td>
+          <td data-label="Cassette / slot"><span class="ir-mono">{{ result.cassette_reference|default:"—" }}</span></td>
+          <td data-label="Source"><span class="ir-source">{{ result.get_source_display }}</span></td>
+          <td data-label="Entered by">{{ result.recorded_by|default:"—" }}</td>
+        </tr>
+        {% if can_test and not result.corrections.exists %}
+        <tr class="ir-correction-row">
+          <td colspan="6">{% include 'laboratory/_identification_correction_form.html' with correction_kind='main_lab' correction_result=result %}</td>
+        </tr>
+        {% endif %}
+      {% empty %}
+        <tr><td colspan="6" class="receiving-empty"><i class="fas fa-flask" aria-hidden="true"></i>No instrument results recorded yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endwith %}

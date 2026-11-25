@@ -1,0 +1,194 @@
+/* ===== Isolate page: labels, helper text, messages and disclosures (scoped) ===== */
+/* Append to receiving.css. Only affects .isolate-detail-page. */
+
+/* ---- Form labels ---- */
+.isolate-detail-page label {
+  display: block;
+  margin: 0 0 .35rem;
+  color: #2b4a63;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+.isolate-detail-page .form-check-label,
+.isolate-detail-page label.form-check-label { text-transform: none; letter-spacing: 0; font-size: .86rem; font-weight: 500; }
+.isolate-detail-page .form-control:focus,
+.isolate-detail-page select.form-control:focus,
+.isolate-detail-page textarea.form-control:focus {
+  border-color: var(--receiving-cyan);
+  box-shadow: 0 0 0 3px rgba(0,188,212,.14);
+}
+
+/* ---- Helper and body text ---- */
+.isolate-detail-page .small,
+.isolate-detail-page .text-muted.small {
+  color: #566b80 !important;
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.isolate-detail-page .receiving-card-body > p:not(.alert) {
+  color: #3f566b;
+  font-size: .9rem;
+  line-height: 1.55;
+  margin-bottom: .75rem;
+}
+.isolate-detail-page .isolate-form-intro { color: #566b80; font-size: .86rem; }
+
+/* ---- Status messages ---- */
+.isolate-detail-page .alert {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+  margin: 0 0 1rem;
+  padding: .8rem 1rem .8rem 2.6rem;
+  border: 1px solid transparent;
+  border-left-width: 4px;
+  border-radius: 9px;
+  font-size: .88rem;
+  line-height: 1.5;
+}
+.isolate-detail-page .alert::before {
+  position: absolute;
+  left: .95rem;
+  top: .85rem;
+  font-family: "Font Awesome 5 Free";
+  font-weight: 900;
+  font-size: .95rem;
+  line-height: 1;
+}
+.isolate-detail-page .alert-info { color: #245a65; background: #f0fbfd; border-color: #bde5ec; border-left-color: var(--receiving-cyan); }
+.isolate-detail-page .alert-info::before { content: "\f05a"; color: #0e8ea3; }
+.isolate-detail-page .alert-success { color: #116149; background: #effaf5; border-color: #bfe6d3; border-left-color: #2fa77c; }
+.isolate-detail-page .alert-success::before { content: "\f058"; color: #2fa77c; }
+.isolate-detail-page .alert-warning { color: #7a5600; background: #fffaeb; border-color: #f1dea0; border-left-color: #d9a400; }
+.isolate-detail-page .alert-warning::before { content: "\f071"; color: #c48a00; }
+.isolate-detail-page .alert-danger { color: #8f2a26; background: #fdf1f0; border-color: #f0c3bf; border-left-color: #c33c36; }
+.isolate-detail-page .alert-danger::before { content: "\f06a"; color: #c33c36; }
+.isolate-detail-page .alert strong { color: inherit; }
+.isolate-detail-page .alert > p { margin: 0; }
+
+/* Plain-text callouts in the current step */
+.isolate-detail-page .receiving-note {
+  display: flex;
+  gap: .55rem;
+  padding: .6rem .8rem;
+  border-radius: 8px;
+  background: #f3f8fb;
+  color: #3f566b;
+  font-size: .82rem;
+  line-height: 1.5;
+}
+.isolate-detail-page .receiving-note > i { margin-top: .2rem; color: var(--receiving-teal); }
+
+/* ---- Disclosures (Record / Edit / Scientific record) ---- */
+.isolate-detail-page details {
+  margin-bottom: .75rem;
+  border: 1px solid var(--receiving-border);
+  border-radius: 10px;
+  background: #f8fbfd;
+  overflow: hidden;
+}
+.isolate-detail-page details > summary {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .65rem .95rem;
+  color: var(--receiving-navy);
+  font-size: .86rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.isolate-detail-page details > summary::-webkit-details-marker { display: none; }
+.isolate-detail-page details > summary::before {
+  content: "\f105";
+  font-family: "Font Awesome 5 Free";
+  font-weight: 900;
+  color: #7a8ea1;
+  transition: transform .2s;
+}
+.isolate-detail-page details[open] > summary::before { transform: rotate(90deg); }
+.isolate-detail-page details > summary:hover { background: #edf8fc; }
+.isolate-detail-page details[open] > summary { background: #fff; border-bottom: 1px solid var(--receiving-border); }
+.isolate-detail-page details > :not(summary) { padding: .9rem 1rem; }
+.isolate-detail-page details > summary.p-3 { padding: .9rem 1rem; }
+
+/* ---- Site-ID and table-header caption text ---- */
+.isolate-detail-page .isolate-site-id-panel p { color: #566b80; font-size: .8rem; line-height: 1.5; }
+.isolate-detail-page .isolate-current-badge { font-size: .68rem; }
+
+/* ---- Dividers between inline notes and actions ---- */
+.isolate-detail-page .receiving-card-body > .btn,
+.isolate-detail-page .receiving-card-body > form > .btn { margin-top: .25rem; }
+
+/* ===== Isolate page: buttons (scoped) ===== */
+/* Append to receiving.css after isolate-labels-messages.css. Only affects .isolate-detail-page. */
+
+.isolate-detail-page .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 2.4rem;
+  padding: .5rem 1.05rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: .84rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: .01em;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .05s;
+}
+.isolate-detail-page .btn:active { transform: translateY(1px); }
+.isolate-detail-page .btn:focus-visible { outline: 2px solid var(--receiving-cyan); outline-offset: 2px; }
+.isolate-detail-page .btn[disabled],
+.isolate-detail-page .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+/* Sizes */
+.isolate-detail-page .btn-sm { min-height: 2rem; padding: .35rem .75rem; font-size: .78rem; border-radius: 7px; }
+
+/* Primary: navy, the main action */
+.isolate-detail-page .btn-primary { background: var(--receiving-navy); border-color: var(--receiving-navy); color: #fff; box-shadow: 0 3px 10px rgba(15,58,95,.16); }
+.isolate-detail-page .btn-primary:hover { background: #173f63; border-color: #173f63; color: #fff; box-shadow: 0 5px 14px rgba(15,58,95,.22); }
+
+/* Info: teal, used for Print, Endorse and temporary banking */
+.isolate-detail-page .btn-info { background: #0e8ea3; border-color: #0e8ea3; color: #fff; box-shadow: 0 3px 10px rgba(14,142,163,.18); }
+.isolate-detail-page .btn-info:hover { background: #0b7689; border-color: #0b7689; color: #fff; }
+
+/* Success: green, for confirm actions */
+.isolate-detail-page .btn-success { background: #2fa77c; border-color: #2fa77c; color: #fff; box-shadow: 0 3px 10px rgba(47,167,124,.18); }
+.isolate-detail-page .btn-success:hover { background: #26906b; border-color: #26906b; color: #fff; }
+
+/* Warning: amber, for retry */
+.isolate-detail-page .btn-warning { background: #d9a400; border-color: #d9a400; color: #2d2100; }
+.isolate-detail-page .btn-warning:hover { background: #c39300; border-color: #c39300; color: #2d2100; }
+
+/* Outline primary: secondary navigation within a card */
+.isolate-detail-page .btn-outline-primary { background: #fff; border-color: #9cc9d6; color: #0e6a7a; }
+.isolate-detail-page .btn-outline-primary:hover { background: #e9f7fa; border-color: var(--receiving-cyan); color: #0b5563; }
+
+/* Outline secondary: low-emphasis back / cancel */
+.isolate-detail-page .btn-outline-secondary { background: #fff; border-color: #c9d8e6; color: #3f566b; }
+.isolate-detail-page .btn-outline-secondary:hover { background: #f3f7fa; border-color: #9fb4c6; color: var(--receiving-navy); }
+
+/* Outline light: used in the dark hero */
+.isolate-detail-page .receiving-hero .btn-outline-light { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.4); color: #fff; }
+.isolate-detail-page .receiving-hero .btn-outline-light:hover { background: rgba(255,255,255,.16); border-color: #fff; color: #fff; }
+.isolate-detail-page .receiving-hero .btn-info { background: var(--receiving-cyan); border-color: var(--receiving-cyan); color: var(--receiving-navy); }
+.isolate-detail-page .receiving-hero .btn-info:hover { background: #3fd6ea; border-color: #3fd6ea; color: var(--receiving-navy); }
+
+/* Button rows: consistent spacing when several sit together */
+.isolate-detail-page .receiving-hero-actions { gap: .5rem; }
+.isolate-detail-page .receiving-card-body form > .btn,
+.isolate-detail-page .receiving-card-body > .btn { margin: .25rem 0; }
+
+/* Full-width on small screens */
+@media (max-width: 575.98px) {
+  .isolate-detail-page .receiving-card-body form > .btn,
+  .isolate-detail-page .receiving-card-body > .btn { width: 100%; }
+}

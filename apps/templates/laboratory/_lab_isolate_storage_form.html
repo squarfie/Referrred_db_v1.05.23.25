@@ -1,48 +1,79 @@
-<form class="laboratory-storage-form" data-model="LaboratoryBiobank" method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}">
-<h3 class="h5 mb-3">{% if isolate.identification_source == "site" %}Temporary Site ID storage{% else %}Final banking storage{% endif %}</h3>
-<p><strong>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}</strong>{% if isolate.identification_source %} &middot; Source: {{ isolate.get_identification_source_display }}{% endif %}</p>
-{% if isolate.identification_source == 'site' %}<p class="small text-muted">Direct banking uses the referring site's identification. This is temporary storage; Main Laboratory testing is still required before final banking. A harvest date is required for sticker printing.</p>{% endif %}
-{% if isolate.identification_source == 'main_lab' and isolate.status == 'ready_for_biobank' and not storage_only %}
-<div class="receiving-help-panel mb-3">
-<strong>Main Lab Final ID:</strong> {{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}
-<p class="small text-muted mb-0">Recorded by Main Laboratory. Bench A only enters final storage details.</p>
-</div>
-{% endif %}
-<div class="row">
-<div class="col-md-3 mb-3"><label for="harvested">Date harvested (recorded with lyophilization)</label><input id="harvested" data-model="LaboratoryBiobank" data-field="date_harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control" readonly></div>
-<div class="col-md-3 mb-3"><label for="whonet">Organism ID (WHONET code)</label><input id="whonet" data-model="LaboratoryBiobank" data-field="whonet_code" name="whonet_code" value="{{ biobank.whonet_code|default:'' }}" class="form-control" maxlength="30" readonly></div>
-<div class="col-md-3 mb-3"><label for="container">Container number/type</label><input id="container" data-model="LaboratoryBiobank" data-field="container" name="container" value="{{ biobank.container|default:'' }}" class="form-control" maxlength="100"></div>
-<div class="col-md-3 mb-3"><label for="method">Preservation method</label><input id="method" data-model="LaboratoryBiobank" data-field="preservation_method" name="preservation_method" value="{{ biobank.preservation_method|default:'' }}" class="form-control" maxlength="100"></div>
-</div>
-<h3 class="h5 mb-3">Lyophilization storage{% if isolate.identification_source == 'site' %} (optional for direct banking){% endif %}</h3>
-<div class="row">
-<div class="col-md-3 mb-3"><label for="date-lyo">Date lyophilized</label><input type="date" id="date-lyo" data-model="LaboratoryBiobank" data-field="date_lyophilized" name="date_lyophilized" value="{{ biobank.date_lyophilized|date:'Y-m-d' }}" class="form-control" readonly></div>
-<div class="col-md-3 mb-3"><label for="lyo-box">Box name</label><input id="lyo-box" data-model="LaboratoryBiobank" data-field="lyo_box_name" name="lyo_box_name" value="{{ biobank.lyo_box_name|default:'' }}" maxlength="100" class="form-control"></div>
-<div class="col-md-2 mb-3"><label for="lyo-number">Box number</label><input id="lyo-number" data-model="LaboratoryBiobank" data-field="lyo_box_number" name="lyo_box_number" value="{{ biobank.lyo_box_number|default:'' }}" maxlength="50" class="form-control"></div>
-<div class="col-md-2 mb-3"><label for="lyo-position">Position in box</label><input id="lyo-position" data-model="LaboratoryBiobank" data-field="lyo_position" name="lyo_position" value="{{ biobank.lyo_position|default:'' }}" maxlength="50" class="form-control"></div>
-<div class="col-md-2 mb-3"><label for="fridge">Refrigerator number</label><input id="fridge" data-model="LaboratoryBiobank" data-field="refrigerator_number" name="refrigerator_number" value="{{ biobank.refrigerator_number|default:'' }}" maxlength="50" class="form-control"></div>
-<div class="col-md-4 mb-3"><label for="lyo-location">Laboratory / storage location</label><input id="lyo-location" data-model="LaboratoryBiobank" data-field="lyo_location" name="lyo_location" value="{{ biobank.lyo_location|default:'' }}" maxlength="100" class="form-control"></div>
-<div class="col-md-3 mb-3"><label for="lyo-encoded">Date encoded</label><input type="date" id="lyo-encoded" data-model="LaboratoryBiobank" data-field="lyo_date_encoded" name="lyo_date_encoded" value="{{ biobank.lyo_date_encoded|date:'Y-m-d' }}" class="form-control"></div>
-</div>
-<h3 class="h5 mb-3">Supplementary storage</h3>
-<div class="row">
-<div class="col-md-3 mb-3"><label><input type="checkbox" data-model="LaboratoryBiobank" data-field="skimmed_milk" name="skimmed_milk" {% if biobank.skimmed_milk %}checked{% endif %}> Skimmed milk</label></div>
-<div class="col-md-3 mb-3"><label><input type="checkbox" data-model="LaboratoryBiobank" data-field="tsbg" name="tsbg" {% if biobank.tsbg %}checked{% endif %}> TSBG</label></div>
-</div>
-<div class="row">
-<div class="col-md-3 mb-3"><label for="supp-box">Box name</label><input id="supp-box" data-model="LaboratoryBiobank" data-field="supplementary_box_name" name="supplementary_box_name" value="{{ biobank.supplementary_box_name|default:'' }}" maxlength="100" class="form-control"></div>
-<div class="col-md-2 mb-3"><label for="supp-number">Box number</label><input id="supp-number" data-model="LaboratoryBiobank" data-field="supplementary_box_number" name="supplementary_box_number" value="{{ biobank.supplementary_box_number|default:'' }}" maxlength="50" class="form-control"></div>
-<div class="col-md-2 mb-3"><label for="supp-position">Position in box</label><input id="supp-position" data-model="LaboratoryBiobank" data-field="supplementary_position" name="supplementary_position" value="{{ biobank.supplementary_position|default:'' }}" maxlength="50" class="form-control"></div>
-<div class="col-md-2 mb-3"><label for="freezer">Freezer number</label><input id="freezer" data-model="LaboratoryBiobank" data-field="freezer_number" name="freezer_number" value="{{ biobank.freezer_number|default:'' }}" maxlength="50" class="form-control"></div>
-<div class="col-md-3 mb-3"><label for="supp-location">Laboratory / storage location</label><input id="supp-location" data-model="LaboratoryBiobank" data-field="supplementary_location" name="supplementary_location" value="{{ biobank.supplementary_location|default:'' }}" maxlength="100" class="form-control"></div>
-<div class="col-md-3 mb-3"><label for="supp-encoded">Date encoded</label><input type="date" id="supp-encoded" data-model="LaboratoryBiobank" data-field="supplementary_date_encoded" name="supplementary_date_encoded" value="{{ biobank.supplementary_date_encoded|date:'Y-m-d' }}" class="form-control"></div>
-</div>
-<h3 class="h5 mb-3">Other storage and remarks</h3>
-<div class="row">
-<div class="col-md-4 mb-3"><label for="location">Additional location</label><input id="location" data-model="LaboratoryBiobank" data-field="storage_location" name="storage_location" value="{{ biobank.storage_location|default:'' }}" class="form-control" maxlength="150"></div>
-<div class="col-md-2 mb-3"><label for="box">Additional box</label><input id="box" data-model="LaboratoryBiobank" data-field="storage_box" name="storage_box" value="{{ biobank.storage_box|default:'' }}" class="form-control" maxlength="100"></div>
-<div class="col-md-2 mb-3"><label for="position">Additional position</label><input id="position" data-model="LaboratoryBiobank" data-field="box_position" name="box_position" value="{{ biobank.box_position|default:'' }}" class="form-control" maxlength="30"></div>
-<div class="col-md-4 mb-3"><label for="remarks">Remarks</label><input id="remarks" data-model="LaboratoryBiobank" data-field="remarks" name="remarks" value="{{ biobank.remarks|default:'' }}" class="form-control"></div>
-</div>
-<p class="text-muted small">Confirm the identification above and the banking map below. Enter both a box name/number and its position within the same storage section.</p><button class="btn btn-primary" type="submit">{% if isolate.status == 'biobanked' %}Update banking map{% else %}Finalize ID and banking map{% endif %}</button>
+{% comment %}Biobank / temporary storage form for a lab isolate. Read-only fields are recorded during lyophilization or by Main Lab.{% endcomment %}
+<form class="laboratory-storage-form bs-form" data-model="LaboratoryBiobank" method="post" action="{% url 'laboratory_biobank_save' isolate.pk %}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ return_to }}">
+
+  <div class="bs-head">
+    <div>
+      <p class="receiving-eyebrow">{% if isolate.identification_source == "site" %}Temporary storage{% else %}Final banking{% endif %}</p>
+      <h3>{% if isolate.identification_source == "site" %}Temporary Site ID storage{% else %}Final banking storage{% endif %}</h3>
+    </div>
+    <div class="bs-id">
+      <span class="bs-id-label">Identification</span>
+      <span class="bs-id-value">{{ isolate.approved_organism_code }} {{ isolate.final_organism }}</span>
+      {% if isolate.identification_source %}<span class="bs-id-source">Source: {{ isolate.get_identification_source_display }}</span>{% endif %}
+    </div>
+  </div>
+
+  {% if isolate.identification_source == 'site' %}
+  <div class="receiving-notice alert alert-info"><i class="fas fa-info-circle" aria-hidden="true"></i><div>Direct banking uses the referring site's identification. This is temporary storage; Main Laboratory testing is still required before final banking. A harvest date is required for sticker printing.</div></div>
+  {% endif %}
+
+  {% if isolate.identification_source == 'main_lab' and isolate.status == 'ready_for_biobank' and not storage_only %}
+  <div class="receiving-notice alert alert-success"><i class="fas fa-check-circle" aria-hidden="true"></i><div><strong>Main Lab Final ID:</strong> {{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}<br><span class="small">Recorded by Main Laboratory. Bench A only enters final storage details.</span></div></div>
+  {% endif %}
+
+  <fieldset class="bs-section">
+    <legend><span class="bs-step">1</span>Sample and identification</legend>
+    <div class="bs-grid">
+      <div class="bs-field is-locked"><label for="harvested">Date harvested <span class="bs-lock">Recorded with lyophilization</span></label><input id="harvested" data-model="LaboratoryBiobank" data-field="date_harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control" readonly></div>
+      <div class="bs-field is-locked"><label for="whonet">Organism ID (WHONET code) <span class="bs-lock">Locked</span></label><input id="whonet" data-model="LaboratoryBiobank" data-field="whonet_code" name="whonet_code" value="{{ biobank.whonet_code|default:'' }}" class="form-control" maxlength="30" readonly></div>
+      <div class="bs-field"><label for="container">Container number / type</label><input id="container" data-model="LaboratoryBiobank" data-field="container" name="container" value="{{ biobank.container|default:'' }}" class="form-control" maxlength="100"></div>
+      <div class="bs-field"><label for="method">Preservation method</label><input id="method" data-model="LaboratoryBiobank" data-field="preservation_method" name="preservation_method" value="{{ biobank.preservation_method|default:'' }}" class="form-control" maxlength="100"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="bs-section">
+    <legend><span class="bs-step">2</span>Lyophilization storage{% if isolate.identification_source == 'site' %} <span class="bs-optional">optional for direct banking</span>{% endif %}</legend>
+    <div class="bs-grid">
+      <div class="bs-field is-locked"><label for="date-lyo">Date lyophilized <span class="bs-lock">Locked</span></label><input type="date" id="date-lyo" data-model="LaboratoryBiobank" data-field="date_lyophilized" name="date_lyophilized" value="{{ biobank.date_lyophilized|date:'Y-m-d' }}" class="form-control" readonly></div>
+      <div class="bs-field"><label for="lyo-box">Box name</label><input id="lyo-box" data-model="LaboratoryBiobank" data-field="lyo_box_name" name="lyo_box_name" value="{{ biobank.lyo_box_name|default:'' }}" maxlength="100" class="form-control"></div>
+      <div class="bs-field"><label for="lyo-number">Box number</label><input id="lyo-number" data-model="LaboratoryBiobank" data-field="lyo_box_number" name="lyo_box_number" value="{{ biobank.lyo_box_number|default:'' }}" maxlength="50" class="form-control"></div>
+      <div class="bs-field"><label for="lyo-position">Position in box</label><input id="lyo-position" data-model="LaboratoryBiobank" data-field="lyo_position" name="lyo_position" value="{{ biobank.lyo_position|default:'' }}" maxlength="50" class="form-control"></div>
+      <div class="bs-field"><label for="fridge">Refrigerator number</label><input id="fridge" data-model="LaboratoryBiobank" data-field="refrigerator_number" name="refrigerator_number" value="{{ biobank.refrigerator_number|default:'' }}" maxlength="50" class="form-control"></div>
+      <div class="bs-field bs-span-2"><label for="lyo-location">Laboratory / storage location</label><input id="lyo-location" data-model="LaboratoryBiobank" data-field="lyo_location" name="lyo_location" value="{{ biobank.lyo_location|default:'' }}" maxlength="100" class="form-control"></div>
+      <div class="bs-field"><label for="lyo-encoded">Date encoded</label><input type="date" id="lyo-encoded" data-model="LaboratoryBiobank" data-field="lyo_date_encoded" name="lyo_date_encoded" value="{{ biobank.lyo_date_encoded|date:'Y-m-d' }}" class="form-control"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="bs-section">
+    <legend><span class="bs-step">3</span>Supplementary storage</legend>
+    <div class="bs-chips" role="group" aria-label="Supplementary media">
+      <label class="bs-chip"><input type="checkbox" data-model="LaboratoryBiobank" data-field="skimmed_milk" name="skimmed_milk" {% if biobank.skimmed_milk %}checked{% endif %}><span>Skimmed milk</span></label>
+      <label class="bs-chip"><input type="checkbox" data-model="LaboratoryBiobank" data-field="tsbg" name="tsbg" {% if biobank.tsbg %}checked{% endif %}><span>TSBG</span></label>
+    </div>
+    <div class="bs-grid">
+      <div class="bs-field"><label for="supp-box">Box name</label><input id="supp-box" data-model="LaboratoryBiobank" data-field="supplementary_box_name" name="supplementary_box_name" value="{{ biobank.supplementary_box_name|default:'' }}" maxlength="100" class="form-control"></div>
+      <div class="bs-field"><label for="supp-number">Box number</label><input id="supp-number" data-model="LaboratoryBiobank" data-field="supplementary_box_number" name="supplementary_box_number" value="{{ biobank.supplementary_box_number|default:'' }}" maxlength="50" class="form-control"></div>
+      <div class="bs-field"><label for="supp-position">Position in box</label><input id="supp-position" data-model="LaboratoryBiobank" data-field="supplementary_position" name="supplementary_position" value="{{ biobank.supplementary_position|default:'' }}" maxlength="50" class="form-control"></div>
+      <div class="bs-field"><label for="freezer">Freezer number</label><input id="freezer" data-model="LaboratoryBiobank" data-field="freezer_number" name="freezer_number" value="{{ biobank.freezer_number|default:'' }}" maxlength="50" class="form-control"></div>
+      <div class="bs-field bs-span-2"><label for="supp-location">Laboratory / storage location</label><input id="supp-location" data-model="LaboratoryBiobank" data-field="supplementary_location" name="supplementary_location" value="{{ biobank.supplementary_location|default:'' }}" maxlength="100" class="form-control"></div>
+      <div class="bs-field"><label for="supp-encoded">Date encoded</label><input type="date" id="supp-encoded" data-model="LaboratoryBiobank" data-field="supplementary_date_encoded" name="supplementary_date_encoded" value="{{ biobank.supplementary_date_encoded|date:'Y-m-d' }}" class="form-control"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="bs-section">
+    <legend><span class="bs-step">4</span>Other location and remarks</legend>
+    <div class="bs-grid">
+      <div class="bs-field bs-span-2"><label for="location">Additional location</label><input id="location" data-model="LaboratoryBiobank" data-field="storage_location" name="storage_location" value="{{ biobank.storage_location|default:'' }}" class="form-control" maxlength="150"></div>
+      <div class="bs-field"><label for="box">Additional box</label><input id="box" data-model="LaboratoryBiobank" data-field="storage_box" name="storage_box" value="{{ biobank.storage_box|default:'' }}" class="form-control" maxlength="100"></div>
+      <div class="bs-field"><label for="position">Additional position</label><input id="position" data-model="LaboratoryBiobank" data-field="box_position" name="box_position" value="{{ biobank.box_position|default:'' }}" class="form-control" maxlength="30"></div>
+      <div class="bs-field bs-span-4"><label for="remarks">Remarks</label><input id="remarks" data-model="LaboratoryBiobank" data-field="remarks" name="remarks" value="{{ biobank.remarks|default:'' }}" class="form-control"></div>
+    </div>
+  </fieldset>
+
+  <div class="bs-footer">
+    <p class="bs-footnote"><i class="fas fa-info-circle" aria-hidden="true"></i><span>Confirm the identification above and the banking map. Enter both a box name or number and its position within the same storage section.</span></p>
+    <button class="btn btn-primary" type="submit"><i class="fas fa-save mr-1" aria-hidden="true"></i>{% if isolate.status == 'biobanked' %}Update banking map{% else %}Finalize ID and banking map{% endif %}</button>
+  </div>
 </form>

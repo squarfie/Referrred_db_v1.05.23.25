@@ -1462,7 +1462,7 @@
                           data-batch="{{ batch_group.code }}"
                           data-site="{{ batch_group.site_code|default:'No site' }}"
                           data-count="{{ batch_group.count }}"
-                          title="Endorse raw data for all verifiers">
+                          title="Endorse raw data to all verifiers">
                     <i class="fas fa-paper-plane"></i>Endorse
                   </button>
                   {% elif batch_group.verification_can_withdraw and user_access.can_send_raw_to_verification %}

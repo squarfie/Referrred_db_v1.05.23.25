@@ -1,27 +1,65 @@
-<h2 class="h5 mt-4">Harvest, lyophilization and bank storage</h2><dl class="row">
-<dt class="col-md-4">Harvest date</dt><dd class="col-md-8">{{ biobank.date_harvested|default:"&mdash;" }}</dd>
-<dt class="col-md-4">WHONET code</dt><dd class="col-md-8">{{ biobank.whonet_code|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Lyophilization date</dt><dd class="col-md-8">{{ biobank.date_lyophilized|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Container number/type</dt><dd class="col-md-8">{{ biobank.container|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Preservation method</dt><dd class="col-md-8">{{ biobank.preservation_method|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Lyophilization box name</dt><dd class="col-md-8">{{ biobank.lyo_box_name|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Lyophilization box number</dt><dd class="col-md-8">{{ biobank.lyo_box_number|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Lyophilization position</dt><dd class="col-md-8">{{ biobank.lyo_position|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Refrigerator number</dt><dd class="col-md-8">{{ biobank.refrigerator_number|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Lyophilization location</dt><dd class="col-md-8">{{ biobank.lyo_location|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Lyophilization encoded</dt><dd class="col-md-8">{{ biobank.lyo_date_encoded|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Skimmed milk</dt><dd class="col-md-8">{{ biobank.skimmed_milk|yesno:"Yes,No" }}</dd>
-<dt class="col-md-4">TSBG</dt><dd class="col-md-8">{{ biobank.tsbg|yesno:"Yes,No" }}</dd>
-<dt class="col-md-4">Supplementary box name</dt><dd class="col-md-8">{{ biobank.supplementary_box_name|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Supplementary box number</dt><dd class="col-md-8">{{ biobank.supplementary_box_number|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Supplementary position</dt><dd class="col-md-8">{{ biobank.supplementary_position|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Freezer number</dt><dd class="col-md-8">{{ biobank.freezer_number|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Supplementary location</dt><dd class="col-md-8">{{ biobank.supplementary_location|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Supplementary encoded</dt><dd class="col-md-8">{{ biobank.supplementary_date_encoded|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Additional location</dt><dd class="col-md-8">{{ biobank.storage_location|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Additional box</dt><dd class="col-md-8">{{ biobank.storage_box|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Additional position</dt><dd class="col-md-8">{{ biobank.box_position|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Remarks</dt><dd class="col-md-8">{{ biobank.remarks|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Recorded by</dt><dd class="col-md-8">{{ biobank.recorded_by|default:"&mdash;" }}</dd>
-<dt class="col-md-4">Last updated</dt><dd class="col-md-8">{{ biobank.updated_at|default:"&mdash;" }}</dd>
-</dl>
+{% comment %}Read-only storage record for a banked isolate. Shown in the scientific record section.{% endcomment %}
+<section class="sr-record" aria-labelledby="sr-title">
+  <div class="sr-head">
+    <h3 id="sr-title">Harvest, lyophilization and bank storage</h3>
+    <span class="sr-readonly"><i class="fas fa-lock" aria-hidden="true"></i>Read only</span>
+  </div>
+
+  <div class="sr-groups">
+
+    <div class="sr-group">
+      <h4 class="sr-group-title">Sample</h4>
+      <dl class="sr-facts">
+        <div><dt>Harvest date</dt><dd>{{ biobank.date_harvested|default:"—" }}</dd></div>
+        <div><dt>WHONET code</dt><dd class="sr-mono">{{ biobank.whonet_code|default:"—" }}</dd></div>
+        <div><dt>Container number / type</dt><dd>{{ biobank.container|default:"—" }}</dd></div>
+        <div><dt>Preservation method</dt><dd>{{ biobank.preservation_method|default:"—" }}</dd></div>
+      </dl>
+    </div>
+
+    <div class="sr-group">
+      <h4 class="sr-group-title">Lyophilization storage</h4>
+      <dl class="sr-facts">
+        <div><dt>Lyophilization date</dt><dd>{{ biobank.date_lyophilized|default:"—" }}</dd></div>
+        <div><dt>Box name</dt><dd>{{ biobank.lyo_box_name|default:"—" }}</dd></div>
+        <div><dt>Box number</dt><dd>{{ biobank.lyo_box_number|default:"—" }}</dd></div>
+        <div><dt>Position in box</dt><dd>{{ biobank.lyo_position|default:"—" }}</dd></div>
+        <div><dt>Refrigerator number</dt><dd>{{ biobank.refrigerator_number|default:"—" }}</dd></div>
+        <div><dt>Location</dt><dd>{{ biobank.lyo_location|default:"—" }}</dd></div>
+        <div><dt>Encoded</dt><dd>{{ biobank.lyo_date_encoded|default:"—" }}</dd></div>
+      </dl>
+    </div>
+
+    <div class="sr-group">
+      <h4 class="sr-group-title">Supplementary storage</h4>
+      <div class="sr-media">
+        <span class="sr-media-item">Skimmed milk <span class="sr-yn{% if biobank.skimmed_milk %} is-yes{% endif %}">{{ biobank.skimmed_milk|yesno:"Yes,No" }}</span></span>
+        <span class="sr-media-item">TSBG <span class="sr-yn{% if biobank.tsbg %} is-yes{% endif %}">{{ biobank.tsbg|yesno:"Yes,No" }}</span></span>
+      </div>
+      <dl class="sr-facts">
+        <div><dt>Box name</dt><dd>{{ biobank.supplementary_box_name|default:"—" }}</dd></div>
+        <div><dt>Box number</dt><dd>{{ biobank.supplementary_box_number|default:"—" }}</dd></div>
+        <div><dt>Position in box</dt><dd>{{ biobank.supplementary_position|default:"—" }}</dd></div>
+        <div><dt>Freezer number</dt><dd>{{ biobank.freezer_number|default:"—" }}</dd></div>
+        <div><dt>Location</dt><dd>{{ biobank.supplementary_location|default:"—" }}</dd></div>
+        <div><dt>Encoded</dt><dd>{{ biobank.supplementary_date_encoded|default:"—" }}</dd></div>
+      </dl>
+    </div>
+
+    <div class="sr-group">
+      <h4 class="sr-group-title">Additional location and remarks</h4>
+      <dl class="sr-facts">
+        <div><dt>Location</dt><dd>{{ biobank.storage_location|default:"—" }}</dd></div>
+        <div><dt>Box</dt><dd>{{ biobank.storage_box|default:"—" }}</dd></div>
+        <div><dt>Position</dt><dd>{{ biobank.box_position|default:"—" }}</dd></div>
+        <div class="sr-full"><dt>Remarks</dt><dd>{{ biobank.remarks|default:"—" }}</dd></div>
+      </dl>
+    </div>
+
+  </div>
+
+  <footer class="sr-audit">
+    <span><i class="fas fa-user-check" aria-hidden="true"></i>Recorded by <strong>{{ biobank.recorded_by|default:"—" }}</strong></span>
+    <span><i class="fas fa-clock" aria-hidden="true"></i>Last updated <strong>{{ biobank.updated_at|default:"—" }}</strong></span>
+  </footer>
+</section>
