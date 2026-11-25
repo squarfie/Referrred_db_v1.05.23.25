@@ -868,13 +868,13 @@ class ReceivingViewTests(TestCase):
         self.assertNotContains(response, "ENDORSED-001")
         self.assertNotContains(response, "PENDING-001")
         self.assertContains(response, "LAB-001")
-        self.assertNotContains(response, "Confirm Lab Receipt")
+        self.assertNotContains(response, "Confirm Receipt")
 
         incoming = self.client.get(
             self.route("receiving_workflow_dashboard"), {"tab": "pending"}
         )
         self.assertContains(incoming, "ENDORSED-001")
-        self.assertContains(incoming, "Confirm Lab Receipt")
+        self.assertContains(incoming, "Confirm Receipt")
 
     def test_tabs_are_filtered_and_counts_are_not_search_dependent(self):
         self.create_receipt("PENDING-001", ReferralReceipt.Status.RECEIVED)
@@ -1081,7 +1081,7 @@ class ReceivingTemplateTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, receipt.tracking_number)
-        self.assertContains(response, "Confirm Lab Receipt")
+        self.assertContains(response, "Confirm Receipt")
         self.assertContains(
             response,
             self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id),
@@ -1094,12 +1094,12 @@ class ReceivingTemplateTests(TestCase):
         self.client.force_login(self.lab_encoder)
         pending = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "pending"})
         self.assertContains(pending, receipt.tracking_number)
-        self.assertContains(pending, "Confirm Lab Receipt")
+        self.assertContains(pending, "Confirm Receipt")
 
         self.assertContains(pending, "Details")
         all_records = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "all"})
         self.assertContains(all_records, receipt.tracking_number)
-        self.assertNotContains(all_records, "Confirm Lab Receipt")
+        self.assertNotContains(all_records, "Confirm Receipt")
         self.assertContains(all_records, "Details")
         self.assertNotContains(all_records, '>Endorsed <span class="receiving-tab-count"', html=False)
         legacy = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "endorsed"})
@@ -1123,7 +1123,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
             + "?from_tab=processing#receiving-endorsement",
         )
-        self.assertNotContains(processing, "Confirm Lab Receipt")
+        self.assertNotContains(processing, "Confirm Receipt")
         self.assertContains(processing, "Details")
 
         detail = self.client.get(
@@ -1448,7 +1448,7 @@ class ReceivingTemplateTests(TestCase):
         self.assertNotContains(response, "Confirm receipt")
         pending = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "pending"})
         self.assertContains(pending, receipt.tracking_number)
-        self.assertContains(pending, "Confirm Lab Receipt")
+        self.assertContains(pending, "Confirm Receipt")
 
     def test_secretariat_dashboard_open_links_to_secretariat_record(self):
         receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
@@ -1515,7 +1515,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("receiving_workflow_dashboard"), {"tab": "pending"}
         )
         self.assertContains(incoming, receipt.tracking_number)
-        self.assertContains(incoming, "Confirm Lab Receipt")
+        self.assertContains(incoming, "Confirm Receipt")
         self.assertNotContains(response, "Endorse to laboratory")
 
     def test_admin_uses_laboratory_detail_for_lab_confirmation(self):
@@ -1536,7 +1536,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("receiving_workflow_dashboard"), {"tab": "pending"}
         )
         self.assertContains(incoming, receipt.tracking_number)
-        self.assertContains(incoming, "Confirm Lab Receipt")
+        self.assertContains(incoming, "Confirm Receipt")
 
     def test_terminal_lab_received_detail_has_no_transition_action(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
@@ -2065,18 +2065,23 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             kwargs={"receiving_id": self.receipt.receiving_id},
         ))
         self.assertEqual(response.status_code, 200)
-        text = response.content.decode("utf-8")
+        # Compare visible worksheet headings rather than their HTML entity
+        # encoding or exact h2 markup; those can change with UI refactors.
+        from django.utils.html import strip_tags
+        from html import unescape
+        text = unescape(strip_tags(response.content.decode("utf-8")))
         labels = [
             "Step 1: Receiving and acceptance summary",
             "Step 2: Accessioning",
             "Step 3: Organism inventory",
-            "Step 4: Revival &amp; Site ID",
+            "Step 4: Revival & Site ID",
             "Step 5: Final Processing",
-            "<h2>Endorse to DMU</h2>",
+            "Endorse to DMU",
         ]
-        # Match the actual step heading, not the earlier Batch Generation
-        # label in the worksheet's progress-summary cards.
-        positions = [text.index(label) for label in labels]
+        positions = []
+        for label in labels:
+            self.assertIn(label, text, msg=f"Missing worksheet step: {label}")
+            positions.append(text.index(label))
         self.assertEqual(positions, sorted(positions))
         self.assertContains(response, "Fastidious Organisms")
         self.assertContains(response, "organism_HA")

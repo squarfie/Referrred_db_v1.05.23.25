@@ -441,7 +441,16 @@
                   {% if item.dmu_handoff.status == 'pending' %}<span class="badge badge-warning">Awaiting DMU receipt</span>
                   {% elif item.dmu_handoff.status == 'confirmed' %}<span class="badge badge-info">Received by DMU</span>
                   {% else %}<span class="badge badge-success">Created by DMU</span>{% endif %}
-                {% else %}<span class="badge badge-warning">Ready for endorsement</span>{% endif %}
+                {% else %}
+                  {% if row.preview.blocked %}<span class="badge badge-danger">Endorsement blocked</span>
+                  {% else %}<span class="badge badge-warning">Ready for endorsement</span>{% endif %}
+                  {% if row.preview.expected_batch_code %}
+                  <div class="small text-muted mt-1">Expected batch: <code>{{ row.preview.expected_batch_code }}</code></div>
+                  {% endif %}
+                  {% if row.preview.blocked %}
+                  <div class="small text-danger mt-1" role="status">{{ row.preview.message }}</div>
+                  {% endif %}
+                {% endif %}
               </td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 {% if can_edit and not item.batch and not item.dmu_handoff %}

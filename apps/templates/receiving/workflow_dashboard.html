@@ -86,7 +86,7 @@
               <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if active_tab == 'processing' %}Processing{% elif active_tab == 'completed' %}Released{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 {% if receipt.can_confirm_unified %}
-                <a class="btn btn-sm btn-success receiving-action-primary mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm Lab Receipt</a>
+                <a class="btn btn-sm btn-success receiving-action-primary mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm Receipt</a>
                 {% endif %}
                 {% if receipt.can_endorse_unified %}
                 <a class="btn btn-sm btn-info receiving-action-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}?from_tab={{ active_tab }}#receiving-endorsement"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
