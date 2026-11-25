@@ -3103,6 +3103,51 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.client.force_login(secretariat)
         self.assertEqual(self.client.get(reverse("laboratory_organism_search"), {"q": "KPN"}).status_code, 302)
 
+    def test_main_lab_optional_instrument_organism_does_not_block_final_id(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.ID_TESTING
+        isolate.acknowledged_at = timezone.now()
+        isolate.save(update_fields=("status", "acknowledged_at"))
+        staff = User.objects.create_user(
+            username="mainlab-optional-picker", password="test-pass"
+        )
+        staff.groups.add(Group.objects.get_or_create(
+            name=home_permissions.ROLE_LAB_STAFF
+        )[0])
+        self.client.force_login(staff)
+        page = self.client.get(reverse("main_lab_isolate_detail", args=[isolate.pk]))
+        self.assertEqual(page.status_code, 200)
+        import re
+        markup = page.content.decode("utf-8")
+        self.assertIn("data-optional-organism", markup)
+        optional_fragment = markup.split("data-optional-organism", 1)[1].split("</details>", 1)[0]
+        optional_inputs = re.findall(r"<input\b[^>]*>", optional_fragment)
+        self.assertEqual(len(optional_inputs), 3)
+        self.assertTrue(all("required" not in tag for tag in optional_inputs))
+        self.assertIn('name="organism_reported_code"', optional_inputs[1])
+        self.assertIn('name="organism_reported"', optional_inputs[2])
+        mandatory_fragment = markup.split('id="mainlab-final-id-search"', 1)[1].split("data-optional-organism", 1)[0]
+        self.assertIn('name="final_organism_code"', mandatory_fragment)
+        self.assertIn('name="final_organism"', mandatory_fragment)
+
+        result = self.client.post(
+            reverse("laboratory_record_id", args=[isolate.pk]),
+            {
+                "final_organism_code": "KPN",
+                "final_organism": "Klebsiella pneumoniae",
+                "instrument": "Vitek",
+                "cassette_reference": "SLOT-01",
+            },
+        )
+        self.assertEqual(result.status_code, 302)
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_COMPLETE)
+        self.assertEqual(isolate.approved_organism_code, "KPN")
+        self.assertEqual(isolate.identifications.first().whonet_organism_code, "KPN")
+        self.assertEqual(isolate.identifications.first().organism_reported, "Klebsiella pneumoniae")
+
     def test_main_lab_has_id_search_but_bench_a_lyophilization_has_no_organism_picker(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
