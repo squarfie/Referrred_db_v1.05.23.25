@@ -199,3 +199,20 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIsNone(LaboratoryAccession.objects.get(pk=self.accession.pk).batch_id)
         self.assertEqual(LaboratoryBatchHandoff.objects.filter(accession=self.accession).count(), 1)
+
+    def test_receiving_dashboard_uses_one_header_for_all_record_types(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.client.force_login(self.dmu)
+        pending = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "pending", "year": "2026"})
+        self.assertEqual(pending.status_code, 200)
+        self.assertContains(pending, "Accession Handoff")
+        self.assertContains(pending, "Confirm DMU Receipt")
+        self.assertContains(pending, reverse("receiving_dmu_confirm", args=[handoff.pk]))
+        self.assertEqual(pending.content.count(b"<thead>"), 1)
+        self.assertEqual(pending.content.count(b'<table class="table receiving-table">'), 1)
+
+        confirm_dmu_accession(handoff_id=handoff.pk, user=self.dmu)
+        received = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received", "year": "2026"})
+        self.assertContains(received, "Create Batch")
+        self.assertNotContains(received, reverse("receiving_dmu_confirm", args=[handoff.pk]))
+        self.assertEqual(received.content.count(b"<thead>"), 1)
