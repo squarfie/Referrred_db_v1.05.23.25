@@ -72,14 +72,14 @@ def receiving_detail(request, receiving_id):
     can_endorse_receipt = can_manage and receipt.status == ReferralReceipt.Status.RECEIVED
     # Preserve the originating unified Receiving tab on the detail back link.
     from_tab = (request.GET.get("from_tab") or "").strip()
-    if from_tab not in {"pending", "received", "endorsed", "completed", "all"}:
+    if from_tab not in {"pending", "received", "processing", "endorsed", "completed", "all"}:
         if receipt.status == ReferralReceipt.Status.ENDORSED:
             # The incoming laboratory acknowledgment is the LAB Encoder's
             # Pending queue. Courier intake permissions are shared among
             # authenticated users, so they cannot determine this default.
             from_tab = "pending" if can_read_laboratory_receiving(request.user) else "endorsed"
         elif receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
-            from_tab = "received"
+            from_tab = "processing"
         else:
             from_tab = "received"
     return render(
