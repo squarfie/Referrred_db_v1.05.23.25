@@ -419,16 +419,6 @@ def role_handoffs(request):
             custody.pending_role and
             (ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk)
         )
-        custody.can_endorse_here = bool(
-            not custody.pending_role
-            and (ROLE_ADMIN in roles or (
-                custody.current_role in roles and custody.current_role != ROLE_SECRETARIAT
-            ))
-            and not (
-                custody.batch.verification_cases.filter(status="released").exists()
-                or getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) == "Released"
-            )
-        )
     return render(request, "receiving/role_handoffs.html", {
         "page_obj": page_obj,
         "destination_roles": DESTINATION_ROLES,
