@@ -466,7 +466,7 @@ class LaboratoryBatchHandoff(models.Model):
 
     class Meta:
         ordering = ("-endorsed_at", "-pk")
-        indexes = [models.Index(fields=("status", "endorsed_at"))]
+        indexes = [models.Index(fields=("status", "endorsed_at"), name="receiving_dmu_status_idx")]
 
 
 class LaboratoryBatchHandoffEvent(models.Model):
