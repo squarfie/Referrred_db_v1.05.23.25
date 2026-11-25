@@ -1,5 +1,6 @@
 from apps.laboratory.permissions import can_read_laboratory_receiving
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -8,6 +9,7 @@ from .dashboard import render_receiving_dashboard as _render_receiving_dashboard
 from .activity import receipt_activity, receipt_progress_milestones
 from .forms import ReferralReceiptForm
 from .models import ReferralReceipt
+from .permissions import can_endorse_courier_receipt
 from apps.home.permissions import ROLE_LAB_ENCODER
 from .permissions import (can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
 from .qr import build_receipt_scan_url, render_qr_png
@@ -61,7 +63,7 @@ def receiving_detail(request, receiving_id):
         "occurred_at", "recorded_at", "id"
     )
     can_manage = can_manage_secretariat_receiving(request.user)
-    can_endorse_receipt = can_manage and receipt.status == ReferralReceipt.Status.RECEIVED
+    can_endorse_receipt = can_endorse_courier_receipt(request.user) and receipt.status == ReferralReceipt.Status.RECEIVED
     # Preserve the originating unified Receiving tab on the detail back link.
     from_tab = (request.GET.get("from_tab") or "").strip()
     if from_tab == "endorsed":
@@ -118,6 +120,8 @@ def receiving_label(request, receiving_id):
 @require_POST
 def receiving_endorse(request, receiving_id):
     receipt = _receipt_or_404(receiving_id)
+    if not can_endorse_courier_receipt(request.user):
+        raise PermissionDenied("Only Secretariat or Admin may endorse courier receipts.")
     # Legacy POSTs have no destination value; new forms specify the only
     # valid courier-level destination. Do not silently accept a forged role.
     requested_role = (request.POST.get("destination_role") or "").strip()
