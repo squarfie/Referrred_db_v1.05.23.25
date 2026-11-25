@@ -26,7 +26,7 @@ class WorkflowUXTests(TestCase):
         response = self.client.get(batch_url + query)
         self.assertContains(response, isolate_url + query.replace("&", "&amp;"), html=False)
         response = self.client.get(isolate_url + query)
-        self.assertContains(response, batch_url + query.replace("&", "&amp;"), html=False)
+        self.assertContains(response, batch_url + query, html=False)
 
     def test_result_completion_needs_no_cassette_return(self):
         self.staff()
