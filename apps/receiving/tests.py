@@ -3123,7 +3123,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         markup = page.content.decode("utf-8")
         self.assertIn("data-optional-organism", markup)
         optional_fragment = markup.split("data-optional-organism", 1)[1].split("</details>", 1)[0]
-        optional_inputs = re.findall(r"<input\\b[^>]*>", optional_fragment)
+        optional_inputs = re.findall(r"<input\b[^>]*>", optional_fragment)
         self.assertEqual(len(optional_inputs), 3)
         self.assertTrue(all("required" not in tag for tag in optional_inputs))
         self.assertIn('name="organism_reported_code"', optional_inputs[1])
