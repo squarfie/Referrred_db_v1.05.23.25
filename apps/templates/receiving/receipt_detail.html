@@ -42,17 +42,23 @@
           <div class="receiving-field">
             <strong>Batch {{ custody.batch.bat_Batch_Code }}</strong>
             <p class="text-muted small">Current role: {{ custody.current_role }}</p>
-            <label for="linked-destination-{{ custody.pk }}">Endorse batch to</label>
-            <select class="form-control" name="destination_role" id="linked-destination-{{ custody.pk }}" required>
-              <option value="">Select destination role</option>
-              {% for role in destination_roles %}
-              {% if role != custody.current_role %}
-              <option value="{{ role }}">{{ role }}</option>
-              {% endif %}
-              {% endfor %}
-            </select>
-            <label class="mt-2" for="linked-remarks-{{ custody.pk }}">Reason for nonstandard handoff</label>
-            <input class="form-control" id="linked-remarks-{{ custody.pk }}" name="remarks" maxlength="1000" placeholder="Optional for normal routing">
+            <div class="row">
+              <div class="col-md-6 mb-2">
+                <label for="linked-destination-{{ custody.pk }}">Endorse batch to</label>
+                <select class="form-control" name="destination_role" id="linked-destination-{{ custody.pk }}" required>
+                  <option value="">Select destination role</option>
+                  {% for role in destination_roles %}
+                  {% if role != custody.current_role %}
+                  <option value="{{ role }}">{{ role }}</option>
+                  {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6 mb-2">
+                <label for="linked-remarks-{{ custody.pk }}">Reason for nonstandard handoff</label>
+                <input class="form-control" id="linked-remarks-{{ custody.pk }}" name="remarks" maxlength="1000" placeholder="Optional for normal routing">
+              </div>
+            </div>
           </div>
           <button class="btn btn-info mt-3" type="submit"><i class="fas fa-paper-plane mr-1"></i>Endorse Batch</button>
         </form>
