@@ -86,7 +86,10 @@ def endorse_batch(*, batch_id, user, destination_role, remarks=""):
     }
     if destination_role != normal_next.get(custody.current_role) and not remarks.strip():
         raise ValidationError("Provide a reason for endorsements outside the normal sequence.")
-    if hasattr(custody.batch, "tat_entry") and custody.batch.tat_entry.tat_Status_Release == "Released":
+    if (
+        (hasattr(custody.batch, "tat_entry") and custody.batch.tat_entry.tat_Status_Release == "Released")
+        or custody.batch.verification_cases.filter(status="released").exists()
+    ):
         raise ValidationError("Released batches cannot be endorsed again.")
     now = timezone.now()
     origin = custody.current_role
