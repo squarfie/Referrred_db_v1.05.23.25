@@ -13,14 +13,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.home.permissions import ROLE_ADMIN, ROLE_SECRETARIAT
+from apps.home.permissions import ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_ENCODER, ROLE_LAB_ENCODER
 from apps.laboratory.permissions import can_read_laboratory_receiving, can_confirm_lab_receipt
 from apps.receiving.permissions import receiving_read_required
 from .handoffs import (
     DESTINATION_ROLES, confirm_batch_receipt, custody_roles,
     endorse_batch, undo_batch_endorsement,
 )
-from .models import BatchCustody, ReferralReceipt
+from .models import BatchCustody, ReferralReceipt, LaboratoryBatchHandoff
 
 TABS = (
     ("pending", "Pending"),
@@ -109,6 +109,31 @@ def endorseable_receipt_custodies(receipt, user):
     ).distinct()
 
 
+def visible_prebatch_handoffs(user):
+    """Pre-batch custody stays linked to a real accession range."""
+    roles = custody_roles(user)
+    qs = LaboratoryBatchHandoff.objects.select_related(
+        "accession__laboratory_receiving__receipt__site",
+        "endorsed_by", "confirmed_by", "created_by",
+    )
+    if ROLE_ADMIN in roles or ROLE_ENCODER in roles:
+        return qs
+    if ROLE_LAB_ENCODER in roles:
+        return qs.filter(endorsed_by=user)
+    return qs.none()
+
+
+def _prebatch_tab_filter(queryset, tab, user):
+    roles = custody_roles(user)
+    if tab == "pending":
+        return queryset.filter(status=LaboratoryBatchHandoff.Status.PENDING) if ROLE_ENCODER in roles or ROLE_ADMIN in roles else queryset.none()
+    if tab == "received":
+        return queryset.filter(status=LaboratoryBatchHandoff.Status.CONFIRMED) if ROLE_ENCODER in roles or ROLE_ADMIN in roles else queryset.none()
+    if tab == "all":
+        return queryset
+    return queryset.none()
+
+
 def _receipt_release_counts(receipts):
     """Use recorded release results, not lab completion, for courier progress."""
     return receipts.annotate(
@@ -170,9 +195,11 @@ def workflow_dashboard(request):
     current_year = timezone.localdate().year
     base = visible_custodies(request.user)
     physical_receipts = visible_receipts(request.user)
+    prebatch_base = visible_prebatch_handoffs(request.user)
     years = sorted(
         {value.year for value in base.exclude(batch__bat_Referral_Date__isnull=True).dates("batch__bat_Referral_Date", "year")}
         | {value.year for value in physical_receipts.dates("date_received", "year")}
+        | {value.year for value in prebatch_base.dates("accession__date_referred", "year")}
         | {current_year},
         reverse=True,
     )
@@ -194,6 +221,33 @@ def workflow_dashboard(request):
         key: _receipt_tab_filter(receipt_base, key, request.user).count()
         for key, _ in TABS
     }
+    if selected_year != "all":
+        prebatch_base = prebatch_base.filter(accession__date_referred__year=selected_year)
+    prebatch_counts = {
+        key: _prebatch_tab_filter(prebatch_base, key, request.user).count()
+        for key, _ in TABS
+    }
+    prebatch_rows = _prebatch_tab_filter(prebatch_base, tab, request.user)
+    if query:
+        prebatch_rows = prebatch_rows.filter(
+            Q(accession__laboratory_receiving__receipt__tracking_number__icontains=query)
+            | Q(accession__laboratory_receiving__receipt__site__SiteCode__icontains=query)
+            | Q(accession__laboratory_receiving__receipt__site__SiteName__icontains=query)
+        )
+    prebatch_page_obj = Paginator(
+        prebatch_rows.order_by("-endorsed_at", "-pk"), per_page,
+    ).get_page(request.GET.get("handoff_page"))
+    roles = custody_roles(request.user)
+    for handoff in prebatch_page_obj:
+        handoff.can_confirm_here = bool(
+            tab == "pending"
+            and (ROLE_ADMIN in roles or ROLE_ENCODER in roles)
+            and (ROLE_ADMIN in roles or handoff.endorsed_by_id != request.user.pk)
+        )
+        handoff.can_create_here = bool(
+            tab == "received" and (ROLE_ADMIN in roles or ROLE_ENCODER in roles)
+        )
+
     courier_rows = _receipt_tab_filter(receipt_base, tab, request.user)
     if query:
         courier_rows = courier_rows.filter(
@@ -230,7 +284,7 @@ def workflow_dashboard(request):
             )
         )
     counts = {
-        key: _tab_filter(base, key, request.user).count() + receipt_counts[key]
+        key: _tab_filter(base, key, request.user).count() + receipt_counts[key] + prebatch_counts[key]
         for key, _ in TABS
     }
     rows = _tab_filter(base, tab, request.user)
@@ -267,6 +321,8 @@ def workflow_dashboard(request):
     return render(request, "receiving/workflow_dashboard.html", {
         "page_obj": page_obj,
         "courier_page_obj": courier_page_obj,
+        "prebatch_page_obj": prebatch_page_obj,
+        "prebatch_count": prebatch_page_obj.paginator.count,
         "courier_count": courier_page_obj.paginator.count,
         "is_lab_receiving": is_lab_receiving,
         "can_create_receipt": bool(request.user.is_authenticated),
