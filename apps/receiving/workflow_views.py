@@ -56,9 +56,11 @@ def _tab_filter(queryset, tab, user):
             events__from_role__in=roles,
         ).distinct()
     if tab == "completed":
+        # Only explicitly released records belong in the Completed tab.
+        # Laboratory work completion and Head signing do not equal release.
         return queryset.filter(
             Q(batch__tat_entry__tat_Status_Release="Released")
-            | Q(batch__verification_cases__status__in=("signed_by_head", "released"))
+            | Q(batch__verification_cases__status="released")
         ).distinct()
     return queryset
 
@@ -103,9 +105,9 @@ def _receipt_tab_filter(receipts, tab, user):
             ))
         return receipts.none()
     if tab == "completed":
-        if lab:
-            from apps.laboratory.receiving_views import _laboratory_workflow_receipts
-            return _laboratory_workflow_receipts(receipts).filter(lab_workflow="complete")
+        # A physical receipt may generate multiple laboratory batches.
+        # A completed Bench A task does not establish final report release.
+        # Released results are shown from their authoritative batch records.
         return receipts.none()
     return receipts
 
