@@ -22,7 +22,7 @@
       <div class="receiving-board-toolbar">
         <div>
           <h2 class="receiving-board-title">{{ active_tab_label }}</h2>
-          <p class="receiving-board-subtitle">Batch-level handoffs are tracked independently from scientific checking and approval.</p>
+          <p class="receiving-board-subtitle">{% if active_tab == 'completed' %}Officially released results only. Completing laboratory processing or signing a report does not count as release.{% else %}Batch-level handoffs are tracked independently from scientific checking and approval.{% endif %}</p>
         </div>
       </div>
       <div class="receiving-tabbar">
@@ -138,7 +138,8 @@
               <td data-label="Awaiting receipt by">{{ custody.pending_role|default:"—" }}</td>
               <td data-label="Last activity">{{ custody.updated_at|date:"M j, Y g:i A" }}</td>
               <td data-label="Status">
-                {% if custody.pending_role %}<span class="receiving-status receiving-status-endorsed">Pending confirmation</span>
+                {% if active_tab == 'completed' %}<span class="receiving-status receiving-status-lab_received"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Released</span>
+                {% elif custody.pending_role %}<span class="receiving-status receiving-status-endorsed">Pending confirmation</span>
                 {% else %}<span class="receiving-status receiving-status-lab_received">Received</span>{% endif %}
               </td>
               <td data-label="Actions" class="receiving-actions">
