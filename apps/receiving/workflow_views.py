@@ -96,6 +96,42 @@ def visible_receipts(user):
     return qs.none()
 
 
+def endorseable_receipt_custodies(receipt, user):
+    """Only linked batches the current user can actually endorse.
+
+    A confirmed courier shipment may have no generated batches yet. Its
+    laboratory-processing queue is not itself a transferable data batch.
+    """
+    roles = custody_roles(user)
+    queryset = visible_custodies(user).filter(
+        batch__laboratory_accession__laboratory_receiving__receipt=receipt,
+        pending_role="",
+    ).select_related("batch")
+    if ROLE_ADMIN not in roles:
+        queryset = queryset.filter(current_role__in=roles)
+    return queryset.exclude(
+        Q(batch__tat_entry__tat_Status_Release="Released")
+        | Q(batch__verification_cases__status="released")
+    ).distinct()
+
+
+def _receipt_release_counts(receipts):
+    """Use recorded release results, not lab completion, for courier progress."""
+    return receipts.annotate(
+        tracked_ranges=Count(
+            "laboratory_receiving__accession_ranges", distinct=True
+        ),
+        released_ranges=Count(
+            "laboratory_receiving__accession_ranges",
+            filter=(
+                Q(laboratory_receiving__accession_ranges__batch__tat_entry__tat_Status_Release="Released")
+                | Q(laboratory_receiving__accession_ranges__batch__verification_cases__status="released")
+            ),
+            distinct=True,
+        ),
+    )
+
+
 def _receipt_tab_filter(receipts, tab, user):
     roles = custody_roles(user)
     lab = can_read_laboratory_receiving(user)
@@ -112,19 +148,9 @@ def _receipt_tab_filter(receipts, tab, user):
         # A laboratory-confirmed shipment can contain multiple isolate ranges.
         # Keep it here until every generated batch is officially released.
         # If no batch has been generated, processing is still ongoing.
-        return receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED).annotate(
-            tracked_ranges=Count("laboratory_receiving__accession_ranges", distinct=True),
-            released_ranges=Count(
-                "laboratory_receiving__accession_ranges",
-                filter=(
-                    Q(laboratory_receiving__accession_ranges__batch__tat_entry__tat_Status_Release="Released")
-                    | Q(laboratory_receiving__accession_ranges__batch__verification_cases__status="released")
-                ),
-                distinct=True,
-            ),
-        ).filter(
-            Q(tracked_ranges=0) | Q(tracked_ranges__gt=F("released_ranges"))
-        )
+        return _receipt_release_counts(
+            receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED)
+        ).filter(Q(tracked_ranges=0) | Q(tracked_ranges__gt=F("released_ranges")))
     if tab == "endorsed":
         if ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles:
             return receipts.filter(status__in=(
@@ -132,10 +158,11 @@ def _receipt_tab_filter(receipts, tab, user):
             ))
         return receipts.none()
     if tab == "completed":
-        # A physical receipt may generate multiple laboratory batches.
-        # A completed Bench A task does not establish final report release.
-        # Released results are shown from their authoritative batch records.
-        return receipts.none()
+        # All linked accession ranges must have an officially released batch.
+        # A receipt without accession ranges is not complete.
+        return _receipt_release_counts(
+            receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED)
+        ).filter(tracked_ranges__gt=0, tracked_ranges=F("released_ranges"))
     return receipts
 
 
@@ -207,6 +234,7 @@ def workflow_dashboard(request):
                 or (
                     receipt.status == ReferralReceipt.Status.LAB_RECEIVED
                     and is_lab_receiving
+                    and bool(endorseable_receipt_custodies(receipt, request.user))
                 )
             )
         )
