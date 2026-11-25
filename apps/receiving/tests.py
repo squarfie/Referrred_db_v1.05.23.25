@@ -1050,6 +1050,24 @@ class ReceivingTemplateTests(TestCase):
             html=False,
         )
 
+    def test_completed_tab_does_not_treat_lab_receipt_as_released(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.lab_encoder)
+        completed = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "completed"}
+        )
+        self.assertEqual(completed.status_code, 200)
+        self.assertNotContains(completed, receipt.tracking_number)
+        self.assertEqual(completed.context["courier_count"], 0)
+        self.assertEqual(
+            next(tab["count"] for tab in completed.context["tabs"] if tab["key"] == "completed"),
+            0,
+        )
+        received = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "received"}
+        )
+        self.assertContains(received, receipt.tracking_number)
+
     def test_unified_receiving_does_not_expose_lab_intake_to_checker(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         checker = self.create_user("template_checker_receipt", home_permissions.ROLE_CHECKER)
