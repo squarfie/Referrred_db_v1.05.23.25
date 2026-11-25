@@ -207,6 +207,8 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertEqual(pending.status_code, 200)
         self.assertContains(pending, "Accession Handoff")
         self.assertContains(pending, "Confirm DMU Receipt")
+        self.assertContains(pending, 'class="btn btn-sm btn-success receiving-action-primary mb-1"')
+        self.assertContains(pending, 'receiving-action-detail mb-1')
         self.assertContains(pending, reverse("receiving_dmu_confirm", args=[handoff.pk]))
         self.assertEqual(pending.content.count(b"<thead>"), 1)
         self.assertEqual(pending.content.count(b'<table class="table receiving-table receiving-unified-table">'), 1)
