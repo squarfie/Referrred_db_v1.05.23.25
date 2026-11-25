@@ -155,6 +155,14 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertIsNotNone(self.accession.batch_id)
         self.assertEqual(self.accession.batch.created_by, self.dmu)
         self.assertEqual(self.accession.batch.receiving_custody.current_role, ROLE_ENCODER)
+        receipt_detail = self.client.get(reverse(
+            "receiving_detail", args=[self.receipt.receiving_id],
+        ))
+        self.assertEqual(receipt_detail.status_code, 200)
+        self.assertTrue(receipt_detail.context["progress"]["dmu_done"])
+        self.assertFalse(receipt_detail.context["progress"]["release_done"])
+        self.assertContains(receipt_detail, "Received by DMU")
+        self.assertContains(receipt_detail, "Released")
         self.assertEqual(list(handoff.events.values_list("action", flat=True)), [
             "endorsed", "confirmed", "batch_created",
         ])
