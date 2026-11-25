@@ -1,11 +1,13 @@
 from django.urls import path
-from . import scan_views, views, workflow_views
+from . import scan_views, views, workflow_views, prebatch_views
 
 urlpatterns = [
     path("", views.receiving_dashboard, name="receiving_dashboard"),
     path("secretariat/", views.secretariat_receiving_dashboard, name="secretariat_receiving_dashboard"),
     path("new/", views.receiving_create, name="receiving_create"),
     path("workflow/", workflow_views.workflow_dashboard, name="receiving_workflow_dashboard"),
+    path("dmu-handoff/<int:handoff_id>/confirm/", prebatch_views.confirm_dmu_handoff, name="receiving_dmu_confirm"),
+    path("dmu-handoff/<int:handoff_id>/create-batch/", prebatch_views.create_dmu_handoff_batch, name="receiving_dmu_create_batch"),
     path("workflow/<int:batch_id>/", workflow_views.workflow_detail, name="receiving_workflow_detail"),
     path("workflow/<int:batch_id>/endorse/", workflow_views.workflow_endorse, name="receiving_workflow_endorse"),
     path("workflow/<int:batch_id>/confirm/", workflow_views.workflow_confirm, name="receiving_workflow_confirm"),
