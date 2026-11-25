@@ -1,0 +1,62 @@
+/* Main Laboratory ID detail — scoped visual improvements. */
+.main-lab-detail-page .main-lab-progress-card { overflow: hidden; }
+.main-lab-progress-heading {
+  padding: 1.15rem 1.3rem .8rem; display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: space-between; gap: 1rem;
+}
+.main-lab-progress-heading .receiving-eyebrow { margin-bottom: .3rem; }
+.main-lab-progress-heading h2 { margin: 0; font-size: 1.04rem; font-weight: 750; color: #173a53; }
+.main-lab-progress-heading p:not(.receiving-eyebrow) { margin: .35rem 0 0; color: #647d8f; font-size: .76rem; }
+.main-lab-progress-total { text-align: right; white-space: nowrap; }
+.main-lab-progress-total strong { display: block; color: #12617a; font-size: 1.23rem; }
+.main-lab-progress-total span { font-size: .7rem; color: #61778b; }
+.main-lab-progress-steps {
+  list-style: none; margin: 0; padding: 0 1.1rem 1.15rem;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .48rem;
+}
+.main-lab-progress-steps li {
+  display: flex; align-items: center; min-width: 0; gap: .55rem;
+  border: 1px solid #deebf0; background: #f9fcfe; border-radius: 11px;
+  padding: .8rem .65rem; color: #718699;
+}
+.main-lab-progress-marker {
+  flex: 0 0 29px; width: 29px; height: 29px; border-radius: 50%;
+  background: #edf3f7; border: 1px solid #d4e1e9; display: grid;
+  place-items: center; font-size: .77rem; font-weight: 750;
+}
+.main-lab-progress-label { min-width: 0; overflow-wrap: anywhere; }
+.main-lab-progress-label strong { display: block; font-size: .73rem; line-height: 1.35; }
+.main-lab-progress-label small { display: block; margin-top: .2rem; color: #778da0; font-size: .65rem; font-weight: 500; }
+.main-lab-progress-steps li.is-done { color: #11664c; border-color: #b9e3ce; background: #effaf4; }
+.main-lab-progress-steps li.is-done .main-lab-progress-marker { border-color: #289a72; background: #289a72; color: #fff; }
+.main-lab-progress-steps li.is-current { color: #065471; border-color: #34b9ce; background: #effbfe; box-shadow: 0 0 0 1px rgba(24,180,205,.1); }
+.main-lab-progress-steps li.is-current .main-lab-progress-marker { background: #fff; color: #07536e; border: 2px solid #12a8c1; }
+.main-lab-progress-steps li.is-current .main-lab-progress-label small { color: #087b93; }
+
+/* Keep results and empty-state panels compact. Correction rows stay collapsed
+   until staff explicitly choose to correct a recorded result. */
+.main-lab-detail-page .main-lab-history-card .receiving-card-body { padding: .75rem 1rem 1rem; }
+.main-lab-detail-page .main-lab-history-card .ir-wrap,
+.main-lab-detail-page .main-lab-history-card .table-responsive { margin: 0; }
+.main-lab-detail-page .main-lab-history-card .ir-table { margin: 0; }
+.main-lab-detail-page .main-lab-history-card .ir-table td { padding-top: .65rem; padding-bottom: .65rem; }
+.main-lab-detail-page .main-lab-history-card .ir-correction-row td { padding: .2rem .75rem .65rem; }
+.main-lab-detail-page .main-lab-history-card .receiving-empty {
+  padding: .95rem 1rem !important; line-height: 1.35;
+}
+.main-lab-detail-page .main-lab-history-card .receiving-empty i {
+  display: inline-block; margin: 0 .4rem 0 0; font-size: 1rem;
+}
+.main-lab-detail-page .main-lab-history-card .corr-history { margin-top: .9rem; }
+@media (max-width: 1199.98px) {
+  .main-lab-progress-steps { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+@media (max-width: 767.98px) {
+  .main-lab-progress-heading { padding: .95rem; }
+  .main-lab-progress-steps { padding: 0 .8rem .8rem; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .main-lab-progress-total { text-align: left; }
+}
+@media (max-width: 450px) {
+  .main-lab-progress-steps { grid-template-columns: 1fr; }
+  .main-lab-progress-steps li { padding: .5rem .65rem; }
+}
