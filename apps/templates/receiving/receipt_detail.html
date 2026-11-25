@@ -58,9 +58,18 @@
       </div>
       <aside>
         <section class="receiving-surface receiving-card receiving-activity-card" role="region" aria-labelledby="receiving-activity-title" tabindex="0">
-          <div class="receiving-card-header"><h2 id="receiving-activity-title">Activity</h2><p>Chronological, append-only custody events.</p></div>
+          <div class="receiving-card-header"><h2 id="receiving-activity-title">Activity and Tracking History</h2><p>Chronological activity from existing Receiving, Bench A, Main Laboratory, Biobank, batch custody and Verification records. Only recorded milestones are shown.</p></div>
           <div class="receiving-card-body receiving-timeline">
-            {% for event in events %}<article class="receiving-timeline-item"><span class="receiving-timeline-dot" aria-hidden="true"></span><div class="receiving-timeline-title">{{ event.get_event_type_display }}</div><div class="receiving-timeline-meta">{{ event.occurred_at|date:"M j, Y g:i A" }}</div><div class="receiving-timeline-meta">{% if event.performed_by %}{{ event.performed_by.get_full_name|default:event.performed_by.username }}{% else %}—{% endif %}</div>{% if event.remarks %}<div class="receiving-timeline-note">{{ event.remarks }}</div>{% endif %}</article>{% empty %}<p class="text-muted mb-0">No events recorded.</p>{% endfor %}
+            {% for event in activity %}
+              <article class="receiving-timeline-item">
+                <span class="receiving-timeline-dot" aria-hidden="true"></span>
+                <div class="receiving-timeline-title">{{ event.label }} <small class="text-muted">({{ event.source }})</small></div>
+                <div class="receiving-timeline-meta">{{ event.when|date:"M j, Y g:i A" }} · {% if event.actor %}{{ event.actor.get_full_name|default:event.actor.username }}{% else %}Not recorded{% endif %}</div>
+                {% if event.description %}<div class="receiving-timeline-note">{{ event.description }}</div>{% endif %}
+              </article>
+            {% empty %}
+              <p class="text-muted mb-0">No recorded activity for this shipment yet.</p>
+            {% endfor %}
           </div>
         </section>
       </aside>
