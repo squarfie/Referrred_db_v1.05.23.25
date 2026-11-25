@@ -3103,6 +3103,60 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.client.force_login(secretariat)
         self.assertEqual(self.client.get(reverse("laboratory_organism_search"), {"q": "KPN"}).status_code, 302)
 
+    def test_main_lab_optional_instrument_organism_does_not_block_final_id(self):
+        accession = self.create_pending_accession()
+        self._queue_and_endorse_to_main_lab(accession)
+        isolate = accession.isolate_records.first()
+        isolate.status = LaboratoryIsolate.Status.ID_TESTING
+        isolate.acknowledged_at = timezone.now()
+        isolate.save(update_fields=("status", "acknowledged_at"))
+        staff = User.objects.create_user(
+            username="mainlab-optional-picker", password="test-pass"
+        )
+        staff.groups.add(Group.objects.get_or_create(
+            name=home_permissions.ROLE_LAB_STAFF
+        )[0])
+        self.client.force_login(staff)
+        page = self.client.get(reverse("main_lab_isolate_detail", args=[isolate.pk]))
+        self.assertEqual(page.status_code, 200)
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(page.content, "html.parser")
+        form = soup.find("form", action=reverse("laboratory_record_id", args=[isolate.pk]))
+        self.assertIsNotNone(form)
+        pickers = form.select("[data-organism-picker]")
+        self.assertEqual(len(pickers), 2)
+        optional = form.select_one("[data-optional-organism]")
+        self.assertIsNotNone(optional)
+        self.assertFalse(optional.select_one("[data-organism-search]").has_attr("required"))
+        self.assertEqual(
+            optional.select_one("[data-organism-code]")["name"],
+            "organism_reported_code",
+        )
+        self.assertEqual(
+            optional.select_one("[data-organism-name]")["name"],
+            "organism_reported",
+        )
+        self.assertFalse(optional.select_one("[data-organism-code]").has_attr("required"))
+        self.assertFalse(optional.select_one("[data-organism-name]").has_attr("required"))
+        self.assertTrue(pickers[0].select_one("[data-organism-search]").has_attr("required"))
+        self.assertTrue(pickers[0].select_one("[data-organism-name]").has_attr("required"))
+
+        result = self.client.post(
+            reverse("laboratory_record_id", args=[isolate.pk]),
+            {
+                "final_organism_code": "KPN",
+                "final_organism": "Klebsiella pneumoniae",
+                "instrument": "Vitek",
+                "cassette_reference": "SLOT-01",
+            },
+        )
+        self.assertEqual(result.status_code, 302)
+        isolate.refresh_from_db()
+        self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_COMPLETE)
+        self.assertEqual(isolate.approved_organism_code, "KPN")
+        self.assertEqual(isolate.identifications.first().whonet_organism_code, "KPN")
+        self.assertEqual(isolate.identifications.first().organism_reported, "Klebsiella pneumoniae")
+
     def test_main_lab_has_id_search_but_bench_a_lyophilization_has_no_organism_picker(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
