@@ -120,9 +120,13 @@ def laboratory_receiving_workspace(request, receiving_id):
         })
     batch_previews = {}
     if can_edit:
+        from apps.receiving.prebatch import endorsement_blocker
         for accession in ranges:
-            if accession.batch_id:
+            if accession.batch_id or hasattr(accession, "dmu_handoff"):
                 continue
+            blocker = endorsement_blocker(accession)
+            # Preserve the existing conflict preview, but do not present an
+            # actionable endorsement until Bench A processing is complete.
             warnings = preview_referred_batch_conflicts(
                 site_code=receipt.site.SiteCode,
                 referral_date=accession.date_referred,
@@ -131,10 +135,11 @@ def laboratory_receiving_workspace(request, receiving_id):
                 batch_number=accession.batch_number,
                 total_batches=accession.total_batches,
             )
+            reasons = ([blocker] if blocker else []) + warnings
             batch_previews[accession.pk] = {
-                "warnings": warnings,
-                "message": " ".join(warnings),
-                "blocked": bool(warnings),
+                "warnings": reasons,
+                "message": " ".join(reasons),
+                "blocked": bool(reasons),
             }
     batch_rows = [
         {"accession": accession, "preview": batch_previews.get(accession.pk, {})}
