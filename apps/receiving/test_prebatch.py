@@ -91,6 +91,10 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.isolate.save(update_fields=("status",))
         incomplete = self.client.get(path)
         self.assertContains(incomplete, "Complete Bench A final processing")
+        self.assertContains(incomplete, "Endorsement blocked")
+        self.assertContains(incomplete, "Expected batch:")
+        self.assertContains(incomplete, "PBD_11192026_1.1_0001-0001")
+        self.assertNotContains(incomplete, '<span class="badge badge-warning">Ready for endorsement</span>')
         self.assertContains(incomplete, 'aria-disabled="true"')
         self.assertNotContains(
             incomplete,
