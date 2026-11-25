@@ -124,6 +124,12 @@ def receiving_label(request, receiving_id):
 @require_POST
 def receiving_endorse(request, receiving_id):
     receipt = _receipt_or_404(receiving_id)
+    # Legacy POSTs have no destination value; new forms specify the only
+    # valid courier-level destination. Do not silently accept a forged role.
+    requested_role = (request.POST.get("destination_role") or "").strip()
+    if requested_role and requested_role != ROLE_LAB_ENCODER:
+        messages.error(request, "Courier receipts may only be endorsed to Laboratory Receiving.")
+        return redirect("receiving_detail", receiving_id=receiving_id)
     try:
         endorse_receipt(receipt_id=receipt.pk, user=request.user)
     except InvalidReceivingTransition as exc:
