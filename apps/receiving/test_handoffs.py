@@ -15,6 +15,7 @@ from apps.receiving.handoffs import (
     confirm_batch_receipt, endorse_batch, initialize_custody, undo_batch_endorsement,
 )
 from apps.receiving.models import BatchCustody, BatchCustodyEvent
+from apps.verification.models import VerificationCase
 
 
 class UnifiedReceivingHandoffTests(TestCase):
@@ -121,6 +122,25 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.assertNotContains(response, 'class="receiving-board-search"')
         markup = response.content.decode()
         self.assertLess(markup.index('class="receiving-tabbar"'), markup.index('class="table-responsive"'))
+
+    def test_completed_tab_requires_actual_release_not_head_signature(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        case = VerificationCase.objects.create(
+            final_batch=self.batch,
+            status=VerificationCase.STATUS_SIGNED_BY_HEAD,
+        )
+        self.client.force_login(self.lab)
+        signed = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "completed"})
+        self.assertEqual(signed.context["page_obj"].paginator.count, 0)
+        self.assertEqual(signed.context["tabs"][3]["count"], 0)
+        self.assertNotContains(signed, self.batch.bat_Batch_Code)
+
+        case.status = VerificationCase.STATUS_RELEASED
+        case.save(update_fields=("status",))
+        released = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "completed"})
+        self.assertEqual(released.context["page_obj"].paginator.count, 1)
+        self.assertContains(released, self.batch.bat_Batch_Code)
+        self.assertContains(released, "Released")
 
     def test_transition_endpoints_reject_get_and_wrong_role(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
