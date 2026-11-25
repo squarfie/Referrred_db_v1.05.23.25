@@ -983,6 +983,96 @@ class ReceivingTemplateTests(TestCase):
             )
         return ReferralReceipt.objects.create(**values)
 
+    def test_receipt_history_aggregates_existing_isolate_and_batch_milestones(self):
+        from apps.receiving.models import BatchCustody, BatchCustodyEvent
+        from apps.verification.models import VerificationCase
+
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        lab_receiving = LaboratoryReceiving.objects.create(
+            receipt=receipt, recorded_by=self.lab_encoder,
+        )
+        batch = Batch_Table.objects.create(
+            bat_Batch_Code="VSM-HISTORY-0001",
+            bat_SiteCode=self.site.SiteCode,
+            bat_Referral_Date=date(2026, 11, 12),
+            created_by=self.lab_encoder,
+        )
+        accession = LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_receiving, date_referred=date(2026, 11, 10),
+            start_number=1, end_number=1, batch=batch,
+            assigned_by=self.lab_encoder,
+        )
+        when = timezone.make_aware(datetime(2026, 11, 12, 11, 0))
+        isolate = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number="26VSM0001",
+            endorsed_at=when, endorsed_by=self.lab_encoder,
+            acknowledged_at=when + timezone.timedelta(hours=1),
+            acknowledged_by=self.lab_encoder,
+            biobanked_at=when + timezone.timedelta(hours=2),
+            biobanked_by=self.lab_encoder,
+        )
+        LaboratoryIdentification.objects.create(
+            isolate=isolate, organism_reported="Klebsiella pneumoniae",
+            recorded_by=self.lab_encoder,
+        )
+        custody = BatchCustody.objects.create(
+            batch=batch, current_role=home_permissions.ROLE_LAB_ENCODER
+        )
+        BatchCustodyEvent.objects.create(
+            custody=custody, action=BatchCustodyEvent.Action.ENDORSED,
+            from_role=home_permissions.ROLE_LAB_ENCODER,
+            to_role=home_permissions.ROLE_ENCODER,
+            performed_by=self.lab_encoder, performed_at=when + timezone.timedelta(hours=3),
+        )
+        VerificationCase.objects.create(
+            final_batch=batch, status=VerificationCase.STATUS_SIGNED_BY_HEAD,
+            signed_by_head_at=when + timezone.timedelta(hours=4),
+            signed_by_head=self.admin,
+        )
+
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        )
+        self.assertEqual(response.status_code, 200)
+        activity = response.context["activity"]
+        labels = [event["label"] for event in activity]
+        for label in (
+            "Accession range assigned", "Endorsed to Main Laboratory",
+            "Main Laboratory acknowledged isolate",
+            "Isolate stored in biobank", "Identification result recorded",
+            "Endorsed", "Signed by Head",
+        ):
+            self.assertIn(label, labels)
+        self.assertEqual(
+            [event["when"] for event in activity],
+            sorted(event["when"] for event in activity),
+        )
+        self.assertContains(response, "Activity and Tracking History")
+        self.assertContains(response, "26VSM0001")
+
+    def test_receipt_history_is_scoped_to_the_requested_shipment(self):
+        first = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        other = self.create_receipt(ReferralReceipt.Status.RECEIVED)
+        linked = LaboratoryReceiving.objects.create(
+            receipt=first, recorded_by=self.lab_encoder,
+        )
+        accession = LaboratoryAccession.objects.create(
+            laboratory_receiving=linked,
+            date_referred=date(2026, 11, 10),
+            start_number=5, end_number=5,
+            assigned_by=self.lab_encoder,
+        )
+        LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number="26VSM0005",
+            endorsed_at=timezone.now(), endorsed_by=self.lab_encoder,
+        )
+        self.client.force_login(self.secretariat)
+        response = self.client.get(
+            self.route("receiving_detail", receiving_id=other.receiving_id)
+        )
+        self.assertNotContains(response, "26VSM0005")
+
     def test_unified_pending_shows_existing_laboratory_receipts(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.lab_encoder)
