@@ -2163,7 +2163,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertTrue(LaboratoryAccession.objects.filter(pk=accession.pk).exists())
         self.assertFalse(accession.organism_counts.exists())
 
-    def test_batch_conflict_preview_disables_creation_before_post(self):
+    def test_batch_conflict_preview_disables_endorsement_before_post(self):
         accession = self.create_pending_accession()
         # An accession already assigned to another batch must be detected
         # without attempting to create another batch.
@@ -2176,7 +2176,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             kwargs={"receiving_id": self.receipt.receiving_id},
         ))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Cannot create this batch")
+        self.assertContains(response, "Cannot endorse this accession")
         self.assertContains(response, "26ARS_RI0001")
         self.assertContains(response, 'aria-disabled="true"')
 
@@ -2198,15 +2198,16 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "OTHER_EXISTING_BATCH",
         )
 
-    def test_batch_conflict_preview_keeps_button_enabled_without_conflicts(self):
+    def test_batch_conflict_preview_requires_completed_lab_processing_even_without_conflicts(self):
         self.create_pending_accession()
         response = self.client.get(reverse(
             "laboratory_receiving_workspace",
             kwargs={"receiving_id": self.receipt.receiving_id},
         ))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Cannot endorse this accession")
-        self.assertContains(response, ">Endorse to DMU</button>")
+        self.assertContains(response, "Complete laboratory isolate records")
+        self.assertContains(response, "Cannot endorse this accession")
+        self.assertContains(response, 'aria-disabled="true"')
 
     def test_batch_conflict_preview_detects_existing_batch_code(self):
         accession = self.create_pending_accession()
