@@ -729,3 +729,60 @@ html { scroll-behavior: smooth; }
 @media (max-width: 767.98px) {
   .receiving-steps { grid-template-columns: 1fr; }
 }
+
+
+/* ===== Batch receiving history page (append to receiving.css) ===== */
+.wf-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 1rem; align-items: start; }
+@media (max-width: 991.98px) { .wf-layout { grid-template-columns: 1fr; } }
+.wf-main { display: grid; gap: 1rem; min-width: 0; }
+
+.wf-hint { color: #7a8ea1; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.wf-mono { font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem; word-break: break-all; }
+
+/* Custody strip: holder / pending / batch at a glance */
+.wf-custody { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0; overflow: hidden; }
+.wf-custody-item { display: flex; flex-direction: column; gap: .25rem; padding: .9rem 1.1rem; border-right: 1px solid var(--receiving-border); min-width: 0; }
+.wf-custody-item:last-child { border-right: 0; }
+.wf-custody-label { color: #7a8ea1; font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.wf-custody-value { color: var(--receiving-navy); font-size: .95rem; font-weight: 700; overflow-wrap: anywhere; }
+.wf-custody-value.is-pending { color: #8a6100; }
+.wf-custody-value.is-muted { color: #8fa1b3; font-weight: 500; }
+@media (max-width: 575.98px) {
+  .wf-custody { grid-template-columns: 1fr; }
+  .wf-custody-item { border-right: 0; border-bottom: 1px solid var(--receiving-border); }
+  .wf-custody-item:last-child { border-bottom: 0; }
+}
+
+/* Cards */
+.wf-card { padding: 0; overflow: hidden; }
+.wf-card-head { padding: .9rem 1.2rem; border-bottom: 1px solid var(--receiving-border); border-left: 4px solid var(--receiving-cyan); }
+.wf-card-head h2 { margin: 0; font-size: 1.02rem; color: var(--receiving-navy); }
+.wf-card-head p { margin: .25rem 0 0; color: #566b80; font-size: .82rem; line-height: 1.45; }
+
+/* Endorse form */
+.wf-endorse { padding: 1rem 1.2rem 1.2rem; margin: 0; }
+.wf-endorse-grid { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(220px, 1.4fr) auto; gap: .75rem 1rem; align-items: end; }
+@media (max-width: 767.98px) { .wf-endorse-grid { grid-template-columns: 1fr; } }
+.wf-field { min-width: 0; }
+.wf-field label { display: block; margin: 0 0 .3rem; color: #2b4a63; font-size: .7rem; font-weight: 700; letter-spacing: .05em; line-height: 1.3; text-transform: uppercase; }
+.wf-field .form-control { height: 2.5rem; margin: 0; font-size: .88rem; }
+.wf-endorse-submit .btn { height: 2.5rem; margin: 0; padding: 0 1.1rem; display: inline-flex; align-items: center; white-space: nowrap; }
+@media (max-width: 767.98px) { .wf-endorse-submit .btn { width: 100%; justify-content: center; } }
+
+.wf-footer-link { display: flex; align-items: center; gap: .5rem; margin: 0; padding: .2rem .25rem; color: #566b80; font-size: .86rem; }
+.wf-footer-link i { color: var(--receiving-teal); }
+
+/* Activity timeline */
+.wf-activity { padding: 0; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: hidden; display: flex; flex-direction: column; }
+.wf-activity .wf-card-head { flex: 0 0 auto; }
+.wf-timeline { position: relative; flex: 1 1 auto; overflow-y: auto; padding: 1rem 1.2rem 1.2rem 1.2rem; }
+.wf-timeline::before { content: ""; position: absolute; top: 1.6rem; bottom: 1.6rem; left: 1.9rem; width: 2px; background: #d6e4ee; }
+.wf-event { position: relative; padding: 0 0 1.1rem 1.6rem; }
+.wf-event:last-child { padding-bottom: 0; }
+.wf-event-dot { position: absolute; left: -.2rem; top: .25rem; width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--receiving-cyan); background: #fff; box-shadow: 0 0 0 3px #fff; }
+.wf-event:first-child .wf-event-dot { background: var(--receiving-cyan); }
+.wf-event-title { color: var(--receiving-navy); font-size: .9rem; font-weight: 700; line-height: 1.35; }
+.wf-event-meta { margin-top: .15rem; color: #7a8ea1; font-size: .76rem; }
+.wf-event-note { margin-top: .4rem; padding: .5rem .7rem; border-radius: 8px; background: #f3f8fb; color: #3f566b; font-size: .8rem; line-height: 1.45; }
+.wf-timeline .receiving-empty { padding: 1.2rem 0; }
+@media (max-width: 991.98px) { .wf-activity { position: static; max-height: none; overflow: visible; } .wf-timeline { overflow: visible; } }
