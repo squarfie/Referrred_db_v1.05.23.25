@@ -406,7 +406,8 @@ def role_handoffs(request):
         rows = BatchCustody.objects.select_related(
             "batch", "endorsed_by",
         ).order_by("-updated_at", "-pk")
-    for custody in rows:
+    page_obj = Paginator(rows, 25).get_page(request.GET.get("page"))
+    for custody in page_obj:
         # Evaluate permission for each row in the view; no client-side assumptions.
         custody.can_confirm_here = bool(
             custody.pending_role and
@@ -429,7 +430,7 @@ def role_handoffs(request):
             )
         )
     return render(request, "receiving/role_handoffs.html", {
-        "custodies": rows,
+        "page_obj": page_obj,
         "destination_roles": DESTINATION_ROLES,
     })
 
