@@ -218,6 +218,32 @@ class UnifiedReceivingHandoffTests(TestCase):
             404,
         )
 
+    def test_secretariat_only_role_has_no_generated_batch_handoff_workspace(self):
+        secretariat = self.make_user("secretariat-role-handoff", "Secretariat")
+        self.client.force_login(secretariat)
+        self.assertEqual(
+            self.client.get(reverse("receiving_role_handoffs")).status_code, 403,
+        )
+        self.assertEqual(
+            self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk])).status_code,
+            403,
+        )
+
+    def test_generated_batch_actions_are_separate_from_receiving_history(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        self.client.force_login(self.lab)
+        for tab in ("processing", "all"):
+            dashboard = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": tab})
+            self.assertNotContains(
+                dashboard,
+                'action="' + reverse("receiving_workflow_endorse", args=[self.batch.pk]) + '"',
+                html=False,
+            )
+        role_queue = self.client.get(reverse("receiving_role_handoffs"))
+        self.assertContains(role_queue, self.batch.bat_Batch_Code)
+        role_detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
+        self.assertContains(role_detail, "Endorse Batch")
+
     def test_transition_endpoints_reject_get_and_wrong_role(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
         endorse_url = reverse("receiving_workflow_endorse", args=[self.batch.pk])
