@@ -61,7 +61,7 @@ def _tab_filter(queryset, tab, user):
             | Q(batch__verification_cases__status="released")
         ).distinct()
         return active if ROLE_ADMIN in roles else active.filter(current_role__in=roles)
-     if tab == "completed":
+    if tab == "completed":
         # Only explicitly released records belong in the Completed tab.
         # Laboratory work completion and Head signing do not equal release.
         return queryset.filter(
