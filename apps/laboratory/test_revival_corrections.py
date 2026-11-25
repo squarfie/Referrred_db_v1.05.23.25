@@ -44,10 +44,14 @@ class RevivalCorrectionTests(TestCase):
         worksheet = self.client.get(reverse(
             "laboratory_receiving_workspace", args=[self.receipt.receiving_id]))
         self.assertContains(worksheet, "Bench A Preparation Done")
-        self.assertContains(worksheet, "Review / Edit Saved Revival")
-        history = self.client.get(reverse(
-            "laboratory_batch_detail", args=[item.accession_range.pk]),
-            {"area": "processing", "history": "1"})
+        self.assertNotContains(worksheet, "Review / Edit Saved Revival")
+        batch_url = reverse("laboratory_batch_detail", args=[item.accession_range.pk])
+        active = self.client.get(batch_url, {"area": "processing"})
+        self.assertContains(active, "View Saved Revival History")
+        history_link = "?area=processing&amp;history=1"
+        self.assertContains(active, history_link, html=False)
+        history = self.client.get(batch_url, {"area": "processing", "history": "1"})
+        self.assertContains(history, "Back to Active Revival &amp; Site ID", html=False)
         self.assertContains(history, item.accession_number)
         detail = self.client.get(reverse("laboratory_isolate_detail", args=[item.pk]))
         self.assertContains(detail, "Edit saved revival information")

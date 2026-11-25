@@ -22,6 +22,15 @@
       <div class="receiving-card-header"><h2>Isolates in this batch</h2>
       <p>{% if area == 'processing' and not show_history %}Bench A records revival and the Site ID from the sentinel referral form. These are pre-handoff tasks only. Isolates leave this worklist when Main Lab testing begins; subsequent processing takes place in Step 5 of the Receiving Worksheet.{% else %}Review accession history and recorded actions. Main Lab identification and Final ID entry occur in the Main Laboratory workspace.{% endif %}</p></div>
       <div class="receiving-card-body">
+        {% if area == 'processing' %}
+        <div class="d-flex justify-content-end mb-3">
+          {% if show_history %}
+          <a class="btn btn-sm btn-outline-primary" href="?area=processing{% if return_to %}&amp;next={{ return_to|urlencode }}{% endif %}">Back to Active Revival &amp; Site ID</a>
+          {% else %}
+          <a class="btn btn-sm btn-outline-secondary" href="?area=processing&amp;history=1{% if return_to %}&amp;next={{ return_to|urlencode }}{% endif %}">View Saved Revival History</a>
+          {% endif %}
+        </div>
+        {% endif %}
         {% if area == 'processing' and not show_history %}
         <nav class="receiving-tabs receiving-task-filters receiving-segmented-flush" aria-label="Bench A pre-handoff tasks">
           {% for tab in revival_tabs %}

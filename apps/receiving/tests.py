@@ -3104,7 +3104,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         response = self.client.get(reverse("main_lab_isolate_detail", args=[isolate.pk]))
         self.assertContains(response, "laboratory-organism-picker.js")
         self.assertContains(response, "data-organism-picker")
-        self.assertContains(response, 'name="organism_reported_code"')
+        self.assertContains(response, 'name="final_organism_code"')
         self.assertContains(response, reverse("laboratory_organism_search"))
         # ID review and lyophilization are LAB Encoder responsibilities.
         self.client.force_login(self.lab_user)

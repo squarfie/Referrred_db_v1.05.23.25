@@ -196,8 +196,6 @@
                   <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_batch_detail' item.pk %}?area=processing&amp;next={{ return_to|urlencode }}">Open Batch</a>
                   {% if item.can_endorse_id and can_edit %}
                   <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse this entire ready batch from Laboratory Receiving to Main Lab ID testing?');">{% csrf_token %}<button class="btn btn-sm btn-primary mb-1" type="submit">Endorse whole batch to Main Lab</button></form>
-                  {% elif can_edit and item.can_endorse_id == False %}
-                  <span class="small text-muted receiving-action-note">{{ item.id_handoff_reason|default:"No new revived isolates are ready for endorsement." }}</span>
                   {% endif %}
                 {% elif can_edit %}
                 {% if not item.batch %}
@@ -330,9 +328,6 @@
             {% endif %}
             {% if row.preparation_pending and row.accession.isolate_records.exists %}
               <a class="btn btn-sm btn-outline-primary mb-0" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing">Manage Revival &amp; Site ID</a>
-            {% endif %}
-            {% if can_edit and row.count %}
-              <a class="btn btn-sm btn-outline-secondary mb-0" href="{% url 'laboratory_batch_detail' row.accession.pk %}?area=processing&amp;history=1">Review / Edit Saved Revival</a>
             {% endif %}
             {% if row.can_handoff and can_edit %}
               <form method="post" class="d-inline mb-0" action="{% url 'laboratory_endorse_id' row.accession.pk %}">
