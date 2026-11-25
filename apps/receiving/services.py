@@ -9,6 +9,7 @@ from apps.home.permissions import ROLE_ADMIN, get_user_roles
 
 from .permissions import (
     can_manage_secretariat_receiving,
+    can_endorse_courier_receipt,
     can_permanently_delete_receipt,
 )
 
@@ -70,8 +71,8 @@ def create_receipt(*, form, user):
 @transaction.atomic
 def endorse_receipt(*, receipt_id, user):
     _require_permission(
-        can_manage_secretariat_receiving(user),
-        "Only authenticated users may endorse receiving records.",
+        can_endorse_courier_receipt(user),
+        "Only Secretariat or Admin may endorse courier receipts.",
     )
     receipt = ReferralReceipt.objects.select_for_update().get(pk=receipt_id)
     if receipt.status != ReferralReceipt.Status.RECEIVED:

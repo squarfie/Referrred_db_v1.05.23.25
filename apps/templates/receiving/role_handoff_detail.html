@@ -1,0 +1,51 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Batch Role Handoff{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page wf-page">
+  <header class="receiving-hero">
+    <div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-exchange-alt"></i></span><div>
+      <p class="receiving-eyebrow">Role-owned batch handoff</p><h1>{{ custody.batch.bat_Batch_Code }}</h1>
+      <p class="receiving-hero-subtitle">Custody transfer is separate from data checking, laboratory work and report approval.</p>
+    </div></div>
+    <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'receiving_role_handoffs' %}">Back to My Handoffs</a>
+      <a class="btn btn-outline-light" href="{% url 'receiving_workflow_detail' custody.batch_id %}">View Tracking History</a>
+    </div>
+  </header>
+  <div class="receiving-content">
+    <section class="receiving-surface receiving-card mb-3">
+      <div class="receiving-card-header"><h2>Current custody</h2></div>
+      <div class="receiving-card-body"><p><strong>Current holder:</strong> {{ custody.current_role }}</p><p class="mb-0"><strong>Awaiting receipt:</strong> {{ custody.pending_role|default:"None" }}</p></div>
+    </section>
+    {% if can_endorse %}
+    <section class="receiving-surface receiving-card mb-3">
+      <div class="receiving-card-header"><h2>Endorse batch</h2><p>The recipient must independently confirm receipt.</p></div>
+      <div class="receiving-card-body">
+        <form method="post" action="{% url 'receiving_workflow_endorse' custody.batch_id %}">{% csrf_token %}
+          <div class="row">
+            <div class="col-md-6 mb-3"><label for="destination-role">Endorse batch to</label>
+              <select class="form-control" name="destination_role" id="destination-role" required><option value="">Select destination role</option>
+                {% for role in destination_roles %}{% if role != custody.current_role %}<option value="{{ role }}">{{ role }}</option>{% endif %}{% endfor %}
+              </select></div>
+            <div class="col-md-6 mb-3"><label for="handoff-reason">Reason for nonstandard handoff</label>
+              <input class="form-control" id="handoff-reason" name="remarks" maxlength="1000" placeholder="Required outside normal routing"></div>
+          </div>
+          <button type="submit" class="btn btn-info">Endorse Batch</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+    {% if can_confirm or can_recall %}
+    <section class="receiving-surface receiving-card mb-3">
+      <div class="receiving-card-header"><h2>Pending handoff</h2></div>
+      <div class="receiving-card-body">
+        {% if can_confirm %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-success">Confirm Receipt</button></form>{% endif %}
+        {% if can_recall %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-outline-danger">Recall Endorsement</button></form>{% endif %}
+      </div>
+    </section>
+    {% endif %}
+    <p class="small text-muted">A handoff never substitutes for Checker, Verifier, Laboratory Manager or Head approval.</p>
+  </div>
+</main>
+{% endblock content %}

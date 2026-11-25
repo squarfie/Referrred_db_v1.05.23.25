@@ -20,6 +20,14 @@ def can_manage_secretariat_receiving(user):
     return bool(user and user.is_authenticated)
 
 
+def can_endorse_courier_receipt(user):
+    """Only Secretariat and Admin may transfer physical courier custody."""
+    return bool(
+        user and user.is_authenticated
+        and get_user_roles(user) & {ROLE_SECRETARIAT, ROLE_ADMIN}
+    )
+
+
 def can_permanently_delete_receipt(user):
     return bool(get_user_roles(user) & {ROLE_ADMIN, ROLE_SECRETARIAT})
 

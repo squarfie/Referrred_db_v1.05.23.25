@@ -104,18 +104,23 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.client.force_login(self.lab)
         sender = self.client.get(dashboard_url, {"tab": "all"})
         self.assertContains(sender, self.batch.bat_Batch_Code)
-        self.assertContains(sender, 'action="' + undo_url + '"', html=False)
-        self.assertContains(sender, "Undo")
+        self.assertNotContains(sender, 'action="' + undo_url + '"', html=False)
+        self.assertNotContains(sender, ">Undo</button>", html=False)
         self.assertContains(sender, "Details")
         self.assertNotContains(sender, "Confirm Receipt")
+        role_sender = self.client.get(reverse("receiving_role_handoffs"))
+        self.assertContains(role_sender, 'action="' + undo_url + '"', html=False)
+        self.assertContains(role_sender, "Recall")
 
         self.client.force_login(self.dmu)
         recipient = self.client.get(dashboard_url, {"tab": "all"})
         self.assertContains(recipient, self.batch.bat_Batch_Code)
         self.assertNotContains(recipient, 'action="' + undo_url + '"', html=False)
         pending = self.client.get(dashboard_url, {"tab": "pending"})
-        self.assertContains(pending, "Confirm Receipt")
-        self.assertNotContains(pending, "Undo")
+        self.assertNotContains(pending, 'action="' + reverse("receiving_workflow_confirm", args=[self.batch.pk]) + '"', html=False)
+        role_receiver = self.client.get(reverse("receiving_role_handoffs"))
+        self.assertContains(role_receiver, "Confirm Receipt")
+        self.assertNotContains(role_receiver, "Recall")
 
         self.client.force_login(self.lab)
         recalled = self.client.post(undo_url)
@@ -153,7 +158,9 @@ class UnifiedReceivingHandoffTests(TestCase):
         dashboard = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "processing"})
         self.assertEqual(dashboard.status_code, 200)
         self.assertEqual(dashboard.context["page_obj"].paginator.count, 1)
-        self.assertContains(dashboard, "Endorse")
+        self.assertNotContains(dashboard, 'action="' + reverse("receiving_workflow_endorse", args=[self.batch.pk]) + '"', html=False)
+        role_detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
+        self.assertContains(role_detail, "Endorse Batch")
         self.assertContains(dashboard, "New receipt")
 
         self.client.force_login(self.checker)
@@ -193,6 +200,66 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.assertEqual(released.context["page_obj"].paginator.count, 1)
         self.assertContains(released, self.batch.bat_Batch_Code)
         self.assertContains(released, "Released")
+
+    def test_receiving_detail_does_not_offer_batch_endorsement_but_role_page_does(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        self.client.force_login(self.lab)
+        read_only = self.client.get(reverse("receiving_workflow_detail", args=[self.batch.pk]))
+        self.assertEqual(read_only.status_code, 200)
+        self.assertNotContains(read_only, 'id="receiving-endorsement"')
+        self.assertNotContains(read_only, "Submit endorsement")
+        self.assertContains(read_only, "Activity and tracking")
+        role_detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
+        self.assertContains(role_detail, "Endorse Batch")
+
+        self.client.force_login(self.checker)
+        self.assertEqual(
+            self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk])).status_code,
+            404,
+        )
+
+    def test_secretariat_only_role_has_no_generated_batch_handoff_workspace(self):
+        secretariat = self.make_user("secretariat-role-handoff", "Secretariat")
+        self.client.force_login(secretariat)
+        self.assertEqual(
+            self.client.get(reverse("receiving_role_handoffs")).status_code, 403,
+        )
+        self.assertEqual(
+            self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk])).status_code,
+            403,
+        )
+
+    def test_generated_batch_actions_are_separate_from_receiving_history(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        self.client.force_login(self.lab)
+        for tab in ("processing", "all"):
+            dashboard = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": tab})
+            self.assertNotContains(
+                dashboard,
+                'action="' + reverse("receiving_workflow_endorse", args=[self.batch.pk]) + '"',
+                html=False,
+            )
+        role_queue = self.client.get(reverse("receiving_role_handoffs"))
+        self.assertContains(role_queue, self.batch.bat_Batch_Code)
+        role_detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
+        self.assertContains(role_detail, "Endorse Batch")
+
+    def test_released_verification_case_cannot_be_endorsed_by_direct_post(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        VerificationCase.objects.create(
+            final_batch=self.batch, status=VerificationCase.STATUS_RELEASED,
+        )
+        self.client.force_login(self.lab)
+        detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
+        self.assertNotContains(detail, "Endorse Batch")
+        response = self.client.post(
+            reverse("receiving_workflow_endorse", args=[self.batch.pk]),
+            {"destination_role": ROLE_ENCODER},
+        )
+        self.assertEqual(response.status_code, 302)
+        custody = BatchCustody.objects.get(batch=self.batch)
+        self.assertEqual(custody.pending_role, "")
+        self.assertEqual(custody.events.filter(action=BatchCustodyEvent.Action.ENDORSED).count(), 0)
 
     def test_transition_endpoints_reject_get_and_wrong_role(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)

@@ -95,6 +95,10 @@
           {% endif %}
          
 
+          {% if user_access.nav_can_add_batch or user_access.nav_can_view_raw or user_access.nav_can_view_verification or user_access.nav_can_laboratory_receiving or user_access.nav_can_main_lab %}
+          <li class="nav-item"><a class="nav-link {% if current_url == 'receiving_role_handoffs' or current_url == 'receiving_role_handoff_detail' %}active{% endif %}" href="{% url 'receiving_role_handoffs' %}"><i class="fas fa-exchange-alt text-primary" aria-hidden="true"></i><span class="nav-link-text">My Batch Handoffs</span></a></li>
+          {% endif %}
+
           <!-- Data Management: direct navigation, controlled by role permissions -->
 
           {% if user_access.nav_can_add_batch %}

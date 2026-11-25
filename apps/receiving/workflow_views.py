@@ -275,22 +275,12 @@ def workflow_dashboard(request):
             and can_confirm_lab_receipt(request.user)
             and receipt.status == ReferralReceipt.Status.ENDORSED
         )
-        # The receipt may contain multiple isolates/batches. The Details page
-        # chooses the appropriate endorsement target without treating a whole
-        # physical shipment as a single scientific data batch.
-        receipt.can_endorse_unified = (
-            tab in {"received", "processing"}
-            and (
-                (
-                    receipt.status == ReferralReceipt.Status.RECEIVED
-                    and (ROLE_SECRETARIAT in custody_roles(request.user) or ROLE_ADMIN in custody_roles(request.user))
-                )
-                or (
-                    receipt.status == ReferralReceipt.Status.LAB_RECEIVED
-                    and is_lab_receiving
-                    and bool(endorseable_receipt_custodies(receipt, request.user))
-                )
-            )
+        # Only Secretariat (or Admin) endorses a *courier receipt* here.
+        # Generated-batch handoffs belong to the owner's Role Handoffs queue.
+        receipt.can_endorse_unified = bool(
+            tab == "received"
+            and receipt.status == ReferralReceipt.Status.RECEIVED
+            and (ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles)
         )
     counts = {
         key: _tab_filter(base, key, request.user).count() + receipt_counts[key] + prebatch_counts[key]
@@ -304,28 +294,9 @@ def workflow_dashboard(request):
             | Q(batch__bat_RefNo__icontains=query)
         )
     page_obj = Paginator(rows.order_by("-updated_at", "-pk"), per_page).get_page(request.GET.get("page"))
+    # Batch custody transitions are performed in role-owned workspaces.
+    # The Receiving dashboard is read-only for generated batches.
     roles = custody_roles(request.user)
-    for custody in page_obj:
-        can_act_as_holder = ROLE_ADMIN in roles or custody.current_role in roles
-        can_act_as_receiver = ROLE_ADMIN in roles or custody.pending_role in roles
-        custody.can_confirm = bool(
-            tab == "pending"
-            and custody.pending_role and can_act_as_receiver
-            and (ROLE_ADMIN in roles or custody.endorsed_by_id != request.user.pk)
-        )
-        custody.can_undo = bool(
-            tab == "all"
-            and custody.pending_role and (
-                ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk
-            )
-        )
-        custody.can_endorse = bool(
-            tab == "processing" and not custody.pending_role and can_act_as_holder
-            and not (
-                custody.batch.verification_cases.filter(status="released").exists()
-                or getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) == "Released"
-            )
-        )
 
     return render(request, "receiving/workflow_dashboard.html", {
         "page_obj": page_obj,
@@ -415,7 +386,75 @@ def workflow_detail(request, batch_id):
         "custody": custody, "activity": activity,
         "receipt": receipt,
         "destination_roles": DESTINATION_ROLES,
-        "can_endorse_here": bool(is_holder and not custody.pending_role and not is_released),
+        "can_endorse_here": False,  # Receiving history must stay read-only.
+        "role_handoff_url_available": bool(is_holder and not custody.pending_role and not is_released),
+    })
+
+
+
+@login_required
+@receiving_read_required
+def role_handoffs(request):
+    """Action worklist for generated-batch custody, separate from intake."""
+    roles = custody_roles(request.user)
+    if not (roles - {ROLE_SECRETARIAT}):
+        raise PermissionDenied("Your role does not handle generated-batch custody.")
+    rows = visible_custodies(request.user).filter(
+        Q(current_role__in=roles) | Q(pending_role__in=roles)
+    ).select_related("batch", "endorsed_by").order_by("-updated_at", "-pk").distinct()
+    if ROLE_ADMIN in roles:
+        rows = BatchCustody.objects.select_related(
+            "batch", "endorsed_by",
+        ).order_by("-updated_at", "-pk")
+    page_obj = Paginator(rows, 25).get_page(request.GET.get("page"))
+    for custody in page_obj:
+        # Evaluate permission for each row in the view; no client-side assumptions.
+        custody.can_confirm_here = bool(
+            custody.pending_role and
+            (ROLE_ADMIN in roles or (
+                custody.pending_role in roles and custody.endorsed_by_id != request.user.pk
+            ))
+        )
+        custody.can_recall_here = bool(
+            custody.pending_role and
+            (ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk)
+        )
+    return render(request, "receiving/role_handoffs.html", {
+        "page_obj": page_obj,
+        "destination_roles": DESTINATION_ROLES,
+    })
+
+
+@login_required
+@receiving_read_required
+def role_handoff_detail(request, batch_id):
+    """Dedicated workflow action screen, while Receiving details stay read-only."""
+    roles = custody_roles(request.user)
+    if not (roles - {ROLE_SECRETARIAT}):
+        raise PermissionDenied("Your role does not handle generated-batch custody.")
+    custody = get_object_or_404(visible_custodies(request.user), batch_id=batch_id)
+    if ROLE_ADMIN not in roles and custody.current_role == ROLE_SECRETARIAT:
+        raise PermissionDenied("Secretariat endorsements belong to courier intake.")
+    is_holder = ROLE_ADMIN in roles or custody.current_role in roles
+    is_released = (
+        custody.batch.verification_cases.filter(status="released").exists()
+        or getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) == "Released"
+    )
+    can_endorse = bool(is_holder and not custody.pending_role and not is_released)
+    can_confirm = bool(
+        custody.pending_role and (ROLE_ADMIN in roles or (
+            custody.pending_role in roles and custody.endorsed_by_id != request.user.pk
+        ))
+    )
+    can_recall = bool(
+        custody.pending_role and (ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk)
+    )
+    return render(request, "receiving/role_handoff_detail.html", {
+        "custody": custody,
+        "destination_roles": DESTINATION_ROLES,
+        "can_endorse": can_endorse,
+        "can_confirm": can_confirm,
+        "can_recall": can_recall,
     })
 
 
@@ -443,7 +482,7 @@ def _transition(request, batch_id, action):
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
     # PermissionDenied intentionally returns HTTP 403.
-    return redirect("receiving_workflow_detail", batch_id=batch_id)
+    return redirect("receiving_role_handoff_detail", batch_id=batch_id)
 
 
 @login_required

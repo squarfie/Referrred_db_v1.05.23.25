@@ -451,17 +451,19 @@ class ReceivingServiceTests(TestCase):
             1,
         )
 
-    def test_direct_courier_service_calls_allow_authenticated_accounts(self):
+    def test_direct_courier_service_calls_allow_shared_intake_but_not_endorsement(self):
         services = self.services()
         unrelated = User.objects.create_user("service_unrelated", password="test-pass")
         receipt = self.create_receipt()
 
-        # Shared courier intake is available to all authenticated accounts.
+        # Shared courier intake remains open; custody transfer requires Secretariat.
         services.create_receipt(form=self.valid_receipt_form("SHARED-CREATE"), user=unrelated)
-        services.endorse_receipt(receipt_id=receipt.pk, user=unrelated)
+        with self.assertRaises(services.ReceivingPermissionDenied):
+            services.endorse_receipt(receipt_id=receipt.pk, user=unrelated)
         self.assertTrue(ReferralReceipt.objects.filter(tracking_number="SHARED-CREATE").exists())
         receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        self.assertIsNone(receipt.endorsed_by)
 
     def test_direct_lab_service_rejects_future_timestamp(self):
         services = self.services()
@@ -675,10 +677,10 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, receipt.tracking_number)
         self.assertTrue(dashboard.context["can_manage_secretariat"])
-        self.assertTrue(detail.context["can_endorse"])
+        self.assertFalse(detail.context["can_endorse"])
         self.assertFalse(detail.context["can_permanently_delete"])
 
-    def test_verifier_can_create_and_endorse_shared_receiving_without_lab_custody(self):
+    def test_verifier_can_create_but_cannot_endorse_shared_receiving(self):
         self.client.force_login(self.verifier)
         response = self.client.post(self.route("receiving_create"), {
             "tracking_number": "VERIFIER-RECEIVING-001",
@@ -691,10 +693,17 @@ class ReceivingViewTests(TestCase):
         receipt = ReferralReceipt.objects.get(tracking_number="VERIFIER-RECEIVING-001")
         self.assertEqual(receipt.received_by, self.verifier)
         self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
-        self.client.post(self.route("receiving_endorse", receiving_id=receipt.receiving_id))
+        blocked = self.client.post(
+            self.route("receiving_endorse", receiving_id=receipt.receiving_id)
+        )
+        self.assertEqual(blocked.status_code, 403)
         receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
-        self.assertEqual(receipt.endorsed_by, self.verifier)
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        self.assertIsNone(receipt.endorsed_by)
+        self.assertNotContains(
+            self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id)),
+            "Endorse to Laboratory Receiving",
+        )
         # Shared Receiving permissions must not grant independent Lab confirmation.
         self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(self.verifier))
 
@@ -1335,7 +1344,7 @@ class ReceivingTemplateTests(TestCase):
         processing = self.client.get(
             self.route("receiving_workflow_dashboard"), {"tab": "processing"}
         )
-        self.assertContains(
+        self.assertNotContains(
             processing,
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
             + "?from_tab=processing#receiving-endorsement",
@@ -1343,9 +1352,13 @@ class ReceivingTemplateTests(TestCase):
         detail = self.client.get(
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
-        self.assertContains(detail, 'id="receiving-endorsement"')
-        self.assertContains(detail, "Endorse Batch")
-        self.assertContains(detail, home_permissions.ROLE_ENCODER)
+        self.assertNotContains(detail, 'id="receiving-endorsement"')
+        self.assertNotContains(detail, "Endorse Batch")
+        role_page = self.client.get(
+            self.route("receiving_role_handoff_detail", batch_id=batch.pk)
+        )
+        self.assertContains(role_page, "Endorse Batch")
+        self.assertContains(role_page, home_permissions.ROLE_ENCODER)
         submitted = self.client.post(
             self.route("receiving_workflow_endorse", batch_id=batch.pk),
             {"destination_role": home_permissions.ROLE_ENCODER},
