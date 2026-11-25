@@ -1,5 +1,6 @@
 """Regression tests: Bench A endorses accession; DMU confirms, then creates."""
-from datetime import date, time
+from datetime import date, time, datetime
+from django.utils import timezone
 
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -31,6 +32,7 @@ class LaboratoryToDMUHandoffTests(TestCase):
             received_by=self.lab, lab_date_received=date(2026, 11, 19),
             lab_time_received=time(11, 0), lab_received_by=self.lab,
             endorsed_by=self.lab,
+            endorsed_at=timezone.make_aware(datetime(2026, 11, 19, 10, 30)),
         )
         self.lab_receiving = LaboratoryReceiving.objects.create(
             receipt=self.receipt, recorded_by=self.lab,
