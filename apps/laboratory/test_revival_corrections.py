@@ -48,8 +48,8 @@ class RevivalCorrectionTests(TestCase):
         batch_url = reverse("laboratory_batch_detail", args=[item.accession_range.pk])
         active = self.client.get(batch_url, {"area": "processing"})
         self.assertContains(active, "View Saved Revival History")
-        history_link = batch_url + "?area=processing&amp;history=1"
-        self.assertContains(active, history_link)
+        history_link = "?area=processing&amp;history=1"
+        self.assertContains(active, history_link, html=False)
         history = self.client.get(batch_url, {"area": "processing", "history": "1"})
         self.assertContains(history, "Back to Active Revival &amp; Site ID", html=False)
         self.assertContains(history, item.accession_number)
