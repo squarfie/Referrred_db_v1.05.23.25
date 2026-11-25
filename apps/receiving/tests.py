@@ -3119,27 +3119,18 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.client.force_login(staff)
         page = self.client.get(reverse("main_lab_isolate_detail", args=[isolate.pk]))
         self.assertEqual(page.status_code, 200)
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(page.content, "html.parser")
-        form = soup.find("form", action=reverse("laboratory_record_id", args=[isolate.pk]))
-        self.assertIsNotNone(form)
-        pickers = form.select("[data-organism-picker]")
-        self.assertEqual(len(pickers), 2)
-        optional = form.select_one("[data-optional-organism]")
-        self.assertIsNotNone(optional)
-        self.assertFalse(optional.select_one("[data-organism-search]").has_attr("required"))
-        self.assertEqual(
-            optional.select_one("[data-organism-code]")["name"],
-            "organism_reported_code",
-        )
-        self.assertEqual(
-            optional.select_one("[data-organism-name]")["name"],
-            "organism_reported",
-        )
-        self.assertFalse(optional.select_one("[data-organism-code]").has_attr("required"))
-        self.assertFalse(optional.select_one("[data-organism-name]").has_attr("required"))
-        self.assertTrue(pickers[0].select_one("[data-organism-search]").has_attr("required"))
-        self.assertTrue(pickers[0].select_one("[data-organism-name]").has_attr("required"))
+        import re
+        markup = page.content.decode("utf-8")
+        self.assertIn("data-optional-organism", markup)
+        optional_fragment = markup.split("data-optional-organism", 1)[1].split("</details>", 1)[0]
+        optional_inputs = re.findall(r"<input\\b[^>]*>", optional_fragment)
+        self.assertEqual(len(optional_inputs), 3)
+        self.assertTrue(all("required" not in tag for tag in optional_inputs))
+        self.assertIn('name="organism_reported_code"', optional_inputs[1])
+        self.assertIn('name="organism_reported"', optional_inputs[2])
+        mandatory_fragment = markup.split('id="mainlab-final-id-search"', 1)[1].split("data-optional-organism", 1)[0]
+        self.assertIn('name="final_organism_code"', mandatory_fragment)
+        self.assertIn('name="final_organism"', mandatory_fragment)
 
         result = self.client.post(
             reverse("laboratory_record_id", args=[isolate.pk]),
