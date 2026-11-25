@@ -1414,7 +1414,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
         content = response.content.decode()
-        activity = content[content.index(">Activity<") :]
+        activity = content[content.index('id="receiving-activity-title"') :]
 
         self.assertLess(
             activity.index("Isolates Received"),
