@@ -162,13 +162,27 @@ def workflow_dashboard(request):
     is_lab_receiving = can_read_laboratory_receiving(request.user)
     for receipt in courier_page_obj:
         receipt.can_confirm_unified = (
-            is_lab_receiving
+            tab == "pending"
+            and is_lab_receiving
             and can_confirm_lab_receipt(request.user)
             and receipt.status == ReferralReceipt.Status.ENDORSED
         )
+        # The receipt may contain multiple isolates/batches. The Details page
+        # chooses the appropriate endorsement target without treating a whole
+        # physical shipment as a single scientific data batch.
         receipt.can_endorse_unified = (
-            ROLE_SECRETARIAT in custody_roles(request.user) or ROLE_ADMIN in custody_roles(request.user)
-        ) and receipt.status == ReferralReceipt.Status.RECEIVED
+            tab == "received"
+            and (
+                (
+                    receipt.status == ReferralReceipt.Status.RECEIVED
+                    and (ROLE_SECRETARIAT in custody_roles(request.user) or ROLE_ADMIN in custody_roles(request.user))
+                )
+                or (
+                    receipt.status == ReferralReceipt.Status.LAB_RECEIVED
+                    and is_lab_receiving
+                )
+            )
+        )
     counts = {
         key: _tab_filter(base, key, request.user).count() + receipt_counts[key]
         for key, _ in TABS
@@ -186,16 +200,22 @@ def workflow_dashboard(request):
         can_act_as_holder = ROLE_ADMIN in roles or custody.current_role in roles
         can_act_as_receiver = ROLE_ADMIN in roles or custody.pending_role in roles
         custody.can_confirm = bool(
-            custody.pending_role and can_act_as_receiver
+            tab == "pending"
+            and custody.pending_role and can_act_as_receiver
             and (ROLE_ADMIN in roles or custody.endorsed_by_id != request.user.pk)
         )
         custody.can_undo = bool(
-            custody.pending_role and (
+            tab == "endorsed"
+            and custody.pending_role and (
                 ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk
             )
         )
         custody.can_endorse = bool(
-            not custody.pending_role and can_act_as_holder
+            tab == "received" and not custody.pending_role and can_act_as_holder
+            and not (
+                custody.batch.verification_cases.filter(status="released").exists()
+                or getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) == "Released"
+            )
         )
 
     return render(request, "receiving/workflow_dashboard.html", {
