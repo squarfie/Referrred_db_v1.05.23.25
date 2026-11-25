@@ -95,6 +95,58 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.batch.refresh_from_db()
         self.assertEqual(self.batch.bat_Status, "Encoding")
 
+    def test_all_records_shows_undo_only_for_unconfirmed_sender_handoff(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        endorse_batch(batch_id=self.batch.pk, user=self.lab, destination_role=ROLE_ENCODER)
+        dashboard_url = reverse("receiving_workflow_dashboard")
+        undo_url = reverse("receiving_workflow_undo", args=[self.batch.pk])
+
+        self.client.force_login(self.lab)
+        sender = self.client.get(dashboard_url, {"tab": "all"})
+        self.assertContains(sender, self.batch.bat_Batch_Code)
+        self.assertContains(sender, 'action="' + undo_url + '"', html=False)
+        self.assertContains(sender, "Undo")
+        self.assertContains(sender, "Details")
+        self.assertNotContains(sender, "Confirm Receipt")
+
+        self.client.force_login(self.dmu)
+        recipient = self.client.get(dashboard_url, {"tab": "all"})
+        self.assertContains(recipient, self.batch.bat_Batch_Code)
+        self.assertNotContains(recipient, 'action="' + undo_url + '"', html=False)
+        pending = self.client.get(dashboard_url, {"tab": "pending"})
+        self.assertContains(pending, "Confirm Receipt")
+        self.assertNotContains(pending, "Undo")
+
+        self.client.force_login(self.lab)
+        recalled = self.client.post(undo_url)
+        self.assertEqual(recalled.status_code, 302)
+        custody = BatchCustody.objects.get(batch=self.batch)
+        self.assertEqual(custody.pending_role, "")
+        self.assertEqual(custody.events.last().action, BatchCustodyEvent.Action.UNDONE)
+        after = self.client.get(dashboard_url, {"tab": "all"})
+        self.assertNotContains(after, 'action="' + undo_url + '"', html=False)
+
+    def test_confirmed_endorsement_keeps_history_without_undo(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        endorse_batch(batch_id=self.batch.pk, user=self.lab, destination_role=ROLE_ENCODER)
+        confirm_batch_receipt(batch_id=self.batch.pk, user=self.dmu)
+        self.client.force_login(self.lab)
+        all_records = self.client.get(
+            reverse("receiving_workflow_dashboard"), {"tab": "all"}
+        )
+        self.assertContains(all_records, self.batch.bat_Batch_Code)
+        self.assertNotContains(
+            all_records,
+            'action="' + reverse("receiving_workflow_undo", args=[self.batch.pk]) + '"',
+            html=False,
+        )
+        self.assertEqual(
+            BatchCustodyEvent.objects.filter(
+                custody__batch=self.batch, action=BatchCustodyEvent.Action.ENDORSED
+            ).count(),
+            1,
+        )
+
     def test_role_scoped_dashboard_and_shortcut_navigation(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
         self.client.force_login(self.lab)
