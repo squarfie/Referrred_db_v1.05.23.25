@@ -2373,8 +2373,16 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "receiving_id": self.receipt.receiving_id,
         }))
         self.assertContains(response, "Endorse to DMU")
-        self.assertContains(response, reverse("laboratory_batch_endorse_dmu", kwargs={"accession_id": accession.pk}))
-        self.client.post(reverse("laboratory_batch_endorse_dmu", kwargs={"accession_id": accession.pk}))
+        self.assertContains(response, "Complete Bench A final processing or close non-viable isolates first.")
+        self.assertContains(response, 'aria-disabled="true"')
+        self.assertNotContains(
+            response,
+            'action="' + reverse("laboratory_batch_endorse_dmu", kwargs={"accession_id": accession.pk}) + '"',
+            html=False,
+        )
+        # A crafted direct POST must not bypass unfinished Main Lab processing.
+        denied = self.client.post(reverse("laboratory_batch_endorse_dmu", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(denied.status_code, 302)
         accession.refresh_from_db()
         self.assertIsNone(accession.batch_id)
         self.assertFalse(hasattr(accession, "dmu_handoff"))
