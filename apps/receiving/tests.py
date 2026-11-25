@@ -1335,7 +1335,7 @@ class ReceivingTemplateTests(TestCase):
         processing = self.client.get(
             self.route("receiving_workflow_dashboard"), {"tab": "processing"}
         )
-        self.assertContains(
+        self.assertNotContains(
             processing,
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
             + "?from_tab=processing#receiving-endorsement",
@@ -1343,9 +1343,13 @@ class ReceivingTemplateTests(TestCase):
         detail = self.client.get(
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
-        self.assertContains(detail, 'id="receiving-endorsement"')
-        self.assertContains(detail, "Endorse Batch")
-        self.assertContains(detail, home_permissions.ROLE_ENCODER)
+        self.assertNotContains(detail, 'id="receiving-endorsement"')
+        self.assertNotContains(detail, "Endorse Batch")
+        role_page = self.client.get(
+            self.route("receiving_role_handoff_detail", batch_id=batch.pk)
+        )
+        self.assertContains(role_page, "Endorse Batch")
+        self.assertContains(role_page, home_permissions.ROLE_ENCODER)
         submitted = self.client.post(
             self.route("receiving_workflow_endorse", batch_id=batch.pk),
             {"destination_role": home_permissions.ROLE_ENCODER},
