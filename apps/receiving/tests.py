@@ -675,10 +675,10 @@ class ReceivingViewTests(TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, receipt.tracking_number)
         self.assertTrue(dashboard.context["can_manage_secretariat"])
-        self.assertTrue(detail.context["can_endorse"])
+        self.assertFalse(detail.context["can_endorse"])
         self.assertFalse(detail.context["can_permanently_delete"])
 
-    def test_verifier_can_create_and_endorse_shared_receiving_without_lab_custody(self):
+    def test_verifier_can_create_but_cannot_endorse_shared_receiving(self):
         self.client.force_login(self.verifier)
         response = self.client.post(self.route("receiving_create"), {
             "tracking_number": "VERIFIER-RECEIVING-001",
@@ -691,10 +691,17 @@ class ReceivingViewTests(TestCase):
         receipt = ReferralReceipt.objects.get(tracking_number="VERIFIER-RECEIVING-001")
         self.assertEqual(receipt.received_by, self.verifier)
         self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
-        self.client.post(self.route("receiving_endorse", receiving_id=receipt.receiving_id))
+        blocked = self.client.post(
+            self.route("receiving_endorse", receiving_id=receipt.receiving_id)
+        )
+        self.assertEqual(blocked.status_code, 403)
         receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
-        self.assertEqual(receipt.endorsed_by, self.verifier)
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        self.assertIsNone(receipt.endorsed_by)
+        self.assertNotContains(
+            self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id)),
+            "Endorse to Laboratory Receiving",
+        )
         # Shared Receiving permissions must not grant independent Lab confirmation.
         self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(self.verifier))
 
