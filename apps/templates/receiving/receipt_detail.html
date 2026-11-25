@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving {{ receipt.tracking_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-detail-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-detail-5steps">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -70,6 +70,8 @@
       <li class="is-done"><span><i class="fas fa-check" aria-hidden="true"></i></span><div>Isolates Received<small>{{ receipt.date_received|date:"M j, Y" }} {{ receipt.time_received|time:"g:i A" }}</small></div></li>
       <li class="{% if receipt.endorsed_at or receipt.status == 'endorsed' or receipt.status == 'lab_received' %}is-done{% else %}is-current{% endif %}"><span>{% if receipt.endorsed_at or receipt.status == 'endorsed' or receipt.status == 'lab_received' %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}2{% endif %}</span><div>Endorsed to Laboratory<small>{% if receipt.endorsed_at %}{{ receipt.endorsed_at|date:"M j, Y g:i A" }}{% else %}Pending{% endif %}</small></div></li>
       <li class="{% if receipt.lab_date_received or receipt.status == 'lab_received' %}is-done{% elif receipt.status == 'endorsed' %}is-current{% endif %}"><span>{% if receipt.lab_date_received or receipt.status == 'lab_received' %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}3{% endif %}</span><div>Received by Laboratory<small>{% if receipt.lab_date_received %}{{ receipt.lab_date_received|date:"M j, Y" }} {{ receipt.lab_time_received|time:"g:i A" }}{% else %}Pending{% endif %}</small></div></li>
+      <li class="{% if progress.dmu_done %}is-done{% elif receipt.status == 'lab_received' and progress.total %}is-current{% endif %}"><span>{% if progress.dmu_done %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}4{% endif %}</span><div>Received by DMU<small>{% if progress.dmu_done %}{{ progress.dmu_at|date:"M j, Y g:i A" }}{% elif progress.dmu_count %}{{ progress.dmu_count }} of {{ progress.total }} confirmed{% else %}Pending{% endif %}</small></div></li>
+      <li class="{% if progress.release_done %}is-done{% elif progress.dmu_done %}is-current{% endif %}"><span>{% if progress.release_done %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}5{% endif %}</span><div>Released<small>{% if progress.release_done %}{% if progress.released_on %}{{ progress.released_on|date:"M j, Y" }}{% else %}Recorded · date unavailable{% endif %}{% elif progress.released_count %}{{ progress.released_count }} of {{ progress.total }} batches released{% else %}Pending{% endif %}</small></div></li>
     </ol>
 
     {% if receipt.status == 'endorsed' %}<div class="alert alert-info receiving-notice"><i class="fas fa-hourglass-half" aria-hidden="true"></i><div><strong>Awaiting laboratory acknowledgment.</strong> Authorized Laboratory Receiving personnel confirm this courier receipt from Receiving → Pending. Scanning is optional.</div></div>{% endif %}
