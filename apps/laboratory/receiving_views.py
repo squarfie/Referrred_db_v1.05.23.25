@@ -394,7 +394,7 @@ def laboratory_accession_add(request, receiving_id):
                     performed_by=request.user,
                     remarks=f"Assigned {accession.reference_range} for batch {accession.batch_number}/{accession.total_batches}.",
                 )
-            messages.success(request, f"Accession range {accession.reference_range} saved. Create Batch is a separate action.")
+            messages.success(request, f"Accession range {accession.reference_range} saved. Endorse to DMU after laboratory final processing.")
     else:
         messages.error(request, "Please correct the accession range details.")
     return redirect("laboratory_receiving_workspace", receiving_id=receiving_id)
@@ -417,6 +417,9 @@ def laboratory_accession_edit(request, accession_id):
     )
     if accession.isolate_records.exists():
         messages.error(request, "This range has been endorsed to ID testing and cannot be edited.")
+        return destination
+    if hasattr(accession, "dmu_handoff"):
+        messages.error(request, "Endorsed accession ranges cannot be edited. Contact DMU to resolve a correction.")
         return destination
     if accession.batch_id:
         messages.error(request, "Generated batches cannot be edited here. Contact an administrator for a reviewed correction.")
@@ -469,6 +472,9 @@ def laboratory_accession_delete(request, accession_id):
     if accession.isolate_records.exists():
         messages.error(request, "This range has ID laboratory records and cannot be deleted.")
         return destination
+    if hasattr(accession, "dmu_handoff"):
+        messages.error(request, "An endorsed accession range cannot be deleted.")
+        return destination
     if accession.batch_id:
         messages.error(request, "This accession range has generated a batch and cannot be deleted here.")
         return destination
@@ -505,6 +511,9 @@ def laboratory_organism_matrix_save(request, accession_id):
         "laboratory_receiving_workspace",
         receiving_id=accession.laboratory_receiving.receipt.receiving_id,
     )
+    if hasattr(accession, "dmu_handoff"):
+        messages.error(request, "Organism counts are locked after endorsement to DMU.")
+        return destination
     counts = {}
     for code, _short, _label in REGISTER_COLUMNS:
         raw = (request.POST.get(f"organism_{code}") or "").strip()
@@ -541,6 +550,9 @@ def laboratory_organism_add(request, accession_id):
     accession = get_object_or_404(
         LaboratoryAccession.objects.select_for_update().select_related("laboratory_receiving__receipt"), pk=accession_id
     )
+    if hasattr(accession, "dmu_handoff"):
+        messages.error(request, "Organism counts are locked after endorsement to DMU.")
+        return redirect("laboratory_receiving_workspace", receiving_id=accession.laboratory_receiving.receipt.receiving_id)
     form = LaboratoryOrganismCountForm(request.POST)
     if form.is_valid():
         item = form.save(commit=False)
