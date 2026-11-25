@@ -96,10 +96,7 @@
                 {% if receipt.can_endorse_unified %}
                 <a class="btn btn-sm btn-success mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
                 {% endif %}
-                {% if receipt.can_open_worksheet %}
-                <a class="btn btn-sm btn-info mb-1" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Open Worksheet</a>
-                {% endif %}
-                <a class="btn btn-sm btn-outline-primary mb-1" href="{% if is_lab_receiving %}{% url 'laboratory_receiving_detail' receipt.receiving_id %}{% else %}{% url 'receiving_detail' receipt.receiving_id %}{% endif %}"><i class="fas fa-eye mr-1"></i>Details</a>
+                <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}"><i class="fas fa-eye mr-1"></i>Details</a>
               </div></td>
             </tr>
           {% endfor %}
