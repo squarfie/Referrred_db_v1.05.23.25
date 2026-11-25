@@ -1405,7 +1405,16 @@ class ReceivingTemplateTests(TestCase):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         self.client.force_login(self.secretariat)
         response = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
-        self.assertContains(response, 'href="' + self.route("receiving_workflow_dashboard") + '?tab=received"', html=False)
+        self.assertContains(
+            response,
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=processing"',
+            html=False,
+        )
+        self.assertNotContains(
+            response,
+            'href="' + self.route("secretariat_receiving_dashboard") + '"',
+            html=False,
+        )
         self.assertNotContains(response, "Open laboratory worksheet")
         self.assertNotContains(response, "Confirm laboratory receipt")
         self.assertNotContains(response, "Update Lab Receiving")
