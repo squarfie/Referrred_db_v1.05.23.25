@@ -167,9 +167,6 @@ def workflow_dashboard(request):
         receipt.can_endorse_unified = (
             ROLE_SECRETARIAT in custody_roles(request.user) or ROLE_ADMIN in custody_roles(request.user)
         ) and receipt.status == ReferralReceipt.Status.RECEIVED
-        receipt.can_open_worksheet = (
-            is_lab_receiving and receipt.status == ReferralReceipt.Status.LAB_RECEIVED
-        )
     counts = {
         key: _tab_filter(base, key, request.user).count() + receipt_counts[key]
         for key, _ in TABS
