@@ -15,7 +15,6 @@
     </div>
     <div class="receiving-hero-actions">
       <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}"><i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>Back to Receiving</a>
-      {% if can_endorse_here %}<a class="btn btn-info" href="#receiving-endorsement"><i class="fas fa-paper-plane mr-1" aria-hidden="true"></i>Endorse</a>{% endif %}
     </div>
   </header>
 
@@ -41,22 +40,7 @@
         </div>
       </section>
 
-      {% if can_endorse_here %}
-      <section id="receiving-endorsement" class="receiving-surface wf-card" aria-labelledby="wf-endorse-title">
-        <div class="wf-card-head">
-          <h2 id="wf-endorse-title">Endorse batch</h2>
-          <p>Select an authorized destination role. The recipient must confirm receipt; endorsement does not grant scientific approval.</p>
-        </div>
-        <form method="post" action="{% url 'receiving_workflow_endorse' custody.batch_id %}" class="wf-endorse">
-          {% csrf_token %}
-          <div class="wf-endorse-grid">
-            <div class="wf-field">
-              <label for="batch-destination-role">Destination role or department</label>
-              <select class="form-control" id="batch-destination-role" name="destination_role" required>
-                <option value="">Select destination</option>
-                {% for role in destination_roles %}{% if role != custody.current_role %}
-                <option value="{{ role }}">{{ role }}</option>
-                {% endif %}{% endfor %}
+% endfor %}
               </select>
             </div>
             <div class="wf-field">
