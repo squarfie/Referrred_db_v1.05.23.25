@@ -10,7 +10,7 @@ from .forms import ReferralReceiptForm
 from .models import ReferralReceipt
 from .handoffs import custody_roles, DESTINATION_ROLES
 from .workflow_views import visible_custodies
-from apps.home.permissions import ROLE_ADMIN
+from apps.home.permissions import ROLE_ADMIN, ROLE_LAB_ENCODER
 from .permissions import (can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
 from .qr import build_receipt_scan_url, render_qr_png
 from .services import (InvalidReceivingTransition, create_receipt, delete_receipt_permanently, can_delete_receipt_safely, endorse_receipt)
@@ -93,7 +93,7 @@ def receiving_detail(request, receiving_id):
             "destination_roles": DESTINATION_ROLES,
             "can_show_endorsement": can_endorse_receipt or (
                 receipt.status == ReferralReceipt.Status.LAB_RECEIVED
-                and (bool(available_endorsements) or "Lab Encoder" in roles or ROLE_ADMIN in roles)
+                and (bool(available_endorsements) or ROLE_LAB_ENCODER in roles or ROLE_ADMIN in roles)
             ),
             "can_confirm_lab": False,
             "can_work_lab": False,
