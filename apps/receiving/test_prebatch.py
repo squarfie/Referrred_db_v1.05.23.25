@@ -223,6 +223,28 @@ class LaboratoryToDMUHandoffTests(TestCase):
         manual_batch.refresh_from_db()
         self.assertEqual(manual_batch.bat_Enc_Lic, "12345")
 
+    def test_receiving_handoff_shows_full_expected_accession_range(self):
+        self.lab_receiving.total_isolates_received = 3
+        self.lab_receiving.isolates_accepted = 3
+        self.lab_receiving.save(update_fields=("total_isolates_received", "isolates_accepted"))
+        self.accession.end_number = 3
+        self.accession.save(update_fields=("end_number",))
+        for number in (2, 3):
+            LaboratoryIsolate.objects.create(
+                accession_range=self.accession,
+                accession_number=f"26ARS_PBD{number:04d}",
+                status=LaboratoryIsolate.Status.NON_VIABLE,
+            )
+        endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.client.force_login(self.dmu)
+        page = self.client.get(reverse("receiving_workflow_dashboard"), {
+            "tab": "pending", "year": "2026",
+        })
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "26ARS_PBD0001")
+        self.assertContains(page, "26ARS_PBD0003")
+        self.assertContains(page, "Range: 0001-0003")
+
     def test_generic_add_batch_service_cannot_bypass_dmu_receipt(self):
         args = dict(
             site_code="PBD", site_name=self.site.SiteName,
@@ -266,6 +288,8 @@ class LaboratoryToDMUHandoffTests(TestCase):
         pending = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "pending", "year": "2026"})
         self.assertEqual(pending.status_code, 200)
         self.assertContains(pending, "Accession Handoff")
+        self.assertContains(pending, "26ARS_PBD0001")
+        self.assertContains(pending, "Range: 0001-0001")
         self.assertContains(pending, "</i>Confirm Receipt</button>")
         self.assertContains(pending, 'receiving-status-endorsed"><i class="fas fa-circle" aria-hidden="true"></i>')
         self.assertContains(pending, 'class="btn btn-sm btn-success receiving-action-primary mb-1"')
