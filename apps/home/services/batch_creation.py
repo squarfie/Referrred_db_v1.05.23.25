@@ -219,6 +219,7 @@ def preview_referred_batch_conflicts(
 def create_referred_batch(
     *, site_code, referral_date, start_number, end_number, batch_number,
     total_batches, created_by, site_name="", personnel=None,
+    authorized_handoff_id=None,
 ):
     site_code = (site_code or "").strip()
     if not site_code or referral_date is None:
@@ -237,6 +238,36 @@ def create_referred_batch(
     site = SiteData.objects.select_for_update().filter(SiteCode=site_code).first()
     if site and not site_name:
         site_name = site.SiteName
+    # A Bench A-owned accession must enter the DMU queue before batch
+    # creation. This check also protects the ordinary Add Batch endpoint
+    # against direct POSTs that would skip receipt confirmation.
+    from apps.receiving.models import LaboratoryAccession, LaboratoryBatchHandoff
+    overlapping = LaboratoryAccession.objects.select_for_update().filter(
+        laboratory_receiving__receipt__site__SiteCode=site_code,
+        date_referred=referral_date,
+        start_number__lte=end_number,
+        end_number__gte=start_number,
+        batch__isnull=True,
+    )
+    if overlapping.exists():
+        if authorized_handoff_id is None or overlapping.count() != 1:
+            raise BatchCreationError(
+                "Laboratory-managed accession ranges must be endorsed and confirmed in Receiving before DMU batch creation."
+            )
+        accession = overlapping.first()
+        try:
+            handoff = LaboratoryBatchHandoff.objects.select_for_update().get(
+                pk=authorized_handoff_id, accession=accession,
+            )
+        except LaboratoryBatchHandoff.DoesNotExist as exc:
+            raise BatchCreationError("No matching laboratory endorsement exists for this accession range.") from exc
+        if handoff.status != LaboratoryBatchHandoff.Status.CONFIRMED:
+            raise BatchCreationError("DMU receipt confirmation is required before creating this batch.")
+        if (accession.start_number, accession.end_number, accession.batch_number, accession.total_batches) != (
+            start_number, end_number, batch_number, total_batches
+        ):
+            raise BatchCreationError("Batch details must match the confirmed laboratory accession range.")
+
     ref_no = f"{start_number:04d}-{end_number:04d}"
     accessions = build_batch_accessions(site_code, referral_date, ref_no)
     batch_code = build_batch_code(site_code, referral_date, batch_number, total_batches, ref_no)
