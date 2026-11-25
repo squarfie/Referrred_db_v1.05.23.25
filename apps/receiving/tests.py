@@ -451,17 +451,19 @@ class ReceivingServiceTests(TestCase):
             1,
         )
 
-    def test_direct_courier_service_calls_allow_authenticated_accounts(self):
+    def test_direct_courier_service_calls_allow_shared_intake_but_not_endorsement(self):
         services = self.services()
         unrelated = User.objects.create_user("service_unrelated", password="test-pass")
         receipt = self.create_receipt()
 
-        # Shared courier intake is available to all authenticated accounts.
+        # Shared courier intake remains open; custody transfer requires Secretariat.
         services.create_receipt(form=self.valid_receipt_form("SHARED-CREATE"), user=unrelated)
-        services.endorse_receipt(receipt_id=receipt.pk, user=unrelated)
+        with self.assertRaises(services.ReceivingPermissionDenied):
+            services.endorse_receipt(receipt_id=receipt.pk, user=unrelated)
         self.assertTrue(ReferralReceipt.objects.filter(tracking_number="SHARED-CREATE").exists())
         receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        self.assertIsNone(receipt.endorsed_by)
 
     def test_direct_lab_service_rejects_future_timestamp(self):
         services = self.services()
