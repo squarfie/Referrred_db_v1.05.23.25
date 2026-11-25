@@ -701,3 +701,18 @@ html { scroll-behavior: smooth; }
     width: auto; min-width: 0; max-width: 100%;
   }
 }
+
+
+/* Unified worklist statuses: identical visual treatment for every source. */
+.receiving-unified-table .receiving-status {
+  width: 160px; min-width: 0; max-width: 100%;
+  min-height: 30px; padding: .35rem .65rem;
+  display: inline-flex; align-items: center; justify-content: flex-start;
+  gap: .4rem; line-height: 1.25; border-radius: 999px;
+}
+.receiving-unified-table .receiving-status .fa-circle {
+  flex: 0 0 auto; font-size: .45rem; line-height: 1;
+}
+@media (max-width: 767.98px) {
+  .receiving-unified-table .receiving-status { width: auto; }
+}
