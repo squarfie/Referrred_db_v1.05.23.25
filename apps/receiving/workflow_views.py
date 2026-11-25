@@ -294,9 +294,17 @@ def workflow_detail(request, batch_id):
                 "source": "Verification",
             })
     activity.sort(key=lambda entry: entry["when"])
+    roles = custody_roles(request.user)
+    is_holder = ROLE_ADMIN in roles or custody.current_role in roles
+    is_released = (
+        custody.batch.verification_cases.filter(status="released").exists()
+        or getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) == "Released"
+    )
     return render(request, "receiving/workflow_detail.html", {
         "custody": custody, "activity": activity,
         "receipt": receipt,
+        "destination_roles": DESTINATION_ROLES,
+        "can_endorse_here": bool(is_holder and not custody.pending_role and not is_released),
     })
 
 
