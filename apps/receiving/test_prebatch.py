@@ -78,6 +78,47 @@ class LaboratoryToDMUHandoffTests(TestCase):
             endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
         self.assertFalse(LaboratoryBatchHandoff.objects.exists())
 
+    def test_bench_a_button_only_enabled_after_workflow_completion(self):
+        self.client.force_login(self.lab)
+        path = reverse("laboratory_receiving_workspace", args=[self.receipt.receiving_id])
+        ready = self.client.get(path)
+        self.assertContains(ready, reverse("laboratory_batch_endorse_dmu", args=[self.accession.pk]))
+        self.assertContains(ready, ">Endorse to DMU</button>")
+
+        self.isolate.status = LaboratoryIsolate.Status.REVIVAL_PENDING
+        self.isolate.save(update_fields=("status",))
+        incomplete = self.client.get(path)
+        self.assertContains(incomplete, "Complete Bench A final processing")
+        self.assertContains(incomplete, 'aria-disabled="true"')
+        self.assertNotContains(
+            incomplete,
+            'action="' + reverse("laboratory_batch_endorse_dmu", args=[self.accession.pk]) + '"',
+            html=False,
+        )
+
+    def test_endorsed_accession_inventory_and_metadata_are_locked(self):
+        endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.client.force_login(self.lab)
+        edit = self.client.post(
+            reverse("laboratory_accession_edit", args=[self.accession.pk]),
+            {"date_referred": "2026-11-20", "start_number": "2", "end_number": "2",
+             "batch_number": "1", "total_batches": "1"},
+        )
+        self.assertEqual(edit.status_code, 302)
+        self.accession.refresh_from_db()
+        self.assertEqual(self.accession.start_number, 1)
+        delete = self.client.post(
+            reverse("laboratory_accession_delete", args=[self.accession.pk]), {"confirmation": "DELETE"}
+        )
+        self.assertEqual(delete.status_code, 302)
+        self.assertTrue(LaboratoryAccession.objects.filter(pk=self.accession.pk).exists())
+        counts = self.client.post(
+            reverse("laboratory_organism_matrix_save", args=[self.accession.pk]),
+            {"organism_HA": "1"},
+        )
+        self.assertEqual(counts.status_code, 302)
+        self.assertEqual(self.accession.organism_counts.count(), 0)
+
     def test_dmu_confirmation_and_batch_creation_are_separate_actions(self):
         handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
         with self.assertRaises(ValidationError):
