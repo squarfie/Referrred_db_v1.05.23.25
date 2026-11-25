@@ -191,6 +191,34 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.CREATED)
         self.assertEqual(Batch_Table.objects.filter(bat_SiteCode="PBD").count(), 1)
 
+    def test_existing_manual_batch_creation_and_signatory_editor_are_preserved(self):
+        self.client.force_login(self.dmu)
+        manual_form = self.client.get(reverse("batch_create_view"))
+        self.assertEqual(manual_form.status_code, 200)
+
+        manual_batch = create_referred_batch(
+            site_code="PBD", site_name=self.site.SiteName,
+            referral_date=date(2026, 11, 19), start_number=20, end_number=20,
+            batch_number=2, total_batches=2, created_by=self.dmu,
+            personnel={"bat_Enc_Lic": "12345"},
+        ).batch
+        self.assertEqual(manual_batch.bat_Enc_Lic, "12345")
+        editor = self.client.get(reverse("batch_edit_view", args=[manual_batch.pk]))
+        self.assertEqual(editor.status_code, 200)
+        self.assertIn("bat_Encoder", editor.context["form"].fields)
+        self.assertIn("bat_Checker", editor.context["form"].fields)
+        self.assertFalse(editor.context["form"].fields["bat_Verifier"].disabled)
+
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        confirm_dmu_receipt_and_create_batch(handoff_id=handoff.pk, user=self.dmu)
+        self.accession.refresh_from_db()
+        auto_editor = self.client.get(reverse("batch_edit_view", args=[self.accession.batch_id]))
+        self.assertEqual(auto_editor.status_code, 200)
+        self.assertIn("bat_LabManager", auto_editor.context["form"].fields)
+        self.assertFalse(auto_editor.context["form"].fields["bat_Head"].disabled)
+        manual_batch.refresh_from_db()
+        self.assertEqual(manual_batch.bat_Enc_Lic, "12345")
+
     def test_generic_add_batch_service_cannot_bypass_dmu_receipt(self):
         args = dict(
             site_code="PBD", site_name=self.site.SiteName,
@@ -249,4 +277,6 @@ class LaboratoryToDMUHandoffTests(TestCase):
         received = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "received", "year": "2026"})
         self.assertNotContains(received, reverse("receiving_dmu_create_batch", args=[handoff.pk]))
         self.assertNotContains(received, reverse("receiving_dmu_confirm", args=[handoff.pk]))
-        self.assertEqual(received.content.count(b"<thead>"), 1)
+        self.assertEqual(received.context["prebatch_count"], 0)
+        processing = self.client.get(reverse("receiving_workflow_dashboard"), {"tab": "processing", "year": "2026"})
+        self.assertContains(processing, self.accession.batch.bat_Batch_Code)
