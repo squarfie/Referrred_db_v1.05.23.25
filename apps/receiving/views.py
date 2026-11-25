@@ -79,11 +79,21 @@ def receiving_detail(request, receiving_id):
         ):
             available_endorsements.append(custody)
     can_endorse_receipt = can_manage and receipt.status == ReferralReceipt.Status.RECEIVED
+    # Preserve the originating unified Receiving tab on the detail back link.
+    from_tab = (request.GET.get("from_tab") or "").strip()
+    if from_tab not in {"pending", "received", "endorsed", "completed", "all"}:
+        if receipt.status == ReferralReceipt.Status.ENDORSED:
+            from_tab = "endorsed" if can_manage else "pending"
+        elif receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
+            from_tab = "received"
+        else:
+            from_tab = "received"
     return render(
         request,
         "receiving/receipt_detail.html",
         {
             "receipt": receipt,
+            "return_tab": from_tab,
             "events": events,
             "activity": receipt_activity(receipt),
             "can_print_label": can_manage,
