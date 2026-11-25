@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, F, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -25,6 +25,7 @@ from .models import BatchCustody, BatchCustodyEvent, ReferralReceipt
 TABS = (
     ("pending", "Pending"),
     ("received", "Received"),
+    ("processing", "Processing"),
     ("endorsed", "Endorsed"),
     ("completed", "Completed"),
     ("all", "All Records"),
@@ -49,7 +50,18 @@ def _tab_filter(queryset, tab, user):
     if tab == "pending":
         return queryset.exclude(pending_role="") if ROLE_ADMIN in roles else queryset.filter(pending_role__in=roles).exclude(pending_role="")
     if tab == "received":
-        return queryset.filter(pending_role="") if ROLE_ADMIN in roles else queryset.filter(current_role__in=roles, pending_role="")
+        # A generated batch is already in its downstream data workflow.
+        # Received is reserved for newly received physical courier shipments
+        # that are awaiting Secretariat endorsement.
+        return queryset.none()
+    if tab == "processing":
+        active = queryset.filter(
+            pending_role=""
+        ).exclude(
+            Q(batch__tat_entry__tat_Status_Release="Released")
+            | Q(batch__verification_cases__status="released")
+        ).distinct()
+        return active if ROLE_ADMIN in roles else active.filter(current_role__in=roles)
     if tab == "endorsed":
         return queryset.filter(events__action=BatchCustodyEvent.Action.ENDORSED).distinct() if ROLE_ADMIN in roles else queryset.filter(
             events__action=BatchCustodyEvent.Action.ENDORSED,
@@ -91,13 +103,28 @@ def _receipt_tab_filter(receipts, tab, user):
         # Physical Laboratory receipt is the pending incoming endorsement.
         return receipts.filter(status=ReferralReceipt.Status.ENDORSED) if lab else receipts.none()
     if tab == "received":
-        if ROLE_ADMIN in roles:
-            return receipts.filter(status__in=(
-                ReferralReceipt.Status.RECEIVED, ReferralReceipt.Status.LAB_RECEIVED,
-            ))
-        if lab:
-            return receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED)
-        return receipts.filter(status=ReferralReceipt.Status.RECEIVED)
+        # An unendorsed courier delivery is in Secretariat custody.
+        # Laboratory confirmation advances it to Processing, not Received.
+        if ROLE_ADMIN in roles or ROLE_SECRETARIAT in roles:
+            return receipts.filter(status=ReferralReceipt.Status.RECEIVED)
+        return receipts.none()
+    if tab == "processing":
+        # A laboratory-confirmed shipment can contain multiple isolate ranges.
+        # Keep it here until every generated batch is officially released.
+        # If no batch has been generated, processing is still ongoing.
+        return receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED).annotate(
+            tracked_ranges=Count("laboratory_receiving__accession_ranges", distinct=True),
+            released_ranges=Count(
+                "laboratory_receiving__accession_ranges",
+                filter=(
+                    Q(laboratory_receiving__accession_ranges__batch__tat_entry__tat_Status_Release="Released")
+                    | Q(laboratory_receiving__accession_ranges__batch__verification_cases__status="released")
+                ),
+                distinct=True,
+            ),
+        ).filter(
+            Q(tracked_ranges=0) | Q(tracked_ranges__gt=F("released_ranges"))
+        )
     if tab == "endorsed":
         if ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles:
             return receipts.filter(status__in=(
@@ -171,7 +198,7 @@ def workflow_dashboard(request):
         # chooses the appropriate endorsement target without treating a whole
         # physical shipment as a single scientific data batch.
         receipt.can_endorse_unified = (
-            tab == "received"
+            tab in {"received", "processing"}
             and (
                 (
                     receipt.status == ReferralReceipt.Status.RECEIVED
@@ -211,7 +238,7 @@ def workflow_dashboard(request):
             )
         )
         custody.can_endorse = bool(
-            tab == "received" and not custody.pending_role and can_act_as_holder
+            tab == "processing" and not custody.pending_role and can_act_as_holder
             and not (
                 custody.batch.verification_cases.filter(status="released").exists()
                 or getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) == "Released"
