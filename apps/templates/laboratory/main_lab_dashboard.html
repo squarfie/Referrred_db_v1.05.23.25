@@ -8,7 +8,7 @@
     <p class="receiving-eyebrow">Main Laboratory</p><h1>Identification Testing</h1>
     <p class="receiving-hero-subtitle">Use For Testing for isolates endorsed directly by Bench A or awaiting retrieval from temporary storage. Confirm the Main Lab Final ID so Bench A can continue with lyophilization.</p>
   </div></div>
-  <div class="receiving-hero-actions">{% if can_test %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}">Upload ID Results</a>{% endif %}</div></header>
+  <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=received"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>{% if can_test %}<a class="btn btn-info" href="{% url 'laboratory_id_upload' %}">Upload ID Results</a>{% endif %}</div></header>
   <div class="receiving-content">
     <section class="receiving-stat-grid" aria-label="Main Laboratory identification counts">
       <article class="receiving-surface receiving-stat"><span class="receiving-stat-label">For Testing · Direct handoff + Storage</span><div class="receiving-stat-value">{{ counts.for_testing }}</div></article>

@@ -8,10 +8,11 @@
     <div class="receiving-hero-main">
       <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
       <div><p class="receiving-eyebrow">{% if is_lab_worklist %}Laboratory Receiving{% else %}Isolate custody{% endif %}</p><h1>{% if is_lab_worklist %}Bench A{% else %}Receiving{% endif %}</h1>
-        <p class="receiving-hero-subtitle">{% if is_lab_worklist %}Manage receipt, accessioning, processing and Main Lab handoffs.{% else %}Record courier arrivals and endorse received isolates to Laboratory Receiving.{% endif %}</p>
+        <p class="receiving-hero-subtitle">{% if is_lab_worklist %}Manage accessioning, processing and Main Lab handoffs after receipt confirmation.{% else %}Record courier arrivals and endorse received isolates to Laboratory Receiving.{% endif %}</p>
       </div>
     </div>
     <div class="receiving-hero-actions">
+      <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=received"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
       {% if is_lab_worklist %}<a class="btn btn-outline-light" href="{% url 'laboratory_receiving_register' %}"><i class="fas fa-file-alt mr-2"></i>Monthly Inventory</a>{% endif %}
       {% if can_manage_secretariat %}<a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>{% endif %}
     </div>
@@ -35,7 +36,7 @@
     <section class="receiving-surface receiving-table-card" aria-label="Receiving worklist">
       <div class="receiving-board-toolbar">
         <div><h2 class="receiving-board-title">{{ active_tab_label }}</h2>
-          <p class="receiving-board-subtitle">{% if is_lab_worklist %}{% if active_stage == 'batch_creation' %}Accession ranges awaiting Raw Data batch creation. This task is independent of laboratory completion.{% elif active_tab == 'action' %}Receipts awaiting Bench A work: receipt, accessioning, processing or lyophilization.{% elif active_tab == 'main_lab' %}Batches currently with Main Laboratory for identification.{% elif active_tab == 'complete' %}All required laboratory steps are complete, or isolates were properly closed as non-viable.{% else %}All courier receipts and laboratory records.{% endif %} Counts are receipts, not isolates.{% else %}View courier receiving records by status.{% endif %}</p>
+          <p class="receiving-board-subtitle">{% if is_lab_worklist %}{% if active_stage == 'batch_creation' %}Accession ranges awaiting Raw Data batch creation. This task is independent of laboratory completion.{% elif active_tab == 'action' %}Confirmed receipts awaiting Bench A accessioning, processing or lyophilization.{% elif active_tab == 'main_lab' %}Batches currently with Main Laboratory for identification.{% elif active_tab == 'complete' %}All required laboratory steps are complete, or isolates were properly closed as non-viable.{% else %}All courier receipts and laboratory records.{% endif %} Counts are receipts, not isolates.{% else %}View courier receiving records by status.{% endif %}</p>
         </div>
       </div>
 

@@ -47,7 +47,11 @@ def render_laboratory_dashboard(request, queue=None):
     )
     if is_lab_worklist:
         from apps.laboratory.receiving_views import _laboratory_workflow_receipts
-        all_receipts = _laboratory_workflow_receipts(all_receipts)
+        # Only acknowledged physical receipts become Bench A work. Pending
+        # acknowledgment remains exclusively in centralized Receiving.
+        all_receipts = _laboratory_workflow_receipts(
+            all_receipts.filter(status=ReferralReceipt.Status.LAB_RECEIVED)
+        )
         tab_definitions = [
             ("action", "Needs Action", "action"),
             ("main_lab", "Awaiting Main Lab", "main_lab"),
@@ -70,7 +74,7 @@ def render_laboratory_dashboard(request, queue=None):
     if is_lab_worklist:
         # Existing bookmarks remain usable without restoring seven visible tabs.
         legacy_tabs = {
-            "pending": ("action", "receipt"),
+            "pending": ("action", "accessioning"),
             "received": ("action", "accessioning"),
             "id_complete": ("action", "lyophilization"),
             "processing": ("action", "processing"),
@@ -79,11 +83,11 @@ def render_laboratory_dashboard(request, queue=None):
         selected_tab, legacy_filter = legacy_tabs.get(explicit_tab, (explicit_tab, ""))
         selected_tab = selected_tab if selected_tab in tab_status else "action"
         if not explicit_tab and legacy_status == ReferralReceipt.Status.ENDORSED:
-            selected_tab, legacy_filter = "action", "receipt"
+            selected_tab, legacy_filter = "action", "accessioning"
         elif not explicit_tab and legacy_status == ReferralReceipt.Status.LAB_RECEIVED:
             selected_tab, legacy_filter = "all", ""
         stage = (request.GET.get("stage") or legacy_filter).strip()
-        valid_stages = {"receipt", "accessioning", "processing", "lyophilization", "batch_creation"}
+        valid_stages = {"accessioning", "processing", "lyophilization", "batch_creation"}
         stage = stage if selected_tab == "action" and stage in valid_stages else ""
     else:
         selected_tab = explicit_tab or "pending"
@@ -106,10 +110,9 @@ def render_laboratory_dashboard(request, queue=None):
         )
 
     if is_lab_worklist:
-        action_filter = (
-            Q(status=ReferralReceipt.Status.ENDORSED)
-            | Q(status=ReferralReceipt.Status.LAB_RECEIVED,
-                lab_workflow__in=("received", "processing", "id_complete"))
+        action_filter = Q(
+            status=ReferralReceipt.Status.LAB_RECEIVED,
+            lab_workflow__in=("received", "processing", "id_complete"),
         )
         main_lab_filter = Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="main_lab")
         completed_filter = Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="complete")
@@ -123,7 +126,6 @@ def render_laboratory_dashboard(request, queue=None):
             "complete": completed_filter,
         }
         stage_filters = {
-            "receipt": Q(status=ReferralReceipt.Status.ENDORSED),
             "accessioning": Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="received"),
             "processing": Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="processing"),
             "lyophilization": Q(status=ReferralReceipt.Status.LAB_RECEIVED, lab_workflow="id_complete"),
@@ -144,9 +146,9 @@ def render_laboratory_dashboard(request, queue=None):
             "complete": all_receipts.filter(completed_filter).count(),
         }
         lab_summary_cards = [
-            {"key": "pending_receipt", "label": "Pending Receipt",
-             "count": all_receipts.filter(status=ReferralReceipt.Status.ENDORSED).count(),
-             "tab": "action", "stage": "receipt"},
+            {"key": "pending_receipt", "label": "Pending Accessioning",
+             "count": stage_counts["accessioning"],
+             "tab": "action", "stage": "accessioning"},
             {"key": "action", "label": "Needs Action", "count": lab_counts["action"],
              "tab": "action", "stage": ""},
             {"key": "main_lab", "label": "With Main Lab", "count": lab_counts["main_lab"],
@@ -194,7 +196,6 @@ def render_laboratory_dashboard(request, queue=None):
         for key, label, tab_filter in tab_definitions
     ]
     stage_labels = {
-        "receipt": "Pending Receipt",
         "accessioning": "Accessioning",
         "processing": "Processing",
         "lyophilization": "Lyophilization",
@@ -226,7 +227,6 @@ def render_laboratory_dashboard(request, queue=None):
             "stage_filters": [
                 {"key": key, "label": label, "count": stage_counts[key]}
                 for key, label in (
-                    ("receipt", "Receipt"),
                     ("accessioning", "Accessioning"),
                     ("processing", "Processing"),
                     ("lyophilization", "Lyophilization"),

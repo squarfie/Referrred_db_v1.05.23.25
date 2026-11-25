@@ -12,6 +12,7 @@
   </div>
 </div>
 <div class="receiving-hero-actions">
+  <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=processing"><i class="fas fa-history mr-1"></i>Receiving History</a>
   <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-1"></i>Receiving &amp; Accessioning</a>
   <a class="btn btn-outline-light" href="{% url 'laboratory_receiving_detail' receipt.receiving_id %}">Laboratory Record</a>
   <a class="btn btn-info" href="{% url 'laboratory_receiving_register' %}">Monthly Inventory</a></div></header>
@@ -22,7 +23,7 @@
       <a href="#organism-inventory"{% if step_done.organisms %} class="is-done"{% endif %}><b>{% if step_done.organisms %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}3{% endif %}</b>Organisms{% if step_done.organisms %}<span class="sr-only"> (completed)</span>{% endif %}</a>
       <a href="#revival"{% if step_done.revival %} class="is-done"{% endif %}><b>{% if step_done.revival %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}4{% endif %}</b>Revival &amp; Site ID{% if step_done.revival %}<span class="sr-only"> (completed)</span>{% endif %}</a>
       <a href="#final-processing"{% if step_done.final %} class="is-done"{% endif %}><b>{% if step_done.final %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}5{% endif %}</b>Final Processing{% if step_done.final %}<span class="sr-only"> (completed)</span>{% endif %}</a>
-      <a href="#batch-generation"{% if step_done.batch %} class="is-done"{% endif %}><b>{% if step_done.batch %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}6{% endif %}</b>Batch{% if step_done.batch %}<span class="sr-only"> (completed)</span>{% endif %}</a>
+      <a href="#batch-generation"{% if step_done.batch %} class="is-done"{% endif %}><b>{% if step_done.batch %}<i class="fas fa-check" aria-hidden="true"></i>{% else %}6{% endif %}</b>DMU Handoff{% if step_done.batch %}<span class="sr-only"> (completed)</span>{% endif %}</a>
     </nav>
     {% if return_to %}<p><a class="btn btn-outline-primary" href="{{ return_to }}">Back to filtered worklist</a></p>{% endif %}
     <div class="alert alert-info receiving-notice"><i class="fas fa-user-check"></i><div><strong>The LAB Encoder decides acceptance or rejection.</strong> The system validates the totals but does not classify isolates automatically.</div></div>
@@ -418,8 +419,8 @@
 
   <section class="receiving-surface receiving-form-card mb-4{% if step_done.batch %} is-complete{% endif %}" id="batch-generation">
     <div class="receiving-card-header">
-      <h2>Batch Generation</h2>
-      <p>Review the accession range and its organism inventory before creating the batch. Generated batches cannot be edited or deleted through this worksheet.</p>
+      <h2>Endorse to DMU</h2>
+      <p>Review the completed laboratory accession range and inventory, then endorse it to DMU. The DMU Encoder confirms receipt and creates the Raw Data batch in Receiving. Existing generated batches remain available for reference.</p>
     </div>
     <div class="receiving-card-body">
       <div class="table-responsive">
@@ -436,27 +437,33 @@
               <td data-label="Status">
                 {% if item.batch %}<span class="badge badge-success">Generated</span>
                 <div class="small">{{ item.batch.bat_Batch_Code }}</div>
-                {% else %}<span class="badge badge-warning">Pending</span>{% endif %}
+                {% elif item.dmu_handoff %}
+                  {% if item.dmu_handoff.status == 'pending' %}<span class="badge badge-warning">Awaiting DMU receipt</span>
+                  {% elif item.dmu_handoff.status == 'confirmed' %}<span class="badge badge-info">Received by DMU</span>
+                  {% else %}<span class="badge badge-success">Created by DMU</span>{% endif %}
+                {% else %}<span class="badge badge-warning">Ready for endorsement</span>{% endif %}
               </td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
-                {% if can_edit and not item.batch %}
+                {% if can_edit and not item.batch and not item.dmu_handoff %}
                 <div class="receiving-batch-action">
                   {% if row.preview.blocked %}
-                    <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Create Batch</button>
+                    <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Endorse to DMU</button>
                     <button type="button" class="receiving-batch-warning"
                             data-toggle="tooltip" data-container="body" data-placement="top"
                             data-boundary="viewport" title="{{ row.preview.message }}"
-                            aria-label="Cannot create this batch: {{ row.preview.message }}">
+                            aria-label="Cannot endorse this accession: {{ row.preview.message }}">
                       <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
                     </button>
                   {% else %}
-                    <form method="post" action="{% url 'laboratory_batch_create' item.pk %}">
-                      {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Create Batch</button>
+                    <form method="post" action="{% url 'laboratory_batch_endorse_dmu' item.pk %}">
+                      {% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Endorse to DMU</button>
                     </form>
                   {% endif %}
                 </div>
                 {% elif item.batch %}
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>
+                {% else %}
+                <span class="text-muted small">Track in Receiving</span>
                 {% endif %}
               </div></td>
             </tr>

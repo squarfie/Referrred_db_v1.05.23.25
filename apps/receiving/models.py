@@ -432,6 +432,65 @@ class LaboratoryAccession(models.Model):
         return f"{self.laboratory_receiving.receipt.site.SiteCode} {self.reference_range}"
 
 
+class LaboratoryBatchHandoff(models.Model):
+    """Audited pre-batch transfer of a completed Bench A accession range to DMU.
+
+    Batch_Table is deliberately absent until the DMU Encoder creates it.
+    The accession's existing optional batch FK stores that eventual link.
+    """
+    class Status(models.TextChoices):
+        PENDING = "pending", "Awaiting DMU receipt"
+        CONFIRMED = "confirmed", "Received by DMU"
+        CREATED = "created", "Batch created by DMU"
+
+    accession = models.OneToOneField(
+        LaboratoryAccession, on_delete=models.PROTECT,
+        related_name="dmu_handoff",
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING, db_index=True)
+    endorsed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="laboratory_dmu_endorsements",
+    )
+    endorsed_at = models.DateTimeField(default=timezone.now)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True, related_name="laboratory_dmu_confirmations",
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True, related_name="laboratory_dmu_batch_creations",
+    )
+    created_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-endorsed_at", "-pk")
+        indexes = [models.Index(fields=("status", "endorsed_at"), name="receiving_dmu_status_idx")]
+
+
+class LaboratoryBatchHandoffEvent(models.Model):
+    """Append-only evidence of a pre-batch endorsement and its acceptance."""
+    class Action(models.TextChoices):
+        ENDORSED = "endorsed", "Endorsed to DMU"
+        CONFIRMED = "confirmed", "DMU receipt confirmed"
+        BATCH_CREATED = "batch_created", "Raw Data batch created by DMU"
+
+    handoff = models.ForeignKey(
+        LaboratoryBatchHandoff, on_delete=models.PROTECT, related_name="events",
+    )
+    action = models.CharField(max_length=20, choices=Action.choices)
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="laboratory_dmu_handoff_events",
+    )
+    performed_at = models.DateTimeField(default=timezone.now)
+    remarks = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ("performed_at", "pk")
+
+
 class LaboratoryOrganismCount(models.Model):
     class OrganismCode(models.TextChoices):
         HA = "HA", "Haemophilus"
@@ -745,3 +804,60 @@ class LaboratoryBiobank(models.Model):
 
     def __str__(self):
         return self.isolate.accession_number
+
+
+class BatchCustody(models.Model):
+    """One authoritative custody state per generated batch, independent of approval."""
+    batch = models.OneToOneField(
+        "home.Batch_Table", on_delete=models.CASCADE, related_name="receiving_custody"
+    )
+    current_role = models.CharField(max_length=40)
+    pending_role = models.CharField(max_length=40, blank=True, default="")
+    endorsed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="batch_custody_endorsements",
+    )
+    endorsed_at = models.DateTimeField(null=True, blank=True)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="batch_custody_confirmations",
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at", "-pk")
+        constraints = [
+            models.CheckConstraint(
+                check=~Q(current_role=""), name="receiving_custody_current_role_required"
+            ),
+            models.CheckConstraint(
+                check=Q(pending_role="") | ~Q(current_role=F("pending_role")),
+                name="receiving_custody_no_self_endorsement",
+            ),
+        ]
+
+
+class BatchCustodyEvent(models.Model):
+    """Append-only audit events for endorsement, confirmation, and undo."""
+    class Action(models.TextChoices):
+        INITIALIZED = "initialized", "Custody Initialized"
+        ENDORSED = "endorsed", "Endorsed"
+        CONFIRMED = "confirmed", "Receipt Confirmed"
+        UNDONE = "undone", "Endorsement Recalled"
+
+    custody = models.ForeignKey(
+        BatchCustody, on_delete=models.CASCADE, related_name="events"
+    )
+    action = models.CharField(max_length=20, choices=Action.choices)
+    from_role = models.CharField(max_length=40)
+    to_role = models.CharField(max_length=40, blank=True, default="")
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL,
+        related_name="batch_custody_events",
+    )
+    performed_at = models.DateTimeField(default=timezone.now)
+    remarks = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ("performed_at", "pk")

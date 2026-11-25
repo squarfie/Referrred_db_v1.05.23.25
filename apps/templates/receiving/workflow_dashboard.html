@@ -1,0 +1,189 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}Receiving{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-unified-table-format-3">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero">
+    <div class="receiving-hero-main">
+      <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span>
+      <div>
+        <p class="receiving-eyebrow">Receiving Dashboard</p>
+        <h1>Receiving and Isolate Tracking</h1>
+        <p class="receiving-hero-subtitle">Role-based batch endorsements, receipt acknowledgments and activity tracking.</p>
+      </div>
+    </div>
+    <div class="receiving-hero-actions">
+      <a class="btn btn-info" href="{% url 'receiving_create' %}"><i class="fas fa-plus mr-2"></i>New receipt</a>
+    </div>
+  </header>
+  <div class="receiving-content">
+    <section class="receiving-surface receiving-table-card" aria-label="Unified receiving worklist">
+      <div class="receiving-board-toolbar">
+        <div>
+          <h2 class="receiving-board-title">{{ active_tab_label }}</h2>
+          <p class="receiving-board-subtitle">{% if active_tab == 'completed' %}Officially released results only. Completing laboratory processing or signing a report does not count as release.{% else %}Batch-level handoffs are tracked independently from scientific checking and approval.{% endif %}</p>
+        </div>
+      </div>
+      <div class="receiving-tabbar">
+        <nav class="receiving-tabs receiving-workflow-tabs" aria-label="Receiving status tabs">
+          {% for tab in tabs %}
+          <a class="receiving-tab {% if tab.active %}active{% endif %}" {% if tab.active %}aria-current="page"{% endif %}
+             href="{% url 'receiving_workflow_dashboard' %}?tab={{ tab.key }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">
+            {{ tab.label }} <span class="receiving-tab-count">{{ tab.count }}</span>
+          </a>
+          {% endfor %}
+        </nav>
+        <form method="get" class="receiving-filters receiving-filters--inline" aria-label="Filter batch handoffs">
+          <input type="hidden" name="tab" value="{{ active_tab }}">
+          <div class="receiving-filter receiving-filter--inline">
+            <label for="receiving-year">Year</label>
+            <select class="form-control" id="receiving-year" name="year" onchange="this.form.submit()">
+              {% for year in available_years %}
+              <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+              {% endfor %}
+              <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All years</option>
+            </select>
+          </div>
+          <div class="receiving-filter receiving-filter--inline">
+            <label for="receiving-per-page">Rows</label>
+            <select class="form-control" id="receiving-per-page" name="per_page" onchange="this.form.submit()">
+              {% for size in allowed_page_sizes %}
+              <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="receiving-search-group">
+            <div class="receiving-search-wrap">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <input class="form-control" id="receiving-search" name="q" value="{{ q }}" placeholder="Batch code, site code or reference no." aria-label="Search batch handoffs">
+            </div>
+            <button class="btn btn-primary" type="submit">Search</button>
+          </div>
+          <a class="receiving-filter-reset" href="{% url 'receiving_workflow_dashboard' %}?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}"><i class="fas fa-undo-alt mr-1" aria-hidden="true"></i>Reset</a>
+        </form>
+      </div>
+
+      {% if courier_count or prebatch_count or page_obj.paginator.count %}
+      <div class="table-responsive receiving-unified-scroll">
+        <table class="table receiving-table receiving-unified-table">
+          <caption class="sr-only">Receiving records, accession handoffs, and generated batch custody</caption>
+          <thead><tr>
+            <th scope="col">Type</th>
+            <th scope="col">Referring site / Holder</th>
+            <th scope="col">Reference / Accession</th>
+            <th scope="col">Date / Activity</th>
+            <th scope="col">Status</th>
+            <th scope="col">Actions</th>
+          </tr></thead>
+          <tbody>
+            {% for receipt in courier_page_obj %}
+            <tr>
+              <td data-label="Type"><strong>{% if is_lab_receiving %}Laboratory Receipt{% else %}Courier Receipt{% endif %}</strong></td>
+              <td data-label="Referring site / Holder"><strong>{{ receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ receipt.site.SiteName }}</span></td>
+              <td data-label="Reference / Accession"><span class="receiving-tracking">{{ receipt.tracking_number }}</span><span class="receiving-site-name">Received by: {% if receipt.received_by %}{{ receipt.received_by.get_full_name|default:receipt.received_by.username }}{% else %}—{% endif %}</span></td>
+              <td data-label="Date / Activity"><span class="receiving-date">{{ receipt.date_received|date:"M j, Y" }}</span><span class="receiving-site-name">{{ receipt.time_received|time:"g:i A" }}</span></td>
+              <td data-label="Status"><span class="receiving-status receiving-status-{{ receipt.status }}"><i class="fas fa-circle" aria-hidden="true"></i>{% if active_tab == 'processing' %}Processing{% elif active_tab == 'completed' %}Released{% else %}{{ receipt.get_status_display }}{% endif %}</span></td>
+              <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
+                {% if receipt.can_confirm_unified %}
+                <a class="btn btn-sm btn-success receiving-action-primary mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm Lab Receipt</a>
+                {% endif %}
+                {% if receipt.can_endorse_unified %}
+                <a class="btn btn-sm btn-info receiving-action-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}?from_tab={{ active_tab }}#receiving-endorsement"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
+                {% endif %}
+                <a class="btn btn-sm btn-outline-primary receiving-action-detail mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}?from_tab={{ active_tab }}"><i class="fas fa-eye mr-1"></i>Details</a>
+              </div></td>
+            </tr>
+            {% endfor %}
+            {% for handoff in prebatch_page_obj %}
+            <tr>
+              <td data-label="Type"><strong>Accession Handoff</strong></td>
+              <td data-label="Referring site / Holder"><strong>{{ handoff.accession.laboratory_receiving.receipt.site.SiteCode }}</strong><span class="receiving-site-name">{{ handoff.accession.laboratory_receiving.receipt.site.SiteName }}</span></td>
+              <td data-label="Reference / Accession"><span class="receiving-tracking">{{ handoff.accession.reference_range }}</span><span class="receiving-site-name">Tracking: {{ handoff.accession.laboratory_receiving.receipt.tracking_number }}</span><span class="receiving-site-name">Endorsed by: {{ handoff.endorsed_by.get_full_name|default:handoff.endorsed_by.username }}</span></td>
+              <td data-label="Date / Activity"><span class="receiving-date">{{ handoff.endorsed_at|date:"M j, Y" }}</span><span class="receiving-site-name">{{ handoff.endorsed_at|time:"g:i A" }}</span></td>
+              <td data-label="Status"><span class="receiving-status {% if handoff.status == 'pending' %}receiving-status-endorsed{% else %}receiving-status-lab_received{% endif %}"><i class="fas fa-circle" aria-hidden="true"></i>{{ handoff.get_status_display }}</span></td>
+              <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
+                {% if handoff.can_confirm_here %}
+                <form method="post" action="{% url 'receiving_dmu_confirm' handoff.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success receiving-action-primary mb-1" type="submit"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Confirm Receipt</button></form>
+                {% endif %}
+                {% if handoff.can_create_here %}
+                <form method="post" action="{% url 'receiving_dmu_create_batch' handoff.pk %}">{% csrf_token %}<button class="btn btn-sm btn-info receiving-action-primary mb-1" type="submit">Create Batch</button></form>
+                {% endif %}
+                <a class="btn btn-sm btn-outline-primary receiving-action-detail mb-1" href="{% url 'receiving_detail' handoff.accession.laboratory_receiving.receipt.receiving_id %}?from_tab={{ active_tab }}"><i class="fas fa-eye mr-1" aria-hidden="true"></i>Details</a>
+              </div></td>
+            </tr>
+            {% endfor %}
+            {% for custody in page_obj %}
+            <tr>
+              <td data-label="Type"><strong>Generated Batch</strong></td>
+              <td data-label="Referring site / Holder"><strong>{{ custody.current_role }}</strong><span class="receiving-site-name">Awaiting: {{ custody.pending_role|default:"—" }}</span></td>
+              <td data-label="Reference / Accession"><span class="receiving-tracking">{{ custody.batch.bat_Batch_Code }}</span></td>
+              <td data-label="Date / Activity"><span class="receiving-date">{{ custody.updated_at|date:"M j, Y" }}</span><span class="receiving-site-name">{{ custody.updated_at|time:"g:i A" }}</span></td>
+              <td data-label="Status">{% if active_tab == 'completed' %}<span class="receiving-status receiving-status-lab_received"><i class="fas fa-circle" aria-hidden="true"></i>Released</span>{% elif custody.pending_role %}<span class="receiving-status receiving-status-endorsed"><i class="fas fa-circle" aria-hidden="true"></i>Pending confirmation</span>{% else %}<span class="receiving-status receiving-status-lab_received"><i class="fas fa-circle" aria-hidden="true"></i>Received</span>{% endif %}</td>
+              <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
+                <a class="btn btn-sm btn-outline-primary receiving-action-detail mb-1" href="{% url 'receiving_workflow_detail' custody.batch_id %}"><i class="fas fa-eye mr-1" aria-hidden="true"></i>Details</a>
+                {% if custody.can_confirm %}
+                <form method="post" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}<button class="btn btn-sm btn-success receiving-action-primary mb-1" type="submit"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Confirm Receipt</button></form>
+                {% endif %}
+                {% if custody.can_undo %}
+                <form method="post" action="{% url 'receiving_workflow_undo' custody.batch_id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger mb-1" type="submit">Undo</button></form>
+                {% endif %}
+                {% if custody.can_endorse %}
+                <details>
+                  <summary class="btn btn-sm btn-info mb-1">Endorse</summary>
+                  <form method="post" action="{% url 'receiving_workflow_endorse' custody.batch_id %}" class="mt-2" style="min-width:200px;">
+                    {% csrf_token %}
+                    <label class="form-control-label" for="destination-{{ custody.pk }}">Endorse to</label>
+                    <select class="form-control mb-2" id="destination-{{ custody.pk }}" name="destination_role" required>
+                      <option value="">Select a role</option>
+                      {% for role in destination_roles %}{% if role != custody.current_role %}
+                      <option value="{{ role }}">{{ role }}</option>
+                      {% endif %}{% endfor %}
+                    </select>
+                    <label class="form-control-label" for="remarks-{{ custody.pk }}">Reason (required for nonstandard routing)</label>
+                    <input class="form-control mb-2" id="remarks-{{ custody.pk }}" name="remarks" maxlength="1000">
+                    <button type="submit" class="btn btn-sm btn-primary">Submit endorsement</button>
+                  </form>
+                </details>
+                {% endif %}
+              </div></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if courier_page_obj.paginator.num_pages > 1 or prebatch_page_obj.paginator.num_pages > 1 or page_obj.paginator.num_pages > 1 %}
+      <nav class="receiving-unified-pagination" aria-label="Receiving worklist pagination">
+        {% if courier_page_obj.paginator.num_pages > 1 %}
+        <div class="receiving-board-pagination" aria-label="Receipt pages">
+          {% if courier_page_obj.has_previous %}<a aria-label="Previous receipt page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.previous_page_number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.number }}">Previous</a>{% endif %}
+          <span>Page {{ courier_page_obj.number }} of {{ courier_page_obj.paginator.num_pages }}</span>
+          {% if courier_page_obj.has_next %}<a aria-label="Next receipt page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.next_page_number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.number }}">Next</a>{% endif %}
+        </div>
+        {% endif %}
+        {% if prebatch_page_obj.paginator.num_pages > 1 %}
+        <div class="receiving-board-pagination" aria-label="Accession handoff pages">
+          {% if prebatch_page_obj.has_previous %}<a aria-label="Previous accession handoff page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.previous_page_number }}&amp;page={{ page_obj.number }}">Previous</a>{% endif %}
+          <span>Page {{ prebatch_page_obj.number }} of {{ prebatch_page_obj.paginator.num_pages }}</span>
+          {% if prebatch_page_obj.has_next %}<a aria-label="Next accession handoff page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.next_page_number }}&amp;page={{ page_obj.number }}">Next</a>{% endif %}
+        </div>
+        {% endif %}
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="receiving-board-pagination" aria-label="Generated batch pages">
+          {% if page_obj.has_previous %}<a aria-label="Previous generated batch page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+          <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+          {% if page_obj.has_next %}<a aria-label="Next generated batch page" href="?tab={{ active_tab }}&amp;year={{ selected_year }}&amp;per_page={{ per_page }}&amp;q={{ q|urlencode }}&amp;courier_page={{ courier_page_obj.number }}&amp;handoff_page={{ prebatch_page_obj.number }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+        </div>
+        {% endif %}
+      </nav>
+      {% endif %}
+      {% else %}
+      <div class="receiving-empty">
+        <i class="fas fa-inbox" aria-hidden="true"></i>
+        No receiving or endorsement records found for the selected filters.
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</main>
+{% endblock %}

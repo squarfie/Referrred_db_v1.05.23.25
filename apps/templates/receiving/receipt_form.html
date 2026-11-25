@@ -4,7 +4,7 @@
 {% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-form-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page" data-page="receiving-intake">
-  <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-clipboard-check"></i></span><div><p class="receiving-eyebrow">Receiving intake</p><h1>Receive courier batch</h1><p class="receiving-hero-subtitle">Create the permanent custody record before endorsement to the laboratory.</p></div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'secretariat_receiving_dashboard' %}"><i class="fas fa-arrow-left mr-2"></i>Back to Receiving</a></div></header>
+  <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-clipboard-check"></i></span><div><p class="receiving-eyebrow">Receiving intake</p><h1>Receive courier batch</h1><p class="receiving-hero-subtitle">Create the permanent custody record before endorsement to the laboratory.</p></div></div><div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab=received"><i class="fas fa-arrow-left mr-2"></i>Back to Receiving</a></div></header>
   <div class="receiving-content"><div class="receiving-form-wrap"><section class="receiving-surface receiving-form-card">
     <div class="receiving-card-header"><h2>Courier and receipt information</h2><p>Required fields (<span class="required-mark">*</span>) create the first custody event and QR-linked record.</p></div>
     <div class="receiving-card-body"><form method="post" novalidate>{% csrf_token %}
@@ -65,7 +65,7 @@
           </div>
       </div>
 
-      <div class="receiving-form-actions"><a class="btn btn-outline-secondary" href="{% url 'secretariat_receiving_dashboard' %}">Cancel</a><button class="btn btn-primary" type="submit"><i class="fas fa-save mr-2"></i>Save receiving record</button></div>
+      <div class="receiving-form-actions"><a class="btn btn-outline-secondary" href="{% url 'receiving_workflow_dashboard' %}?tab=received">Cancel</a><button class="btn btn-primary" type="submit"><i class="fas fa-save mr-2"></i>Save receiving record</button></div>
     </form></div>
   </section></div></div>
 </main>

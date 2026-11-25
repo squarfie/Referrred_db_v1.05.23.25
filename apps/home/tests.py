@@ -1145,7 +1145,7 @@ class GroupedSidebarNavigationTests(TestCase):
     def test_secretariat_receiving_is_standalone(self):
         markup = self._render_sidebar("Secretariat", "secretariat_receiving_dashboard")
         self.assertIn(">Receiving</span>", markup)
-        self.assertIn('href="/receiving/secretariat/"', markup)
+        self.assertIn('href="/receiving/workflow/"', markup)
         self.assertNotIn(">Laboratory</span>", markup)
         self.assertNotIn("WGS Upload", markup)
 
@@ -1160,7 +1160,7 @@ class GroupedSidebarNavigationTests(TestCase):
 
     def test_workspace_groups_follow_secretariat_before_verification_and_tat(self):
         markup = self._render_sidebar("Admin", "verification_dashboard")
-        secretariat_pos = markup.index('href="/receiving/secretariat/"')
+        secretariat_pos = markup.index('href="/receiving/workflow/"')
         data_management_links = (
             'href="/batch/"',
             'href="/show/"',

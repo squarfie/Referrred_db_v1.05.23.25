@@ -85,6 +85,7 @@
       <div class="board-title-wrap">
         <h2 class="board-title"><i class="fas fa-clipboard-check"></i>{{ active_tab_label }}</h2>
         <span class="board-subtitle">Verification workflow for verifier, lab manager, and head review.</span>
+        <a class="btn btn-sm btn-outline-info mt-2" href="{% url 'receiving_workflow_dashboard' %}?tab=received"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
       </div>
       <form method="get" class="board-filter">
         <input type="hidden" name="tab" value="{{ active_tab }}">

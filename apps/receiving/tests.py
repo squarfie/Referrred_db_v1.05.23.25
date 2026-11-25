@@ -67,7 +67,7 @@ class ReceivingPermissionTests(TestCase):
         response = self.client.get(reverse("laboratory_receiving_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Laboratory Receiving")
-        self.assertContains(response, "Pending Receipt")
+        self.assertContains(response, "Pending Accessioning")
         self.assertContains(response, reverse("laboratory_receiving_dashboard") + "?tab=action")
         self.assertNotContains(response, "Pending Endorsement")
         shared = self.client.get(reverse("secretariat_receiving_dashboard"))
@@ -779,7 +779,7 @@ class ReceivingViewTests(TestCase):
         confirmed = self.client.post(url, payload)
         self.assertRedirects(
             confirmed,
-            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+            self.route("laboratory_receiving_dashboard") + "?tab=action&stage=accessioning&year=all",
             fetch_redirect_response=False,
         )
         receipt.refresh_from_db()
@@ -795,7 +795,7 @@ class ReceivingViewTests(TestCase):
         })
         self.assertRedirects(
             response,
-            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+            self.route("laboratory_receiving_dashboard") + "?tab=action&stage=accessioning&year=all",
             fetch_redirect_response=False,
         )
         receipt.refresh_from_db()
@@ -863,11 +863,18 @@ class ReceivingViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["active_tab"], "action")
-        self.assertEqual(response.context["page_obj"].paginator.count, 2)
-        self.assertContains(response, "ENDORSED-001")
+        # Bench A starts after laboratory receipt confirmation.
+        self.assertEqual(response.context["page_obj"].paginator.count, 1)
+        self.assertNotContains(response, "ENDORSED-001")
         self.assertNotContains(response, "PENDING-001")
         self.assertContains(response, "LAB-001")
-        self.assertContains(response, "Confirm receipt")
+        self.assertNotContains(response, "Confirm Lab Receipt")
+
+        incoming = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertContains(incoming, "ENDORSED-001")
+        self.assertContains(incoming, "Confirm Lab Receipt")
 
     def test_tabs_are_filtered_and_counts_are_not_search_dependent(self):
         self.create_receipt("PENDING-001", ReferralReceipt.Status.RECEIVED)
@@ -976,6 +983,370 @@ class ReceivingTemplateTests(TestCase):
             )
         return ReferralReceipt.objects.create(**values)
 
+    def test_receipt_history_aggregates_existing_isolate_and_batch_milestones(self):
+        from apps.receiving.models import BatchCustody, BatchCustodyEvent
+        from apps.verification.models import VerificationCase
+
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        lab_receiving = LaboratoryReceiving.objects.create(
+            receipt=receipt, recorded_by=self.lab_encoder,
+        )
+        batch = Batch_Table.objects.create(
+            bat_Batch_Code="VSM-HISTORY-0001",
+            bat_SiteCode=self.site.SiteCode,
+            bat_Referral_Date=date(2026, 11, 12),
+            created_by=self.lab_encoder,
+        )
+        accession = LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_receiving, date_referred=date(2026, 11, 10),
+            start_number=1, end_number=1, batch=batch,
+            assigned_by=self.lab_encoder,
+        )
+        when = timezone.make_aware(datetime(2026, 11, 12, 11, 0))
+        isolate = LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number="26VSM0001",
+            endorsed_at=when, endorsed_by=self.lab_encoder,
+            acknowledged_at=when + timezone.timedelta(hours=1),
+            acknowledged_by=self.lab_encoder,
+            biobanked_at=when + timezone.timedelta(hours=2),
+            biobanked_by=self.lab_encoder,
+        )
+        LaboratoryIdentification.objects.create(
+            isolate=isolate, organism_reported="Klebsiella pneumoniae",
+            recorded_by=self.lab_encoder,
+        )
+        custody = BatchCustody.objects.create(
+            batch=batch, current_role=home_permissions.ROLE_LAB_ENCODER
+        )
+        BatchCustodyEvent.objects.create(
+            custody=custody, action=BatchCustodyEvent.Action.ENDORSED,
+            from_role=home_permissions.ROLE_LAB_ENCODER,
+            to_role=home_permissions.ROLE_ENCODER,
+            performed_by=self.lab_encoder, performed_at=when + timezone.timedelta(hours=3),
+        )
+        VerificationCase.objects.create(
+            final_batch=batch, status=VerificationCase.STATUS_SIGNED_BY_HEAD,
+            signed_by_head_at=when + timezone.timedelta(hours=4),
+            signed_by_head=self.admin,
+        )
+
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        )
+        self.assertEqual(response.status_code, 200)
+        activity = response.context["activity"]
+        labels = [event["label"] for event in activity]
+        for label in (
+            "Accession range assigned", "Endorsed to Main Laboratory",
+            "Main Laboratory acknowledged isolate",
+            "Isolate stored in biobank", "Identification result recorded",
+            "Endorsed", "Signed by Head",
+        ):
+            self.assertIn(label, labels)
+        self.assertEqual(
+            [event["when"] for event in activity],
+            sorted(event["when"] for event in activity),
+        )
+        self.assertContains(response, "Activity and Tracking History")
+        self.assertContains(response, "26VSM0001")
+
+    def test_receipt_history_is_scoped_to_the_requested_shipment(self):
+        first = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        other = self.create_receipt(ReferralReceipt.Status.RECEIVED)
+        linked = LaboratoryReceiving.objects.create(
+            receipt=first, recorded_by=self.lab_encoder,
+        )
+        accession = LaboratoryAccession.objects.create(
+            laboratory_receiving=linked,
+            date_referred=date(2026, 11, 10),
+            start_number=5, end_number=5,
+            assigned_by=self.lab_encoder,
+        )
+        LaboratoryIsolate.objects.create(
+            accession_range=accession, accession_number="26VSM0005",
+            endorsed_at=timezone.now(), endorsed_by=self.lab_encoder,
+        )
+        self.client.force_login(self.secretariat)
+        response = self.client.get(
+            self.route("receiving_detail", receiving_id=other.receiving_id)
+        )
+        self.assertNotContains(response, "26VSM0005")
+
+    def test_unified_pending_shows_existing_laboratory_receipts(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, receipt.tracking_number)
+        self.assertContains(response, "Confirm Lab Receipt")
+        self.assertContains(
+            response,
+            self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id),
+        )
+        self.assertContains(response, 'class="receiving-tabbar"')
+        self.assertContains(response, 'class="receiving-filters receiving-filters--inline"')
+
+    def test_confirm_receipt_button_is_exclusive_to_pending_tab(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        pending = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "pending"})
+        self.assertContains(pending, receipt.tracking_number)
+        self.assertContains(pending, "Confirm Lab Receipt")
+
+        self.assertContains(pending, "Details")
+        all_records = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "all"})
+        self.assertContains(all_records, receipt.tracking_number)
+        self.assertNotContains(all_records, "Confirm Lab Receipt")
+        self.assertContains(all_records, "Details")
+        self.assertNotContains(all_records, '>Endorsed <span class="receiving-tab-count"', html=False)
+        legacy = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "endorsed"})
+        self.assertEqual(legacy.context["active_tab"], "all")
+        self.assertContains(legacy, receipt.tracking_number)
+
+    def test_confirmed_receipt_is_processing_without_dead_end_endorse(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.lab_encoder)
+        received = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "received"}
+        )
+        self.assertNotContains(received, receipt.tracking_number)
+        processing = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertContains(processing, receipt.tracking_number)
+        self.assertContains(processing, "Processing")
+        self.assertNotContains(
+            processing,
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+            + "?from_tab=processing#receiving-endorsement",
+        )
+        self.assertNotContains(processing, "Confirm Lab Receipt")
+        self.assertContains(processing, "Details")
+
+        detail = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        )
+        self.assertNotContains(detail, 'id="receiving-endorsement"')
+        self.assertNotContains(detail, "Open laboratory worksheet")
+
+    def test_detail_back_link_preserves_originating_unified_tab(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id),
+            {"from_tab": "endorsed"},
+        )
+        self.assertContains(
+            response,
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=all"',
+            html=False,
+        )
+        self.assertNotContains(
+            response,
+            'href="' + self.route("secretariat_receiving_dashboard") + '"',
+            html=False,
+        )
+        fallback = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id),
+        )
+        self.assertContains(
+            fallback,
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=pending"',
+            html=False,
+        )
+
+    def test_courier_endorsement_requires_correct_destination_when_supplied(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
+        self.client.force_login(self.secretariat)
+        detail = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
+        self.assertContains(detail, 'name="destination_role"')
+        self.assertContains(detail, "Laboratory Receiving (Bench A)")
+        url = self.route("receiving_endorse", receiving_id=receipt.receiving_id)
+        denied = self.client.post(url, {"destination_role": home_permissions.ROLE_VERIFIER})
+        self.assertEqual(denied.status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        approved = self.client.post(url, {"destination_role": home_permissions.ROLE_LAB_ENCODER})
+        self.assertEqual(approved.status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+
+    def test_confirmation_moves_receipt_from_receiving_pending_to_bench_a(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        self.client.force_login(self.lab_encoder)
+        pending_before = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertContains(pending_before, receipt.tracking_number)
+
+        bench_before = self.client.get(
+            self.route("laboratory_receiving_dashboard"), {"tab": "action"}
+        )
+        self.assertNotContains(bench_before, receipt.tracking_number)
+
+        from apps.receiving.services import confirm_lab_receipt
+        confirm_lab_receipt(
+            receipt_id=receipt.pk,
+            user=self.lab_encoder,
+            lab_date_received=date(2026, 11, 12),
+            lab_time_received=time(10, 0),
+        )
+
+        pending_after = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertNotContains(pending_after, receipt.tracking_number)
+        bench_after = self.client.get(
+            self.route("laboratory_receiving_dashboard"),
+            {"tab": "action", "stage": "accessioning", "year": "all"},
+        )
+        self.assertContains(bench_after, receipt.tracking_number)
+        self.assertContains(bench_after, "Open Worksheet")
+
+    def test_unified_processing_shows_confirmed_laboratory_receipts(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.lab_encoder)
+        response = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, receipt.tracking_number)
+        self.assertNotContains(response, "Open Worksheet")
+        self.assertNotContains(response, "Open laboratory worksheet")
+        self.assertNotContains(
+            response,
+            self.route("laboratory_receiving_workspace", receiving_id=receipt.receiving_id),
+        )
+        self.assertContains(
+            response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '?from_tab=processing"',
+            html=False,
+        )
+
+    def test_processing_endorse_works_when_authorized_batch_exists(self):
+        from apps.receiving.models import BatchCustody
+
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        lab_receiving = LaboratoryReceiving.objects.create(
+            receipt=receipt, recorded_by=self.lab_encoder,
+        )
+        batch = Batch_Table.objects.create(
+            bat_Batch_Code="VSM-HANDOFF-0001",
+            bat_SiteCode=self.site.SiteCode,
+            bat_Referral_Date=date(2026, 11, 12),
+            created_by=self.lab_encoder,
+        )
+        LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_receiving,
+            date_referred=date(2026, 11, 10),
+            start_number=1, end_number=1,
+            batch=batch, assigned_by=self.lab_encoder,
+        )
+        BatchCustody.objects.create(
+            batch=batch, current_role=home_permissions.ROLE_LAB_ENCODER,
+        )
+        self.client.force_login(self.lab_encoder)
+        processing = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertContains(
+            processing,
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+            + "?from_tab=processing#receiving-endorsement",
+        )
+        detail = self.client.get(
+            self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        )
+        self.assertContains(detail, 'id="receiving-endorsement"')
+        self.assertContains(detail, "Endorse Batch")
+        self.assertContains(detail, home_permissions.ROLE_ENCODER)
+        submitted = self.client.post(
+            self.route("receiving_workflow_endorse", batch_id=batch.pk),
+            {"destination_role": home_permissions.ROLE_ENCODER},
+        )
+        self.assertEqual(submitted.status_code, 302)
+        custody = BatchCustody.objects.get(batch=batch)
+        self.assertEqual(custody.pending_role, home_permissions.ROLE_ENCODER)
+        self.assertEqual(custody.current_role, home_permissions.ROLE_LAB_ENCODER)
+
+    def test_processing_shipment_moves_to_completed_only_after_release(self):
+        from apps.verification.models import VerificationCase
+
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        lab_receiving = LaboratoryReceiving.objects.create(
+            receipt=receipt, recorded_by=self.lab_encoder,
+        )
+        batch = Batch_Table.objects.create(
+            bat_Batch_Code="VSM-RELEASE-0001",
+            bat_SiteCode=self.site.SiteCode,
+            bat_Referral_Date=date(2026, 11, 12),
+            created_by=self.lab_encoder,
+        )
+        LaboratoryAccession.objects.create(
+            laboratory_receiving=lab_receiving,
+            date_referred=date(2026, 11, 10),
+            start_number=1, end_number=1,
+            batch=batch, assigned_by=self.lab_encoder,
+        )
+        case = VerificationCase.objects.create(
+            final_batch=batch, status=VerificationCase.STATUS_SIGNED_BY_HEAD,
+        )
+        self.client.force_login(self.lab_encoder)
+        processing = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertContains(processing, receipt.tracking_number)
+        before = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "completed"}
+        )
+        self.assertNotContains(before, receipt.tracking_number)
+
+        case.status = VerificationCase.STATUS_RELEASED
+        case.save(update_fields=("status",))
+        after = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "completed"}
+        )
+        self.assertContains(after, receipt.tracking_number)
+        self.assertContains(after, "Released")
+        processing_after = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertNotContains(processing_after, receipt.tracking_number)
+
+    def test_completed_tab_does_not_treat_lab_receipt_as_released(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
+        self.client.force_login(self.lab_encoder)
+        completed = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "completed"}
+        )
+        self.assertEqual(completed.status_code, 200)
+        self.assertNotContains(completed, receipt.tracking_number)
+        self.assertEqual(completed.context["courier_count"], 0)
+        self.assertEqual(
+            next(tab["count"] for tab in completed.context["tabs"] if tab["key"] == "completed"),
+            0,
+        )
+        processing = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "processing"}
+        )
+        self.assertContains(processing, receipt.tracking_number)
+        received = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "received"}
+        )
+        self.assertNotContains(received, receipt.tracking_number)
+
+    def test_unified_receiving_does_not_expose_lab_intake_to_checker(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
+        checker = self.create_user("template_checker_receipt", home_permissions.ROLE_CHECKER)
+        self.client.force_login(checker)
+        response = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, receipt.tracking_number)
+
     def test_dashboard_uses_layout_displays_counts_and_receiving_menu(self):
         self.create_receipt(ReferralReceipt.Status.RECEIVED)
         self.create_receipt(ReferralReceipt.Status.ENDORSED)
@@ -990,9 +1361,10 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(response, "Isolates Received")
         self.assertContains(response, "Endorsed to Laboratory")
         self.assertContains(response, "Received by Laboratory")
-        # The sidebar now routes Secretariat users to their dedicated worklist.
+        # The sidebar opens the unified, role-scoped Receiving worklist.
         self.assertContains(
-            response, 'href="/receiving/secretariat/"', html=False
+            response, 'href="' + self.route("receiving_workflow_dashboard") + '"',
+            html=False,
         )
         self.assertContains(response, "/static/assets/css/receiving.css")
         self.assertContains(response, 'class="receiving-page"')
@@ -1032,7 +1404,16 @@ class ReceivingTemplateTests(TestCase):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         self.client.force_login(self.secretariat)
         response = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
-        self.assertContains(response, 'href="' + self.route("secretariat_receiving_dashboard") + '"', html=False)
+        self.assertContains(
+            response,
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=processing"',
+            html=False,
+        )
+        self.assertNotContains(
+            response,
+            'href="' + self.route("secretariat_receiving_dashboard") + '"',
+            html=False,
+        )
         self.assertNotContains(response, "Open laboratory worksheet")
         self.assertNotContains(response, "Confirm laboratory receipt")
         self.assertNotContains(response, "Update Lab Receiving")
@@ -1045,7 +1426,7 @@ class ReceivingTemplateTests(TestCase):
         lab_queue_url = self.route("laboratory_receiving_dashboard")
         response = self.client.get(lab_url)
         self.assertContains(response, 'href="' + lab_queue_url + '"', html=False)
-        self.assertContains(response, 'href="' + self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id) + '"', html=False)
+        self.assertNotContains(response, 'href="' + self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id) + '"', html=False)
         self.assertNotContains(response, "Endorse to laboratory")
         self.assertNotContains(response, "New receipt")
         self.assertNotContains(response, "Print batch label")
@@ -1055,16 +1436,19 @@ class ReceivingTemplateTests(TestCase):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.lab_encoder)
         response = self.client.get(self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id))
-        target = self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
+        target = self.route("receiving_workflow_dashboard") + "?tab=pending"
         self.assertContains(response, 'href="' + target + '"', count=2, html=False)
         self.assertNotContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
 
-    def test_lab_dashboard_open_links_to_lab_specific_record(self):
+    def test_lab_dashboard_excludes_unconfirmed_receipts(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
         self.client.force_login(self.lab_encoder)
         response = self.client.get(self.route("laboratory_receiving_dashboard"))
-        self.assertContains(response, 'href="' + self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
-        self.assertNotContains(response, 'href="' + self.route("receiving_detail", receiving_id=receipt.receiving_id) + '"', html=False)
+        self.assertNotContains(response, receipt.tracking_number)
+        self.assertNotContains(response, "Confirm receipt")
+        pending = self.client.get(self.route("receiving_workflow_dashboard"), {"tab": "pending"})
+        self.assertContains(pending, receipt.tracking_number)
+        self.assertContains(pending, "Confirm Lab Receipt")
 
     def test_secretariat_dashboard_open_links_to_secretariat_record(self):
         receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
@@ -1097,12 +1481,20 @@ class ReceivingTemplateTests(TestCase):
         self.assertNotContains(secretariat_dashboard, "Monthly Inventory")
         self.assertNotContains(secretariat_dashboard, "Open worksheet")
 
-    def test_secretariat_new_receipt_back_and_cancel_stay_secretariat(self):
+    def test_new_receipt_back_and_cancel_use_unified_receiving(self):
         self.client.force_login(self.secretariat)
         response = self.client.get(self.route("receiving_create"))
-        self.assertContains(response,
+        # Back and Cancel return to the unified Receiving worklist.
+        self.assertContains(
+            response,
+            'href="' + self.route("receiving_workflow_dashboard") + '?tab=received"',
+            count=2, html=False,
+        )
+        self.assertNotContains(
+            response,
             'href="' + self.route("secretariat_receiving_dashboard") + '"',
-            count=3, html=False)
+            html=False,
+        )
 
     def test_lab_encoder_sees_only_confirmation_for_endorsed_receipt(self):
         receipt = self.create_receipt(ReferralReceipt.Status.ENDORSED)
@@ -1116,9 +1508,14 @@ class ReceivingTemplateTests(TestCase):
         response = self.client.get(
             self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
         )
-        self.assertContains(response, "Confirm laboratory receipt")
+        self.assertNotContains(response, "Confirm laboratory receipt")
         self.assertContains(response, 'href="' + self.route("laboratory_receiving_dashboard") + '"', html=False)
         self.assertNotContains(response, "Print batch label")
+        incoming = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertContains(incoming, receipt.tracking_number)
+        self.assertContains(incoming, "Confirm Lab Receipt")
         self.assertNotContains(response, "Endorse to laboratory")
 
     def test_admin_uses_laboratory_detail_for_lab_confirmation(self):
@@ -1134,7 +1531,12 @@ class ReceivingTemplateTests(TestCase):
         laboratory = self.client.get(
             self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
         )
-        self.assertContains(laboratory, "Confirm laboratory receipt")
+        self.assertNotContains(laboratory, "Confirm laboratory receipt")
+        incoming = self.client.get(
+            self.route("receiving_workflow_dashboard"), {"tab": "pending"}
+        )
+        self.assertContains(incoming, receipt.tracking_number)
+        self.assertContains(incoming, "Confirm Lab Receipt")
 
     def test_terminal_lab_received_detail_has_no_transition_action(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
@@ -1172,15 +1574,15 @@ class ReceivingTemplateTests(TestCase):
         self.assertContains(secretariat_dashboard, "New receipt")
         self.assertContains(secretariat_dashboard, "Endorsed")
         self.assertNotContains(secretariat_dashboard, "Confirm receipt")
-        self.assertContains(laboratory_dashboard, "Pending Receipt")
-        self.assertContains(laboratory_dashboard, "Confirm receipt")
+        self.assertContains(laboratory_dashboard, "Pending Accessioning")
+        self.assertNotContains(laboratory_dashboard, "Confirm receipt")
         self.assertNotContains(laboratory_dashboard, "New receipt")
         self.assertContains(detail, "Print batch label")
         self.assertNotContains(detail, "Confirm laboratory receipt")
         lab_detail = self.client.get(
             self.route("laboratory_receiving_detail", receiving_id=receipt.receiving_id)
         )
-        self.assertContains(lab_detail, "Confirm laboratory receipt")
+        self.assertNotContains(lab_detail, "Confirm laboratory receipt")
         self.assertNotContains(lab_detail, "Endorse to laboratory")
 
     def test_detail_displays_events_in_chronological_order(self):
@@ -1203,7 +1605,7 @@ class ReceivingTemplateTests(TestCase):
             self.route("receiving_detail", receiving_id=receipt.receiving_id)
         )
         content = response.content.decode()
-        activity = content[content.index(">Activity<") :]
+        activity = content[content.index('id="receiving-activity-title"') :]
 
         self.assertLess(
             activity.index("Isolates Received"),
@@ -1612,27 +2014,24 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             reverse("laboratory_receiving_workspace", kwargs={"receiving_id": self.receipt.receiving_id}),
         )
 
-    def test_saved_range_creates_batch_in_existing_batch_table(self):
+    def test_saved_range_cannot_be_endorsed_before_lab_processing_finishes(self):
         self.lab_record.total_isolates_received = 5
         self.lab_record.isolates_accepted = 5
         self.lab_record.total_isolates_processed = 5
         self.lab_record.date_accepted = date(2026, 11, 19)
         self.lab_record.save()
-        add_response = self.client.post(
+        response = self.client.post(
             reverse("laboratory_accession_add", kwargs={"receiving_id": self.receipt.receiving_id}),
             {"date_referred": "2026-11-19", "start_number": 90, "end_number": 94,
              "batch_number": 1, "total_batches": 1},
         )
-        self.assertEqual(add_response.status_code, 302)
+        self.assertEqual(response.status_code, 302)
         accession = LaboratoryAccession.objects.get(laboratory_receiving=self.lab_record)
-
-        response = self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
-
+        response = self.client.post(reverse("laboratory_batch_endorse_dmu", args=[accession.pk]))
         self.assertEqual(response.status_code, 302)
         accession.refresh_from_db()
-        self.assertIsNotNone(accession.batch_id)
-        self.assertEqual(accession.batch.bat_Batch_Code, "RI_11192026_1.1_0090-0094")
-        self.assertEqual(Referred_Data.objects.filter(Batch_id=accession.batch).count(), 5)
+        self.assertIsNone(accession.batch_id)
+        self.assertFalse(hasattr(accession, "dmu_handoff"))
 
     def test_monthly_register_and_pdf_are_available(self):
         html = self.client.get(reverse("laboratory_receiving_register"), {"month": 11, "year": 2026})
@@ -1673,7 +2072,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "Step 3: Organism inventory",
             "Step 4: Revival &amp; Site ID",
             "Step 5: Final Processing",
-            "<h2>Batch Generation</h2>",
+            "<h2>Endorse to DMU</h2>",
         ]
         # Match the actual step heading, not the earlier Batch Generation
         # label in the worksheet's progress-summary cards.
@@ -1726,8 +2125,15 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
 
     def test_generated_accession_cannot_be_edited_or_deleted(self):
         accession = self.create_pending_accession()
-        result = self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
-        self.assertEqual(result.status_code, 302)
+        # Historical generated batches remain protected even though new
+        # laboratory work is now endorsed for DMU creation.
+        legacy_batch = Batch_Table.objects.create(
+            bat_Batch_Code="LEGACY-LAB-LOCK-0001",
+            bat_SiteCode=self.site.SiteCode,
+            created_by=self.lab_user,
+        )
+        accession.batch = legacy_batch
+        accession.save(update_fields=("batch",))
         accession.refresh_from_db()
         self.assertIsNotNone(accession.batch_id)
         edit_url = reverse("laboratory_accession_edit", kwargs={"accession_id": accession.pk})
@@ -1757,7 +2163,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         self.assertTrue(LaboratoryAccession.objects.filter(pk=accession.pk).exists())
         self.assertFalse(accession.organism_counts.exists())
 
-    def test_batch_conflict_preview_disables_creation_before_post(self):
+    def test_batch_conflict_preview_disables_endorsement_before_post(self):
         accession = self.create_pending_accession()
         # An accession already assigned to another batch must be detected
         # without attempting to create another batch.
@@ -1770,7 +2176,7 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             kwargs={"receiving_id": self.receipt.receiving_id},
         ))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Cannot create this batch")
+        self.assertContains(response, "Cannot endorse this accession")
         self.assertContains(response, "26ARS_RI0001")
         self.assertContains(response, 'aria-disabled="true"')
 
@@ -1792,15 +2198,16 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
             "OTHER_EXISTING_BATCH",
         )
 
-    def test_batch_conflict_preview_keeps_button_enabled_without_conflicts(self):
+    def test_batch_conflict_preview_requires_completed_lab_processing_even_without_conflicts(self):
         self.create_pending_accession()
         response = self.client.get(reverse(
             "laboratory_receiving_workspace",
             kwargs={"receiving_id": self.receipt.receiving_id},
         ))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Cannot create this batch")
-        self.assertContains(response, ">Create Batch</button>")
+        self.assertContains(response, "Complete laboratory isolate records")
+        self.assertContains(response, "Cannot endorse this accession")
+        self.assertContains(response, 'aria-disabled="true"')
 
     def test_batch_conflict_preview_detects_existing_batch_code(self):
         accession = self.create_pending_accession()
@@ -1959,17 +2366,26 @@ class LaboratoryReceivingWorkspaceTests(TestCase):
         isolate.refresh_from_db()
         self.assertEqual(isolate.status, LaboratoryIsolate.Status.ID_RETURNED)
 
-    def test_create_batch_remains_visible_after_isolates_handed_to_main_lab(self):
+    def test_endorse_to_dmu_waits_until_main_lab_processing_is_complete(self):
         accession = self.create_pending_accession()
         self._queue_and_endorse_to_main_lab(accession)
         response = self.client.get(reverse("laboratory_receiving_workspace", kwargs={
             "receiving_id": self.receipt.receiving_id,
         }))
-        self.assertContains(response, "Create Batch")
-        self.assertContains(response, reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
-        self.client.post(reverse("laboratory_batch_create", kwargs={"accession_id": accession.pk}))
+        self.assertContains(response, "Endorse to DMU")
+        self.assertContains(response, "Complete Bench A final processing or close non-viable isolates first.")
+        self.assertContains(response, 'aria-disabled="true"')
+        self.assertNotContains(
+            response,
+            'action="' + reverse("laboratory_batch_endorse_dmu", kwargs={"accession_id": accession.pk}) + '"',
+            html=False,
+        )
+        # A crafted direct POST must not bypass unfinished Main Lab processing.
+        denied = self.client.post(reverse("laboratory_batch_endorse_dmu", kwargs={"accession_id": accession.pk}))
+        self.assertEqual(denied.status_code, 302)
         accession.refresh_from_db()
-        self.assertIsNotNone(accession.batch_id)
+        self.assertIsNone(accession.batch_id)
+        self.assertFalse(hasattr(accession, "dmu_handoff"))
 
     def test_id_handoff_and_review_follow_roles(self):
         accession = self.create_pending_accession()
@@ -2822,7 +3238,10 @@ class LaboratoryReceivingYearPaginationTests(TestCase):
             received_by=self.user,
             endorsed_at=timezone.make_aware(datetime(year, 1, 4, 10, 0)),
             endorsed_by=self.user,
-            status=ReferralReceipt.Status.ENDORSED,
+            status=ReferralReceipt.Status.LAB_RECEIVED,
+            lab_date_received=date(year, 1, 4),
+            lab_time_received=time(11, 0),
+            lab_received_by=self.user,
         )
 
     def test_current_year_is_default_and_history_can_be_selected(self):
@@ -2867,13 +3286,13 @@ class LaboratoryReceivingYearPaginationTests(TestCase):
             self.make_receipt(number, year)
         response = self.client.get(
             self.url,
-            {"tab": "action", "stage": "receipt", "year": str(year),
+            {"tab": "action", "stage": "accessioning", "year": str(year),
              "per_page": "10", "q": "LAB-YEAR"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "receiving-year")
         self.assertContains(response, "receiving-per-page")
-        self.assertContains(response, f"stage=receipt&amp;year={year}&amp;per_page=10", html=False)
+        self.assertNotContains(response, f"stage=receipt&amp;year={year}&amp;per_page=10", html=False)
         self.assertContains(response, f"stage=accessioning&amp;year={year}&amp;per_page=10", html=False)
         self.assertContains(response, "per_page=10&amp;q=LAB-YEAR&amp;page=2", html=False)
         self.assertEqual(response.context["page_obj"].paginator.count, 11)
