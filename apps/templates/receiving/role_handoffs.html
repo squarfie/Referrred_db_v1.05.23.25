@@ -1,0 +1,41 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+{% block title %}My Batch Handoffs{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block content %}
+<main class="receiving-page">
+  <header class="receiving-hero">
+    <div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-exchange-alt"></i></span>
+      <div><p class="receiving-eyebrow">Role-owned workflow</p><h1>My Batch Handoffs</h1>
+      <p class="receiving-hero-subtitle">Manage generated-batch custody under your authorized role. Scientific approval remains in its own workflow.</p></div>
+    </div>
+  </header>
+  <div class="receiving-content">
+    <section class="receiving-surface receiving-card">
+      <div class="receiving-card-header"><h2>Assigned batch handoffs</h2><p>Endorse, acknowledge or recall only the batches for which your role is responsible.</p></div>
+      <div class="receiving-card-body">
+        <div class="table-responsive">
+          <table class="table receiving-table">
+            <thead><tr><th>Batch</th><th>Current holder</th><th>Awaiting receipt</th><th>Updated</th><th>Actions</th></tr></thead>
+            <tbody>
+              {% for custody in custodies %}
+              <tr>
+                <td><strong>{{ custody.batch.bat_Batch_Code }}</strong></td>
+                <td>{{ custody.current_role }}</td>
+                <td>{{ custody.pending_role|default:"—" }}</td>
+                <td>{{ custody.updated_at|date:"M j, Y g:i A" }}</td>
+                <td class="receiving-actions">
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_role_handoff_detail' custody.batch_id %}">Open Handoff</a>
+                  {% if custody.can_confirm_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Confirm Receipt</button></form>{% endif %}
+                  {% if custody.can_recall_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-danger">Recall</button></form>{% endif %}
+                </td>
+              </tr>
+              {% empty %}<tr><td colspan="5" class="text-muted text-center">No generated batches currently assigned to your role.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+{% endblock content %}
