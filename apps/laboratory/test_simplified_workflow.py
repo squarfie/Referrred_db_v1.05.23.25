@@ -66,6 +66,9 @@ class SimplifiedWorkflowTests(TestCase):
             remarks__startswith="Main Lab endorsement recalled",
         ))
         self.assertEqual(len(events), 1)
+        history_page = self.client.get(reverse("laboratory_isolate_detail", args=[case.pk]))
+        self.assertContains(history_page, "Routing decision history")
+        self.assertContains(history_page, "Main Lab endorsement recalled")
         # The unaccepted whole batch may be endorsed again.
         self.assertTrue(create_id_handoff(self.accession.pk, self.lab_user))
         acknowledge_id_receipt(isolate_id=case.pk, user=self.main_user)
@@ -87,6 +90,7 @@ class SimplifiedWorkflowTests(TestCase):
         self.assertContains(page, "Temporary banking using Site ID")
         self.assertContains(page, "Record temporary storage details before Main Lab retrieval")
         self.assertContains(page, "Scientific record and completed history")
+        self.assertContains(page, "Routing decision history")
         self.assertTrue(self.receipt.events.filter(
             remarks__startswith="Disposition: Temporary Site ID banking selected for",
         ).exists())
