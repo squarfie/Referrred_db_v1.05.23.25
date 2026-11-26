@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving Activity{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-inline-workspaces-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-activity-timeline-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page wf-page">
   <header class="receiving-hero">
@@ -52,16 +52,35 @@
         <h2 id="wf-activity-title">Activity and tracking</h2>
         <p>Chronological custody, identification, and verification events. Each entry retains its original actor and timestamp.</p>
       </div>
-      <div class="wf-timeline">
+      <div class="wf-timeline" role="list" aria-label="Batch activity in chronological order">
         {% for event in activity %}
-        <article class="wf-event">
-          <span class="wf-event-dot" aria-hidden="true"></span>
-          <div class="wf-event-title">{{ event.label }} <span class="wf-hint">({{ event.source }})</span></div>
-          <div class="wf-event-meta">{{ event.when|date:"M j, Y g:i A" }} · {% if event.actor %}{{ event.actor.get_full_name|default:event.actor.username }}{% else %}System or previous user{% endif %}</div>
-          {% if event.description %}<div class="wf-event-note">{{ event.description }}</div>{% endif %}
-        </article>
+          {% ifchanged event.when|date:"Y-m-d" %}
+          <div class="wf-day-heading" role="heading" aria-level="3">
+            <i class="far fa-calendar-alt" aria-hidden="true"></i>
+            {{ event.when|date:"F j, Y" }}
+          </div>
+          {% endifchanged %}
+          <article class="wf-event {% if event.source == 'Custody' %}wf-event--custody{% elif event.source == 'Verification' %}wf-event--verification{% else %}wf-event--laboratory{% endif %}" role="listitem">
+            <span class="wf-event-dot" aria-hidden="true"></span>
+            <div class="wf-event-body">
+              <div class="wf-event-top">
+                <div class="wf-event-title">{{ event.label }}</div>
+                <span class="wf-event-category">
+                  {% if event.source == 'Custody' %}<i class="fas fa-exchange-alt" aria-hidden="true"></i>
+                  {% elif event.source == 'Verification' %}<i class="fas fa-clipboard-check" aria-hidden="true"></i>
+                  {% else %}<i class="fas fa-flask" aria-hidden="true"></i>{% endif %}
+                  {{ event.source }}
+                </span>
+              </div>
+              <div class="wf-event-meta">
+                <span><i class="far fa-clock" aria-hidden="true"></i> <time datetime="{{ event.when|date:'c' }}">{{ event.when|date:"g:i A" }}</time></span>
+                <span><i class="far fa-user" aria-hidden="true"></i> {% if event.actor %}{{ event.actor.get_full_name|default:event.actor.username }}{% else %}System or previous user{% endif %}</span>
+              </div>
+              {% if event.description %}<div class="wf-event-note">{{ event.description }}</div>{% endif %}
+            </div>
+          </article>
         {% empty %}
-        <div class="receiving-empty"><i class="fas fa-history" aria-hidden="true"></i><p>No activity has been recorded for this batch.</p></div>
+          <div class="receiving-empty"><i class="fas fa-history" aria-hidden="true"></i><p>No activity has been recorded for this batch.</p></div>
         {% endfor %}
       </div>
     </section>
