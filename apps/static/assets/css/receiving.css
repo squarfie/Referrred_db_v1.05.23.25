@@ -830,6 +830,57 @@ html { scroll-behavior: smooth; }
 }
 
 
+/* Main Lab batch paging: separate the footer from batch accordions and align controls. */
+.ml-page .ml-worklist-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+  min-height: 3.4rem;
+  padding: .7rem 1rem;
+  border-top: 1px solid var(--receiving-border);
+  background: #f8fbfd;
+  border-radius: 0 0 10px 10px;
+}
+.ml-page .ml-footer-count {
+  color: #556d80;
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ml-page .ml-page-counter { color: #758b9d; font-weight: 500; }
+.ml-page .ml-page-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .45rem;
+  margin-left: auto;
+}
+.ml-page .ml-page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  min-height: 32px;
+  padding: .35rem .7rem;
+  border: 1px solid #bcd5e2;
+  background: #fff;
+  color: #12516f;
+  border-radius: 7px;
+  font-size: .76rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ml-page a.ml-page-button:hover { color: #08445d; background: #eaf7fb; border-color: #85c7d4; }
+.ml-page a.ml-page-button:focus-visible { outline: 2px solid var(--receiving-cyan); outline-offset: 2px; }
+.ml-page .ml-page-button.is-disabled { color: #a2b1bd; border-color: #e0e9ef; background: #f4f7fa; cursor: default; }
+@media (max-width: 575.98px) {
+  .ml-page .ml-worklist-footer { padding: .7rem; }
+  .ml-page .ml-page-controls { width: 100%; justify-content: space-between; }
+}
+
 /* ===== Organism search: shorter field, clearly marked as search ===== */
 /* ===== Organism correction forms: aligned search, pair and button ===== */
 /* One shared width (420px) and one control height (2.5rem) for everything in the picker */
