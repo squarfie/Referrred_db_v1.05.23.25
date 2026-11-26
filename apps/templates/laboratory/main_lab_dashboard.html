@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Main Laboratory{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-main-lab-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-main-lab-pager-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page ml-page">
   <header class="receiving-hero">
@@ -106,13 +106,30 @@
         {% endfor %}
       </div>
 
-      <nav class="receiving-unified-footer" aria-label="Main Laboratory batch pages">
-        <span class="ml-footer-count">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} batch{{ page_obj.paginator.count|pluralize:'es' }}</span>
-        <div class="receiving-unified-pager">
-          {% if page_obj.has_previous %}<a aria-label="Previous page" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>{% else %}<span class="is-disabled"><i class="fas fa-chevron-left" aria-hidden="true"></i></span>{% endif %}
-          {% if page_obj.has_next %}<a aria-label="Next page" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>{% else %}<span class="is-disabled"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>{% endif %}
-        </div>
-      </nav>
+      <footer class="ml-worklist-footer" aria-label="Main Laboratory batch pagination">
+        <span class="ml-footer-count">
+          {% if page_obj.paginator.count %}
+            {{ page_obj.paginator.count }} batch{{ page_obj.paginator.count|pluralize:'es' }}
+            {% if page_obj.has_other_pages %}<span class="ml-page-counter">· Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>{% endif %}
+          {% else %}
+            No batches to display
+          {% endif %}
+        </span>
+        {% if page_obj.has_other_pages %}
+        <nav class="ml-page-controls" aria-label="Change Main Laboratory batch page">
+          {% if page_obj.has_previous %}
+            <a class="ml-page-button" aria-label="Previous page" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}"><i class="fas fa-chevron-left" aria-hidden="true"></i><span>Previous</span></a>
+          {% else %}
+            <span class="ml-page-button is-disabled" aria-disabled="true"><i class="fas fa-chevron-left" aria-hidden="true"></i><span>Previous</span></span>
+          {% endif %}
+          {% if page_obj.has_next %}
+            <a class="ml-page-button" aria-label="Next page" href="?tab={{ selected_tab }}&amp;q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}"><span>Next</span><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+          {% else %}
+            <span class="ml-page-button is-disabled" aria-disabled="true"><span>Next</span><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+          {% endif %}
+        </nav>
+        {% endif %}
+      </footer>
     </section>
   </div>
 </main>
