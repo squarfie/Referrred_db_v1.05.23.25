@@ -23,6 +23,7 @@ from django.views.decorators.http import require_POST
 
 from .guidance import next_action
 from .isolate_progress import isolate_worksheet_steps
+from .disposition import isolate_disposition_summary
 from .identification_workflow import record_identification, finalize_banking, final_banking_filter, is_final_banked
 from .navigation import return_url, detail_url
 from .forms import StickerDateRangeForm
@@ -270,6 +271,7 @@ def laboratory_batch_detail(request, accession_id):
             isolate.reported_site_id = site_identification(isolate, require_code=False)
         except WorkflowError:
             isolate.reported_site_id = None
+    recall_main_lab, recall_reason = main_lab_recall_candidates(accession, all_batch_isolates, request.user)
     return render(request, "laboratory/lab_batch_detail.html", {
         "accession": accession, "isolates": isolates,
         "revival_tabs": revival_tabs, "active_revival_tab": revival_tab,
@@ -278,6 +280,8 @@ def laboratory_batch_detail(request, accession_id):
         "can_review": can_review_id_results(request.user),
         "can_test": can_access_main_lab(request.user),
         "id_handoff": id_handoff_readiness(accession, all_batch_isolates),
+        "can_recall_main_lab": bool(recall_main_lab),
+        "recall_main_lab_reason": recall_reason,
         "return_to": return_url(request),
     })
 
@@ -498,6 +502,7 @@ def laboratory_isolate_detail(request, isolate_id):
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
         "isolate_progress": isolate_worksheet_steps(isolate),
+        "disposition": isolate_disposition_summary(isolate),
         "isolate_recall_allowed": isolate_recall_allowed,
         "isolate_recall_reason": recall_reason,
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
