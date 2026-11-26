@@ -107,6 +107,10 @@ def can_recall_courier_receipt(receipt, user):
 @transaction.atomic
 def recall_courier_endorsement(*, receipt_id, user, remarks=""):
     receipt = ReferralReceipt.objects.select_for_update().get(pk=receipt_id)
+    if receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
+        raise InvalidReceivingTransition(
+            "Laboratory Receiving has already confirmed custody. This endorsement cannot be undone."
+        )
     _require_permission(
         can_recall_courier_receipt(receipt, user),
         "Only the original Secretariat sender or Admin may recall a pending courier endorsement.",
