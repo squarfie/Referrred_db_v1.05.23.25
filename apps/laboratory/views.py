@@ -30,6 +30,7 @@ from apps.receiving.qr import build_isolate_scan_url, render_qr_png
 from .workflow import (WorkflowError, transition_batch, transition_isolate_revival,
     record_revival_outcome, correct_revival_outcome, record_revival_failure, retry_revival, complete_revival_isolate, complete_lyophilization, save_biobank, create_id_handoff, acknowledge_id_receipt,
     bank_using_site_id, site_identification, record_site_identification, queue_for_id, id_handoff_readiness,
+    recall_main_lab_handoff, main_lab_recall_candidates,
     bench_a_pre_handoff_group)
 from .models import (
     LaboratoryAccession, LaboratoryBiobank, LaboratoryIdentification, LaboratoryIsolate, ReceivingEvent,
@@ -299,6 +300,24 @@ def laboratory_endorse_id(request, accession_id):
 @login_required
 @lab_review_required
 @require_POST
+def laboratory_recall_main_lab(request, accession_id):
+    accession = get_object_or_404(LaboratoryAccession, pk=accession_id)
+    try:
+        count = recall_main_lab_handoff(
+            accession_id, request.user,
+            remarks=(request.POST.get("remarks") or "").strip(),
+        )
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"Main Lab endorsement recalled for {count} unacknowledged isolate(s).")
+    return redirect("laboratory_receiving_workspace",
+                    receiving_id=accession.laboratory_receiving.receipt.receiving_id)
+
+
+@login_required
+@lab_review_required
+@require_POST
 def laboratory_queue_id_batch(request, accession_id):
     accession = get_object_or_404(LaboratoryAccession, pk=accession_id)
     try:
@@ -472,9 +491,15 @@ def laboratory_isolate_detail(request, isolate_id):
         site_id_error = str(exc)
     can_edit_site_id = can_review_id_results(request.user) and not (isolate.site_organism_code or isolate.site_organism_name) and not isolate.endorsed_at and isolate.status in (
         'revival_pending', 'revival_queued', 'revival_in_progress', 'revival_failed', 'revived', 'id_queued')
+    recall_cohort, recall_reason = main_lab_recall_candidates(
+        isolate.accession_range, siblings, request.user,
+    )
+    isolate_recall_allowed = any(item.pk == isolate.pk for item in recall_cohort)
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
         "isolate_progress": isolate_worksheet_steps(isolate),
+        "isolate_recall_allowed": isolate_recall_allowed,
+        "isolate_recall_reason": recall_reason,
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
         "revival_correction_events": ReceivingEvent.objects.filter(
             receipt=isolate.accession_range.laboratory_receiving.receipt,
