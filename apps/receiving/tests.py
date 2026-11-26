@@ -702,7 +702,8 @@ class ReceivingViewTests(TestCase):
         self.assertIsNone(receipt.endorsed_by)
         self.assertNotContains(
             self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id)),
-            "Endorse to Bench A",
+            'action="' + self.route("receiving_endorse", receiving_id=receipt.receiving_id) + '"',
+            html=False,
         )
         # Shared Receiving permissions must not grant independent Lab confirmation.
         self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(self.verifier))
@@ -1494,7 +1495,7 @@ class ReceivingTemplateTests(TestCase):
         )
 
         self.assertContains(response, "Print batch label")
-        self.assertContains(response, "Endorse to Bench A")
+        self.assertContains(response, '>Endorse</button>', html=False)
         self.assertContains(response, 'name="destination_role" value="LAB Encoder"', html=False)
         self.assertContains(
             response,
@@ -1505,6 +1506,39 @@ class ReceivingTemplateTests(TestCase):
         self.assertNotContains(response, 'href="#receiving-endorsement"')
         self.assertNotContains(response, "Confirm laboratory receipt")
 
+    def test_receiving_list_endorses_in_place_and_shows_undo_in_all_records(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
+        self.client.force_login(self.secretariat)
+        list_url = self.route("receiving_workflow_dashboard")
+        endorse_url = self.route("receiving_endorse", receiving_id=receipt.receiving_id)
+        undo_url = self.route("receiving_recall_endorsement", receiving_id=receipt.receiving_id)
+
+        received = self.client.get(list_url, {"tab": "received", "year": "2026"})
+        self.assertContains(received, 'action="' + endorse_url + '"', html=False)
+        self.assertContains(received, 'name="next" value="receiving"', html=False)
+        self.assertContains(received, ">Endorse</button>", html=False)
+        self.assertNotContains(received, 'href="#receiving-endorsement"')
+
+        submitted = self.client.post(endorse_url, {
+            "destination_role": home_permissions.ROLE_LAB_ENCODER,
+            "next": "receiving",
+        })
+        self.assertRedirects(submitted, list_url + "?tab=received")
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+
+        received_after = self.client.get(list_url, {"tab": "received", "year": "2026"})
+        self.assertNotContains(received_after, receipt.tracking_number)
+        all_records = self.client.get(list_url, {"tab": "all", "year": "2026"})
+        self.assertContains(all_records, receipt.tracking_number)
+        self.assertContains(all_records, 'action="' + undo_url + '"', html=False)
+        self.assertNotContains(all_records, 'action="' + endorse_url + '"', html=False)
+
+        self.client.force_login(self.lab_encoder)
+        pending = self.client.get(list_url, {"tab": "pending", "year": "2026"})
+        self.assertContains(pending, receipt.tracking_number)
+        self.assertContains(pending, "Confirm Receipt")
+
     def test_courier_header_action_switches_to_icon_only_undo_after_endorsement(self):
         receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
         self.client.force_login(self.secretariat)
@@ -1512,7 +1546,7 @@ class ReceivingTemplateTests(TestCase):
         endorse_url = self.route("receiving_endorse", receiving_id=receipt.receiving_id)
         undo_url = self.route("receiving_recall_endorsement", receiving_id=receipt.receiving_id)
         initial = self.client.get(url)
-        self.assertContains(initial, "Endorse to Bench A")
+        self.assertContains(initial, '>Endorse</button>', html=False)
         self.assertNotContains(initial, 'aria-label="Undo courier endorsement"')
         self.assertNotContains(initial, 'id="receiving-endorsement"')
 
@@ -1520,7 +1554,7 @@ class ReceivingTemplateTests(TestCase):
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
         pending = self.client.get(url)
-        self.assertNotContains(pending, "Endorse to Bench A")
+        self.assertNotContains(pending, '>Endorse</button>', html=False)
         self.assertContains(pending, "Awaiting Bench A receipt")
         self.assertContains(pending, 'aria-label="Undo courier endorsement"', count=1)
         self.assertContains(pending, 'action="' + undo_url + '"', count=1, html=False)
@@ -1529,7 +1563,7 @@ class ReceivingTemplateTests(TestCase):
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
         restored = self.client.get(url)
-        self.assertContains(restored, "Endorse to Bench A")
+        self.assertContains(restored, '>Endorse</button>', html=False)
         self.assertNotContains(restored, 'aria-label="Undo courier endorsement"')
 
     def test_reendorsed_courier_returns_to_bench_a_pending_until_acknowledged(self):
