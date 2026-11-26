@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Isolate {{ isolate.accession_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}"><link rel="stylesheet" href="{% static 'assets/css/laboratory-isolate-progress.css' %}?v=20261126-disposition-1"><link rel="stylesheet" href="{% static 'assets/css/isolate-page.css' %}?v=20261126-isolate-3"><link rel="stylesheet" href="{% static 'assets/css/isolate-page-2.css' %}?v=20261126-isolate-page-2-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}"><link rel="stylesheet" href="{% static 'assets/css/laboratory-isolate-progress.css' %}?v=20261126-disposition-1"><link rel="stylesheet" href="{% static 'assets/css/isolate-page.css' %}?v=20261126-isolate-3"><link rel="stylesheet" href="{% static 'assets/css/isolate-page-2.css' %}?v=20261126-isolate-page-2-1"><link rel="stylesheet" href="{% static 'assets/css/isolate-history-layout.css' %}?v=20261126-history-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page isolate-detail-page" data-page="laboratory-isolate">
 
@@ -314,82 +314,101 @@
 <!-- Scientific record and history -->
 <details class="receiving-surface receiving-form-card mb-4 ip-record">
   <summary>
-    <span class="ip-record-title"><i class="fas fa-folder-open mr-2" aria-hidden="true"></i>Scientific record and completed history</span>
-    <span class="ip-record-hint">Corrections, instrument results, routing and audit trail</span>
+    <span class="ip-record-title"><i class="fas fa-folder-open mr-2" aria-hidden="true"></i>Scientific records and history</span>
+    <span class="ip-record-hint">Identification, corrections, results and audit evidence</span>
   </summary>
-  <div class="receiving-card-body ip-record-body">
-
-    {% if isolate.identification_corrections.exists %}
-      {% include "laboratory/_identification_correction_history.html" %}
-    {% endif %}
-
-    <h3 class="ip-sub">Instrument result history</h3>
-    {% if isolate.identifications.exists %}
-      {% include 'laboratory/_lab_isolate_results.html' %}
-    {% else %}
-      <p class="ip-empty"><i class="fas fa-flask mr-1" aria-hidden="true"></i>No instrument results recorded yet.</p>
-    {% endif %}
-
-    {% if disposition_history %}
-    <h3 class="ip-sub">Routing decision history</h3>
-    <ol class="ip-timeline">
-      {% for event in disposition_history %}
-      <li class="ip-timeline-item">
-        <span class="ip-timeline-dot {% if 'recalled' in event.remarks %}is-recalled{% else %}is-completed{% endif %}" aria-hidden="true"></span>
-        <div class="ip-timeline-body">
-          <div class="ip-timeline-title">
-            <span class="ip-tag {% if 'recalled' in event.remarks %}is-warn{% else %}is-ok{% endif %}">{% if 'recalled' in event.remarks %}Recalled{% else %}Completed{% endif %}</span>
-            <strong>{{ event.remarks }}</strong>
-          </div>
-          <p class="ip-timeline-meta">{{ event.occurred_at|date:"M j, Y g:i A" }} · {{ event.performed_by|default:"Previous user" }}</p>
-        </div>
-      </li>
-      {% endfor %}
-    </ol>
-    {% endif %}
-
-    <h3 class="ip-sub">Workflow audit</h3>
-    {% if disposition %}
-    <div class="ip-decision-note">
-      <span class="ip-tag is-ok">Completed</span>
-      <strong>{{ disposition.choice }}</strong>
-      <span class="ip-timeline-meta">{% if disposition.when %}{{ disposition.when|date:"M j, Y g:i A" }}{% else %}Historical record{% endif %} · {{ disposition.actor|default:"Historical record" }}</span>
-    </div>
-    {% endif %}
-
-    <dl class="ip-audit">
-      {% if isolate.retrieved_at %}<div><dt>Retrieved from temporary storage</dt><dd>{{ isolate.retrieved_at }} · {{ isolate.retrieved_by }}<span class="ip-audit-sub">Storage snapshot: {{ isolate.retrieved_storage }}</span></dd></div>{% endif %}
-      {% if isolate.id_completed_at %}<div><dt>ID testing completed</dt><dd>{{ isolate.id_completed_at }} · {{ isolate.id_completed_by }}</dd></div>{% endif %}
-      {% if isolate.lyophilization_started_at %}<div><dt>Proceeded to lyophilization</dt><dd>{{ isolate.lyophilization_started_at }} · {{ isolate.lyophilization_started_by }}</dd></div>{% endif %}
-      {% if isolate.final_identified_at %}<div><dt>Final ID confirmed</dt><dd>{{ isolate.final_identified_at }} · {{ isolate.final_identified_by }}</dd></div>{% endif %}
-      {% if isolate.site_identified_at %}<div><dt>Site ID recorded</dt><dd>{{ isolate.site_identified_at|date:"M j, Y g:i A" }} &middot; {{ isolate.site_identified_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.created_at %}<div><dt>Accession created</dt><dd>{{ isolate.created_at|date:"M j, Y g:i A" }}</dd></div>{% endif %}
-      {% if isolate.id_queued_at %}<div><dt>Queued for endorsement</dt><dd>{{ isolate.id_queued_at|date:"M j, Y g:i A" }} &middot; {{ isolate.id_queued_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.endorsed_at %}<div><dt>Endorsed to Main Lab</dt><dd>{{ isolate.endorsed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.endorsed_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.acknowledged_at %}<div><dt>Acknowledged</dt><dd>{{ isolate.acknowledged_at|date:"M j, Y g:i A" }} &middot; {{ isolate.acknowledged_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.returned_at %}<div><dt>Results and cassette returned</dt><dd>{{ isolate.returned_at|date:"M j, Y g:i A" }} &middot; {{ isolate.returned_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.revival_queued_at %}<div><dt>Revival queued</dt><dd>{{ isolate.revival_queued_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_queued_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.revival_started_at %}<div><dt>Revival started</dt><dd>{{ isolate.revival_started_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_started_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.revival_completed_at %}<div><dt>Revival outcome recorded</dt><dd>{{ isolate.revival_completed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_completed_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.revival_retried_at %}<div><dt>Revival retried</dt><dd>{{ isolate.revival_retried_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_retried_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.reviewed_at %}<div><dt>Identification reviewed</dt><dd>{{ isolate.reviewed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.reviewed_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.lyophilization_completed_at %}<div><dt>Lyophilization completed</dt><dd>{{ isolate.lyophilization_completed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.lyophilization_completed_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.site_banked_at %}<div><dt>Temporary Site ID banking</dt><dd>{{ isolate.site_banked_at|date:"M j, Y g:i A" }} &middot; {{ isolate.site_banked_by|default:"—" }}</dd></div>{% endif %}
-      {% if isolate.biobanked_at %}<div><dt>Final biobanking</dt><dd>{{ isolate.biobanked_at|date:"M j, Y g:i A" }} &middot; {{ isolate.biobanked_by|default:"—" }}</dd></div>{% endif %}
-    </dl>
-
-    {% if isolate.revival_retry_count or isolate.revival_failed_reason %}
-    <h3 class="ip-sub">Revival observations and retries</h3>
-    <p class="ip-lead">Retry count: <strong>{{ isolate.revival_retry_count }}</strong></p>
-    <p class="ip-lead">{{ isolate.revival_failed_reason|linebreaksbr }}</p>
-    {% endif %}
-
-    {% if isolate.final_organism %}
-    <h3 class="ip-sub">Organism identification</h3>
-    <p class="ip-lead"><strong>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}</strong>{% if isolate.identification_source %}<br><span class="ip-hint-block">Source: {{ isolate.get_identification_source_display }}</span>{% endif %}</p>
-    {% endif %}
-
-    {% if biobank %}{% include 'laboratory/_lab_isolate_storage_record.html' %}{% endif %}
+  <div class="receiving-card-body ip-record-body ip-history-layout">
+    <p class="ip-history-intro">Review historical laboratory records by category. Open a section to see complete details or permitted correction actions.</p>
+    <details class="ip-history-group">
+      <summary><span class="ip-history-heading"><i class="fas fa-edit" aria-hidden="true"></i><span class="ip-history-name">Identification corrections</span></span><span class="ip-history-help">Original and corrected organism values</span></summary>
+      <div class="ip-history-group-body">
+        {% if isolate.identification_corrections.exists %}
+              {% include "laboratory/_identification_correction_history.html" %}
+            {% endif %}
+      </div>
+    </details>
+    <details class="ip-history-group">
+      <summary><span class="ip-history-heading"><i class="fas fa-microscope" aria-hidden="true"></i><span class="ip-history-name">Instrument results</span></span><span class="ip-history-help">Test results, instruments and corrections</span></summary>
+      <div class="ip-history-group-body">
+        {% if isolate.identifications.exists %}
+              {% include 'laboratory/_lab_isolate_results.html' %}
+            {% else %}
+              <p class="ip-empty"><i class="fas fa-flask mr-1" aria-hidden="true"></i>No instrument results recorded yet.</p>
+            {% endif %}
+      </div>
+    </details>
+    <details class="ip-history-group">
+      <summary><span class="ip-history-heading"><i class="fas fa-exchange-alt" aria-hidden="true"></i><span class="ip-history-name">Routing decisions</span></span><span class="ip-history-help">Endorsements, recalls and disposition events</span></summary>
+      <div class="ip-history-group-body">
+        {% if disposition_history %}
+            
+            <ol class="ip-timeline">
+              {% for event in disposition_history %}
+              <li class="ip-timeline-item">
+                <span class="ip-timeline-dot {% if 'recalled' in event.remarks %}is-recalled{% else %}is-completed{% endif %}" aria-hidden="true"></span>
+                <div class="ip-timeline-body">
+                  <div class="ip-timeline-title">
+                    <span class="ip-tag {% if 'recalled' in event.remarks %}is-warn{% else %}is-ok{% endif %}">{% if 'recalled' in event.remarks %}Recalled{% else %}Completed{% endif %}</span>
+                    <strong>{{ event.remarks }}</strong>
+                  </div>
+                  <p class="ip-timeline-meta">{{ event.occurred_at|date:"M j, Y g:i A" }} · {{ event.performed_by|default:"Previous user" }}</p>
+                </div>
+              </li>
+              {% endfor %}
+            </ol>
+            {% endif %}
+      </div>
+    </details>
+    <details class="ip-history-group">
+      <summary><span class="ip-history-heading"><i class="fas fa-history" aria-hidden="true"></i><span class="ip-history-name">Workflow audit</span></span><span class="ip-history-help">Recorded milestones, timestamps and staff</span></summary>
+      <div class="ip-history-group-body">
+        {% if disposition %}
+            <div class="ip-decision-note">
+              <span class="ip-tag is-ok">Completed</span>
+              <strong>{{ disposition.choice }}</strong>
+              <span class="ip-timeline-meta">{% if disposition.when %}{{ disposition.when|date:"M j, Y g:i A" }}{% else %}Historical record{% endif %} · {{ disposition.actor|default:"Historical record" }}</span>
+            </div>
+            {% endif %}
+        
+            <dl class="ip-audit">
+              {% if isolate.retrieved_at %}<div><dt>Retrieved from temporary storage</dt><dd>{{ isolate.retrieved_at }} · {{ isolate.retrieved_by }}<span class="ip-audit-sub">Storage snapshot: {{ isolate.retrieved_storage }}</span></dd></div>{% endif %}
+              {% if isolate.id_completed_at %}<div><dt>ID testing completed</dt><dd>{{ isolate.id_completed_at }} · {{ isolate.id_completed_by }}</dd></div>{% endif %}
+              {% if isolate.lyophilization_started_at %}<div><dt>Proceeded to lyophilization</dt><dd>{{ isolate.lyophilization_started_at }} · {{ isolate.lyophilization_started_by }}</dd></div>{% endif %}
+              {% if isolate.final_identified_at %}<div><dt>Final ID confirmed</dt><dd>{{ isolate.final_identified_at }} · {{ isolate.final_identified_by }}</dd></div>{% endif %}
+              {% if isolate.site_identified_at %}<div><dt>Site ID recorded</dt><dd>{{ isolate.site_identified_at|date:"M j, Y g:i A" }} &middot; {{ isolate.site_identified_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.created_at %}<div><dt>Accession created</dt><dd>{{ isolate.created_at|date:"M j, Y g:i A" }}</dd></div>{% endif %}
+              {% if isolate.id_queued_at %}<div><dt>Queued for endorsement</dt><dd>{{ isolate.id_queued_at|date:"M j, Y g:i A" }} &middot; {{ isolate.id_queued_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.endorsed_at %}<div><dt>Endorsed to Main Lab</dt><dd>{{ isolate.endorsed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.endorsed_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.acknowledged_at %}<div><dt>Acknowledged</dt><dd>{{ isolate.acknowledged_at|date:"M j, Y g:i A" }} &middot; {{ isolate.acknowledged_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.returned_at %}<div><dt>Results and cassette returned</dt><dd>{{ isolate.returned_at|date:"M j, Y g:i A" }} &middot; {{ isolate.returned_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.revival_queued_at %}<div><dt>Revival queued</dt><dd>{{ isolate.revival_queued_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_queued_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.revival_started_at %}<div><dt>Revival started</dt><dd>{{ isolate.revival_started_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_started_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.revival_completed_at %}<div><dt>Revival outcome recorded</dt><dd>{{ isolate.revival_completed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_completed_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.revival_retried_at %}<div><dt>Revival retried</dt><dd>{{ isolate.revival_retried_at|date:"M j, Y g:i A" }} &middot; {{ isolate.revival_retried_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.reviewed_at %}<div><dt>Identification reviewed</dt><dd>{{ isolate.reviewed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.reviewed_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.lyophilization_completed_at %}<div><dt>Lyophilization completed</dt><dd>{{ isolate.lyophilization_completed_at|date:"M j, Y g:i A" }} &middot; {{ isolate.lyophilization_completed_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.site_banked_at %}<div><dt>Temporary Site ID banking</dt><dd>{{ isolate.site_banked_at|date:"M j, Y g:i A" }} &middot; {{ isolate.site_banked_by|default:"—" }}</dd></div>{% endif %}
+              {% if isolate.biobanked_at %}<div><dt>Final biobanking</dt><dd>{{ isolate.biobanked_at|date:"M j, Y g:i A" }} &middot; {{ isolate.biobanked_by|default:"—" }}</dd></div>{% endif %}
+            </dl>
+      </div>
+    </details>
+    <details class="ip-history-group">
+      <summary><span class="ip-history-heading"><i class="fas fa-archive" aria-hidden="true"></i><span class="ip-history-name">Scientific and storage details</span></span><span class="ip-history-help">Revival notes, confirmed ID and banking</span></summary>
+      <div class="ip-history-group-body">
+        {% if isolate.revival_retry_count or isolate.revival_failed_reason %}
+            <h3 class="ip-sub">Revival observations and retries</h3>
+            <p class="ip-lead">Retry count: <strong>{{ isolate.revival_retry_count }}</strong></p>
+            <p class="ip-lead">{{ isolate.revival_failed_reason|linebreaksbr }}</p>
+            {% endif %}
+        
+        {% if isolate.final_organism %}
+            <h3 class="ip-sub">Organism identification</h3>
+            <p class="ip-lead"><strong>{{ isolate.approved_organism_code }} {{ isolate.final_organism }}</strong>{% if isolate.identification_source %}<br><span class="ip-hint-block">Source: {{ isolate.get_identification_source_display }}</span>{% endif %}</p>
+            {% endif %}
+        
+        {% if biobank %}{% include 'laboratory/_lab_isolate_storage_record.html' %}{% endif %}
+      </div>
+    </details>
   </div>
 </details>
 
