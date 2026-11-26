@@ -120,7 +120,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         pending = self.client.get(dashboard_url, {"tab": "pending"})
         self.assertNotContains(pending, 'action="' + reverse("receiving_workflow_confirm", args=[self.batch.pk]) + '"', html=False)
         role_receiver = self.client.get(reverse("receiving_role_handoffs"))
-        self.assertContains(role_receiver, "Confirm Receipt")
+        self.assertContains(role_receiver, 'action="' + reverse("receiving_workflow_confirm", args=[self.batch.pk]) + '"', html=False)
         self.assertNotContains(role_receiver, 'aria-label="Undo unconfirmed batch endorsement"')
 
         self.client.force_login(self.lab)
@@ -186,7 +186,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.assertEqual(dashboard.context["page_obj"].paginator.count, 1)
         self.assertNotContains(dashboard, 'action="' + reverse("receiving_workflow_endorse", args=[self.batch.pk]) + '"', html=False)
         role_detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
-        self.assertContains(role_detail, "Endorse Batch")
+        self.assertContains(role_detail, 'action="' + reverse("receiving_workflow_endorse", args=[self.batch.pk]) + '"', html=False)
         self.assertContains(dashboard, "New receipt")
 
         self.client.force_login(self.checker)
@@ -236,7 +236,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.assertNotContains(read_only, "Submit endorsement")
         self.assertContains(read_only, "Activity and tracking")
         role_detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
-        self.assertContains(role_detail, "Endorse Batch")
+        self.assertContains(role_detail, 'action="' + reverse("receiving_workflow_endorse", args=[self.batch.pk]) + '"', html=False)
 
         self.client.force_login(self.checker)
         self.assertEqual(
@@ -268,7 +268,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         role_queue = self.client.get(reverse("receiving_role_handoffs"))
         self.assertContains(role_queue, self.batch.bat_Batch_Code)
         role_detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
-        self.assertContains(role_detail, "Endorse Batch")
+        self.assertContains(role_detail, 'action="' + reverse("receiving_workflow_endorse", args=[self.batch.pk]) + '"', html=False)
 
     def test_released_verification_case_cannot_be_endorsed_by_direct_post(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
@@ -277,7 +277,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         )
         self.client.force_login(self.lab)
         detail = self.client.get(reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
-        self.assertNotContains(detail, "Endorse Batch")
+        self.assertNotContains(detail, 'action="' + reverse("receiving_workflow_endorse", args=[self.batch.pk]) + '"', html=False)
         response = self.client.post(
             reverse("receiving_workflow_endorse", args=[self.batch.pk]),
             {"destination_role": ROLE_ENCODER},
