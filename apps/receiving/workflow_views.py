@@ -533,6 +533,10 @@ def _transition(request, batch_id, action):
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
     # PermissionDenied intentionally returns HTTP 403.
+    if request.POST.get("next") == "receiving_handoffs":
+        return redirect(f"{reverse('receiving_workflow_dashboard')}?section=handoffs")
+    if request.POST.get("next") == "receiving":
+        return redirect(f"{reverse('receiving_workflow_dashboard')}?tab=all")
     return redirect("receiving_role_handoff_detail", batch_id=batch_id)
 
 
