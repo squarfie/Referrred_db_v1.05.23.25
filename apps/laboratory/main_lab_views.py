@@ -2,6 +2,7 @@
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max, Prefetch, Q
 from django.urls import reverse
+from urllib.parse import urlencode
 from django.shortcuts import get_object_or_404, render
 
 from .identification_workflow import final_banking_filter
@@ -118,18 +119,39 @@ def main_lab_dashboard(request):
 @main_lab_required
 def main_lab_isolate_detail(request, isolate_id):
     """ID work only: no revival, Site ID banking, final review or lyophilization controls."""
-    isolate = get_object_or_404(
-        (main_lab_cases() | LaboratoryIsolate.objects.filter(
+    accessible_isolates = (
+        main_lab_cases() | LaboratoryIsolate.objects.filter(
             status="site_banked", identification_source="site", site_banked_at__isnull=False,
             biobank__isnull=False, revival_started_at__isnull=False,
             revival_completed_at__isnull=False,
-        ).distinct()).select_related(
+        ).distinct()
+    ).distinct()
+    isolate = get_object_or_404(
+        accessible_isolates.select_related(
             "accession_range__laboratory_receiving__receipt__site"
         ).prefetch_related("identifications__recorded_by"),
         pk=isolate_id,
     )
+    # Navigate only among isolates that can open in Main Lab; otherwise links
+    # could lead to a 404 for Bench A-only isolates in the accession batch.
+    sibling_ids = list(accessible_isolates.filter(
+        accession_range_id=isolate.accession_range_id,
+    ).order_by("accession_number", "pk").values_list("pk", flat=True))
+    position = sibling_ids.index(isolate.pk)
+    origin = return_url(request)
+    suffix = "?" + urlencode({"next": origin}) if origin else ""
+    previous_isolate_url = (
+        reverse("main_lab_isolate_detail", args=[sibling_ids[position - 1]]) + suffix
+        if position > 0 else None
+    )
+    next_isolate_url = (
+        reverse("main_lab_isolate_detail", args=[sibling_ids[position + 1]]) + suffix
+        if position + 1 < len(sibling_ids) else None
+    )
     return render(request, "laboratory/main_lab_isolate.html", {
-        "isolate": isolate, "return_to": return_url(request),
+        "isolate": isolate, "return_to": origin,
+        "previous_isolate_url": previous_isolate_url,
+        "next_isolate_url": next_isolate_url,
         "main_lab_progress": main_lab_progress(isolate),
         "latest_result": isolate.identifications.first(), "main_lab_back_url": reverse("main_lab_dashboard"),
         "can_test": can_access_main_lab(request.user),
