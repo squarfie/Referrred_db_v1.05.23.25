@@ -129,6 +129,8 @@ def receiving_endorse(request, receiving_id):
     requested_role = (request.POST.get("destination_role") or "").strip()
     if requested_role and requested_role != ROLE_LAB_ENCODER:
         messages.error(request, "Courier receipts may only be endorsed to Laboratory Receiving.")
+        if request.POST.get("next") == "receiving":
+            return redirect(reverse("receiving_workflow_dashboard") + "?tab=received")
         return redirect("receiving_detail", receiving_id=receiving_id)
     try:
         endorse_receipt(receipt_id=receipt.pk, user=request.user)
