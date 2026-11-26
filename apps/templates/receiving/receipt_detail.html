@@ -78,30 +78,11 @@
       </aside>
     </div>
 
-       {% if can_recall_endorsement %}
-    <section class="receiving-surface receiving-card mb-4" aria-labelledby="courier-recall-title">
-      <div class="receiving-card-header">
-        <h2 id="courier-recall-title">Pending courier endorsement</h2>
-        <p>Laboratory Receiving has not confirmed custody. Secretariat may recall this handoff before acceptance.</p>
-      </div>
-      <div class="receiving-card-body">
-        <span class="badge badge-warning mb-2">Awaiting Laboratory Receipt</span>
-        <p class="small text-muted">Endorsed {{ receipt.endorsed_at|date:"M j, Y g:i A" }} by {{ receipt.endorsed_by|default:"—" }}.</p>
-        <form method="post" action="{% url 'receiving_recall_endorsement' receipt.receiving_id %}" onsubmit="return confirm('Recall this unacknowledged courier endorsement? The action will be recorded in history.');">
-          {% csrf_token %}
-          <label for="courier-recall-reason">Reason for recall (optional)</label>
-          <input class="form-control" id="courier-recall-reason" name="remarks" maxlength="1000" placeholder="Reason or correction notes">
-          <button type="submit" class="endorsement-undo-icon mt-2" title="Undo courier endorsement" aria-label="Undo courier endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
-        </form>
-      </div>
-    </section>
-    {% endif %}
-
-       {% if can_show_endorsement %}
+       {% if can_show_endorsement or can_recall_endorsement %}
     <section id="receiving-endorsement" class="receiving-surface receiving-card mb-4">
       <div class="receiving-card-header">
-        <h2>Endorse</h2>
-        <p>Transfer a newly received courier shipment to Laboratory Receiving. Subsequent batch handoffs are managed from each role's Handoffs workspace.</p>
+        <h2>Laboratory handoff</h2>
+        <p>{% if can_recall_endorsement %}Endorsed to Bench A · awaiting acknowledgment. You may undo this handoff before Laboratory Receiving accepts it.{% else %}Transfer the received courier shipment to Laboratory Receiving (Bench A).{% endif %}</p>
       </div>
       <div class="receiving-card-body">
         {% if can_endorse %}
@@ -116,10 +97,16 @@
           </div>
           <button class="btn btn-info mt-3" type="submit"><i class="fas fa-paper-plane mr-1"></i>Endorse to Laboratory Receiving</button>
         </form>
+        {% elif can_recall_endorsement %}
+        <div class="d-flex align-items-center flex-wrap" style="gap:.55rem">
+          <span class="badge badge-warning">Awaiting Laboratory Receipt</span>
+          <span class="small text-muted">Endorsed {{ receipt.endorsed_at|date:"M j, Y g:i A" }} by {{ receipt.endorsed_by|default:"—" }}</span>
+          <form method="post" class="d-inline mb-0" action="{% url 'receiving_recall_endorsement' receipt.receiving_id %}" onsubmit="return confirm('Undo this courier endorsement before Laboratory receipt? The reversal is recorded in history.');">
+            {% csrf_token %}
+            <button class="endorsement-undo-icon" type="submit" title="Undo courier endorsement" aria-label="Undo courier endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+          </form>
+        </div>
         {% endif %}
-       
-
-
       </div>
     </section>
     {% endif %}
