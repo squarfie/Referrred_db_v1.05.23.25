@@ -131,8 +131,8 @@ class SimplifiedWorkflowTests(TestCase):
 
         self.client.force_login(self.main_user)
         page = self.client.get(reverse('main_lab_isolate_detail', args=[item.pk]))
-        self.assertContains(page, 'Resolve Missing Final ID')
-        self.assertContains(page, 'Record Missing Final ID')
+        self.assertContains(page, 'Resolve missing Final ID')
+        self.assertContains(page, 'Record missing Final ID')
         saved = self.client.post(url, {
             'kind': 'final', 'organism_code': 'KPN',
             'organism_name': 'Klebsiella pneumoniae',
@@ -453,7 +453,9 @@ class SimplifiedWorkflowTests(TestCase):
         item = self.isolate('id_testing', endorsed_at=self.now, acknowledged_at=self.now)
         self.client.force_login(self.main_user)
         page = self.client.get(reverse('main_lab_isolate_detail', args=[item.pk]))
-        self.assertContains(page, 'Instrument result differs from confirmed Final ID (optional)')
+        self.assertContains(page, 'Instrument result differs from the confirmed Final ID')
+        self.assertContains(page, 'Instrument result <span class="small text-muted"')
+        self.assertContains(page, '(optional)')
         self.assertContains(page, 'name="final_organism_code"')
         result = self.client.post(reverse('laboratory_record_id', args=[item.pk]), {
             'final_organism_code': 'ECO', 'final_organism': 'Escherichia coli',
