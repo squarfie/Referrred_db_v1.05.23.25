@@ -154,6 +154,8 @@ def receiving_recall_endorsement(request, receiving_id):
         messages.error(request, str(exc))
     else:
         messages.success(request, "Courier endorsement recalled. Secretariat may endorse this receipt again.")
+    if request.POST.get("next") == "receiving":
+        return redirect("receiving_workflow_dashboard")
     return redirect("receiving_detail", receiving_id=receiving_id)
 
 
