@@ -36,8 +36,11 @@ def isolate_worksheet_steps(isolate):
     )
     final_done = isolate.status in {S.BIOBANKED, S.NON_VIABLE}
     # This is an accession-level endorsement, not proof DMU accepted it.
-    has_handoff = hasattr(accession, "dmu_handoff")
-    dmu_done = bool(accession.batch_id or has_handoff)
+    handoff = getattr(accession, "dmu_handoff", None)
+    dmu_done = bool(
+        accession.batch_id or
+        (handoff and handoff.status != "recalled")
+    )
 
     definitions = (
         ("receiving", "Receiving", receipt_done, "Acceptance summary saved", "Receipt"),
