@@ -34,6 +34,7 @@ urlpatterns = [
     path("laboratory-worklist/<int:isolate_id>/endorse-main-lab/", views.laboratory_endorse_isolate, name="laboratory_endorse_isolate"),
     path("laboratory-worklist/<int:isolate_id>/sticker/", views.laboratory_biobank_label, name="laboratory_biobank_label"),
     path("laboratory/accessions/<int:accession_id>/endorse-id/", views.laboratory_endorse_id, name="laboratory_endorse_id"),
+    path("laboratory/accessions/<int:accession_id>/recall-id/", views.laboratory_recall_main_lab, name="laboratory_recall_main_lab"),
     path("laboratory/accessions/<int:accession_id>/queue-id/", views.laboratory_queue_id_batch, name="laboratory_queue_id_batch"),
     path("laboratory/accessions/<int:accession_id>/stickers/", views.laboratory_batch_labels, name="laboratory_batch_labels"),
     path("laboratory/accessions/<int:accession_id>/<str:action>/transition/", views.laboratory_batch_transition, name="laboratory_batch_transition"),
