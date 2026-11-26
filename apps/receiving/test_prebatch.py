@@ -15,7 +15,7 @@ from apps.receiving.models import (
     ReferralReceipt, LaboratoryReceiving, LaboratoryAccession,
     LaboratoryIsolate, LaboratoryBatchHandoff, LaboratoryBatchHandoffEvent,
 )
-from apps.receiving.services import endorse_receipt, recall_courier_endorsement, ReceivingPermissionDenied
+from apps.receiving.services import endorse_receipt, recall_courier_endorsement, InvalidReceivingTransition
 from apps.receiving.prebatch import (
     endorse_accession_to_dmu, confirm_dmu_accession, create_dmu_batch,
     confirm_dmu_receipt_and_create_batch, recall_accession_from_dmu,
@@ -106,7 +106,7 @@ class LaboratoryToDMUHandoffTests(TestCase):
         receipt.lab_time_received = time(10)
         receipt.lab_received_by = self.lab
         receipt.save()
-        with self.assertRaises(ReceivingPermissionDenied):
+        with self.assertRaises(InvalidReceivingTransition):
             recall_courier_endorsement(receipt_id=receipt.pk, user=secretariat)
         self.assertEqual(receipt.events.filter(event_type="endorsement_recalled").count(), 1)
 
