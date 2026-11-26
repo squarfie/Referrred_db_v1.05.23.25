@@ -91,7 +91,7 @@
           {% csrf_token %}
           <label for="courier-recall-reason">Reason for recall (optional)</label>
           <input class="form-control" id="courier-recall-reason" name="remarks" maxlength="1000" placeholder="Reason or correction notes">
-          <button type="submit" class="btn btn-sm btn-outline-warning mt-2"><i class="fas fa-undo mr-1" aria-hidden="true"></i>Undo Endorsement</button>
+          <button type="submit" class="endorsement-undo-icon mt-2" title="Undo courier endorsement" aria-label="Undo courier endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
         </form>
       </div>
     </section>
