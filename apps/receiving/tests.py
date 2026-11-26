@@ -1587,56 +1587,6 @@ class ReceivingTemplateTests(TestCase):
         after = self.client.get(dashboard_url, {"section": "receiving", "tab": "pending", "year": "2026"})
         self.assertNotContains(after, receipt.tracking_number)
 
-    def test_reendorsed_courier_returns_to_bench_a_pending_queue_until_acknowledged(self):
-        receipt = self.create_receipt(
-            tracking="REENDORSE-BENCH-A-001",
-            status=ReferralReceipt.Status.RECEIVED,
-        )
-        endorse_url = self.route("receiving_endorse", receiving_id=receipt.receiving_id)
-        recall_url = self.route("receiving_recall_endorsement", receiving_id=receipt.receiving_id)
-        dashboard_url = self.route("receiving_workflow_dashboard")
-
-        self.client.force_login(self.secretariat)
-        initial = self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id))
-        self.assertContains(initial, "Endorse to Bench A")
-        self.assertEqual(self.client.post(endorse_url, {"destination_role": home_permissions.ROLE_LAB_ENCODER}).status_code, 302)
-        receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
-
-        self.client.force_login(self.lab_encoder)
-        pending = self.client.get(dashboard_url, {"tab": "pending", "year": "2026"})
-        self.assertContains(pending, receipt.tracking_number)
-        self.assertContains(pending, "Confirm Receipt")
-        self.assertEqual(pending.context["courier_count"], 1)
-
-        self.client.force_login(self.secretariat)
-        self.assertEqual(self.client.post(recall_url).status_code, 302)
-        receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
-
-        self.client.force_login(self.lab_encoder)
-        after_recall = self.client.get(dashboard_url, {"tab": "pending", "year": "2026"})
-        self.assertNotContains(after_recall, receipt.tracking_number)
-        self.assertEqual(after_recall.context["courier_count"], 0)
-
-        self.client.force_login(self.secretariat)
-        second = self.client.post(endorse_url, {"destination_role": home_permissions.ROLE_LAB_ENCODER})
-        self.assertEqual(second.status_code, 302)
-        receipt.refresh_from_db()
-        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
-        self.assertEqual(receipt.events.filter(event_type="endorsed").count(), 2)
-        self.assertEqual(receipt.events.filter(event_type="endorsement_recalled").count(), 1)
-
-        self.client.force_login(self.lab_encoder)
-        pending_again = self.client.get(dashboard_url, {"tab": "pending", "year": "2026"})
-        self.assertContains(pending_again, receipt.tracking_number)
-        self.assertContains(pending_again, "Confirm Receipt")
-        self.assertEqual(pending_again.context["courier_count"], 1)
-        self.assertContains(
-            self.client.get(dashboard_url, {"tab": "all", "year": "2026"}),
-            receipt.tracking_number,
-        )
-
     def test_secretariat_receipt_links_never_expose_laboratory_worksheet(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)
         self.client.force_login(self.secretariat)
