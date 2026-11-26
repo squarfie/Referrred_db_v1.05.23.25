@@ -56,7 +56,7 @@
           </div>
           <form method="post" class="mt-2" action="{% url 'laboratory_recall_main_lab' accession.pk %}" onsubmit="return confirm('Recall the unacknowledged Main Laboratory endorsement for this batch?');">
             {% csrf_token %}
-            <button class="btn btn-sm btn-outline-warning" type="submit"><i class="fas fa-undo mr-1"></i>Undo Endorsement to Main Lab</button>
+            <button class="endorsement-undo-icon" type="submit" title="Undo unacknowledged Main Lab endorsement" aria-label="Undo unacknowledged Main Lab endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
           </form>
         </div>
         {% endif %}
