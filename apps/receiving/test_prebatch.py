@@ -17,7 +17,7 @@ from apps.receiving.models import (
 )
 from apps.receiving.prebatch import (
     endorse_accession_to_dmu, confirm_dmu_accession, create_dmu_batch,
-    confirm_dmu_receipt_and_create_batch,
+    confirm_dmu_receipt_and_create_batch, recall_accession_from_dmu,
 )
 
 
@@ -72,6 +72,38 @@ class LaboratoryToDMUHandoffTests(TestCase):
         with self.assertRaises(ValidationError):
             endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
         self.assertEqual(handoff.events.count(), 1)
+
+    def test_undo_dmu_endorsement_is_audited_and_can_be_resubmitted(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.client.force_login(self.lab)
+        worksheet = self.client.get(reverse("laboratory_receiving_workspace", args=[self.receipt.receiving_id]))
+        self.assertContains(worksheet, reverse("laboratory_batch_recall_dmu", args=[self.accession.pk]))
+        self.assertContains(worksheet, 'aria-label="Undo DMU endorsement"')
+        self.assertEqual(self.client.get(reverse("laboratory_batch_recall_dmu", args=[self.accession.pk])).status_code, 405)
+        self.assertEqual(self.client.post(reverse("laboratory_batch_recall_dmu", args=[self.accession.pk])).status_code, 302)
+        handoff.refresh_from_db()
+        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.RECALLED)
+        self.assertEqual(list(handoff.events.values_list("action", flat=True)), ["endorsed", "recalled"])
+        self.assertIsNone(self.accession.batch_id)
+        worksheet = self.client.get(reverse("laboratory_receiving_workspace", args=[self.receipt.receiving_id]))
+        self.assertContains(worksheet, reverse("laboratory_batch_endorse_dmu", args=[self.accession.pk]))
+        again = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.assertEqual(again.pk, handoff.pk)
+        self.assertEqual(again.events.count(), 3)
+        self.assertEqual(again.status, LaboratoryBatchHandoff.Status.PENDING)
+
+    def test_dmu_undo_rejects_other_sender_and_confirmed_handoff(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        with self.assertRaises(PermissionDenied):
+            recall_accession_from_dmu(accession_id=self.accession.pk, user=self.checker)
+        with self.assertRaises(PermissionDenied):
+            recall_accession_from_dmu(accession_id=self.accession.pk, user=self.dmu)
+        confirm_dmu_accession(handoff_id=handoff.pk, user=self.dmu)
+        with self.assertRaises(ValidationError):
+            recall_accession_from_dmu(accession_id=self.accession.pk, user=self.lab)
+        handoff.refresh_from_db()
+        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.CONFIRMED)
+        self.assertEqual(list(handoff.events.values_list("action", flat=True)), ["endorsed", "confirmed"])
 
     def test_unfinished_isolates_cannot_be_endorsed(self):
         self.isolate.status = LaboratoryIsolate.Status.REVIVAL_PENDING
