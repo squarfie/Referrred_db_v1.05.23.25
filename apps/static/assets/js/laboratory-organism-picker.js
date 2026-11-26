@@ -10,6 +10,33 @@
     const endpoint = picker.dataset.endpoint;
     const allowUnlisted = picker.hasAttribute("data-allow-unlisted");
     const optionalOrganism = picker.hasAttribute("data-optional-organism");
+    const optionalDetails = optionalOrganism ? picker.closest("details") : null;
+    const form = picker.closest("form");
+    // A blank/closed optional organism must not carry a stale browser error.
+    function isUnusedOptional() {
+      return optionalOrganism && (
+        (optionalDetails && !optionalDetails.open) ||
+        (!search.value.trim() && !code.value.trim() && !name.value.trim())
+      );
+    }
+    function validatePicker() {
+      if (isUnusedOptional()) {
+        search.setCustomValidity("");
+        return true;
+      }
+      const valid = Boolean(name.value.trim()) &&
+        (allowUnlisted || Boolean(code.value.trim()));
+      search.setCustomValidity(valid ? "" : "Choose an organism from the search results.");
+      if (!valid) search.reportValidity();
+      return valid;
+    }
+    // Clear any previously set custom error as soon as an optional disclosure
+    // closes; stale errors otherwise block the browser before submit fires.
+    optionalDetails?.addEventListener("toggle", function () {
+      if (!optionalDetails.open) search.setCustomValidity("");
+    });
+    search.setCustomValidity("");
+
     let requestId = 0;
     let controller = null;
 
@@ -99,24 +126,18 @@
         if (next) { event.preventDefault(); next.focus(); }
       }
     });
-    picker.closest("form")?.addEventListener("submit", function (event) {
-      // A completely blank optional instrument result must never block the
-      // mandatory Final ID selection. If the user started entering one,
-      // require an actual selection (including an explicit unlisted name).
-      const unusedOptional = optionalOrganism &&
-        !search.value.trim() && !code.value.trim() && !name.value.trim();
-      if (unusedOptional) {
-        search.setCustomValidity("");
-        return;
+    // Submit can be skipped entirely by native constraint validation when a
+    // stale custom error exists, so clean the optional picker *before* the
+    // browser validates a clicked submit button.
+    form?.addEventListener("click", function (event) {
+      if (event.target.closest('button[type="submit"], input[type="submit"]')) {
+        if (isUnusedOptional()) search.setCustomValidity("");
       }
-      if (!name.value || (!code.value && !allowUnlisted)) {
-        event.preventDefault();
-        search.setCustomValidity("Choose an organism from the search results.");
-        search.reportValidity();
-      } else {
-        search.setCustomValidity("");
-      }
+    }, true);
+    form?.addEventListener("submit", function (event) {
+      if (!validatePicker()) event.preventDefault();
     });
+    search.addEventListener("input", function () { search.setCustomValidity(""); });
     search.addEventListener("focus", function () { search.setCustomValidity(""); });
   });
 })();
