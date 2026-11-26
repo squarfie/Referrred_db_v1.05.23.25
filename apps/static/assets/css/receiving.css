@@ -1404,20 +1404,19 @@ details.correction .correction-actions .btn {
   appearance: none;
   display: inline-grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  border: 1px solid #edd0b1;
-  border-radius: 7px;
+  border: 0;
+  border-radius: 6px;
   color: #a56215;
-  background: #fff9f0;
+  background: transparent;
   cursor: pointer;
   vertical-align: middle;
 }
 .endorsement-undo-icon:hover {
   color: #864b0a;
   background: #fff0d8;
-  border-color: #d9ae79;
 }
 .endorsement-undo-icon:focus-visible {
   outline: 2px solid #c7812b;
