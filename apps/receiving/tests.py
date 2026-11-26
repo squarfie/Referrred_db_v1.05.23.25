@@ -1495,7 +1495,7 @@ class ReceivingTemplateTests(TestCase):
         )
 
         self.assertContains(response, "Print batch label")
-        self.assertContains(response, '>Endorse</button>', html=False)
+        self.assertContains(response, 'Endorse</button>', html=False)
         self.assertContains(response, 'name="destination_role" value="LAB Encoder"', html=False)
         self.assertContains(
             response,
@@ -1516,7 +1516,7 @@ class ReceivingTemplateTests(TestCase):
         received = self.client.get(list_url, {"tab": "received", "year": "2026"})
         self.assertContains(received, 'action="' + endorse_url + '"', html=False)
         self.assertContains(received, 'name="next" value="receiving"', html=False)
-        self.assertContains(received, ">Endorse</button>", html=False)
+        self.assertContains(received, "Endorse</button>", html=False)
         self.assertNotContains(received, 'href="#receiving-endorsement"')
 
         submitted = self.client.post(endorse_url, {
@@ -1546,7 +1546,7 @@ class ReceivingTemplateTests(TestCase):
         endorse_url = self.route("receiving_endorse", receiving_id=receipt.receiving_id)
         undo_url = self.route("receiving_recall_endorsement", receiving_id=receipt.receiving_id)
         initial = self.client.get(url)
-        self.assertContains(initial, '>Endorse</button>', html=False)
+        self.assertContains(initial, 'Endorse</button>', html=False)
         self.assertNotContains(initial, 'aria-label="Undo courier endorsement"')
         self.assertNotContains(initial, 'id="receiving-endorsement"')
 
@@ -1554,7 +1554,7 @@ class ReceivingTemplateTests(TestCase):
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
         pending = self.client.get(url)
-        self.assertNotContains(pending, '>Endorse</button>', html=False)
+        self.assertNotContains(pending, 'Endorse</button>', html=False)
         self.assertContains(pending, "Awaiting Bench A receipt")
         self.assertContains(pending, 'aria-label="Undo courier endorsement"', count=1)
         self.assertContains(pending, 'action="' + undo_url + '"', count=1, html=False)
@@ -1563,7 +1563,7 @@ class ReceivingTemplateTests(TestCase):
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
         restored = self.client.get(url)
-        self.assertContains(restored, '>Endorse</button>', html=False)
+        self.assertContains(restored, 'Endorse</button>', html=False)
         self.assertNotContains(restored, 'aria-label="Undo courier endorsement"')
 
     def test_reendorsed_courier_returns_to_bench_a_pending_until_acknowledged(self):
