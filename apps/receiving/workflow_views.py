@@ -257,6 +257,12 @@ def workflow_dashboard(request):
         handoff.can_create_here = bool(
             tab == "received" and (ROLE_ADMIN in roles or ROLE_ENCODER in roles)
         )
+        handoff.can_recall_here = bool(
+            tab == "all"
+            and handoff.status == LaboratoryBatchHandoff.Status.PENDING
+            and (ROLE_ADMIN in roles or handoff.endorsed_by_id == request.user.pk)
+            and (ROLE_ADMIN in roles or ROLE_LAB_ENCODER in roles)
+        )
 
     courier_rows = _receipt_tab_filter(receipt_base, tab, request.user)
     if query:
@@ -284,7 +290,7 @@ def workflow_dashboard(request):
             and (ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles)
         )
         receipt.can_recall_unified = bool(
-            tab == "all" and can_recall_courier_receipt(receipt, request.user)
+            can_recall_courier_receipt(receipt, request.user)
         )
     counts = {
         key: _tab_filter(base, key, request.user).count() + receipt_counts[key] + prebatch_counts[key]
@@ -298,9 +304,13 @@ def workflow_dashboard(request):
             | Q(batch__bat_RefNo__icontains=query)
         )
     page_obj = Paginator(rows.order_by("-updated_at", "-pk"), per_page).get_page(request.GET.get("page"))
-    # Batch custody transitions are performed in role-owned workspaces.
-    # The Receiving dashboard is read-only for generated batches.
-    roles = custody_roles(request.user)
+    # Render an undo action inline beside a pending generated-batch endorsement.
+    # Other custody transitions remain in the role-owned handoff workspace.
+    for custody in page_obj:
+        custody.can_recall_inline = bool(
+            custody.pending_role
+            and (ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk)
+        )
 
     return render(request, "receiving/workflow_dashboard.html", {
         "page_obj": page_obj,
