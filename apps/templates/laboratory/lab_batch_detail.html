@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Laboratory Batch {{ accession.batch_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-batch-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -47,6 +47,18 @@
           {% elif active_revival_tab == 'ready' %}Revival and Site ID recording are complete; choose temporary storage or endorse the ready batch to Main Lab.
           {% else %}All isolates awaiting Bench A work or handoff; Main Lab work is excluded.{% endif %}
         </span></p>
+        {% endif %}
+        {% if can_recall_main_lab %}
+        <div class="receiving-handoff mb-3">
+          <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
+            <span class="badge badge-warning">Awaiting Main Lab receipt</span>
+            <strong class="small">The latest batch endorsement can still be recalled.</strong>
+          </div>
+          <form method="post" class="mt-2" action="{% url 'laboratory_recall_main_lab' accession.pk %}" onsubmit="return confirm('Recall the unacknowledged Main Laboratory endorsement for this batch?');">
+            {% csrf_token %}
+            <button class="endorsement-undo-icon" type="submit" title="Undo unacknowledged Main Lab endorsement" aria-label="Undo unacknowledged Main Lab endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+          </form>
+        </div>
         {% endif %}
         {% if can_review and id_handoff.queued_count %}
         <div class="receiving-handoff">

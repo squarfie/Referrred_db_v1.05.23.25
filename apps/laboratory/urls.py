@@ -34,6 +34,7 @@ urlpatterns = [
     path("laboratory-worklist/<int:isolate_id>/endorse-main-lab/", views.laboratory_endorse_isolate, name="laboratory_endorse_isolate"),
     path("laboratory-worklist/<int:isolate_id>/sticker/", views.laboratory_biobank_label, name="laboratory_biobank_label"),
     path("laboratory/accessions/<int:accession_id>/endorse-id/", views.laboratory_endorse_id, name="laboratory_endorse_id"),
+    path("laboratory/accessions/<int:accession_id>/recall-id/", views.laboratory_recall_main_lab, name="laboratory_recall_main_lab"),
     path("laboratory/accessions/<int:accession_id>/queue-id/", views.laboratory_queue_id_batch, name="laboratory_queue_id_batch"),
     path("laboratory/accessions/<int:accession_id>/stickers/", views.laboratory_batch_labels, name="laboratory_batch_labels"),
     path("laboratory/accessions/<int:accession_id>/<str:action>/transition/", views.laboratory_batch_transition, name="laboratory_batch_transition"),
@@ -62,5 +63,6 @@ urlpatterns = [
     path("laboratory/organisms/extra/<int:row_id>/save/", inventory_views.additional_organism_save, name="laboratory_extra_organism_save"),
     path("laboratory/organisms/extra/<int:row_id>/remove/", inventory_views.additional_organism_remove, name="laboratory_extra_organism_remove"),
     path("laboratory/accessions/<int:accession_id>/endorse-dmu/", receiving_views.laboratory_batch_endorse_dmu, name="laboratory_batch_endorse_dmu"),
+    path("laboratory/accessions/<int:accession_id>/recall-dmu/", receiving_views.laboratory_batch_recall_dmu, name="laboratory_batch_recall_dmu"),
     path("laboratory/accessions/<int:accession_id>/create-batch/", receiving_views.laboratory_batch_create, name="laboratory_batch_create"),
 ]

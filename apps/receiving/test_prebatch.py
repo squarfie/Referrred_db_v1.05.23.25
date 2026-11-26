@@ -9,15 +9,16 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.home.models import Batch_Table, SiteData
-from apps.home.permissions import ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_CHECKER
+from apps.home.permissions import ROLE_ENCODER, ROLE_LAB_ENCODER, ROLE_CHECKER, ROLE_SECRETARIAT
 from apps.home.services.batch_creation import BatchCreationError, create_referred_batch
 from apps.receiving.models import (
     ReferralReceipt, LaboratoryReceiving, LaboratoryAccession,
     LaboratoryIsolate, LaboratoryBatchHandoff, LaboratoryBatchHandoffEvent,
 )
+from apps.receiving.services import endorse_receipt, recall_courier_endorsement, InvalidReceivingTransition
 from apps.receiving.prebatch import (
     endorse_accession_to_dmu, confirm_dmu_accession, create_dmu_batch,
-    confirm_dmu_receipt_and_create_batch,
+    confirm_dmu_receipt_and_create_batch, recall_accession_from_dmu,
 )
 
 
@@ -72,6 +73,74 @@ class LaboratoryToDMUHandoffTests(TestCase):
         with self.assertRaises(ValidationError):
             endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
         self.assertEqual(handoff.events.count(), 1)
+
+    def test_secretariat_courier_recall_uses_icon_and_preserves_history(self):
+        secretariat = self.user("courier-recall-secretariat", ROLE_SECRETARIAT)
+        receipt = ReferralReceipt.objects.create(
+            tracking_number="COURIER-RECALL-001", site=self.site,
+            date_sent=date(2026, 11, 18), date_received=date(2026, 11, 19),
+            time_received=time(8), status=ReferralReceipt.Status.RECEIVED,
+            received_by=secretariat,
+        )
+        endorse_receipt(receipt_id=receipt.pk, user=secretariat)
+        self.client.force_login(secretariat)
+        detail = self.client.get(reverse("receiving_detail", args=[receipt.receiving_id]))
+        self.assertContains(detail, 'aria-label="Undo courier endorsement"')
+        route = reverse("receiving_recall_endorsement", args=[receipt.receiving_id])
+        self.assertEqual(self.client.get(route).status_code, 405)
+        self.assertEqual(self.client.post(route, {"remarks": "Correct handoff"}).status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        self.assertIsNone(receipt.endorsed_at)
+        self.assertEqual(
+            list(receipt.events.values_list("event_type", flat=True).order_by("pk")),
+            ["endorsed", "endorsement_recalled"],
+        )
+        self.assertContains(self.client.get(reverse("receiving_detail", args=[receipt.receiving_id])), "Courier endorsement recalled")
+        endorse_receipt(receipt_id=receipt.pk, user=secretariat)
+        self.assertEqual(receipt.events.filter(event_type="endorsed").count(), 2)
+        self.assertEqual(receipt.events.filter(event_type="endorsement_recalled").count(), 1)
+        receipt.refresh_from_db()
+        receipt.status = ReferralReceipt.Status.LAB_RECEIVED
+        receipt.lab_date_received = date(2026, 11, 19)
+        receipt.lab_time_received = time(10)
+        receipt.lab_received_by = self.lab
+        receipt.save()
+        with self.assertRaises(InvalidReceivingTransition):
+            recall_courier_endorsement(receipt_id=receipt.pk, user=secretariat)
+        self.assertEqual(receipt.events.filter(event_type="endorsement_recalled").count(), 1)
+
+    def test_undo_dmu_endorsement_is_audited_and_can_be_resubmitted(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.client.force_login(self.lab)
+        worksheet = self.client.get(reverse("laboratory_receiving_workspace", args=[self.receipt.receiving_id]))
+        self.assertContains(worksheet, reverse("laboratory_batch_recall_dmu", args=[self.accession.pk]))
+        self.assertContains(worksheet, 'aria-label="Undo DMU endorsement"')
+        self.assertEqual(self.client.get(reverse("laboratory_batch_recall_dmu", args=[self.accession.pk])).status_code, 405)
+        self.assertEqual(self.client.post(reverse("laboratory_batch_recall_dmu", args=[self.accession.pk])).status_code, 302)
+        handoff.refresh_from_db()
+        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.RECALLED)
+        self.assertEqual(list(handoff.events.values_list("action", flat=True)), ["endorsed", "recalled"])
+        self.assertIsNone(self.accession.batch_id)
+        worksheet = self.client.get(reverse("laboratory_receiving_workspace", args=[self.receipt.receiving_id]))
+        self.assertContains(worksheet, reverse("laboratory_batch_endorse_dmu", args=[self.accession.pk]))
+        again = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.assertEqual(again.pk, handoff.pk)
+        self.assertEqual(again.events.count(), 3)
+        self.assertEqual(again.status, LaboratoryBatchHandoff.Status.PENDING)
+
+    def test_dmu_undo_rejects_other_sender_and_confirmed_handoff(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        with self.assertRaises(PermissionDenied):
+            recall_accession_from_dmu(accession_id=self.accession.pk, user=self.checker)
+        with self.assertRaises(PermissionDenied):
+            recall_accession_from_dmu(accession_id=self.accession.pk, user=self.dmu)
+        confirm_dmu_accession(handoff_id=handoff.pk, user=self.dmu)
+        with self.assertRaises(ValidationError):
+            recall_accession_from_dmu(accession_id=self.accession.pk, user=self.lab)
+        handoff.refresh_from_db()
+        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.CONFIRMED)
+        self.assertEqual(list(handoff.events.values_list("action", flat=True)), ["endorsed", "confirmed"])
 
     def test_unfinished_isolates_cannot_be_endorsed(self):
         self.isolate.status = LaboratoryIsolate.Status.REVIVAL_PENDING

@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Batch Role Handoff{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page wf-page">
   <header class="receiving-hero">
@@ -41,7 +41,7 @@
       <div class="receiving-card-header"><h2>Pending handoff</h2></div>
       <div class="receiving-card-body">
         {% if can_confirm %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-success">Confirm Receipt</button></form>{% endif %}
-        {% if can_recall %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-outline-danger">Recall Endorsement</button></form>{% endif %}
+        {% if can_recall %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}" onsubmit="return confirm('Undo this unconfirmed batch endorsement? The action is preserved in audit history.');">{% csrf_token %}<button type="submit" class="endorsement-undo-icon" title="Undo unconfirmed batch endorsement" aria-label="Undo unconfirmed batch endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button></form>{% endif %}
       </div>
     </section>
     {% endif %}

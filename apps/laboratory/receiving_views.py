@@ -16,7 +16,7 @@ from .models import LaboratoryAccession, LaboratoryIsolate, LaboratoryOrganismCo
 from .permissions import can_confirm_lab_receipt, lab_receiving_required, can_read_laboratory_receiving, lab_receiving_read_required
 from apps.receiving.permissions import receiving_read_required
 from .reports import REGISTER_COLUMNS, build_register_rows, render_register_pdf
-from .workflow import id_handoff_readiness, bench_a_pre_handoff_group
+from .workflow import id_handoff_readiness, bench_a_pre_handoff_group, main_lab_recall_candidates
 
 def _receipt_or_404(receiving_id):
     return get_object_or_404(
@@ -118,12 +118,17 @@ def laboratory_receiving_workspace(request, receiving_id):
                 for code, _short, label in REGISTER_COLUMNS
             ]} for item in accession.additional_organism_counts.all()],
         })
+    from apps.home.permissions import ROLE_ADMIN, get_user_roles
+    user_is_admin = ROLE_ADMIN in get_user_roles(request.user)
     batch_previews = {}
     if can_edit:
         from apps.receiving.prebatch import endorsement_blocker
         from apps.home.services.batch_creation import build_batch_code
         for accession in ranges:
-            if accession.batch_id or hasattr(accession, "dmu_handoff"):
+            if accession.batch_id or (
+                hasattr(accession, "dmu_handoff")
+                and accession.dmu_handoff.status != "recalled"
+            ):
                 continue
             blocker = endorsement_blocker(accession)
             # Preserve the existing conflict preview, but do not present an
@@ -148,7 +153,16 @@ def laboratory_receiving_workspace(request, receiving_id):
                 ),
             }
     batch_rows = [
-        {"accession": accession, "preview": batch_previews.get(accession.pk, {})}
+        {
+            "accession": accession,
+            "preview": batch_previews.get(accession.pk, {}),
+            "can_recall_dmu": (
+                can_edit and hasattr(accession, "dmu_handoff")
+                and accession.dmu_handoff.status == "pending"
+                and not accession.batch_id
+                and (user_is_admin or accession.dmu_handoff.endorsed_by_id == request.user.pk)
+            ),
+        }
         for accession in ranges
     ]
     from collections import Counter
@@ -162,6 +176,11 @@ def laboratory_receiving_workspace(request, receiving_id):
         # A custody handoff to Main Lab is one batch-level decision; partial queues
         # remain pending until all viable isolates have revival and Site ID data.
         readiness = id_handoff_readiness(accession, isolates)
+        recall_items, recall_blocker = main_lab_recall_candidates(
+            accession, isolates, request.user,
+        )
+        accession.can_recall_id = bool(recall_items)
+        accession.recall_id_blocker = recall_blocker
         accession.can_endorse_id = readiness["ready"]
         accession.id_handoff_reason = readiness["reason"]
         # Step 4 represents work *before* Main Lab endorsement/retrieval.
@@ -171,13 +190,22 @@ def laboratory_receiving_workspace(request, receiving_id):
         awaiting_record = preparation_groups.count("record")
         failed_count = preparation_groups.count("failed")
         ready_count = preparation_groups.count("ready")
+        endorsed_to_main_lab = sum(bool(i.endorsed_at) for i in isolates)
+        temporarily_banked = sum(
+            i.identification_source == "site"
+            and i.status in ("ready_for_biobank", "site_banked")
+            for i in isolates
+        )
         workflow_rows.append({
             "accession": accession, "stages": stages,
             "preparation_pending": preparation_pending,
             "awaiting_record": awaiting_record, "failed_count": failed_count,
             "ready_count": ready_count,
+            "endorsed_to_main_lab": endorsed_to_main_lab,
+            "temporarily_banked": temporarily_banked,
             "count": len(isolates), "expected": accession.isolate_count,
             "can_handoff": can_edit and accession.can_endorse_id,
+            "can_recall_id": can_edit and accession.can_recall_id,
             "can_prepare": can_edit and not isolates,
             "can_queue": can_edit and accession.can_queue_id,
             "can_start": can_edit and len(isolates) == accession.isolate_count and all(i.status == "revival_queued" for i in isolates),
@@ -610,6 +638,31 @@ def laboratory_batch_endorse_dmu(request, accession_id):
     )
 
 
+@login_required
+@lab_receiving_required
+@require_POST
+def laboratory_batch_recall_dmu(request, accession_id):
+    from apps.receiving.prebatch import recall_accession_from_dmu
+
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_related("laboratory_receiving__receipt"),
+        pk=accession_id,
+    )
+    try:
+        recall_accession_from_dmu(
+            accession_id=accession_id, user=request.user,
+            remarks=(request.POST.get("remarks") or "").strip(),
+        )
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    else:
+        messages.success(request, "DMU endorsement recalled before acknowledgment. You may endorse again.")
+    return redirect(
+        "laboratory_receiving_workspace",
+        receiving_id=accession.laboratory_receiving.receipt.receiving_id,
+    )
+
+
 def _register_context(request):
     local_today = timezone.localdate()
     form = LaboratoryRegisterFilterForm(request.GET or {"month": local_today.month, "year": local_today.year})
@@ -750,7 +803,10 @@ def worksheet_step_done(form, ranges, organism_rows, workflow_rows, final_tabs, 
     # historical batch has already been generated. DMU owns new creation.
     batch = bool(batch_rows) and all(
         bool(_g(_g(r, "accession"), "batch"))
-        or bool(_g(_g(r, "accession"), "dmu_handoff"))
+        or bool(
+            _g(_g(r, "accession"), "dmu_handoff")
+            and _g(_g(_g(r, "accession"), "dmu_handoff"), "status") != "recalled"
+        )
         for r in batch_rows
     )
 

@@ -13,7 +13,7 @@ from .permissions import can_endorse_courier_receipt
 from apps.home.permissions import ROLE_LAB_ENCODER
 from .permissions import (can_permanently_delete_receipt, admin_receiving_delete_required, can_manage_secretariat_receiving, receiving_read_required, secretariat_receiving_required)
 from .qr import build_receipt_scan_url, render_qr_png
-from .services import (InvalidReceivingTransition, create_receipt, delete_receipt_permanently, can_delete_receipt_safely, endorse_receipt)
+from .services import (InvalidReceivingTransition, create_receipt, delete_receipt_permanently, can_delete_receipt_safely, endorse_receipt, recall_courier_endorsement, can_recall_courier_receipt, ReceivingPermissionDenied)
 
 def _receipt_or_404(receiving_id):
     return get_object_or_404(
@@ -90,6 +90,7 @@ def receiving_detail(request, receiving_id):
             "can_print_label": can_manage,
             "can_permanently_delete": can_delete_receipt_safely(receipt, request.user),
             "can_endorse": can_endorse_receipt,
+            "can_recall_endorsement": can_recall_courier_receipt(receipt, request.user),
             "can_show_endorsement": can_endorse_receipt,
             "can_confirm_lab": False,
             "can_work_lab": False,
@@ -134,6 +135,25 @@ def receiving_endorse(request, receiving_id):
         messages.warning(request, str(exc))
     else:
         messages.success(request, "Courier batch endorsed to the laboratory.")
+    return redirect("receiving_detail", receiving_id=receiving_id)
+
+
+@login_required
+@secretariat_receiving_required
+@require_POST
+def receiving_recall_endorsement(request, receiving_id):
+    receipt = _receipt_or_404(receiving_id)
+    try:
+        recall_courier_endorsement(
+            receipt_id=receipt.pk, user=request.user,
+            remarks=(request.POST.get("remarks") or "").strip(),
+        )
+    except ReceivingPermissionDenied as exc:
+        raise PermissionDenied(str(exc))
+    except InvalidReceivingTransition as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "Courier endorsement recalled. Secretariat may endorse this receipt again.")
     return redirect("receiving_detail", receiving_id=receiving_id)
 
 

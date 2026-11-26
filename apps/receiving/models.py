@@ -208,6 +208,7 @@ class ReceivingEvent(models.Model):
         ACCESSION_ASSIGNED = "accession_assigned", "Accession Range Assigned"
         BATCH_CREATED = "batch_created", "Laboratory Batch Created"
         CORRECTED = "corrected", "Information Corrected"
+        ENDORSEMENT_RECALLED = "endorsement_recalled", "Courier endorsement recalled"
 
     receipt = models.ForeignKey(
         ReferralReceipt,
@@ -248,7 +249,7 @@ class ReceivingEvent(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=("receipt", "event_type"),
-                condition=Q(event_type__in=("received", "endorsed", "lab_received")),
+                condition=Q(event_type__in=("received", "lab_received")),
                 name="receiving_one_canonical_event",
             ),
         ]
@@ -442,6 +443,7 @@ class LaboratoryBatchHandoff(models.Model):
         PENDING = "pending", "Awaiting DMU receipt"
         CONFIRMED = "confirmed", "Received by DMU"
         CREATED = "created", "Batch created by DMU"
+        RECALLED = "recalled", "Endorsement recalled by Bench A"
 
     accession = models.OneToOneField(
         LaboratoryAccession, on_delete=models.PROTECT,
@@ -475,6 +477,7 @@ class LaboratoryBatchHandoffEvent(models.Model):
         ENDORSED = "endorsed", "Endorsed to DMU"
         CONFIRMED = "confirmed", "DMU receipt confirmed"
         BATCH_CREATED = "batch_created", "Raw Data batch created by DMU"
+        RECALLED = "recalled", "Endorsement recalled by Bench A"
 
     handoff = models.ForeignKey(
         LaboratoryBatchHandoff, on_delete=models.PROTECT, related_name="events",

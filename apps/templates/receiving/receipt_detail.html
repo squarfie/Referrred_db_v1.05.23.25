@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving {{ receipt.tracking_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-detail-5steps">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -77,6 +77,25 @@
         </section>
       </aside>
     </div>
+
+       {% if can_recall_endorsement %}
+    <section class="receiving-surface receiving-card mb-4" aria-labelledby="courier-recall-title">
+      <div class="receiving-card-header">
+        <h2 id="courier-recall-title">Pending courier endorsement</h2>
+        <p>Laboratory Receiving has not confirmed custody. Secretariat may recall this handoff before acceptance.</p>
+      </div>
+      <div class="receiving-card-body">
+        <span class="badge badge-warning mb-2">Awaiting Laboratory Receipt</span>
+        <p class="small text-muted">Endorsed {{ receipt.endorsed_at|date:"M j, Y g:i A" }} by {{ receipt.endorsed_by|default:"—" }}.</p>
+        <form method="post" action="{% url 'receiving_recall_endorsement' receipt.receiving_id %}" onsubmit="return confirm('Recall this unacknowledged courier endorsement? The action will be recorded in history.');">
+          {% csrf_token %}
+          <label for="courier-recall-reason">Reason for recall (optional)</label>
+          <input class="form-control" id="courier-recall-reason" name="remarks" maxlength="1000" placeholder="Reason or correction notes">
+          <button type="submit" class="endorsement-undo-icon mt-2" title="Undo courier endorsement" aria-label="Undo courier endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
 
        {% if can_show_endorsement %}
     <section id="receiving-endorsement" class="receiving-surface receiving-card mb-4">

@@ -110,7 +110,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.assertNotContains(sender, "Confirm Receipt")
         role_sender = self.client.get(reverse("receiving_role_handoffs"))
         self.assertContains(role_sender, 'action="' + undo_url + '"', html=False)
-        self.assertContains(role_sender, "Recall")
+        self.assertContains(role_sender, 'aria-label="Undo unconfirmed batch endorsement"')
 
         self.client.force_login(self.dmu)
         recipient = self.client.get(dashboard_url, {"tab": "all"})
@@ -120,7 +120,7 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.assertNotContains(pending, 'action="' + reverse("receiving_workflow_confirm", args=[self.batch.pk]) + '"', html=False)
         role_receiver = self.client.get(reverse("receiving_role_handoffs"))
         self.assertContains(role_receiver, "Confirm Receipt")
-        self.assertNotContains(role_receiver, "Recall")
+        self.assertNotContains(role_receiver, 'aria-label="Undo unconfirmed batch endorsement"')
 
         self.client.force_login(self.lab)
         recalled = self.client.post(undo_url)

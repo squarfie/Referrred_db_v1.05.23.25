@@ -1399,3 +1399,27 @@ details.correction .correction-actions .btn {
 .sr-audit strong { color: var(--receiving-navy); font-weight: 700; }
 
 @media (max-width: 575.98px) { .sr-facts { grid-template-columns: 1fr; gap: .15rem 0; } .sr-facts > div { display: grid; margin-bottom: .45rem; } }
+/* Compact reversal action: an icon, not a full CTA button. */
+.endorsement-undo-icon {
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: #a56215;
+  background: transparent;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.endorsement-undo-icon:hover {
+  color: #864b0a;
+  background: #fff0d8;
+}
+.endorsement-undo-icon:focus-visible {
+  outline: 2px solid #c7812b;
+  outline-offset: 2px;
+}
+.endorsement-undo-icon i { font-size: .82rem; }

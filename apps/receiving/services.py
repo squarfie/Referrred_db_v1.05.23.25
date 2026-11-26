@@ -92,6 +92,48 @@ def endorse_receipt(*, receipt_id, user):
     return receipt
 
 
+def can_recall_courier_receipt(receipt, user):
+    """An unacknowledged courier endorsement is owned by its sender."""
+    return bool(
+        can_endorse_courier_receipt(user)
+        and receipt.status == ReferralReceipt.Status.ENDORSED
+        and (
+            ROLE_ADMIN in get_user_roles(user)
+            or receipt.endorsed_by_id == getattr(user, "pk", None)
+        )
+    )
+
+
+@transaction.atomic
+def recall_courier_endorsement(*, receipt_id, user, remarks=""):
+    receipt = ReferralReceipt.objects.select_for_update().get(pk=receipt_id)
+    if receipt.status == ReferralReceipt.Status.LAB_RECEIVED:
+        raise InvalidReceivingTransition(
+            "Laboratory Receiving has already confirmed custody. This endorsement cannot be undone."
+        )
+    _require_permission(
+        can_recall_courier_receipt(receipt, user),
+        "Only the original Secretariat sender or Admin may recall a pending courier endorsement.",
+    )
+    if receipt.lab_date_received or receipt.lab_received_by_id or LaboratoryReceiving.objects.filter(
+        receipt=receipt,
+    ).exists():
+        raise InvalidReceivingTransition(
+            "Laboratory custody or receiving work has already begun; the courier handoff cannot be recalled."
+        )
+    if len(remarks) > 1000:
+        raise InvalidReceivingTransition("Recall reason exceeds 1000 characters.")
+    receipt.status = ReferralReceipt.Status.RECEIVED
+    receipt.endorsed_at = None
+    receipt.endorsed_by = None
+    receipt.save(update_fields=("status", "endorsed_at", "endorsed_by", "updated_at"))
+    ReceivingEvent.objects.create(
+        receipt=receipt, event_type=ReceivingEvent.EventType.ENDORSEMENT_RECALLED,
+        performed_by=user, remarks=remarks.strip() or "Courier endorsement recalled before laboratory receipt.",
+    )
+    return receipt
+
+
 @transaction.atomic
 def confirm_lab_receipt(
     *,

@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Isolate {{ isolate.accession_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261122-actions-2"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}"><link rel="stylesheet" href="{% static 'assets/css/laboratory-isolate-progress.css' %}?v=20261126-1"><link rel="stylesheet" href="{% static 'assets/css/isolate-page.css' %}?v=20261126-isolate-3">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}"><link rel="stylesheet" href="{% static 'assets/css/laboratory-isolate-progress.css' %}?v=20261126-disposition-1"><link rel="stylesheet" href="{% static 'assets/css/isolate-page.css' %}?v=20261126-isolate-3">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page isolate-detail-page" data-page="laboratory-isolate">
 <header class="receiving-hero"><div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-vial"></i></span><div>
@@ -50,8 +50,43 @@
   <figure class="isolate-summary-qr"><img src="{% url 'laboratory_isolate_qr' isolate.pk %}" width="136" height="136" alt="Scan accession {{ isolate.accession_number }}"><figcaption>{{ isolate.accession_number }}</figcaption></figure>
 </section>
 <section class="receiving-surface receiving-form-card mb-4" id="{{ next_action.section }}" aria-labelledby="current-stage-title">
-<div class="receiving-card-header isolate-current-heading"><div><p class="receiving-eyebrow">Your next action · {{ next_action.owner }}</p><h2 id="current-stage-title">{{ next_action.label }}</h2></div><span class="isolate-current-badge">{% if next_action.section == 'closed' %}Workflow complete{% elif not next_action.allowed %}Assigned to another role{% else %}Action required{% endif %}</span></div>
+<div class="receiving-card-header isolate-current-heading">
+  <div>
+    <p class="receiving-eyebrow">{% if disposition %}Bench A · Decision recorded{% else %}Your next action · {{ next_action.owner }}{% endif %}</p>
+    <h2 id="current-stage-title">{% if disposition %}Disposition decision{% else %}{{ next_action.label }}{% endif %}</h2>
+  </div>
+  {% if disposition %}
+    <span class="badge badge-success">Completed · Routing decision</span>
+  {% else %}
+    <span class="isolate-current-badge">{% if next_action.section == 'closed' %}Workflow complete{% elif not next_action.allowed %}Assigned to another role{% else %}Action required{% endif %}</span>
+  {% endif %}
+</div>
 <div class="receiving-card-body">
+{% if disposition %}
+  <section class="isolate-disposition-summary mb-3" aria-label="Completed disposition decision">
+    <div class="isolate-disposition-summary-head">
+      <div>
+        <p class="isolate-fact-label mb-1">Recorded decision</p>
+        <h3>{{ disposition.choice }}</h3>
+      </div>
+      <div class="d-flex align-items-center" style="gap:.55rem">
+        <span class="badge {% if disposition.kind == 'main_lab' %}badge-info{% else %}badge-warning{% endif %}">{{ disposition.badge }}</span>
+        {% if isolate_recall_allowed %}
+        <form method="post" action="{% url 'laboratory_recall_main_lab' isolate.accession_range.pk %}" onsubmit="return confirm('Undo the latest unacknowledged Main Lab endorsement for this batch?');">
+          {% csrf_token %}
+          <button type="submit" class="endorsement-undo-icon" title="Undo unacknowledged Main Lab endorsement" aria-label="Undo unacknowledged Main Lab endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    <p>{{ disposition.description }}</p>
+    <div class="isolate-disposition-meta">
+      <span><strong>Recorded by</strong> {{ disposition.actor|default:"Historical record" }}</span>
+      <span><strong>Recorded at</strong> {% if disposition.when %}{{ disposition.when|date:"M j, Y g:i A" }}{% else %}Not available{% endif %}</span>
+    </div>
+    <div class="isolate-disposition-next"><strong>Next:</strong> {{ disposition.next_step }}</div>
+  </section>
+{% endif %}
 <div class="isolate-site-id-panel mb-3"><div><span class="isolate-fact-label">Site-reported identification</span><div class="isolate-site-id-value">{% if site_id %}{{ site_id.0 }} &mdash; {{ site_id.1 }}{% else %}<span class="text-muted">Not yet recorded</span>{% endif %}</div></div><p>Reference for confirmatory ID/AST. Main Laboratory results are recorded separately.</p></div>
 {% if can_edit_site_id and next_action.section != 'revival' %}
 <details class="mb-3"><summary>Record or correct the site-reported ID before endorsement</summary><form method="post" action="{% url 'laboratory_site_id_save' isolate.pk %}" class="mt-3">{% csrf_token %}{% include 'laboratory/_site_id_fields.html' %}<button class="btn btn-sm btn-primary" type="submit">Save site identification</button></form></details>
@@ -82,14 +117,16 @@
 <button class="btn btn-primary" type="submit">Record revival outcome</button></form>
 {% endif %}
 {% elif next_action.section == 'disposition' %}
-<p>Revival is complete. Choose the identification route before final banking.</p>
-{% if can_review %}<a class="btn btn-primary mb-3" href="{% url 'laboratory_batch_detail' isolate.accession_range.pk %}?next={{ return_to|urlencode }}">Endorse batch for Main Lab ID</a><p class="small text-muted">Open the batch to endorse ready revived accessions together. Temporary storage remains available below.</p>{% endif %}
+<p class="isolate-form-intro mb-3">Revival and Site ID recording are complete. Select the next route. This decision completes the routing step, not the full scientific workflow.</p>
+<div class="isolate-disposition-actions">
+{% if can_review %}<a class="btn btn-primary mb-3" href="{% url 'laboratory_batch_detail' isolate.accession_range.pk %}?next={{ return_to|urlencode }}">Endorse to Main Lab</a><p class="small text-muted">Open the batch to endorse ready revived accessions together. Temporary storage remains available below.</p>{% endif %}
 {% if can_bank %}
 {% if site_id %}
 <p><strong>Site identification:</strong> {{ site_id.0 }} &mdash; {{ site_id.1 }}</p>
 <form method="post" action="{% url 'laboratory_bank_site_id' isolate.pk %}">{% csrf_token %}<button class="btn btn-info" type="submit">Temporarily bank using Site ID</button><p class="small text-muted">Records temporary Site ID storage. Main Lab identification and the remaining workflow are still required.</p></form>
 {% else %}<p class="alert alert-warning">{{ site_id_error }} Record Site ID before endorsement.</p>{% endif %}
 {% endif %}
+</div>
 {% elif next_action.section == 'endorsement' and can_review %}
 <div class="alert alert-info"><strong>Queued—awaiting batch endorsement.</strong> This accession is not yet endorsed. It will appear in Main Laboratory's pending ID queue after batch endorsement.</div>
 {% if id_handoff.ready %}
@@ -164,8 +201,41 @@
 <details class="receiving-surface receiving-form-card mb-4">
 <summary class="p-3"><strong>Scientific record and completed history</strong></summary>
 <div class="receiving-card-body">
-{% include "laboratory/_identification_correction_history.html" %}<h2 class="h5">Instrument results</h2>{% include 'laboratory/_lab_isolate_results.html' %}
-<h2 class="h5 mt-4">Workflow audit</h2><dl class="row">
+{% if isolate.identification_corrections.exists %}
+{% include "laboratory/_identification_correction_history.html" %}
+{% endif %}
+<h2 class="h6 mb-2">Instrument result history</h2>
+{% if isolate.identifications.exists %}
+  {% include 'laboratory/_lab_isolate_results.html' %}
+{% else %}
+  <p class="small text-muted mb-3"><i class="fas fa-flask mr-1" aria-hidden="true"></i>No instrument results recorded yet.</p>
+{% endif %}
+{% if disposition_history %}
+<h2 class="h6 mt-4 mb-2">Routing decision history</h2>
+<div class="isolate-routing-history">
+  {% for event in disposition_history %}
+  <article class="isolate-history-entry mb-2">
+    <div>
+      {% if "recalled" in event.remarks %}
+        <span class="badge badge-warning">Recalled</span>
+      {% else %}
+        <span class="badge badge-success">Completed</span>
+      {% endif %}
+      <strong>{{ event.remarks }}</strong>
+    </div>
+    <p class="small text-muted mb-0">{{ event.occurred_at|date:"M j, Y g:i A" }} · {{ event.performed_by|default:"Previous user" }}</p>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
+<h2 class="h6 mt-4">Workflow audit</h2>
+{% if disposition %}
+  <div class="isolate-history-entry mb-3">
+    <div><span class="badge badge-success">Completed</span><strong>{{ disposition.choice }}</strong></div>
+    <p class="small text-muted mb-0">{% if disposition.when %}{{ disposition.when|date:"M j, Y g:i A" }}{% else %}Historical record{% endif %} · {{ disposition.actor|default:"Historical record" }}</p>
+  </div>
+{% endif %}
+<dl class="row isolate-workflow-audit">
 {% if isolate.retrieved_at %}<dt class="col-md-4">Retrieved from temporary storage</dt><dd class="col-md-8">{{ isolate.retrieved_at }} · {{ isolate.retrieved_by }}<br>Storage snapshot: {{ isolate.retrieved_storage }}</dd>{% endif %}
 {% if isolate.id_completed_at %}<dt class="col-md-4">ID testing completed</dt><dd class="col-md-8">{{ isolate.id_completed_at }} · {{ isolate.id_completed_by }}</dd>{% endif %}
 {% if isolate.lyophilization_started_at %}<dt class="col-md-4">Proceeded to lyophilization</dt><dd class="col-md-8">{{ isolate.lyophilization_started_at }} · {{ isolate.lyophilization_started_by }}</dd>{% endif %}

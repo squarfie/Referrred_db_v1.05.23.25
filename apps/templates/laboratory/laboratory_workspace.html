@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}{% load static %}
 {% block title %}Laboratory receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261124-worksheet-4"><style>
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1"><style>
 .receiving-organism-grid input[type="number"] {appearance:auto;-moz-appearance:auto;}
 .receiving-organism-grid input[type="number"]::-webkit-inner-spin-button {opacity:1;}
 </style>{% endblock stylesheets %}
@@ -308,6 +308,12 @@
           {% if not row.preparation_pending and row.count %}
             <span class="badge badge-success">{{ row.accession.reference_range }}: Bench A Preparation Done</span>
           {% endif %}
+          {% if row.endorsed_to_main_lab %}
+            <span class="badge badge-success">{{ row.accession.reference_range }}: {{ row.endorsed_to_main_lab }} Endorsed to Main Lab</span>
+          {% endif %}
+          {% if row.temporarily_banked %}
+            <span class="badge badge-info">{{ row.accession.reference_range }}: {{ row.temporarily_banked }} Temporary Site ID routes selected</span>
+          {% endif %}
         {% endfor %}
       </div>
     </div>
@@ -333,6 +339,18 @@
               <form method="post" class="d-inline mb-0" action="{% url 'laboratory_endorse_id' row.accession.pk %}">
                 {% csrf_token %}
                 <button class="btn btn-sm btn-primary mb-0" type="submit">Endorse Batch to Main Lab</button>
+              </form>
+            {% endif %}
+            {% if row.endorsed_to_main_lab %}
+              <span class="small text-success font-weight-bold">{{ row.endorsed_to_main_lab }} endorsed · awaiting or undergoing Main Lab work</span>
+            {% endif %}
+            {% if row.temporarily_banked %}
+              <span class="small text-info font-weight-bold">{{ row.temporarily_banked }} routed for temporary Site ID storage</span>
+            {% endif %}
+            {% if row.can_recall_id %}
+              <form method="post" class="d-inline mb-0" action="{% url 'laboratory_recall_main_lab' row.accession.pk %}" onsubmit="return confirm('Undo the latest unacknowledged Main Lab endorsement for this batch?');">
+                {% csrf_token %}
+                <button class="endorsement-undo-icon" type="submit" title="Undo Main Lab endorsement" aria-label="Undo Main Lab endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
               </form>
             {% endif %}
           </div>
@@ -435,6 +453,7 @@
                 {% elif item.dmu_handoff %}
                   {% if item.dmu_handoff.status == 'pending' %}<span class="badge badge-warning">Awaiting DMU receipt</span>
                   {% elif item.dmu_handoff.status == 'confirmed' %}<span class="badge badge-info">Received by DMU</span>
+                  {% elif item.dmu_handoff.status == 'recalled' %}<span class="badge badge-secondary">Endorsement recalled</span>
                   {% else %}<span class="badge badge-success">Created by DMU</span>{% endif %}
                 {% else %}
                   {% if row.preview.blocked %}<span class="badge badge-danger">Endorsement blocked</span>
@@ -448,7 +467,7 @@
                 {% endif %}
               </td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
-                {% if can_edit and not item.batch and not item.dmu_handoff %}
+                {% if can_edit and not item.batch and not item.dmu_handoff or can_edit and not item.batch and item.dmu_handoff.status == 'recalled' %}
                 <div class="receiving-batch-action">
                   {% if row.preview.blocked %}
                     <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Endorse to DMU</button>
@@ -464,6 +483,11 @@
                     </form>
                   {% endif %}
                 </div>
+                {% elif row.can_recall_dmu %}
+                  <form method="post" action="{% url 'laboratory_batch_recall_dmu' item.pk %}" onsubmit="return confirm('Recall this pending endorsement before DMU receives it?');">
+                    {% csrf_token %}
+                    <button type="submit" class="endorsement-undo-icon" title="Undo DMU endorsement" aria-label="Undo DMU endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+                  </form>
                 {% elif item.batch %}
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>
                 {% else %}
