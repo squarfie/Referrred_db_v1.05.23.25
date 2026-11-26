@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404, render
 
 from .identification_workflow import final_banking_filter
 from .navigation import return_url
+from .main_lab_progress import main_lab_progress
 from .models import LaboratoryAccession, LaboratoryIsolate
 from .permissions import main_lab_required, can_access_main_lab
 
@@ -129,6 +130,7 @@ def main_lab_isolate_detail(request, isolate_id):
     )
     return render(request, "laboratory/main_lab_isolate.html", {
         "isolate": isolate, "return_to": return_url(request),
+        "main_lab_progress": main_lab_progress(isolate),
         "latest_result": isolate.identifications.first(), "main_lab_back_url": reverse("main_lab_dashboard"),
         "can_test": can_access_main_lab(request.user),
         "area": "main_lab", "origin_url": request.get_full_path(),

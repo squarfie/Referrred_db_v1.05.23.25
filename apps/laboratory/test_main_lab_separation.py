@@ -44,7 +44,7 @@ class MainLabSeparationTests(TestCase):
         self.assertContains(dashboard, item.accession_number)
         self.assertContains(dashboard, "For Testing")
         self.assertContains(dashboard, "Direct Bench A endorsement")
-        self.assertContains(dashboard, "Acknowledge for Testing")
+        self.assertContains(dashboard, "Acknowledge for testing")
         detail = self.client.get(reverse("main_lab_isolate_detail", args=[item.pk]))
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, "Acknowledge ID testing receipt")
