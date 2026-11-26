@@ -324,6 +324,7 @@
       <div class="ip-history-group-body">
         {% if isolate.identification_corrections.exists %}
               {% include "laboratory/_identification_correction_history.html" %}
+            {% else %}<p class="ip-empty">No identification corrections recorded.</p>
             {% endif %}
       </div>
     </details>
@@ -356,6 +357,7 @@
               </li>
               {% endfor %}
             </ol>
+            {% else %}<p class="ip-empty">No routing decisions recorded.</p>
             {% endif %}
       </div>
     </details>
