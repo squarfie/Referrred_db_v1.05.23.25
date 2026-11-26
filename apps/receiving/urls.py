@@ -20,4 +20,5 @@ urlpatterns = [
     path("<uuid:receiving_id>/scan/", scan_views.receiving_scan, name="receiving_scan"),
     path("<uuid:receiving_id>/label/", views.receiving_label, name="receiving_label"),
     path("<uuid:receiving_id>/endorse/", views.receiving_endorse, name="receiving_endorse"),
+    path("<uuid:receiving_id>/recall-endorsement/", views.receiving_recall_endorsement, name="receiving_recall_endorsement"),
 ]
