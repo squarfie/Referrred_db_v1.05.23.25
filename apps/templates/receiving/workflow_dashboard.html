@@ -10,7 +10,7 @@
       <div>
         <p class="receiving-eyebrow">Receiving Dashboard</p>
         <h1>Receiving and Isolate Tracking</h1>
-        <p class="receiving-hero-subtitle">Role-based batch endorsements, receipt acknowledgments and activity tracking.</p>
+        <p class="receiving-hero-subtitle">{% if section == 'handoffs' %}Generated-batch custody actions assigned to your role.{% else %}Receipt tracking, handoffs, acknowledgments and activity history.{% endif %}</p>
       </div>
     </div>
     <div class="receiving-hero-actions">
