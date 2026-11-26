@@ -610,6 +610,31 @@ def laboratory_batch_endorse_dmu(request, accession_id):
     )
 
 
+@login_required
+@lab_receiving_required
+@require_POST
+def laboratory_batch_recall_dmu(request, accession_id):
+    from apps.receiving.prebatch import recall_accession_from_dmu
+
+    accession = get_object_or_404(
+        LaboratoryAccession.objects.select_related("laboratory_receiving__receipt"),
+        pk=accession_id,
+    )
+    try:
+        recall_accession_from_dmu(
+            accession_id=accession_id, user=request.user,
+            remarks=(request.POST.get("remarks") or "").strip(),
+        )
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    else:
+        messages.success(request, "DMU endorsement recalled before acknowledgment. You may endorse again.")
+    return redirect(
+        "laboratory_receiving_workspace",
+        receiving_id=accession.laboratory_receiving.receipt.receiving_id,
+    )
+
+
 def _register_context(request):
     local_today = timezone.localdate()
     form = LaboratoryRegisterFilterForm(request.GET or {"month": local_today.month, "year": local_today.year})
