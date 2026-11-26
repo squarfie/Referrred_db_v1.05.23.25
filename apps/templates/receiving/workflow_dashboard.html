@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-inline-workspaces-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -10,7 +10,7 @@
       <div>
         <p class="receiving-eyebrow">Receiving Dashboard</p>
         <h1>Receiving and Isolate Tracking</h1>
-        <p class="receiving-hero-subtitle">Role-based batch endorsements, receipt acknowledgments and activity tracking.</p>
+        <p class="receiving-hero-subtitle">{% if section == 'handoffs' %}Generated-batch custody actions assigned to your role.{% else %}Receipt tracking, handoffs, acknowledgments and activity history.{% endif %}</p>
       </div>
     </div>
     <div class="receiving-hero-actions">
@@ -18,6 +18,56 @@
     </div>
   </header>
   <div class="receiving-content">
+    <nav class="receiving-section-nav" aria-label="Receiving workspaces">
+      <a href="{% url 'receiving_workflow_dashboard' %}?section=receiving" class="receiving-section-link{% if section == 'receiving' %} is-active{% endif %}" {% if section == 'receiving' %}aria-current="page"{% endif %}><i class="fas fa-inbox" aria-hidden="true"></i> Receiving</a>
+      {% if role_handoff_allowed %}
+      <a href="{% url 'receiving_workflow_dashboard' %}?section=handoffs" class="receiving-section-link{% if section == 'handoffs' %} is-active{% endif %}" {% if section == 'handoffs' %}aria-current="page"{% endif %}><i class="fas fa-exchange-alt" aria-hidden="true"></i> My Batch Handoffs</a>
+      {% endif %}
+    </nav>
+    {% if section == 'handoffs' %}
+      <section class="receiving-surface receiving-table-card" aria-label="Assigned generated batch handoffs">
+        <div class="receiving-board-toolbar">
+          <div>
+            <h2 class="receiving-board-title">My Batch Handoffs</h2>
+            <p class="receiving-board-subtitle">Confirm incoming custody, or undo your own unacknowledged endorsement. Scientific verification remains separate.</p>
+          </div>
+          <form method="get" class="receiving-search-group">
+            <input type="hidden" name="section" value="handoffs">
+            <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Search batch code or site" aria-label="Search my batch handoffs">
+            <button class="btn btn-primary" type="submit">Search</button>
+          </form>
+        </div>
+        <div class="table-responsive">
+          <table class="table receiving-table receiving-unified-table">
+            <thead><tr><th>Batch</th><th>Current holder</th><th>Awaiting receipt</th><th>Updated</th><th>Actions</th></tr></thead>
+            <tbody>
+              {% for custody in role_page_obj %}
+              <tr>
+                <td><strong>{{ custody.batch.bat_Batch_Code }}</strong></td>
+                <td>{{ custody.current_role }}</td>
+                <td>{{ custody.pending_role|default:"—" }}</td>
+                <td>{{ custody.updated_at|date:"M j, Y g:i A" }}</td>
+                <td class="receiving-actions">
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_role_handoff_detail' custody.batch_id %}">Open Handoff</a>
+                  {% if custody.can_confirm_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}<input type="hidden" name="next" value="receiving_handoffs"><button type="submit" class="btn btn-sm btn-success">Confirm Receipt</button></form>{% endif %}
+                  {% if custody.can_recall_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}" onsubmit="return confirm('Undo this unacknowledged endorsement?');">{% csrf_token %}<input type="hidden" name="next" value="receiving_handoffs"><button type="submit" class="endorsement-undo-icon" title="Undo unconfirmed batch endorsement" aria-label="Undo unconfirmed batch endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button></form>{% endif %}
+                </td>
+              </tr>
+              {% empty %}<tr><td colspan="5" class="receiving-empty">No generated batch handoffs currently assigned to your role.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if role_page_obj.has_other_pages %}
+        <nav class="receiving-unified-pagination" aria-label="My Batch Handoffs pages">
+          <span>Page {{ role_page_obj.number }} of {{ role_page_obj.paginator.num_pages }}</span>
+          <div>
+            {% if role_page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?section=handoffs&amp;q={{ q|urlencode }}&amp;role_page={{ role_page_obj.previous_page_number }}">Previous</a>{% endif %}
+            {% if role_page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?section=handoffs&amp;q={{ q|urlencode }}&amp;role_page={{ role_page_obj.next_page_number }}">Next</a>{% endif %}
+          </div>
+        </nav>
+        {% endif %}
+      </section>
+    {% else %}
     <section class="receiving-surface receiving-table-card" aria-label="Unified receiving worklist">
       <div class="receiving-board-toolbar">
         <div>
@@ -93,7 +143,7 @@
                 {% endif %}
                 {% if receipt.can_recall_unified %}
                 <form method="post" class="d-inline" action="{% url 'receiving_recall_endorsement' receipt.receiving_id %}" onsubmit="return confirm('Undo this unacknowledged courier endorsement?');">
-                  {% csrf_token %}
+                  {% csrf_token %}<input type="hidden" name="next" value="receiving">
                   <button type="submit" class="endorsement-undo-icon mb-1" title="Undo courier endorsement" aria-label="Undo courier endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
                 </form>
                 {% endif %}
@@ -112,6 +162,12 @@
                 {% if handoff.can_confirm_here %}
                 <form method="post" action="{% url 'receiving_dmu_confirm' handoff.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success receiving-action-primary mb-1" type="submit"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Confirm Receipt</button></form>
                 {% endif %}
+                {% if handoff.can_recall_here %}
+                <form method="post" class="d-inline" action="{% url 'laboratory_batch_recall_dmu' handoff.accession_id %}" onsubmit="return confirm('Undo this unacknowledged endorsement to DMU?');">
+                  {% csrf_token %}<input type="hidden" name="next" value="receiving">
+                  <button type="submit" class="endorsement-undo-icon mb-1" title="Undo DMU endorsement" aria-label="Undo DMU endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+                </form>
+                {% endif %}
                 {% if handoff.can_create_here %}
                 <form method="post" action="{% url 'receiving_dmu_create_batch' handoff.pk %}">{% csrf_token %}<button class="btn btn-sm btn-info receiving-action-primary mb-1" type="submit">Create Batch</button></form>
                 {% endif %}
@@ -127,6 +183,12 @@
               <td data-label="Date / Activity"><span class="receiving-date">{{ custody.updated_at|date:"M j, Y" }}</span><span class="receiving-site-name">{{ custody.updated_at|time:"g:i A" }}</span></td>
               <td data-label="Status">{% if active_tab == 'completed' %}<span class="receiving-status receiving-status-lab_received"><i class="fas fa-circle" aria-hidden="true"></i>Released</span>{% elif custody.pending_role %}<span class="receiving-status receiving-status-endorsed"><i class="fas fa-circle" aria-hidden="true"></i>Pending confirmation</span>{% else %}<span class="receiving-status receiving-status-lab_received"><i class="fas fa-circle" aria-hidden="true"></i>Received</span>{% endif %}</td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
+                {% if custody.can_recall_inline %}
+                <form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}" onsubmit="return confirm('Undo this unacknowledged batch custody endorsement?');">
+                  {% csrf_token %}<input type="hidden" name="next" value="receiving">
+                  <button type="submit" class="endorsement-undo-icon mb-1" title="Undo unconfirmed batch endorsement" aria-label="Undo unconfirmed batch endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+                </form>
+                {% endif %}
                 <a class="btn btn-sm btn-outline-primary receiving-action-detail mb-1" href="{% url 'receiving_workflow_detail' custody.batch_id %}"><i class="fas fa-eye mr-1" aria-hidden="true"></i>Details</a>
               </div></td>
             </tr>
@@ -166,6 +228,7 @@
       </div>
       {% endif %}
     </section>
+    {% endif %}
   </div>
 </main>
 {% endblock %}

@@ -104,7 +104,8 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.client.force_login(self.lab)
         sender = self.client.get(dashboard_url, {"tab": "all"})
         self.assertContains(sender, self.batch.bat_Batch_Code)
-        self.assertNotContains(sender, 'action="' + undo_url + '"', html=False)
+        self.assertContains(sender, 'action="' + undo_url + '"', html=False)
+        self.assertContains(sender, 'aria-label="Undo unconfirmed batch endorsement"')
         self.assertNotContains(sender, ">Undo</button>", html=False)
         self.assertContains(sender, "Details")
         self.assertNotContains(sender, "Confirm Receipt")
@@ -130,6 +131,31 @@ class UnifiedReceivingHandoffTests(TestCase):
         self.assertEqual(custody.events.last().action, BatchCustodyEvent.Action.UNDONE)
         after = self.client.get(dashboard_url, {"tab": "all"})
         self.assertNotContains(after, 'action="' + undo_url + '"', html=False)
+
+    def test_receiving_has_two_workspace_tabs_and_handoff_undo_stays_inline(self):
+        initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)
+        endorse_batch(batch_id=self.batch.pk, user=self.lab, destination_role=ROLE_ENCODER)
+        self.client.force_login(self.lab)
+        url = reverse("receiving_workflow_dashboard")
+        receiving = self.client.get(url, {"tab": "all"})
+        self.assertContains(receiving, "My Batch Handoffs")
+        self.assertContains(receiving, 'aria-label="Receiving workspaces"')
+        self.assertContains(receiving, 'aria-label="Undo unconfirmed batch endorsement"')
+        self.assertNotContains(receiving, "No generated batch handoffs currently assigned to your role.")
+        handoffs = self.client.get(url, {"section": "handoffs"})
+        self.assertEqual(handoffs.status_code, 200)
+        self.assertContains(handoffs, self.batch.bat_Batch_Code)
+        self.assertContains(handoffs, 'value="receiving_handoffs"')
+        self.assertContains(handoffs, reverse("receiving_role_handoff_detail", args=[self.batch.pk]))
+        undone = self.client.post(
+            reverse("receiving_workflow_undo", args=[self.batch.pk]),
+            {"next": "receiving_handoffs"},
+        )
+        self.assertRedirects(undone, url + "?section=handoffs")
+        self.assertNotContains(
+            self.client.get(url, {"section": "handoffs"}),
+            'aria-label="Undo unconfirmed batch endorsement"',
+        )
 
     def test_confirmed_endorsement_keeps_history_without_undo(self):
         initialize_custody(batch=self.batch, user=self.lab, initial_role=ROLE_LAB_ENCODER)

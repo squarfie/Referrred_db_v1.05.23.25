@@ -9,6 +9,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Q
 from django.http import Http404
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -257,6 +258,12 @@ def workflow_dashboard(request):
         handoff.can_create_here = bool(
             tab == "received" and (ROLE_ADMIN in roles or ROLE_ENCODER in roles)
         )
+        handoff.can_recall_here = bool(
+            tab == "all"
+            and handoff.status == LaboratoryBatchHandoff.Status.PENDING
+            and (ROLE_ADMIN in roles or handoff.endorsed_by_id == request.user.pk)
+            and (ROLE_ADMIN in roles or ROLE_LAB_ENCODER in roles)
+        )
 
     courier_rows = _receipt_tab_filter(receipt_base, tab, request.user)
     if query:
@@ -284,7 +291,7 @@ def workflow_dashboard(request):
             and (ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles)
         )
         receipt.can_recall_unified = bool(
-            tab == "all" and can_recall_courier_receipt(receipt, request.user)
+            can_recall_courier_receipt(receipt, request.user)
         )
     counts = {
         key: _tab_filter(base, key, request.user).count() + receipt_counts[key] + prebatch_counts[key]
@@ -298,11 +305,52 @@ def workflow_dashboard(request):
             | Q(batch__bat_RefNo__icontains=query)
         )
     page_obj = Paginator(rows.order_by("-updated_at", "-pk"), per_page).get_page(request.GET.get("page"))
-    # Batch custody transitions are performed in role-owned workspaces.
-    # The Receiving dashboard is read-only for generated batches.
-    roles = custody_roles(request.user)
+    # Render an undo action inline beside a pending generated-batch endorsement.
+    # Other custody transitions remain in the role-owned handoff workspace.
+    for custody in page_obj:
+        custody.can_recall_inline = bool(
+            custody.pending_role
+            and (ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk)
+        )
+
+    section = "handoffs" if request.GET.get("section") == "handoffs" else "receiving"
+    role_handoff_allowed = bool(roles - {ROLE_SECRETARIAT})
+    if section == "handoffs" and not role_handoff_allowed:
+        section = "receiving"
+    role_page_obj = None
+    if role_handoff_allowed and section == "handoffs":
+        role_rows = visible_custodies(request.user).filter(
+            Q(current_role__in=roles) | Q(pending_role__in=roles)
+        ).select_related("batch", "endorsed_by").order_by("-updated_at", "-pk").distinct()
+        if ROLE_ADMIN in roles:
+            role_rows = BatchCustody.objects.select_related(
+                "batch", "endorsed_by"
+            ).order_by("-updated_at", "-pk")
+        if query:
+            role_rows = role_rows.filter(
+                Q(batch__bat_Batch_Code__icontains=query)
+                | Q(batch__bat_SiteCode__icontains=query)
+                | Q(batch__bat_RefNo__icontains=query)
+            )
+        role_page_obj = Paginator(role_rows, per_page).get_page(request.GET.get("role_page"))
+        for item in role_page_obj:
+            item.can_confirm_here = bool(
+                item.pending_role and (
+                    ROLE_ADMIN in roles or (
+                        item.pending_role in roles and item.endorsed_by_id != request.user.pk
+                    )
+                )
+            )
+            item.can_recall_here = bool(
+                item.pending_role and (
+                    ROLE_ADMIN in roles or item.endorsed_by_id == request.user.pk
+                )
+            )
 
     return render(request, "receiving/workflow_dashboard.html", {
+        "section": section,
+        "role_handoff_allowed": role_handoff_allowed,
+        "role_page_obj": role_page_obj,
         "page_obj": page_obj,
         "courier_page_obj": courier_page_obj,
         "prebatch_page_obj": prebatch_page_obj,
@@ -486,6 +534,10 @@ def _transition(request, batch_id, action):
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
     # PermissionDenied intentionally returns HTTP 403.
+    if request.POST.get("next") == "receiving_handoffs":
+        return redirect(f"{reverse('receiving_workflow_dashboard')}?section=handoffs")
+    if request.POST.get("next") == "receiving":
+        return redirect(f"{reverse('receiving_workflow_dashboard')}?tab=all")
     return redirect("receiving_role_handoff_detail", batch_id=batch_id)
 
 

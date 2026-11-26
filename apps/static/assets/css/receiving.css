@@ -1423,3 +1423,48 @@ details.correction .correction-actions .btn {
   outline-offset: 2px;
 }
 .endorsement-undo-icon i { font-size: .82rem; }
+
+/* Receiving: a single sidebar destination with two workspace tabs. */
+.receiving-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .35rem;
+  margin-bottom: 1rem;
+  border: 1px solid #dbe8ef;
+  background: #f5f9fc;
+  border-radius: 10px;
+  width: fit-content;
+  max-width: 100%;
+}
+.receiving-section-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .65rem 1rem;
+  border-radius: 7px;
+  color: #426079;
+  font-size: .84rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.receiving-section-link:hover,
+.receiving-section-link:focus-visible { color: #07516e; background: #e3f4f8; text-decoration: none; }
+.receiving-section-link.is-active { color: #fff; background: #0b3e5a; }
+
+/* Receiving activity: wide stacked summary/history rather than sticky right rail. */
+.wf-page .wf-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.wf-page .wf-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; }
+.wf-page .wf-activity { position: static; max-height: none; overflow: visible; min-width: 0; display: block; }
+.wf-page .wf-timeline { overflow: visible; max-height: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; padding: 1.1rem; }
+.wf-page .wf-timeline::before { display: none; }
+.wf-page .wf-event { min-width: 0; padding: .85rem 1rem; border: 1px solid #e0eaf0; border-left: 3px solid #13a4bd; border-radius: 8px; background: #fff; }
+.wf-page .wf-event-dot { display: none; }
+.wf-page .wf-event-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: .35rem; }
+.wf-page .wf-event-note { overflow-wrap: anywhere; }
+.wf-page .wf-footer-link { margin: 0; }
+@media (max-width: 800px) {
+  .wf-page .wf-timeline { grid-template-columns: minmax(0, 1fr); }
+  .receiving-section-nav { width: 100%; }
+  .receiving-section-link { flex: 1 1 auto; justify-content: center; }
+}
