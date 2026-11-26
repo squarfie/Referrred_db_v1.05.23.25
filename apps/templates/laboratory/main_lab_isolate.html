@@ -16,6 +16,8 @@
     </div>
     <div class="receiving-hero-actions">
       <a class="btn btn-outline-light" href="{{ return_to|default:main_lab_back_url }}"><i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>Back to Main Lab</a>
+      {% if previous_isolate_url %}<a class="btn btn-outline-light" href="{{ previous_isolate_url }}"><i class="fas fa-chevron-left mr-1" aria-hidden="true"></i>Previous Isolate</a>{% endif %}
+      {% if next_isolate_url %}<a class="btn btn-outline-light" href="{{ next_isolate_url }}">Next Isolate<i class="fas fa-chevron-right ml-1" aria-hidden="true"></i></a>{% endif %}
       <a class="btn btn-info" href="{% url 'laboratory_isolate_scan_label' isolate.pk %}" target="_blank" rel="noopener"><i class="fas fa-print mr-1" aria-hidden="true"></i>Print accession QR</a>
     </div>
   </header>
