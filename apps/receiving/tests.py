@@ -702,7 +702,7 @@ class ReceivingViewTests(TestCase):
         self.assertIsNone(receipt.endorsed_by)
         self.assertNotContains(
             self.client.get(self.route("receiving_detail", receiving_id=receipt.receiving_id)),
-            "Endorse to Laboratory Receiving",
+            "Endorse to Bench A",
         )
         # Shared Receiving permissions must not grant independent Lab confirmation.
         self.assertFalse(laboratory_permissions.can_confirm_lab_receipt(self.verifier))
@@ -1494,8 +1494,98 @@ class ReceivingTemplateTests(TestCase):
         )
 
         self.assertContains(response, "Print batch label")
-        self.assertContains(response, "Endorse to Laboratory Receiving")
+        self.assertContains(response, "Endorse to Bench A")
+        self.assertContains(response, 'name="destination_role" value="LAB Encoder"', html=False)
+        self.assertContains(
+            response,
+            'action="' + self.route("receiving_endorse", receiving_id=receipt.receiving_id) + '"',
+            count=1, html=False,
+        )
+        self.assertNotContains(response, 'id="receiving-endorsement"')
+        self.assertNotContains(response, 'href="#receiving-endorsement"')
         self.assertNotContains(response, "Confirm laboratory receipt")
+
+    def test_courier_header_action_switches_to_icon_only_undo_after_endorsement(self):
+        receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
+        self.client.force_login(self.secretariat)
+        url = self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        endorse_url = self.route("receiving_endorse", receiving_id=receipt.receiving_id)
+        undo_url = self.route("receiving_recall_endorsement", receiving_id=receipt.receiving_id)
+        initial = self.client.get(url)
+        self.assertContains(initial, "Endorse to Bench A")
+        self.assertNotContains(initial, 'aria-label="Undo courier endorsement"')
+        self.assertNotContains(initial, 'id="receiving-endorsement"')
+
+        self.assertEqual(self.client.post(endorse_url, {"destination_role": home_permissions.ROLE_LAB_ENCODER}).status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+        pending = self.client.get(url)
+        self.assertNotContains(pending, "Endorse to Bench A")
+        self.assertContains(pending, "Awaiting Bench A receipt")
+        self.assertContains(pending, 'aria-label="Undo courier endorsement"', count=1)
+        self.assertContains(pending, 'action="' + undo_url + '"', count=1, html=False)
+
+        self.assertEqual(self.client.post(undo_url).status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+        restored = self.client.get(url)
+        self.assertContains(restored, "Endorse to Bench A")
+        self.assertNotContains(restored, 'aria-label="Undo courier endorsement"')
+
+    def test_reendorsed_courier_returns_to_bench_a_pending_until_acknowledged(self):
+        """A recalled physical handoff must enter Bench A's pending queue again."""
+        from apps.receiving.models import ReceivingEvent
+        from apps.receiving.services import confirm_lab_receipt
+
+        receipt = self.create_receipt(ReferralReceipt.Status.RECEIVED)
+        detail_url = self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        endorse_url = self.route("receiving_endorse", receiving_id=receipt.receiving_id)
+        recall_url = self.route("receiving_recall_endorsement", receiving_id=receipt.receiving_id)
+        dashboard_url = self.route("receiving_workflow_dashboard")
+        payload = {"destination_role": home_permissions.ROLE_LAB_ENCODER}
+
+        self.client.force_login(self.secretariat)
+        self.assertEqual(self.client.post(endorse_url, payload).status_code, 302)
+        self.assertEqual(self.client.post(recall_url).status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.RECEIVED)
+
+        self.client.force_login(self.lab_encoder)
+        before = self.client.get(dashboard_url, {"section": "receiving", "tab": "pending", "year": "2026"})
+        self.assertNotContains(before, receipt.tracking_number)
+
+        self.client.force_login(self.secretariat)
+        self.assertEqual(self.client.post(endorse_url, payload).status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
+        self.assertIsNotNone(receipt.endorsed_at)
+        self.assertEqual(receipt.endorsed_by, self.secretariat)
+        self.assertEqual(receipt.events.filter(event_type=ReceivingEvent.EventType.ENDORSED).count(), 2)
+        self.assertEqual(receipt.events.filter(event_type=ReceivingEvent.EventType.ENDORSEMENT_RECALLED).count(), 1)
+        self.assertContains(self.client.get(detail_url), "Awaiting Bench A receipt")
+
+        self.client.force_login(self.lab_encoder)
+        pending = self.client.get(dashboard_url, {"section": "receiving", "tab": "pending", "year": "2026"})
+        self.assertEqual(pending.status_code, 200)
+        self.assertContains(pending, receipt.tracking_number)
+        self.assertContains(pending, "Confirm Receipt")
+        self.assertContains(
+            pending, self.route("receiving_lab_confirm", receiving_id=receipt.receiving_id),
+        )
+        self.assertGreaterEqual(next(x["count"] for x in pending.context["tabs"] if x["key"] == "pending"), 1)
+        self.assertEqual(pending.context["courier_page_obj"].paginator.count, 1)
+
+        # Once accepted, the same physical receipt moves out of Pending.
+        received_at = timezone.localtime(receipt.endorsed_at)
+        confirm_lab_receipt(
+            receipt_id=receipt.pk, user=self.lab_encoder,
+            lab_date_received=received_at.date(),
+            lab_time_received=received_at.time(),
+        )
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, ReferralReceipt.Status.LAB_RECEIVED)
+        after = self.client.get(dashboard_url, {"section": "receiving", "tab": "pending", "year": "2026"})
+        self.assertNotContains(after, receipt.tracking_number)
 
     def test_secretariat_receipt_links_never_expose_laboratory_worksheet(self):
         receipt = self.create_receipt(ReferralReceipt.Status.LAB_RECEIVED)

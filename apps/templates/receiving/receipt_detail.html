@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving {{ receipt.tracking_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-single-courier-action-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -9,7 +9,19 @@
     <div class="receiving-hero-actions">
       <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?tab={{ return_tab|default:'received' }}"><i class="fas fa-arrow-left mr-1"></i>Back to Receiving</a>
       {% if can_print_label %}<a class="btn btn-outline-light" target="_blank" rel="noopener" href="{% url 'receiving_label' receipt.receiving_id %}"><i class="fas fa-print mr-1"></i>Print batch label</a>{% endif %}
-      {% if can_show_endorsement %}<a class="btn btn-info" href="#receiving-endorsement"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>{% endif %}
+      {% if can_endorse %}
+      <form method="post" class="d-inline mb-0" action="{% url 'receiving_endorse' receipt.receiving_id %}" onsubmit="return confirm('Endorse this courier batch to Laboratory Receiving (Bench A)?');">
+        {% csrf_token %}
+        <input type="hidden" name="destination_role" value="LAB Encoder">
+        <button class="btn btn-info" type="submit"><i class="fas fa-paper-plane mr-1" aria-hidden="true"></i>Endorse to Bench A</button>
+      </form>
+      {% elif can_recall_endorsement %}
+      <span class="badge badge-warning receiving-hero-handoff-state" title="Endorsed to Bench A; awaiting Laboratory Receiving acknowledgment">Awaiting Bench A receipt</span>
+      <form method="post" class="d-inline mb-0" action="{% url 'receiving_recall_endorsement' receipt.receiving_id %}" onsubmit="return confirm('Undo this unacknowledged courier endorsement? The action is retained in history.');">
+        {% csrf_token %}
+        <button class="endorsement-undo-icon receiving-hero-undo" type="submit" title="Undo courier endorsement" aria-label="Undo courier endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+      </form>
+      {% endif %}
       {% if laboratory_detail and can_confirm_lab and receipt.status == "endorsed" %}<a class="btn btn-success" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm laboratory receipt</a>{% endif %}
       {% if can_work_lab %}<a class="btn btn-info" href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}"><i class="fas fa-microscope mr-1"></i>Open laboratory worksheet</a>{% endif %}
       {% if can_permanently_delete %}<button type="button" class="btn btn-outline-danger" data-toggle="modal" data-target="#deleteReceivingBatchModal"><i class="fas fa-trash-alt mr-1"></i>Delete permanently</button>{% endif %}
@@ -28,7 +40,7 @@
     </ol>
 
     {% if receipt.status == 'endorsed' %}<div class="alert alert-info receiving-notice"><i class="fas fa-hourglass-half" aria-hidden="true"></i><div><strong>Awaiting laboratory acknowledgment.</strong> Authorized Laboratory Receiving personnel confirm this courier receipt from Receiving → Pending. Scanning is optional.</div></div>{% endif %}
-    {% if receipt.status == 'received' %}<div class="alert alert-warning receiving-notice"><i class="fas fa-exclamation-circle" aria-hidden="true"></i><div><strong>This batch is awaiting endorsement to Laboratory Receiving.</strong> Laboratory confirmation becomes available after endorsement. {% if can_endorse %}Use <strong>Endorse to Laboratory Receiving</strong> above to proceed.{% endif %}</div></div>{% endif %}
+    {% if receipt.status == 'received' %}<div class="alert alert-warning receiving-notice"><i class="fas fa-exclamation-circle" aria-hidden="true"></i><div><strong>This batch is awaiting endorsement to Laboratory Receiving.</strong> Laboratory confirmation becomes available after endorsement. {% if can_endorse %}Use <strong>Endorse to Bench A</strong> in the page header to proceed.{% endif %}</div></div>{% endif %}
     {% if receipt.status == 'lab_received' and laboratory_detail %}<div class="alert alert-success receiving-notice"><i class="fas fa-check-circle" aria-hidden="true"></i><div><strong>Custody confirmed.</strong> The Laboratory Receiving worksheet is available for authorized laboratory users. <a href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}">Open laboratory worksheet</a>.</div></div>{% elif receipt.status == 'lab_received' %}<div class="alert alert-success receiving-notice"><i class="fas fa-check-circle" aria-hidden="true"></i><div><strong>Laboratory custody confirmed.</strong> This shipment is now tracked under Processing until its linked data are officially released. {% if not can_show_endorsement %}No generated batch is currently eligible for endorsement here. Main Lab isolate testing endorsements remain in the Bench A workflow.{% endif %}</div></div>{% endif %}
 
     <div class="receiving-grid">
@@ -78,38 +90,6 @@
       </aside>
     </div>
 
-       {% if can_show_endorsement or can_recall_endorsement %}
-    <section id="receiving-endorsement" class="receiving-surface receiving-card mb-4">
-      <div class="receiving-card-header">
-        <h2>Laboratory handoff</h2>
-        <p>{% if can_recall_endorsement %}Endorsed to Bench A · awaiting acknowledgment. You may undo this handoff before Laboratory Receiving accepts it.{% else %}Transfer the received courier shipment to Laboratory Receiving (Bench A).{% endif %}</p>
-      </div>
-      <div class="receiving-card-body">
-        {% if can_endorse %}
-        <form method="post" action="{% url 'receiving_endorse' receipt.receiving_id %}">
-          {% csrf_token %}
-          <div class="receiving-field">
-            <label for="receipt-destination-{{ receipt.pk }}">Destination department</label>
-            <select class="form-control" name="destination_role" id="receipt-destination-{{ receipt.pk }}" required>
-              <option value="LAB Encoder">Laboratory Receiving (Bench A)</option>
-            </select>
-            <small class="form-text text-muted">A courier shipment can be initially endorsed only to Laboratory Receiving. Individual isolates are tracked separately for Main Lab testing.</small>
-          </div>
-          <button class="btn btn-info mt-3" type="submit"><i class="fas fa-paper-plane mr-1"></i>Endorse to Laboratory Receiving</button>
-        </form>
-        {% elif can_recall_endorsement %}
-        <div class="d-flex align-items-center flex-wrap" style="gap:.55rem">
-          <span class="badge badge-warning">Awaiting Laboratory Receipt</span>
-          <span class="small text-muted">Endorsed {{ receipt.endorsed_at|date:"M j, Y g:i A" }} by {{ receipt.endorsed_by|default:"—" }}</span>
-          <form method="post" class="d-inline mb-0" action="{% url 'receiving_recall_endorsement' receipt.receiving_id %}" onsubmit="return confirm('Undo this courier endorsement before Laboratory receipt? The reversal is recorded in history.');">
-            {% csrf_token %}
-            <button class="endorsement-undo-icon" type="submit" title="Undo courier endorsement" aria-label="Undo courier endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
-          </form>
-        </div>
-        {% endif %}
-      </div>
-    </section>
-    {% endif %}
 
 
   </div>
