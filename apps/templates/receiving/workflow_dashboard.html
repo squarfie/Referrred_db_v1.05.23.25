@@ -91,6 +91,12 @@
                 {% if receipt.can_endorse_unified %}
                 <a class="btn btn-sm btn-info receiving-action-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}?from_tab={{ active_tab }}#receiving-endorsement"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
                 {% endif %}
+                {% if receipt.can_recall_unified %}
+                <form method="post" class="d-inline" action="{% url 'receiving_recall_endorsement' receipt.receiving_id %}" onsubmit="return confirm('Undo this unacknowledged courier endorsement?');">
+                  {% csrf_token %}
+                  <button type="submit" class="endorsement-undo-icon mb-1" title="Undo courier endorsement" aria-label="Undo courier endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+                </form>
+                {% endif %}
                 <a class="btn btn-sm btn-outline-primary receiving-action-detail mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}?from_tab={{ active_tab }}"><i class="fas fa-eye mr-1"></i>Details</a>
               </div></td>
             </tr>
