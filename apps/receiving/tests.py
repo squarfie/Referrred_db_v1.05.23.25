@@ -1523,7 +1523,7 @@ class ReceivingTemplateTests(TestCase):
             "destination_role": home_permissions.ROLE_LAB_ENCODER,
             "next": "receiving",
         })
-        self.assertRedirects(submitted, list_url + "?tab=received")
+        self.assertRedirects(submitted, list_url + "?tab=all")
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.ENDORSED)
 
