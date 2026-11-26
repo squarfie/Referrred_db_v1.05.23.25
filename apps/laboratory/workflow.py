@@ -217,6 +217,17 @@ def main_lab_recall_candidates(accession, items, user):
            or item.lyophilization_started_at or item.biobanked_at
            for item in cohort):
         return [], "Main Laboratory already acknowledged or processed this isolate; recall is blocked."
+    # Some legacy receipts have an acknowledgment event but no populated
+    # acknowledged_at field. Do not let a recall erase that custody evidence.
+    if any(
+        ReceivingEvent.objects.filter(
+            receipt=accession.laboratory_receiving.receipt,
+            event_type=ReceivingEvent.EventType.ID_RECEIVED,
+            remarks__contains=item.accession_number,
+        ).exists()
+        for item in cohort
+    ):
+        return [], "Main Laboratory receipt is recorded in the audit trail; recall is blocked."
     # Do not undo a batch while other Main Lab cases have already advanced.
     if any(item.endorsed_at and item.pk not in {x.pk for x in cohort}
            and (item.acknowledged_at or item.retrieved_at or item.id_completed_at
