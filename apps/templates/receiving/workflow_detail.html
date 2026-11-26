@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving Activity{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-workflow-detail-2">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-inline-workspaces-1">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page wf-page">
   <header class="receiving-hero">
@@ -47,10 +47,10 @@
       </p>
     </div>
 
-    <aside class="receiving-surface wf-activity" aria-labelledby="wf-activity-title">
+    <section class="receiving-surface wf-activity" aria-labelledby="wf-activity-title">
       <div class="wf-card-head">
         <h2 id="wf-activity-title">Activity and tracking</h2>
-        <p>Handoffs, endorsements and confirmations, oldest first.</p>
+        <p>Chronological custody, identification, and verification events. Each entry retains its original actor and timestamp.</p>
       </div>
       <div class="wf-timeline">
         {% for event in activity %}
@@ -64,7 +64,7 @@
         <div class="receiving-empty"><i class="fas fa-history" aria-hidden="true"></i><p>No activity has been recorded for this batch.</p></div>
         {% endfor %}
       </div>
-    </aside>
+    </section>
   </div>
 </main>
 {% endblock %}
