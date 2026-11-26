@@ -424,20 +424,25 @@
       margin: 0;
     }
     .batch-workflow-undo {
-      height: 24px;
-      padding: 0 0.48rem;
-      border-radius: 7px;
-      border: 1px solid rgba(245, 126, 74, 0.45);
-      background: #fff7f2;
-      color: #d95227;
-      font-size: 0.68rem;
-      font-weight: 900;
-      box-shadow: 0 2px 6px rgba(15, 58, 95, 0.08);
+      display: inline-grid;
+      place-items: center;
+      width: 27px;
+      height: 27px;
+      padding: 0;
+      border-radius: 6px;
+      border: 0;
+      background: transparent;
+      color: #bb602b;
+      font-size: 0.82rem;
+      cursor: pointer;
     }
     .batch-workflow-undo:hover {
-      background: #f57e4a;
-      border-color: #f57e4a;
-      color: #ffffff;
+      background: #fff0d8;
+      color: #8d440f;
+    }
+    .batch-workflow-undo:focus-visible {
+      outline: 2px solid #c7812b;
+      outline-offset: 2px;
     }
     .batch-accordion-inner {
       display: flex;
@@ -1000,9 +1005,7 @@
                             onsubmit="event.stopPropagation(); return confirm('Withdraw the verification submission for {{ batch_group.code|escapejs }}?');">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button type="submit" class="batch-workflow-undo" title="Withdraw verification submission">
-                          <i class="fas fa-undo"></i> Undo
-                        </button>
+                        <button type="submit" class="batch-workflow-undo" title="Undo unacknowledged Final Data endorsement" aria-label="Undo unacknowledged Final Data endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
                       </form>
                       {% endif %}
                       {% endif %}
