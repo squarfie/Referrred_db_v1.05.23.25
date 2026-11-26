@@ -1576,11 +1576,11 @@ class ReceivingTemplateTests(TestCase):
         self.assertEqual(pending.context["courier_page_obj"].paginator.count, 1)
 
         # Once accepted, the same physical receipt moves out of Pending.
-        received_at = timezone.localtime(timezone.now())
+        received_at = timezone.localtime(receipt.endorsed_at)
         confirm_lab_receipt(
             receipt_id=receipt.pk, user=self.lab_encoder,
             lab_date_received=received_at.date(),
-            lab_time_received=received_at.time().replace(microsecond=0),
+            lab_time_received=received_at.time(),
         )
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, ReferralReceipt.Status.LAB_RECEIVED)
