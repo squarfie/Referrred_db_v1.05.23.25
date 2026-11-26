@@ -31,7 +31,8 @@
     <div class="lab-organism-picker correction-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
       <label for="{{ field_id }}-search">1. Search for the organism</label>
       <input id="{{ field_id }}-search" class="form-control" type="search" data-organism-search placeholder="Type a code or name, e.g. SAI or Staphylococcus" aria-describedby="{{ field_id }}-hint">
-      <p id="{{ field_id }}-hint" class="correction-hint">Pick a result from the list to fill the fields below.</p>
+      <br>
+      <p id="{{ field_id }}-hint" class="correction-note"><i class="fas fa-info-circle" aria-hidden="true"></i>Pick a result from the list to fill the fields below.</p>
       <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
 
       <div class="correction-selected">

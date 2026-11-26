@@ -1173,6 +1173,7 @@ details.correction .correction-form {
   gap: .85rem;
   padding: 1rem 1.1rem 1.1rem;
   margin: 0;
+  background-color: #ceecf5;
 }
 details.correction .correction-note {
   display: flex;
@@ -1325,7 +1326,7 @@ details.correction .correction-actions .btn {
 .bs-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .75rem 1.25rem; padding-bottom: .85rem; border-bottom: 1px solid var(--receiving-border); }
 .bs-head h3 { margin: 0; color: var(--receiving-navy); font-size: 1.05rem; font-weight: 700; }
 .bs-head .receiving-eyebrow { margin: 0 0 .15rem; }
-.bs-id { display: grid; gap: .15rem; padding: .5rem .8rem; border: 1px solid #d5e4ee; border-radius: 9px; background: #f8fbfd; text-align: right; }
+.bs-id { display: grid; gap: .15rem; padding: .5rem .8rem; border: 1px solid #7ebae2; border-radius: 9px; background: #f8fbfd; text-align: right; }
 .bs-id-label { color: #7a8ea1; font-size: .64rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .bs-id-value { color: var(--receiving-navy); font-size: .9rem; font-weight: 700; font-style: italic; }
 .bs-id-source { color: #566b80; font-size: .74rem; }
