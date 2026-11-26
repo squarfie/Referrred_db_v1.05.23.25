@@ -139,7 +139,12 @@
                 <a class="btn btn-sm btn-success receiving-action-primary mb-1" href="{% url 'receiving_lab_confirm' receipt.receiving_id %}"><i class="fas fa-check-circle mr-1"></i>Confirm Receipt</a>
                 {% endif %}
                 {% if receipt.can_endorse_unified %}
-                <a class="btn btn-sm btn-info receiving-action-primary mb-1" href="{% url 'receiving_detail' receipt.receiving_id %}?from_tab={{ active_tab }}#receiving-endorsement"><i class="fas fa-paper-plane mr-1"></i>Endorse</a>
+                <form method="post" class="d-inline mb-0" action="{% url 'receiving_endorse' receipt.receiving_id %}" onsubmit="return confirm('Endorse this courier receipt to Laboratory Receiving (Bench A)?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="destination_role" value="LAB Encoder">
+                  <input type="hidden" name="next" value="receiving">
+                  <button class="btn btn-sm btn-info receiving-action-primary mb-1" type="submit" title="Endorse to Laboratory Receiving (Bench A)"><i class="fas fa-paper-plane mr-1" aria-hidden="true"></i>Endorse</button>
+                </form>
                 {% endif %}
                 {% if receipt.can_recall_unified %}
                 <form method="post" class="d-inline" action="{% url 'receiving_recall_endorsement' receipt.receiving_id %}" onsubmit="return confirm('Undo this unacknowledged courier endorsement?');">
