@@ -657,6 +657,8 @@ def laboratory_batch_recall_dmu(request, accession_id):
         messages.error(request, "; ".join(exc.messages))
     else:
         messages.success(request, "DMU endorsement recalled before acknowledgment. You may endorse again.")
+    if request.POST.get("next") == "receiving":
+        return redirect("receiving_workflow_dashboard")
     return redirect(
         "laboratory_receiving_workspace",
         receiving_id=accession.laboratory_receiving.receipt.receiving_id,
