@@ -312,7 +312,44 @@ def workflow_dashboard(request):
             and (ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk)
         )
 
+    section = "handoffs" if request.GET.get("section") == "handoffs" else "receiving"
+    role_handoff_allowed = bool(roles - {ROLE_SECRETARIAT})
+    if section == "handoffs" and not role_handoff_allowed:
+        section = "receiving"
+    role_page_obj = None
+    if role_handoff_allowed and section == "handoffs":
+        role_rows = visible_custodies(request.user).filter(
+            Q(current_role__in=roles) | Q(pending_role__in=roles)
+        ).select_related("batch", "endorsed_by").order_by("-updated_at", "-pk").distinct()
+        if ROLE_ADMIN in roles:
+            role_rows = BatchCustody.objects.select_related(
+                "batch", "endorsed_by"
+            ).order_by("-updated_at", "-pk")
+        if query:
+            role_rows = role_rows.filter(
+                Q(batch__bat_Batch_Code__icontains=query)
+                | Q(batch__bat_SiteCode__icontains=query)
+                | Q(batch__bat_RefNo__icontains=query)
+            )
+        role_page_obj = Paginator(role_rows, per_page).get_page(request.GET.get("role_page"))
+        for item in role_page_obj:
+            item.can_confirm_here = bool(
+                item.pending_role and (
+                    ROLE_ADMIN in roles or (
+                        item.pending_role in roles and item.endorsed_by_id != request.user.pk
+                    )
+                )
+            )
+            item.can_recall_here = bool(
+                item.pending_role and (
+                    ROLE_ADMIN in roles or item.endorsed_by_id == request.user.pk
+                )
+            )
+
     return render(request, "receiving/workflow_dashboard.html", {
+        "section": section,
+        "role_handoff_allowed": role_handoff_allowed,
+        "role_page_obj": role_page_obj,
         "page_obj": page_obj,
         "courier_page_obj": courier_page_obj,
         "prebatch_page_obj": prebatch_page_obj,
