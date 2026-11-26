@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from .dashboard import render_receiving_dashboard as _render_receiving_dashboard
@@ -128,6 +129,8 @@ def receiving_endorse(request, receiving_id):
     requested_role = (request.POST.get("destination_role") or "").strip()
     if requested_role and requested_role != ROLE_LAB_ENCODER:
         messages.error(request, "Courier receipts may only be endorsed to Laboratory Receiving.")
+        if request.POST.get("next") == "receiving":
+            return redirect(reverse("receiving_workflow_dashboard") + "?tab=received")
         return redirect("receiving_detail", receiving_id=receiving_id)
     try:
         endorse_receipt(receipt_id=receipt.pk, user=request.user)
@@ -135,6 +138,8 @@ def receiving_endorse(request, receiving_id):
         messages.warning(request, str(exc))
     else:
         messages.success(request, "Courier batch endorsed to the laboratory.")
+    if request.POST.get("next") == "receiving":
+        return redirect(reverse("receiving_workflow_dashboard") + "?tab=all")
     return redirect("receiving_detail", receiving_id=receiving_id)
 
 

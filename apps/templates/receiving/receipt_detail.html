@@ -13,7 +13,7 @@
       <form method="post" class="d-inline mb-0" action="{% url 'receiving_endorse' receipt.receiving_id %}" onsubmit="return confirm('Endorse this courier batch to Laboratory Receiving (Bench A)?');">
         {% csrf_token %}
         <input type="hidden" name="destination_role" value="LAB Encoder">
-        <button class="btn btn-info" type="submit"><i class="fas fa-paper-plane mr-1" aria-hidden="true"></i>Endorse to Bench A</button>
+        <button class="btn btn-info" type="submit"><i class="fas fa-paper-plane mr-1" aria-hidden="true"></i>Endorse</button>
       </form>
       {% elif can_recall_endorsement %}
       <span class="badge badge-warning receiving-hero-handoff-state" title="Endorsed to Bench A; awaiting Laboratory Receiving acknowledgment">Awaiting Bench A receipt</span>
@@ -40,7 +40,7 @@
     </ol>
 
     {% if receipt.status == 'endorsed' %}<div class="alert alert-info receiving-notice"><i class="fas fa-hourglass-half" aria-hidden="true"></i><div><strong>Awaiting laboratory acknowledgment.</strong> Authorized Laboratory Receiving personnel confirm this courier receipt from Receiving → Pending. Scanning is optional.</div></div>{% endif %}
-    {% if receipt.status == 'received' %}<div class="alert alert-warning receiving-notice"><i class="fas fa-exclamation-circle" aria-hidden="true"></i><div><strong>This batch is awaiting endorsement to Laboratory Receiving.</strong> Laboratory confirmation becomes available after endorsement. {% if can_endorse %}Use <strong>Endorse to Bench A</strong> in the page header to proceed.{% endif %}</div></div>{% endif %}
+    {% if receipt.status == 'received' %}<div class="alert alert-warning receiving-notice"><i class="fas fa-exclamation-circle" aria-hidden="true"></i><div><strong>This batch is awaiting endorsement to Laboratory Receiving.</strong> Laboratory confirmation becomes available after endorsement. {% if can_endorse %}Use <strong>Endorse</strong> in the page header to proceed.{% endif %}</div></div>{% endif %}
     {% if receipt.status == 'lab_received' and laboratory_detail %}<div class="alert alert-success receiving-notice"><i class="fas fa-check-circle" aria-hidden="true"></i><div><strong>Custody confirmed.</strong> The Laboratory Receiving worksheet is available for authorized laboratory users. <a href="{% url 'laboratory_receiving_workspace' receipt.receiving_id %}">Open laboratory worksheet</a>.</div></div>{% elif receipt.status == 'lab_received' %}<div class="alert alert-success receiving-notice"><i class="fas fa-check-circle" aria-hidden="true"></i><div><strong>Laboratory custody confirmed.</strong> This shipment is now tracked under Processing until its linked data are officially released. {% if not can_show_endorsement %}No generated batch is currently eligible for endorsement here. Main Lab isolate testing endorsements remain in the Bench A workflow.{% endif %}</div></div>{% endif %}
 
     <div class="receiving-grid">
