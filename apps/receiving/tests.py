@@ -1607,7 +1607,7 @@ class ReceivingTemplateTests(TestCase):
         pending = self.client.get(dashboard_url, {"tab": "pending", "year": "2026"})
         self.assertContains(pending, receipt.tracking_number)
         self.assertContains(pending, "Confirm Receipt")
-        self.assertEqual(pending.context["receipt_counts"]["pending"], 1)
+        self.assertEqual(pending.context["courier_count"], 1)
 
         self.client.force_login(self.secretariat)
         self.assertEqual(self.client.post(recall_url).status_code, 302)
@@ -1617,7 +1617,7 @@ class ReceivingTemplateTests(TestCase):
         self.client.force_login(self.lab_encoder)
         after_recall = self.client.get(dashboard_url, {"tab": "pending", "year": "2026"})
         self.assertNotContains(after_recall, receipt.tracking_number)
-        self.assertEqual(after_recall.context["receipt_counts"]["pending"], 0)
+        self.assertEqual(after_recall.context["courier_count"], 0)
 
         self.client.force_login(self.secretariat)
         second = self.client.post(endorse_url, {"destination_role": home_permissions.ROLE_LAB_ENCODER})
@@ -1631,7 +1631,7 @@ class ReceivingTemplateTests(TestCase):
         pending_again = self.client.get(dashboard_url, {"tab": "pending", "year": "2026"})
         self.assertContains(pending_again, receipt.tracking_number)
         self.assertContains(pending_again, "Confirm Receipt")
-        self.assertEqual(pending_again.context["receipt_counts"]["pending"], 1)
+        self.assertEqual(pending_again.context["courier_count"], 1)
         self.assertContains(
             self.client.get(dashboard_url, {"tab": "all", "year": "2026"}),
             receipt.tracking_number,
