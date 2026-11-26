@@ -8,13 +8,28 @@ from apps.receiving.models import LaboratoryIsolate, ReceivingEvent
 
 def isolate_disposition_summary(isolate):
     if isolate.endorsed_at:
+        if isolate.status in {
+            LaboratoryIsolate.Status.BIOBANKED,
+            LaboratoryIsolate.Status.READY_FOR_BIOBANK,
+        } or isolate.biobanked_at:
+            next_step = "Complete or review final Bench A storage records."
+        elif isolate.id_completed_at or isolate.status in {
+            LaboratoryIsolate.Status.ID_COMPLETE,
+            LaboratoryIsolate.Status.ID_RETURNED,
+            LaboratoryIsolate.Status.ID_REVIEWED,
+        }:
+            next_step = "Main Laboratory Final ID is available; proceed with Bench A final processing."
+        elif isolate.acknowledged_at or isolate.status == LaboratoryIsolate.Status.ID_TESTING:
+            next_step = "Main Laboratory is responsible for ID testing and recording the Final ID."
+        else:
+            next_step = "Await Main Laboratory receipt for ID testing."
         return {
             "choice": "Endorsed to Main Laboratory",
             "badge": "Endorsed to Main Lab",
-            "description": "Bench A handed this isolate to Main Laboratory for confirmatory ID. Main Lab acknowledgment and identification are separate subsequent steps.",
+            "description": "Bench A handed this isolate to Main Laboratory for confirmatory ID. Main Lab acknowledgment and identification are separately recorded.",
             "actor": isolate.endorsed_by,
             "when": isolate.endorsed_at,
-            "next_step": "Await Main Laboratory receipt / ID testing.",
+            "next_step": next_step,
             "kind": "main_lab",
         }
 
