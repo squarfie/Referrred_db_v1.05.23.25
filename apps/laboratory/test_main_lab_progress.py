@@ -1,12 +1,18 @@
 """Read-only Main Lab milestone and compact history regression checks."""
 from django.utils import timezone
 from django.urls import reverse
+from django.test import TestCase
 from apps.laboratory.models import LaboratoryIsolate, LaboratoryIdentification, LaboratoryIdentificationCorrection
 from apps.laboratory.main_lab_progress import main_lab_progress
 from apps.laboratory.test_main_lab_separation import MainLabSeparationTests
 
 
-class MainLabProgressTests(MainLabSeparationTests):
+class MainLabProgressTests(TestCase):
+    # Share fixtures without inheriting (and rerunning) the separation tests.
+    setUp = MainLabSeparationTests.setUp
+    create_pending_accession = MainLabSeparationTests.create_pending_accession
+    main_lab_user = MainLabSeparationTests.main_lab_user
+    endorsed_isolate = MainLabSeparationTests.endorsed_isolate
     def progress_by_key(self, item):
         return {step["key"]: step for step in main_lab_progress(item)["steps"]}
 
