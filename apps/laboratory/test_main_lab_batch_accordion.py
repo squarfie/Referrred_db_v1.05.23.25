@@ -33,6 +33,10 @@ class MainLabBatchAccordionTests(TestCase):
         self.assertContains(page, '<details', count=1)
         self.assertContains(page, 'GROUP-0034')
         self.assertEqual(page.context['counts']['testing'], 35)
+        self.assertContains(page, 'class="ml-worklist-footer"')
+        self.assertContains(page, '1 batch')
+        self.assertNotContains(page, 'class="ml-page-controls"')
+
 
     def test_same_ranges_from_different_sites_stay_separate(self):
         first = self.create_pending_accession()
@@ -82,3 +86,8 @@ class MainLabBatchAccordionTests(TestCase):
         self.assertEqual(page.context['counts']['testing'], 26)
         self.assertContains(page, 'tab=testing')
         self.assertContains(page, 'q=PAGE')
+        self.assertContains(page, 'class="ml-page-controls"')
+        self.assertContains(page, 'Page 2 of 2')
+        self.assertContains(page, 'aria-label="Previous page"')
+        self.assertContains(page, 'tab=testing&amp;q=PAGE&amp;page=1', html=False)
+
