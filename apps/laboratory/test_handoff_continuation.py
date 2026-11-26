@@ -81,7 +81,7 @@ class HandoffContinuationTests(TestCase):
         item.status = 'revived'
         item.save()
         page = self.client.get(reverse('laboratory_isolate_detail', args=[item.pk]))
-        self.assertContains(page, 'Endorse batch for Main Lab ID')
+        self.assertContains(page, 'Endorse to Main Lab')
         self.assertNotContains(page, f'action="{reverse("laboratory_queue_main_lab", args=[item.pk])}"')
         batch = self.client.get(reverse('laboratory_batch_detail', args=[accession.pk]))
         self.assertContains(batch, 'Endorse whole batch to Main Lab')
