@@ -27,7 +27,7 @@
                 <td class="receiving-actions">
                   <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_role_handoff_detail' custody.batch_id %}">Open Handoff</a>
                   {% if custody.can_confirm_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Confirm Receipt</button></form>{% endif %}
-                  {% if custody.can_recall_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-danger">Recall</button></form>{% endif %}
+                  {% if custody.can_recall_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}">{% csrf_token %}<button type="submit" class="endorsement-undo-icon" title="Undo unconfirmed batch endorsement" aria-label="Undo unconfirmed batch endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button></form>{% endif %}
                 </td>
               </tr>
               {% empty %}<tr><td colspan="5" class="text-muted text-center">No generated batches currently assigned to your role.</td></tr>{% endfor %}
