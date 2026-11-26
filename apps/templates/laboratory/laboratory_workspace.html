@@ -110,7 +110,7 @@
   <section class="receiving-surface receiving-form-card mb-4{% if step_done.accessioning %} is-complete{% endif %}" id="accessioning">
     <div class="receiving-card-header">
       <h2>Step 2: Accessioning</h2>
-      <p>Save accession ranges before recording the organisms. Ungenerated ranges can be edited or removed here.</p>
+      <small><i class="fas fa-info-circle mr-1"></i> Save accession ranges before recording the organisms. Ungenerated ranges can be edited or removed here.</small>
     </div>
     <div class="receiving-card-body">
       {% if can_edit %}
@@ -227,7 +227,7 @@
   <section class="receiving-surface receiving-form-card mb-4{% if step_done.organisms %} is-complete{% endif %}" id="organism-inventory">
     <div class="receiving-card-header">
       <h2>Step 3: Organism inventory</h2>
-      <p>Add organisms within each accession range. All counts share that range's isolate total. Record the site-reported organism for each individual accession during revival.</p>
+      <small>Add organisms within each accession range. All counts share that range's isolate total. Record the site-reported organism for each individual accession during revival.</small>
     </div>
     <div class="receiving-card-body">
       {% if organism_rows %}
@@ -292,7 +292,7 @@
     <div class="receiving-card-header d-flex justify-content-between align-items-start flex-wrap">
       <div>
         <h2>Step 4: Revival &amp; Site ID</h2>
-        <p>Record the revival outcome and the Site ID supplied on the sentinel referral form. Separate failed revivals from isolates ready for Main Lab endorsement or temporary storage.</p>
+        <small>Record the revival outcome and the Site ID supplied on the sentinel referral form. Separate failed revivals from isolates ready for Main Lab endorsement or temporary storage.</small>
       </div>
       <div class="d-flex flex-wrap justify-content-end align-items-center ml-auto" style="gap: 6px;">
         {% for row in workflow_rows %}
@@ -408,19 +408,19 @@
               <button type="submit" class="btn btn-primary">Proceed to Lyophilization</button>
             </form>
           {% elif row.action.section == 'lyophilization' and row.has_final_id and can_edit %}
-            <p class="small text-muted">Record harvest and lyophilization dates; Final ID is supplied by Main Lab.</p>
+            <small style="font-weight: bold;"><i class="fas fa-info-circle mr-1"></i> Record harvest and lyophilization dates; Final ID is supplied by Main Lab.</small>
             {% include 'laboratory/_lab_lyophilization_form.html' with return_to=worksheet_next_biobank %}
           {% elif row.action.section == 'biobank' and row.has_final_id and isolate.identification_source == 'main_lab' and can_edit %}
-            <p class="small text-muted mb-2">Lyophilization is complete. Continue final storage encoding in the full biobanking form.</p>
+            <small>Lyophilization is complete. Continue final storage encoding in the full biobanking form.</small>
             <a class="btn btn-success" href="{% url 'laboratory_isolate_detail' isolate.pk %}?next={{ worksheet_next_completed|urlencode }}#biobank">Open Biobanking</a>
           {% elif row.state == 'completed' %}
-            <p class="text-success mb-1">This isolate's Bench A workflow is completed or formally closed.</p>
+            <small style="color: rgb(27, 43, 187); background-color: rgb(215, 241, 250);">This isolate's Bench A workflow is completed or formally closed.</small>
           {% else %}
-            <p class="mb-2">{{ row.pending_message }}</p>
+            <small class="mb-2" style="background-color: rgb(204, 253, 253);" >{{ row.pending_message }}</small>
             {% if row.next_href %}
               <a class="btn btn-sm btn-outline-primary" href="{{ row.next_href }}{% if '?' in row.next_href %}&amp;{% else %}?{% endif %}next={{ worksheet_return_url|urlencode }}">{{ row.next_label }}</a>
             {% else %}
-              <p class="small text-muted mb-0">Responsible team: {{ row.action.owner }}. This is not an editable Bench A step.</p>
+             <br> <small class="small text-muted mb-0" style="font-weight: bold;"><i class="fas fa-info-circle mr-1"></i> Responsible team: {{ row.action.owner }}. This is not an editable Bench A step.</small>
             {% endif %}
           {% endif %}
         </div>
@@ -433,7 +433,7 @@
   <section class="receiving-surface receiving-form-card mb-4{% if step_done.batch %} is-complete{% endif %}" id="batch-generation">
     <div class="receiving-card-header">
       <h2>Step 6: Endorse to DMU</h2>
-      <p>Review the completed laboratory accession range and inventory, then endorse it to DMU. The DMU Encoder confirms receipt and creates the Raw Data batch in Receiving. Existing generated batches remain available for reference.</p>
+      <small>Review the completed laboratory accession range and inventory, then endorse it to DMU. The DMU Encoder confirms receipt and creates the Raw Data batch in Receiving. Existing generated batches remain available for reference.</small>
     </div>
     <div class="receiving-card-body">
       <div class="table-responsive">
@@ -459,7 +459,7 @@
                   {% if row.preview.blocked %}<span class="badge badge-danger">Endorsement blocked</span>
                   {% else %}<span class="badge badge-warning">Ready for endorsement</span>{% endif %}
                   {% if row.preview.expected_batch_code %}
-                  <div class="small text-muted mt-1">Expected batch: <code>{{ row.preview.expected_batch_code }}</code></div>
+                  <div class="small text-muted mt-1">Expected batch: <code style="color: blue;">{{ row.preview.expected_batch_code }}</code></div>
                   {% endif %}
                   {% if row.preview.blocked %}
                   <div class="small text-danger mt-1" role="status">{{ row.preview.message }}</div>

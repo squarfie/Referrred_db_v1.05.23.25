@@ -1730,3 +1730,43 @@ details.correction .correction-actions .btn {
   .wf-page .wf-event-body { padding: .75rem; }
   .wf-page .wf-day-heading { margin-left: -.25rem; }
 }
+
+
+/* ===== Site-reported organism picker (scoped to .site-id-picker) ===== */
+.site-id-picker { margin-bottom: 1rem; }
+.site-id-picker > label { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem; margin: 0 0 .35rem; color: #2b4a63; font-size: .7rem; font-weight: 700; letter-spacing: .05em; line-height: 1.3; text-transform: uppercase; }
+.site-id-picker .site-id-accession { padding: .1em .55em; border-radius: 6px; background: #e6f3ff; color: #15558a; font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: .7rem; font-weight: 700; letter-spacing: 0; text-transform: none; }
+
+/* Search with magnifier, shorter than the full card */
+.site-id-picker > input[type="search"] { display: block; width: 100%; max-width: 480px; height: 2.5rem; margin: 0; padding-left: 2.2rem; background-color: #fff; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8ea1' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: .8rem center; background-size: 16px 16px; font-size: .86rem; }
+.site-id-picker > input[type="search"]:focus { border-color: var(--receiving-cyan); box-shadow: 0 0 0 3px rgba(0,188,212,.14); }
+
+/* Selected identification: caption and read-only pair */
+.site-id-picker .site-id-caption { display: block; margin: .75rem 0 .3rem; color: #7a8ea1; font-size: .64rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.site-id-picker .site-id-pair { display: grid; grid-template-columns: 110px minmax(0, 1fr); max-width: 480px; gap: 0; margin: 0; }
+.site-id-picker .site-id-pair input { height: 2.5rem; margin: 0; font-size: .86rem; }
+.site-id-picker .site-id-pair input[data-organism-code] { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0; font-family: SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; text-transform: uppercase; }
+.site-id-picker .site-id-pair input[data-organism-name] { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.site-id-picker .site-id-pair input[readonly] { background-color: #f3f7fa; color: #2b4a63; }
+.site-id-picker .site-id-pair input::placeholder { color: #9aabbb; font-style: italic; }
+
+/* Hint */
+.site-id-picker .site-id-hint { display: flex; gap: .45rem; margin: .65rem 0 0; color: #566b80; font-size: .78rem; line-height: 1.5; }
+.site-id-picker .site-id-hint i { margin-top: .2rem; color: #0e8ea3; }
+
+
+/* Isolate record: status pill moved to the top-right of the card, left of the QR */
+.isolate-detail-page .isolate-summary-panel { position: relative; }
+.isolate-detail-page .isolate-summary-panel .isolate-summary-status {
+  position: absolute;
+  top: 1.1rem;
+  right: 32rem;
+  margin-top: 0;
+}
+@media (max-width: 991.98px) {
+  .isolate-detail-page .isolate-summary-panel .isolate-summary-status {
+    position: static;
+    display: inline-flex;
+    margin-top: .4rem;
+  }
+}

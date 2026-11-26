@@ -1,0 +1,137 @@
+/* ===== Isolate page: current step, disposition, revival, record and audit (scoped) ===== */
+/* Load after isolate-page.css. */
+
+/* Current step card */
+.isolate-detail-page .ip-step.is-decided > .receiving-card-header { border-left-color: #2fa77c; }
+.isolate-detail-page .isolate-current-badge.is-done { color: hsl(162, 70%, 22%); background: #def6eb; border-color: #9edabb; }
+.isolate-detail-page .ip-step-body > * + * { margin-top: 1rem; }
+.isolate-detail-page .ip-lead { margin: 0; color: #3f566b; font-size: .9rem; line-height: 1.55; }
+.isolate-detail-page .ip-hint { color: #7a8ea1; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.isolate-detail-page .ip-hint-block { margin: .3rem 0 0; color: #7a8ea1; font-size: .78rem; line-height: 1.5; }
+.isolate-detail-page .ip-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .25rem; }
+.isolate-detail-page .ip-actions .btn { margin: 0; }
+.isolate-detail-page .ip-inline-form { display: inline-flex; margin: 0; }
+
+/* Disposition summary */
+.isolate-detail-page .isolate-disposition-summary { padding: 1rem 1.1rem; border: 1px solid #bfe6d3; border-left: 4px solid #2fa77c; border-radius: 10px; background: #effaf5; }
+.isolate-detail-page .isolate-disposition-summary-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .6rem 1rem; }
+.isolate-detail-page .isolate-disposition-summary h3 { margin: 0; color: var(--receiving-navy); font-size: 1rem; font-weight: 700; }
+.isolate-detail-page .isolate-disposition-summary .isolate-fact-label { margin: 0 0 .2rem; color: #116149; }
+.isolate-detail-page .ip-decision-tools { display: inline-flex; align-items: center; gap: .5rem; }
+.isolate-detail-page .ip-route-tag { display: inline-flex; padding: .25em .7em; border: 1px solid #a9e1ea; border-radius: 999px; background: #e2f8fb; color: #0e6a7a; font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
+.isolate-detail-page .ip-route-tag.is-other { border-color: #efd271; background: #fff5cf; color: #8a6100; }
+.isolate-detail-page .isolate-disposition-description { margin: .7rem 0 0; color: #3f566b; font-size: .88rem; line-height: 1.55; }
+.isolate-detail-page .isolate-disposition-meta { display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; margin: .8rem 0 0; padding-top: .7rem; border-top: 1px solid #cfeedd; }
+.isolate-detail-page .isolate-disposition-meta div { display: flex; gap: .35rem; font-size: .78rem; }
+.isolate-detail-page .isolate-disposition-meta dt { color: #566b80; font-weight: 600; }
+.isolate-detail-page .isolate-disposition-meta dd { margin: 0; color: var(--receiving-navy); font-weight: 600; }
+.isolate-detail-page .isolate-disposition-next { margin: .7rem 0 0; color: #3f566b; font-size: .8rem; }
+.isolate-detail-page .isolate-disposition-next strong { margin-right: .35rem; color: #116149; text-transform: uppercase; font-size: .68rem; letter-spacing: .05em; }
+
+/* Site ID panel spacing */
+.isolate-detail-page .isolate-site-id-panel { margin: 0; }
+
+/* Disclosures inside the step card */
+.isolate-detail-page .ip-disclosure { margin: 0; border: 1px solid var(--receiving-border); border-radius: 10px; background: #f8fbfd; overflow: hidden; }
+.isolate-detail-page .ip-disclosure > summary { display: flex; align-items: center; gap: .5rem; padding: .65rem .95rem; color: var(--receiving-navy); font-size: .86rem; font-weight: 700; cursor: pointer; list-style: none; }
+.isolate-detail-page .ip-disclosure > summary::-webkit-details-marker { display: none; }
+.isolate-detail-page .ip-disclosure > summary::before { content: "\f105"; font-family: "Font Awesome 5 Free"; font-weight: 900; color: #7a8ea1; transition: transform .2s; }
+.isolate-detail-page .ip-disclosure[open] > summary::before { transform: rotate(90deg); }
+.isolate-detail-page .ip-disclosure[open] > summary { background: #fff; border-bottom: 1px solid var(--receiving-border); }
+.isolate-detail-page .ip-disclosure > summary:hover { background: #edf8fc; }
+.isolate-detail-page .ip-disclosure-body { padding: 1rem 1.1rem; display: grid; gap: .9rem; }
+
+/* Forms */
+.isolate-detail-page .ip-form { display: grid; gap: .9rem; }
+.isolate-detail-page .ip-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem 1rem;}
+@media (max-width: 767.98px) { .isolate-detail-page .ip-grid-3 { grid-template-columns: 1fr; } }
+.isolate-detail-page .receiving-field > label { display: block; margin: 0 0 .35rem; color: #2b4a63; font-size: .7rem; font-weight: 700; letter-spacing: .05em; line-height: 2.3; text-transform: uppercase; }
+.isolate-detail-page .receiving-field .form-control { height: 2.4rem; margin: 0; font-size: .86rem; }
+.isolate-detail-page textarea.form-control { height: auto; min-height: 5rem; }
+
+/* Facts list (Main Lab result, Final ID) */
+.isolate-detail-page .ip-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem 1.2rem; margin: 0; }
+.isolate-detail-page .ip-facts > div { padding: .7rem .9rem; border: 1px solid var(--receiving-border); border-radius: 9px; background: #f8fbfd; }
+.isolate-detail-page .ip-facts dt { color: #7a8ea1; font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.isolate-detail-page .ip-facts dd { margin: .2rem 0 0; color: var(--receiving-navy); font-size: .92rem; font-weight: 700; }
+@media (max-width: 575.98px) { .isolate-detail-page .ip-facts { grid-template-columns: 1fr; } }
+
+/* Route cards in the disposition step */
+.isolate-detail-page .ip-routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .9rem; }
+.isolate-detail-page .ip-route { display: grid; align-content: start; gap: .5rem; padding: 1rem 1.1rem; border: 1px solid var(--receiving-border); border-radius: 10px; background: #fff; }
+.isolate-detail-page .ip-route p { margin: 0; color: #566b80; font-size: .82rem; line-height: 1.5; }
+.isolate-detail-page .ip-route form { margin: 0; }
+.isolate-detail-page .ip-route .btn { justify-self: start; margin: 0; }
+.isolate-detail-page .ip-route-title { color: var(--receiving-navy); font-size: .88rem; font-weight: 700; }
+
+/* Section headings used inside sections */
+.isolate-detail-page .ip-section > .receiving-card-header { border-left: 4px solid var(--receiving-cyan); }
+.isolate-detail-page .ip-sub { margin: 1.25rem 0 .6rem; color: var(--receiving-navy); font-size: .92rem; font-weight: 700; }
+.isolate-detail-page .ip-sub:first-child { margin-top: 0; }
+.isolate-detail-page .ip-table td { vertical-align: top; }
+.isolate-detail-page .ip-by { display: block; color: var(--receiving-navy); font-weight: 600; font-size: .84rem; }
+.isolate-detail-page .ip-at { display: block; margin-top: .1rem; color: #7a8ea1; font-size: .76rem; }
+.isolate-detail-page .ip-empty { margin: 0 0 .5rem; color: #7a8ea1; font-size: .86rem; }
+.isolate-detail-page .ip-back { margin-bottom: 1rem; }
+
+/* Scientific record: a clear, collapsible section */
+.isolate-detail-page .ip-record { border: 1px solid var(--receiving-border); border-radius: 12px; background: #fff; overflow: hidden; }
+.isolate-detail-page .ip-record > summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem 1rem; padding: .9rem 1.2rem; cursor: pointer; list-style: none; background: #f8fbfd; border-left: 4px solid var(--receiving-cyan); }
+.isolate-detail-page .ip-record > summary::-webkit-details-marker { display: none; }
+.isolate-detail-page .ip-record > summary:hover { background: #edf8fc; }
+.isolate-detail-page .ip-record[open] > summary { border-bottom: 1px solid var(--receiving-border); background: #fff; }
+.isolate-detail-page .ip-record-title { color: var(--receiving-navy); font-size: .95rem; font-weight: 700; }
+.isolate-detail-page .ip-record-title i { color: #0e8ea3; }
+.isolate-detail-page .ip-record-hint { color: #7a8ea1; font-size: .78rem; }
+.isolate-detail-page .ip-record-body { padding: 1.1rem 1.2rem 1.3rem; }
+
+/* Routing timeline */
+.isolate-detail-page .ip-timeline { position: relative; margin: 0; padding: 0; list-style: none; }
+.isolate-detail-page .ip-timeline::before { content: ""; position: absolute; top: .4rem; bottom: .4rem; left: .42rem; width: 2px; background: #d6e4ee; }
+.isolate-detail-page .ip-timeline-item { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: .75rem; padding-bottom: .9rem; }
+.isolate-detail-page .ip-timeline-item:last-child { padding-bottom: 0; }
+.isolate-detail-page .ip-timeline-dot { position: relative; z-index: 1; width: 14px; height: 14px; margin-top: .2rem; border-radius: 50%; border: 3px solid #2fa77c; background: #fff; }
+.isolate-detail-page .ip-timeline-dot.is-recalled { border-color: #d9a400; }
+.isolate-detail-page .ip-timeline-title { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; color: var(--receiving-navy); font-size: .88rem; line-height: 1.4; }
+.isolate-detail-page .ip-timeline-meta { margin: .15rem 0 0; color: #7a8ea1; font-size: .76rem; }
+.isolate-detail-page .ip-tag { display: inline-flex; padding: .15em .55em; border: 1px solid; border-radius: 999px; font-size: .64rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.isolate-detail-page .ip-tag.is-ok { color: #116149; background: #def6eb; border-color: #9edabb; }
+.isolate-detail-page .ip-tag.is-warn { color: #7a5600; background: #fff5cf; border-color: #efd271; }
+
+.isolate-detail-page .ip-decision-note { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; margin-bottom: .9rem; padding: .7rem .9rem; border: 1px solid #bfe6d3; border-radius: 9px; background: #effaf5; color: var(--receiving-navy); font-size: .88rem; }
+
+/* Workflow audit as a tidy list */
+.isolate-detail-page .ip-audit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem .9rem; margin: 0; }
+.isolate-detail-page .ip-audit > div { padding: .65rem .85rem; border: 1px solid #edf2f7; border-radius: 9px; background: #fbfdfe; min-width: 0; }
+.isolate-detail-page .ip-audit dt { color: #7a8ea1; font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.isolate-detail-page .ip-audit dd { margin: .2rem 0 0; color: var(--receiving-navy); font-size: .84rem; font-weight: 600; overflow-wrap: anywhere; }
+.isolate-detail-page .ip-audit-sub { display: block; margin-top: .15rem; color: #7a8ea1; font-size: .76rem; font-weight: 500; }
+@media (max-width: 767.98px) { .isolate-detail-page .ip-audit { grid-template-columns: 1fr; } }
+
+/* Bottom navigation bar */
+.isolate-detail-page .ip-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; padding: .85rem 1.1rem; }
+.isolate-detail-page .ip-bottom-nav { display: flex; flex-wrap: wrap; gap: .5rem; }
+.isolate-detail-page .ip-bottom .btn { margin: 0; display: inline-flex; align-items: center; }
+
+
+/* ===== Isolate page: clearer headings (scoped; load after isolate-page-2.css) ===== */
+
+/* Isolate record heading */
+.isolate-detail-page .isolate-summary-heading { display: flex; align-items: center; gap: .9rem; }
+.isolate-detail-page .isolate-summary-heading > div { min-width: 0; }
+.isolate-detail-page .isolate-summary-heading .receiving-eyebrow { margin: 0 0 .25rem; color: #0e8ea3; font-size: .66rem; font-weight: 800; letter-spacing: .09em; }
+.isolate-detail-page .isolate-summary-heading h2 { margin: 0; color: var(--receiving-navy); font-size: 1.3rem; font-weight: 800; line-height: 1.2; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.isolate-detail-page .isolate-summary-status { display: inline-flex; align-items: center; gap: .35rem; margin-top: .4rem; padding: .22em .75em; border: 1px solid #b9dcf8; border-radius: 999px; background: #e6f3ff; color: #15558a; font-size: .72rem; font-weight: 700; line-height: 1.3; }
+.isolate-detail-page .isolate-summary-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .75; }
+
+/* Next action heading */
+.isolate-detail-page .isolate-current-heading { align-items: center; }
+.isolate-detail-page .isolate-current-heading > div { min-width: 0; }
+.isolate-detail-page .isolate-current-heading .receiving-eyebrow { margin: 0 0 .25rem; color: #5a7188; font-size: .66rem; font-weight: 800; letter-spacing: .09em; }
+.isolate-detail-page .isolate-current-heading h2 { margin: 0; color: var(--receiving-navy); font-size: 1.15rem; font-weight: 800; line-height: 1.3; }
+.isolate-detail-page .isolate-current-badge { flex: 0 0 auto; }
+
+@media (max-width: 575.98px) {
+  .isolate-detail-page .isolate-summary-heading h2 { font-size: 1.15rem; }
+  .isolate-detail-page .isolate-current-heading h2 { font-size: 1.05rem; }
+}
