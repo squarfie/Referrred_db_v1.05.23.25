@@ -210,7 +210,25 @@
 {% else %}
   <p class="small text-muted mb-3"><i class="fas fa-flask mr-1" aria-hidden="true"></i>No instrument results recorded yet.</p>
 {% endif %}
-<h2 class="h5 mt-4">Workflow audit</h2>
+{% if disposition_history %}
+<h2 class="h6 mt-4 mb-2">Routing decision history</h2>
+<div class="isolate-routing-history">
+  {% for event in disposition_history %}
+  <article class="isolate-history-entry mb-2">
+    <div>
+      {% if "recalled" in event.remarks %}
+        <span class="badge badge-warning">Recalled</span>
+      {% else %}
+        <span class="badge badge-success">Completed</span>
+      {% endif %}
+      <strong>{{ event.remarks }}</strong>
+    </div>
+    <p class="small text-muted mb-0">{{ event.occurred_at|date:"M j, Y g:i A" }} · {{ event.performed_by|default:"Previous user" }}</p>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
+<h2 class="h6 mt-4">Workflow audit</h2>
 {% if disposition %}
   <div class="isolate-history-entry mb-3">
     <div><span class="badge badge-success">Completed</span><strong>{{ disposition.choice }}</strong></div>
