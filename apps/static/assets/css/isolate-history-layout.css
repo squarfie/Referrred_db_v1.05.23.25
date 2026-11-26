@@ -53,7 +53,7 @@
    toward the middle. Place the caret at the far right instead. */
 .isolate-detail-page .ip-record > summary::before { display: none; }
 .isolate-detail-page .ip-record > summary::after {
-  content: "\\f078";
+  content: "\f078";
   font-family: "Font Awesome 5 Free";
   font-weight: 900;
   font-size: .75rem;
