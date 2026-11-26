@@ -70,3 +70,76 @@
   .isolate-progress-steps { grid-template-columns: 1fr; }
   .isolate-progress-steps li { padding: .5rem .65rem; }
 }
+
+/* Read-only completed decision recap; subsequent workflow remains independent. */
+.isolate-detail-page .isolate-disposition-summary {
+  border: 1px solid #b9e3ce;
+  background: #f2fbf6;
+  border-radius: 10px;
+  padding: .95rem 1.05rem;
+  color: #244c3a;
+}
+.isolate-detail-page .isolate-disposition-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+.isolate-detail-page .isolate-disposition-summary h3 {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 750;
+  color: #176148;
+}
+.isolate-detail-page .isolate-disposition-summary p {
+  margin: .65rem 0;
+  font-size: .78rem;
+  line-height: 1.55;
+}
+.isolate-detail-page .isolate-disposition-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem 1.25rem;
+  font-size: .72rem;
+  color: #517364;
+}
+.isolate-detail-page .isolate-disposition-meta strong { color: #245740; }
+.isolate-detail-page .isolate-disposition-next {
+  border-top: 1px solid #d2eadc;
+  margin-top: .7rem;
+  padding-top: .65rem;
+  font-size: .75rem;
+}
+.isolate-detail-page .isolate-disposition-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: .85rem;
+  flex-wrap: wrap;
+}
+.isolate-detail-page .isolate-disposition-actions > p,
+.isolate-detail-page .isolate-disposition-actions > form {
+  margin-bottom: .4rem;
+}
+.isolate-detail-page .isolate-history-entry {
+  border-left: 3px solid #289a72;
+  background: #f3faf6;
+  padding: .65rem .85rem;
+  border-radius: 0 8px 8px 0;
+}
+.isolate-detail-page .isolate-history-entry > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  font-size: .78rem;
+}
+.isolate-detail-page .isolate-workflow-audit dt {
+  font-weight: 650;
+  color: #365268;
+  font-size: .76rem;
+}
+.isolate-detail-page .isolate-workflow-audit dd {
+  color: #688092;
+  font-size: .75rem;
+}
