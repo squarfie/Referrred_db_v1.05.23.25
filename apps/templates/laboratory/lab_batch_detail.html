@@ -48,6 +48,18 @@
           {% else %}All isolates awaiting Bench A work or handoff; Main Lab work is excluded.{% endif %}
         </span></p>
         {% endif %}
+        {% if can_recall_main_lab %}
+        <div class="receiving-handoff mb-3">
+          <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
+            <span class="badge badge-warning">Awaiting Main Lab receipt</span>
+            <strong class="small">The latest batch endorsement can still be recalled.</strong>
+          </div>
+          <form method="post" class="mt-2" action="{% url 'laboratory_recall_main_lab' accession.pk %}" onsubmit="return confirm('Recall the unacknowledged Main Laboratory endorsement for this batch?');">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-warning" type="submit"><i class="fas fa-undo mr-1"></i>Undo Endorsement to Main Lab</button>
+          </form>
+        </div>
+        {% endif %}
         {% if can_review and id_handoff.queued_count %}
         <div class="receiving-handoff">
           <p><i class="fas fa-paper-plane mr-2" aria-hidden="true"></i><strong>{{ id_handoff.queued_count }} accession{{ id_handoff.queued_count|pluralize }}</strong> ready at Bench A for direct endorsement to Main Lab.</p>
