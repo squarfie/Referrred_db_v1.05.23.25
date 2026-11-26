@@ -499,10 +499,20 @@ def laboratory_isolate_detail(request, isolate_id):
         isolate.accession_range, siblings, request.user,
     )
     isolate_recall_allowed = any(item.pk == isolate.pk for item in recall_cohort)
+    disposition_history = ReceivingEvent.objects.filter(
+        receipt=isolate.accession_range.laboratory_receiving.receipt,
+        event_type=ReceivingEvent.EventType.CORRECTED,
+        remarks__contains=isolate.accession_number,
+    ).filter(
+        Q(remarks__startswith="Disposition:")
+        | Q(remarks__startswith="Main Lab endorsement completed")
+        | Q(remarks__startswith="Main Lab endorsement recalled")
+    ).select_related("performed_by").order_by("-occurred_at", "-pk")[:20]
     return render(request, "laboratory/lab_isolate_detail.html", {
         "isolate": isolate, "biobank": biobank, "next_action": next_action(isolate, request.user),
         "isolate_progress": isolate_worksheet_steps(isolate),
         "disposition": isolate_disposition_summary(isolate),
+        "disposition_history": disposition_history,
         "isolate_recall_allowed": isolate_recall_allowed,
         "isolate_recall_reason": recall_reason,
         "return_to": return_url(request), "latest_result": isolate.identifications.first(),
