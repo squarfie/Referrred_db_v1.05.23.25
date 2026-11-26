@@ -190,11 +190,19 @@ def laboratory_receiving_workspace(request, receiving_id):
         awaiting_record = preparation_groups.count("record")
         failed_count = preparation_groups.count("failed")
         ready_count = preparation_groups.count("ready")
+        endorsed_to_main_lab = sum(bool(i.endorsed_at) for i in isolates)
+        temporarily_banked = sum(
+            i.identification_source == "site"
+            and i.status in ("ready_for_biobank", "site_banked")
+            for i in isolates
+        )
         workflow_rows.append({
             "accession": accession, "stages": stages,
             "preparation_pending": preparation_pending,
             "awaiting_record": awaiting_record, "failed_count": failed_count,
             "ready_count": ready_count,
+            "endorsed_to_main_lab": endorsed_to_main_lab,
+            "temporarily_banked": temporarily_banked,
             "count": len(isolates), "expected": accession.isolate_count,
             "can_handoff": can_edit and accession.can_endorse_id,
             "can_recall_id": can_edit and accession.can_recall_id,
