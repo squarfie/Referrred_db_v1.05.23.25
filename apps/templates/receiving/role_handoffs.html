@@ -1,49 +1,89 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}My Batch Handoffs{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1"><link rel="stylesheet" href="{% static 'assets/css/handoffs-page.css' %}?v=20261126-handoffs-1">{% endblock stylesheets %}
 {% block content %}
-<main class="receiving-page">
+<main class="receiving-page handoffs-page">
+
   <header class="receiving-hero">
-    <div class="receiving-hero-main"><span class="receiving-hero-icon"><i class="fas fa-exchange-alt"></i></span>
-      <div><p class="receiving-eyebrow">Role-owned workflow</p><h1>My Batch Handoffs</h1>
-      <p class="receiving-hero-subtitle">Manage generated-batch custody under your authorized role. Scientific approval remains in its own workflow.</p></div>
+    <div class="receiving-hero-main">
+      <span class="receiving-hero-icon" aria-hidden="true"><i class="fas fa-exchange-alt"></i></span>
+      <div>
+        <p class="receiving-eyebrow">Role-owned workflow</p>
+        <h1>My Batch Handoffs</h1>
+        <p class="receiving-hero-subtitle">Manage generated-batch custody under your authorized role. Scientific approval remains in its own workflow.</p>
+      </div>
+    </div>
+    <div class="receiving-hero-actions">
+      <span class="handoffs-count"><strong>{{ page_obj.paginator.count }}</strong> assigned</span>
     </div>
   </header>
+
   <div class="receiving-content">
-    <section class="receiving-surface receiving-card">
-      <div class="receiving-card-header"><h2>Assigned batch handoffs</h2><p>Endorse, acknowledge or recall only the batches for which your role is responsible.</p></div>
-      <div class="receiving-card-body">
-        <div class="table-responsive">
-          <table class="table receiving-table">
-            <thead><tr><th>Batch</th><th>Current holder</th><th>Awaiting receipt</th><th>Updated</th><th>Actions</th></tr></thead>
-            <tbody>
-              {% for custody in page_obj %}
-              <tr>
-                <td><strong>{{ custody.batch.bat_Batch_Code }}</strong></td>
-                <td>{{ custody.current_role }}</td>
-                <td>{{ custody.pending_role|default:"—" }}</td>
-                <td>{{ custody.updated_at|date:"M j, Y g:i A" }}</td>
-                <td class="receiving-actions">
-                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_role_handoff_detail' custody.batch_id %}">Open Handoff</a>
-                  {% if custody.can_confirm_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-success">Confirm Receipt</button></form>{% endif %}
-                  {% if custody.can_recall_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}" onsubmit="return confirm('Undo this unconfirmed batch endorsement? The action is preserved in audit history.');">{% csrf_token %}<button type="submit" class="endorsement-undo-icon" title="Undo unconfirmed batch endorsement" aria-label="Undo unconfirmed batch endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button></form>{% endif %}
-                </td>
-              </tr>
-              {% empty %}<tr><td colspan="5" class="text-muted text-center">No generated batches currently assigned to your role.</td></tr>{% endfor %}
-            </tbody>
-          </table>
+    <section class="receiving-surface receiving-table-card" aria-labelledby="handoffs-title">
+      <div class="receiving-board-toolbar">
+        <div>
+          <h2 class="receiving-board-title" id="handoffs-title">Assigned batch handoffs</h2>
+          <p class="receiving-board-subtitle">Endorse, acknowledge or recall only the batches for which your role is responsible.</p>
         </div>
-        {% if page_obj.has_other_pages %}
-        <nav aria-label="Role handoff pagination" class="d-flex justify-content-between align-items-center mt-3">
-          <span class="text-muted small">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-          <div>
-            {% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
-            {% if page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}
-          </div>
-        </nav>
-        {% endif %}
       </div>
+
+      <div class="table-responsive">
+        <table class="table receiving-table handoffs-table">
+          <caption class="sr-only">Generated batches assigned to your role</caption>
+          <thead><tr>
+            <th scope="col">Batch</th>
+            <th scope="col">Current holder</th>
+            <th scope="col">Awaiting receipt</th>
+            <th scope="col">Updated</th>
+            <th scope="col" class="receiving-nowrap">Actions</th>
+          </tr></thead>
+          <tbody>
+            {% for custody in page_obj %}
+            <tr>
+              <td data-label="Batch"><span class="receiving-tracking handoffs-batch">{{ custody.batch.bat_Batch_Code }}</span></td>
+              <td data-label="Current holder"><span class="handoffs-role">{{ custody.current_role }}</span></td>
+              <td data-label="Awaiting receipt">
+                {% if custody.pending_role %}<span class="handoffs-pending"><i class="fas fa-hourglass-half" aria-hidden="true"></i>{{ custody.pending_role }}</span>{% else %}<span class="handoffs-none">None</span>{% endif %}
+              </td>
+              <td data-label="Updated">
+                <span class="receiving-date">{{ custody.updated_at|date:"M j, Y" }}</span>
+                <span class="receiving-site-name">{{ custody.updated_at|date:"g:i A" }}</span>
+              </td>
+              <td data-label="Actions" class="receiving-actions">
+                <div class="receiving-action-group handoffs-actions">
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_role_handoff_detail' custody.batch_id %}"><i class="fas fa-folder-open mr-1" aria-hidden="true"></i>Open handoff</a>
+                  {% if custody.can_confirm_here %}
+                  <form method="post" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Confirm receipt</button>
+                  </form>
+                  {% endif %}
+                  {% if custody.can_recall_here %}
+                  <form method="post" action="{% url 'receiving_workflow_undo' custody.batch_id %}" onsubmit="return confirm('Undo this unconfirmed batch endorsement? The action is preserved in audit history.');">
+                    {% csrf_token %}
+                    <button type="submit" class="endorsement-undo-icon handoffs-undo" title="Undo unconfirmed batch endorsement" aria-label="Undo unconfirmed batch endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="receiving-empty"><i class="fas fa-clipboard-check" aria-hidden="true"></i>No generated batches are currently assigned to your role.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if page_obj.has_other_pages %}
+      <nav class="receiving-unified-footer" aria-label="Role handoff pagination">
+        <span class="handoffs-page-count">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        <div class="receiving-unified-pager">
+          {% if page_obj.has_previous %}<a aria-label="Previous page" href="?page={{ page_obj.previous_page_number }}"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>{% else %}<span class="is-disabled"><i class="fas fa-chevron-left" aria-hidden="true"></i></span>{% endif %}
+          {% if page_obj.has_next %}<a aria-label="Next page" href="?page={{ page_obj.next_page_number }}"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>{% else %}<span class="is-disabled"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>{% endif %}
+        </div>
+      </nav>
+      {% endif %}
     </section>
   </div>
 </main>

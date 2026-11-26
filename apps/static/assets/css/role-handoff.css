@@ -1,0 +1,26 @@
+
+/* ===== My Batch Handoffs (scoped to .handoffs-page; loaded after receiving.css) ===== */
+.handoffs-page .handoffs-count { display: inline-flex; align-items: baseline; gap: .4rem; padding: .45rem .9rem; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; background: rgba(255,255,255,.08); color: #cfe7ee; font-size: .8rem; }
+.handoffs-page .handoffs-count strong { color: #fff; font-size: 1.1rem; }
+
+.handoffs-page .handoffs-table td { vertical-align: middle; }
+.handoffs-page .handoffs-batch { display: inline-block; padding: .25em .6em; border: 1px solid #d5e4ee; border-radius: 7px; background: #f8fbfd; font-size: .8rem; font-weight: 700; color: var(--receiving-navy); }
+.handoffs-page .handoffs-role { display: inline-flex; padding: .2em .65em; border: 1px solid #b9dcf8; border-radius: 999px; background: #e6f3ff; color: #15558a; font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.handoffs-page .handoffs-pending { display: inline-flex; align-items: center; gap: .4rem; padding: .2em .65em; border: 1px solid #efd271; border-radius: 999px; background: #fff5cf; color: #8a6100; font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.handoffs-page .handoffs-pending i { font-size: .7rem; }
+.handoffs-page .handoffs-none { color: #9aabbb; font-size: .82rem; font-style: italic; }
+
+/* Actions: one line, forms inline, consistent spacing */
+.handoffs-page .handoffs-actions { flex-wrap: nowrap; justify-content: flex-end; gap: .4rem; }
+.handoffs-page .handoffs-actions form { margin: 0; display: inline-flex; }
+.handoffs-page .handoffs-actions .btn { margin: 0; white-space: nowrap; }
+.handoffs-page .handoffs-undo { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid #f0c3bf; border-radius: 7px; background: #fff; color: #c33c36; cursor: pointer; }
+.handoffs-page .handoffs-undo:hover, .handoffs-page .handoffs-undo:focus-visible { background: #fdf1f0; border-color: #c33c36; color: #a02a25; }
+
+.handoffs-page .handoffs-page-count { color: #566b80; font-size: .8rem; font-weight: 600; }
+
+@media (max-width: 991.98px) {
+  .handoffs-page .handoffs-actions { flex-wrap: wrap; justify-content: flex-start; }
+}
+
+
