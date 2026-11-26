@@ -189,7 +189,68 @@ def create_id_handoff(accession_id, user, isolate_id=None):
         item.endorsed_at = now
         item.endorsed_by = user
     LaboratoryIsolate.objects.bulk_update(queued, ["status", "endorsed_at", "endorsed_by"])
+    ReceivingEvent.objects.create(
+        receipt=accession.laboratory_receiving.receipt,
+        event_type=ReceivingEvent.EventType.CORRECTED,
+        performed_by=user,
+        remarks=f"Main Lab endorsement completed for {', '.join(item.accession_number for item in queued)}.",
+    )
     return True
+
+
+def main_lab_recall_candidates(accession, items, user):
+    """Return the latest still-unaccepted batch endorsement cohort, or a blocker."""
+    from apps.home.permissions import ROLE_ADMIN, get_user_roles
+    if not can_review_id_results(user):
+        return [], "Only Bench A may recall Main Lab endorsements."
+    if not items:
+        return [], "No isolates have been endorsed for this range."
+    pending = [item for item in items if item.status == S.ID_PENDING and item.endorsed_at]
+    if not pending:
+        return [], "No unacknowledged Main Laboratory endorsement is pending."
+    latest_time = max(item.endorsed_at for item in pending)
+    cohort = [item for item in pending if item.endorsed_at == latest_time]
+    if any(item.endorsed_by_id != user.pk for item in cohort) and ROLE_ADMIN not in get_user_roles(user):
+        return [], "Only the original endorsing Bench A user or Admin may recall the handoff."
+    if any(item.status != S.ID_PENDING or item.acknowledged_at or item.retrieved_at
+           or item.returned_at or item.id_completed_at or item.identifications.exists()
+           or item.lyophilization_started_at or item.biobanked_at
+           for item in cohort):
+        return [], "Main Laboratory already acknowledged or processed this isolate; recall is blocked."
+    # Do not undo a batch while other Main Lab cases have already advanced.
+    if any(item.endorsed_at and item.pk not in {x.pk for x in cohort}
+           and (item.acknowledged_at or item.retrieved_at or item.id_completed_at
+                or item.returned_at or item.identifications.exists())
+           for item in items):
+        return [], "Another isolate in this batch has already progressed in Main Laboratory."
+    return cohort, ""
+
+
+@transaction.atomic
+def recall_main_lab_handoff(accession_id, user, remarks=""):
+    """Undo an unacknowledged whole-batch endorsement, never a received ID case."""
+    accession = LaboratoryAccession.objects.select_for_update().get(pk=accession_id)
+    items = list(LaboratoryIsolate.objects.select_for_update().filter(
+        accession_range=accession,
+    ).order_by("pk"))
+    cohort, blocker = main_lab_recall_candidates(accession, items, user)
+    if blocker:
+        raise WorkflowError(blocker)
+    if len(remarks) > 1000:
+        raise WorkflowError("Recall reason exceeds 1000 characters.")
+    for item in cohort:
+        item.status = S.ID_QUEUED if item.id_queued_at else S.REVIVED
+        item.endorsed_at = None
+        item.endorsed_by = None
+    LaboratoryIsolate.objects.bulk_update(cohort, ("status", "endorsed_at", "endorsed_by"))
+    ReceivingEvent.objects.create(
+        receipt=accession.laboratory_receiving.receipt,
+        event_type=ReceivingEvent.EventType.CORRECTED,
+        performed_by=user,
+        remarks=(f"Main Lab endorsement recalled for {', '.join(item.accession_number for item in cohort)}. "
+                 + remarks.strip()),
+    )
+    return len(cohort)
 
 
 def _id_handoff_candidates(accession, items):
