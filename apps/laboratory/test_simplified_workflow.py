@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.receiving import tests as fixtures
 from .models import LaboratoryIsolate, LaboratoryIdentification, LaboratoryBiobank
-from .workflow import WorkflowError, create_id_handoff, save_biobank, complete_lyophilization
+from .workflow import WorkflowError, create_id_handoff, save_biobank, complete_lyophilization, recall_main_lab_handoff, acknowledge_id_receipt, bank_using_site_id
 
 
 class SimplifiedWorkflowTests(TestCase):
@@ -32,6 +32,64 @@ class SimplifiedWorkflowTests(TestCase):
     def services(self):
         from . import identification_workflow
         return identification_workflow
+
+    def test_main_lab_undo_icon_reverses_only_unacknowledged_batch_handoff(self):
+        items = [LaboratoryIsolate.objects.create(
+            accession_range=self.accession, accession_number=number,
+            status="revived",
+            revival_started_at=self.now-timedelta(hours=2),
+            revival_completed_at=self.now-timedelta(hours=1),
+            site_organism_code="KPN", site_organism_name="Klebsiella pneumoniae",
+        ) for number in self.accession.accession_numbers]
+        self.assertTrue(create_id_handoff(self.accession.pk, self.lab_user))
+        case = items[0]
+        case.refresh_from_db()
+        self.assertEqual(case.status, "id_pending")
+        page = self.client.get(reverse("laboratory_isolate_detail", args=[case.pk]))
+        self.assertContains(page, "Disposition decision")
+        self.assertContains(page, "Endorsed to Main Laboratory")
+        self.assertContains(page, 'aria-label="Undo unacknowledged Main Lab endorsement"')
+        batch = self.client.get(reverse("laboratory_batch_detail", args=[self.accession.pk]))
+        self.assertContains(batch, 'aria-label="Undo unacknowledged Main Lab endorsement"')
+        worksheet = self.client.get(reverse(
+            "laboratory_receiving_workspace", args=[self.receipt.receiving_id],
+        ))
+        self.assertContains(worksheet, 'aria-label="Undo Main Lab endorsement"')
+        route = reverse("laboratory_recall_main_lab", args=[self.accession.pk])
+        self.assertEqual(self.client.get(route).status_code, 405)
+        self.assertEqual(self.client.post(route).status_code, 302)
+        for item in items:
+            item.refresh_from_db()
+            self.assertEqual(item.status, "revived")
+            self.assertIsNone(item.endorsed_at)
+        events = list(self.receipt.events.filter(
+            remarks__startswith="Main Lab endorsement recalled",
+        ))
+        self.assertEqual(len(events), 1)
+        # The unaccepted whole batch may be endorsed again.
+        self.assertTrue(create_id_handoff(self.accession.pk, self.lab_user))
+        acknowledge_id_receipt(isolate_id=case.pk, user=self.main_user)
+        with self.assertRaises(WorkflowError):
+            recall_main_lab_handoff(self.accession.pk, self.lab_user)
+        case.refresh_from_db()
+        self.assertEqual(case.status, "id_testing")
+        self.assertIsNotNone(case.endorsed_at)
+
+    def test_temporary_banking_decision_is_completed_and_logged(self):
+        item = self.isolate()
+        bank_using_site_id(item.pk, self.lab_user)
+        item.refresh_from_db()
+        self.assertEqual(item.identification_source, "site")
+        self.assertEqual(item.status, LaboratoryIsolate.Status.READY_FOR_BIOBANK)
+        page = self.client.get(reverse("laboratory_isolate_detail", args=[item.pk]))
+        self.assertContains(page, "Disposition decision")
+        self.assertContains(page, "Completed · Routing decision")
+        self.assertContains(page, "Temporary banking using Site ID")
+        self.assertContains(page, "Record temporary storage details before Main Lab retrieval")
+        self.assertContains(page, "Scientific record and completed history")
+        self.assertTrue(self.receipt.events.filter(
+            remarks__startswith="Disposition: Temporary Site ID banking selected for",
+        ).exists())
 
     def test_batch_endorses_revived_isolates_without_queue_step(self):
         for number in self.accession.accession_numbers:
