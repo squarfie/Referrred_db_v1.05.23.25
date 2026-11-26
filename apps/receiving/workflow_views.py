@@ -21,6 +21,7 @@ from .handoffs import (
     endorse_batch, undo_batch_endorsement,
 )
 from .models import BatchCustody, ReferralReceipt, LaboratoryBatchHandoff
+from .services import can_recall_courier_receipt
 
 TABS = (
     ("pending", "Pending"),
@@ -281,6 +282,9 @@ def workflow_dashboard(request):
             tab == "received"
             and receipt.status == ReferralReceipt.Status.RECEIVED
             and (ROLE_SECRETARIAT in roles or ROLE_ADMIN in roles)
+        )
+        receipt.can_recall_unified = bool(
+            tab == "all" and can_recall_courier_receipt(receipt, request.user)
         )
     counts = {
         key: _tab_filter(base, key, request.user).count() + receipt_counts[key] + prebatch_counts[key]
