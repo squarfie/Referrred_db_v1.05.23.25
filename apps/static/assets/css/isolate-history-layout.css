@@ -41,7 +41,28 @@
 .isolate-detail-page .isolate-progress-copy small { font-size: .73rem; }
 
 /* History outer disclosure */
-.isolate-detail-page .ip-record > summary { min-height: 3.25rem; gap: .5rem 1rem; }
+.isolate-detail-page .ip-record > summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 3.25rem;
+  gap: .5rem 1rem;
+  text-align: left;
+}
+/* The inherited disclosure caret is a first flex item and pushes the title
+   toward the middle. Place the caret at the far right instead. */
+.isolate-detail-page .ip-record > summary::before { display: none; }
+.isolate-detail-page .ip-record > summary::after {
+  content: "\f078";
+  font-family: "Font Awesome 5 Free";
+  font-weight: 900;
+  font-size: .75rem;
+  color: #648093;
+  margin-left: .2rem;
+  transition: transform .2s ease;
+}
+.isolate-detail-page .ip-record[open] > summary::after { transform: rotate(180deg); }
+.isolate-detail-page .ip-record > summary .ip-record-title { margin-right: auto; }
 .isolate-detail-page .ip-record-title { font-size: .98rem; font-weight: 750; }
 .isolate-detail-page .ip-record-hint { font-size: .78rem; color: var(--ip-muted); }
 .isolate-detail-page .ip-record > .ip-history-layout {
