@@ -34,7 +34,9 @@ def endorsement_blocker(accession):
         return "Confirm physical receipt in Receiving first."
     if accession.batch_id:
         return "The Raw Data batch has already been generated."
-    if LaboratoryBatchHandoff.objects.filter(accession=accession).exists():
+    if LaboratoryBatchHandoff.objects.filter(accession=accession).exclude(
+        status=LaboratoryBatchHandoff.Status.RECALLED,
+    ).exists():
         return "This accession is already endorsed to DMU."
     isolates = list(accession.isolate_records.all())
     if len(isolates) != accession.isolate_count:
@@ -57,11 +59,42 @@ def endorse_accession_to_dmu(*, accession_id, user):
     blocker = endorsement_blocker(accession)
     if blocker:
         raise ValidationError(blocker)
-    handoff = LaboratoryBatchHandoff.objects.create(
-        accession=accession, endorsed_by=user,
+    handoff, created = LaboratoryBatchHandoff.objects.select_for_update().get_or_create(
+        accession=accession, defaults={"endorsed_by": user},
     )
+    if not created:
+        if handoff.status != LaboratoryBatchHandoff.Status.RECALLED:
+            raise ValidationError("Only a recalled endorsement can be sent again.")
+        handoff.status = LaboratoryBatchHandoff.Status.PENDING
+        handoff.endorsed_by = user
+        handoff.endorsed_at = timezone.now()
+        handoff.save(update_fields=("status", "endorsed_by", "endorsed_at"))
     _event(handoff, LaboratoryBatchHandoffEvent.Action.ENDORSED, user,
            f"Accession range {accession.reference_range} endorsed to DMU.")
+    return handoff
+
+
+@transaction.atomic
+def recall_accession_from_dmu(*, accession_id, user, remarks=""):
+    """Recall only an unaccepted accession handoff; preserve its event history."""
+    _check_role(user, ROLE_LAB_ENCODER)
+    handoff = LaboratoryBatchHandoff.objects.select_for_update().select_related(
+        "accession",
+    ).get(accession_id=accession_id)
+    if handoff.status != LaboratoryBatchHandoff.Status.PENDING:
+        raise ValidationError("DMU has already received or processed this endorsement; recall is blocked.")
+    if handoff.accession.batch_id or handoff.confirmed_at or handoff.created_at:
+        raise ValidationError("A received or generated DMU batch cannot be recalled.")
+    if ROLE_ADMIN not in get_user_roles(user) and handoff.endorsed_by_id != user.pk:
+        raise PermissionDenied("Only the endorsing Bench A user or Admin may recall this handoff.")
+    if len(remarks) > 1000:
+        raise ValidationError("Recall reason exceeds 1000 characters.")
+    handoff.status = LaboratoryBatchHandoff.Status.RECALLED
+    handoff.save(update_fields=("status",))
+    _event(
+        handoff, LaboratoryBatchHandoffEvent.Action.RECALLED, user,
+        remarks.strip() or f"Recalled accession range {handoff.accession.reference_range} before DMU receipt.",
+    )
     return handoff
 
 
