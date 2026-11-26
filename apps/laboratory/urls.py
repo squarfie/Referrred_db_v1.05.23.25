@@ -63,5 +63,6 @@ urlpatterns = [
     path("laboratory/organisms/extra/<int:row_id>/save/", inventory_views.additional_organism_save, name="laboratory_extra_organism_save"),
     path("laboratory/organisms/extra/<int:row_id>/remove/", inventory_views.additional_organism_remove, name="laboratory_extra_organism_remove"),
     path("laboratory/accessions/<int:accession_id>/endorse-dmu/", receiving_views.laboratory_batch_endorse_dmu, name="laboratory_batch_endorse_dmu"),
+    path("laboratory/accessions/<int:accession_id>/recall-dmu/", receiving_views.laboratory_batch_recall_dmu, name="laboratory_batch_recall_dmu"),
     path("laboratory/accessions/<int:accession_id>/create-batch/", receiving_views.laboratory_batch_create, name="laboratory_batch_create"),
 ]
