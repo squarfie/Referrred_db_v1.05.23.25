@@ -52,6 +52,22 @@ class MainLabSeparationTests(TestCase):
         self.assertNotContains(detail, "Temporarily bank using Site ID")
         self.assertEqual(self.client.get(reverse("laboratory_receiving_dashboard")).status_code, 302)
 
+    def test_main_lab_optional_picker_uses_current_validation_script(self):
+        item = self.endorsed_isolate()
+        item.status = LaboratoryIsolate.Status.ID_TESTING
+        item.acknowledged_at = timezone.now()
+        item.save(update_fields=("status", "acknowledged_at"))
+        self.client.force_login(self.main_lab_user())
+        response = self.client.get(reverse("main_lab_isolate_detail", args=[item.pk]))
+        self.assertContains(response, "laboratory-organism-picker.js?v=20261126-2")
+        self.assertContains(response, "data-optional-organism")
+        self.assertContains(response, 'name="organism_reported_code"')
+        self.assertContains(response, 'name="organism_reported"')
+        # Optional instrument organism has no required fields in this form.
+        markup = response.content.decode("utf-8")
+        optional = markup.split("data-optional-organism", 1)[1].split("</details>", 1)[0]
+        self.assertNotIn(" readonly required", optional)
+
     def test_bench_a_cannot_steal_main_lab_receipt_action(self):
         item = self.endorsed_isolate()
         self.client.force_login(self.lab_user)
