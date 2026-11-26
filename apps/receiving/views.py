@@ -137,7 +137,7 @@ def receiving_endorse(request, receiving_id):
     else:
         messages.success(request, "Courier batch endorsed to the laboratory.")
     if request.POST.get("next") == "receiving":
-        return redirect(reverse("receiving_workflow_dashboard") + "?tab=received")
+        return redirect(reverse("receiving_workflow_dashboard") + "?tab=all")
     return redirect("receiving_detail", receiving_id=receiving_id)
 
 
