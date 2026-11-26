@@ -20,7 +20,7 @@
   {% endif %}
 
   {% if isolate.identification_source == 'main_lab' and isolate.status == 'ready_for_biobank' and not storage_only %}
-  <div class="receiving-notice alert alert-success"><i class="fas fa-check-circle" aria-hidden="true"></i><div><strong>Main Lab Final ID:</strong> {{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}<br><span class="small">Recorded by Main Laboratory. Bench A only enters final storage details.</span></div></div>
+  <div class="receiving-notice alert alert-success"><div><strong>Main Lab Final ID:</strong> {{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}<br><span class="small">Recorded by Main Laboratory. Bench A only enters final storage details.</span></div></div>
   {% endif %}
 
   <fieldset class="bs-section">
