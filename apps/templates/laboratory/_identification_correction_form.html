@@ -2,8 +2,20 @@
 {% with field_id=correction_kind|add:"-"|add:isolate.pk|stringformat:"s" %}
 <details class="correction mb-3">
   <summary class="correction-summary">
-    <span class="correction-summary-icon" aria-hidden="true"><i class="fas fa-pen"></i></span>
-    <span>{% if correction_kind == 'final' and not isolate.approved_organism_code %}Record missing Final ID{% else %}Correct {% if correction_kind == 'site' %}Site ID{% elif correction_kind == 'final' %}Final ID{% else %}this Main Lab result{% endif %}{% endif %}</span>
+   <span>
+  {% if correction_kind == 'final' and not isolate.approved_organism_code %}
+    Record missing Final ID
+  {% else %}
+    Correct
+    {% if correction_kind == 'site' %}
+      Site ID
+    {% elif correction_kind == 'final' %}
+      Final ID
+    {% else %}
+      this Main Lab result
+    {% endif %}
+  {% endif %}
+</span>
   </summary>
 
   <form method="post" action="{% url 'laboratory_identification_correct' isolate.pk %}" class="correction-form">

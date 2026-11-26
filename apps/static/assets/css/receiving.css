@@ -1489,3 +1489,67 @@ details.correction .correction-actions .btn {
   color: #fff;
   background: rgba(255,255,255,.15);
 }
+
+/* ===== Main Lab ID page (scoped to .main-lab-detail-page; loaded after receiving.css) ===== */
+.main-lab-detail-page .mlid-summary { margin-bottom: 1rem; }
+
+/* Labels and hints */
+.main-lab-detail-page .mlid-label { display: block; margin: 0 0 .35rem; color: #2b4a63; font-size: .7rem; font-weight: 700; letter-spacing: .05em; line-height: 1.3; text-transform: uppercase; }
+.main-lab-detail-page .mlid-hint { margin: 0 0 .6rem; color: #566b80; font-size: .82rem; line-height: 1.5; }
+.main-lab-detail-page .mlid-optional { margin-left: .35rem; color: #7a8ea1; font-size: .74rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.main-lab-detail-page .mlid-note { display: flex; gap: .5rem; margin: .75rem 0 0; padding: .55rem .75rem; border-radius: 8px; background: #f0fbfd; color: #245a65; font-size: .8rem; line-height: 1.5; }
+.main-lab-detail-page .mlid-note i { margin-top: .2rem; color: #0e8ea3; }
+.main-lab-detail-page .mlid-footnote { margin: 0; color: #566b80; font-size: .8rem; }
+
+/* Final ID panel */
+.main-lab-detail-page .mlid-panel { margin-bottom: 1rem; padding: 1rem 1.1rem; border: 1px solid var(--receiving-border); border-radius: 10px; background: #f8fbfd; }
+.main-lab-detail-page .mlid-panel--inner { margin: .75rem 0 0; background: #fff; }
+.main-lab-detail-page .mlid-panel > .lab-organism-picker > input[type="search"] { display: block; width: 100%; max-width: 440px; height: 2.5rem; margin: 0; padding-left: 2.2rem; background-color: #fff; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8ea1' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: .8rem center; background-size: 16px 16px; font-size: .86rem; }
+.main-lab-detail-page .mlid-panel > .lab-organism-picker > input[type="search"]:focus { border-color: var(--receiving-cyan); box-shadow: 0 0 0 3px rgba(0,188,212,.14); }
+
+/* Code + name pair: one bordered control, code on the left */
+.main-lab-detail-page .mlid-pair { display: grid; grid-template-columns: 110px minmax(0, 1fr); max-width: 640px; margin-top: .6rem; gap: 0; }
+.main-lab-detail-page .mlid-pair input { height: 2.5rem; margin: 0; font-size: .86rem; }
+.main-lab-detail-page .mlid-pair .mlid-code { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0; text-transform: uppercase; font-family: SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; }
+.main-lab-detail-page .mlid-pair .mlid-name { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.main-lab-detail-page .mlid-pair input[readonly] { background-color: #f3f7fa; color: #2b4a63; }
+.main-lab-detail-page .mlid-pair input::placeholder { color: #9aabbb; font-style: italic; }
+
+/* Instrument disclosure */
+.main-lab-detail-page .mlid-disclosure { margin: 0 0 1rem; border: 1px solid var(--receiving-border); border-radius: 10px; background: #f8fbfd; overflow: hidden; }
+.main-lab-detail-page .mlid-disclosure > summary { display: flex; align-items: center; gap: .5rem; padding: .65rem 1rem; color: var(--receiving-navy); font-size: .86rem; font-weight: 700; cursor: pointer; list-style: none; }
+.main-lab-detail-page .mlid-disclosure > summary::-webkit-details-marker { display: none; }
+.main-lab-detail-page .mlid-disclosure > summary::before { content: "\f105"; font-family: "Font Awesome 5 Free"; font-weight: 900; color: #7a8ea1; transition: transform .2s; }
+.main-lab-detail-page .mlid-disclosure[open] > summary::before { transform: rotate(90deg); }
+.main-lab-detail-page .mlid-disclosure[open] > summary { background: #fff; border-bottom: 1px solid var(--receiving-border); }
+.main-lab-detail-page .mlid-disclosure > summary:hover { background: #edf8fc; }
+.main-lab-detail-page .mlid-disclosure > .mlid-panel { margin: 0; border: 0; border-radius: 0; }
+
+/* Run details */
+.main-lab-detail-page .mlid-run { max-width: 760px; }
+
+/* Footer: note on the left, save on the right */
+.main-lab-detail-page .mlid-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--receiving-border); }
+.main-lab-detail-page .mlid-footer .btn { height: 2.5rem; margin: 0; display: inline-flex; align-items: center; padding: 0 1.2rem; }
+.main-lab-detail-page .mlid-actions { margin-top: 1rem; }
+.main-lab-detail-page .mlid-actions .btn { height: 2.5rem; display: inline-flex; align-items: center; margin: 0; }
+
+/* Recorded Final ID */
+.main-lab-detail-page .mlid-recorded { display: grid; gap: .25rem; margin-bottom: 1rem; padding: .9rem 1.1rem; border: 1px solid #bfe6d3; border-left: 4px solid #2fa77c; border-radius: 10px; background: #effaf5; }
+.main-lab-detail-page .mlid-recorded-label { color: #116149; font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.main-lab-detail-page .mlid-recorded-value { color: var(--receiving-navy); font-size: 1rem; }
+.main-lab-detail-page .mlid-recorded-meta { color: #566b80; font-size: .78rem; }
+
+/* Alerts and notes on this page (this page does not load isolate-page.css) */
+.main-lab-detail-page .alert { position: relative; display: flex; align-items: flex-start; gap: .65rem; margin: 0 0 1rem; padding: .8rem 1rem .8rem 2.6rem; border: 1px solid transparent; border-left-width: 4px; border-radius: 9px; font-size: .88rem; line-height: 1.5; }
+.main-lab-detail-page .alert > div { min-width: 0; }
+.main-lab-detail-page .alert > i { position: absolute; left: .95rem; top: .9rem; font-size: .95rem; }
+.main-lab-detail-page .alert-info { color: #245a65; background: #f0fbfd; border-color: #bde5ec; border-left-color: var(--receiving-cyan); }
+.main-lab-detail-page .alert-info > i { color: #0e8ea3; }
+.main-lab-detail-page .alert-success { color: #116149; background: #effaf5; border-color: #bfe6d3; border-left-color: #2fa77c; }
+.main-lab-detail-page .alert-success > i { color: #2fa77c; }
+.main-lab-detail-page .alert-warning { color: #7a5600; background: #fffaeb; border-color: #f1dea0; border-left-color: #d9a400; }
+.main-lab-detail-page .alert-warning > i { color: #c48a00; }
+
+/* Disclosures elsewhere on the page (correction panels) keep their own styling */
+.main-lab-detail-page .main-lab-history-card .table td { vertical-align: top; }

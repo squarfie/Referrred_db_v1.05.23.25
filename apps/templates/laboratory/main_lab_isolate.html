@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Main Lab ID — {{ isolate.accession_number }}{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-mainlab-id-1"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}"><link rel="stylesheet" href="{% static 'assets/css/main-lab-progress.css' %}?v=20261126-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261125-mainlab-id-1"><link rel="stylesheet" href="{% static 'assets/css/laboratory-organism-picker.css' %}"><link rel="stylesheet" href="{% static 'assets/css/main-lab-progress.css' %}?v=20261126-1"><link rel="stylesheet" href="{% static 'assets/css/main-lab-id.css' %}?v=20261126-mainlab-id-2">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page main-lab-detail-page">
 
@@ -42,7 +42,7 @@
     </section>
 
     <!-- Accession summary and QR -->
-    <section class="receiving-surface receiving-card" aria-label="Accession summary">
+    <section class="receiving-surface receiving-card mlid-summary" aria-label="Accession summary">
       <div class="receiving-card-body receiving-batch-summary has-qr">
         <div>
           <div class="receiving-info-grid is-three">
@@ -65,69 +65,71 @@
         <h2>Main Laboratory ID testing</h2>
         <p>Responsible team: Main Lab. Save the ID result to complete testing and notify Bench A. Physical cassette return is recorded independently.</p>
       </div>
-      <div class="receiving-card-body">
+      <div class="receiving-card-body main-lab-body">
 
         {% if isolate.status == 'id_pending' %}
           <div class="receiving-notice alert alert-info" role="status"><i class="fas fa-hourglass-half" aria-hidden="true"></i><div><strong>Waiting for Main Laboratory acknowledgment.</strong> Acknowledge receipt before ID testing begins.</div></div>
           {% if can_test %}
-          <form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}">
+          <form method="post" action="{% url 'laboratory_acknowledge_id' isolate.pk %}" class="mlid-actions">
             {% csrf_token %}
-            <div class="receiving-form-actions"><button type="submit" class="btn btn-primary"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Acknowledge ID testing receipt</button></div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Acknowledge ID testing receipt</button>
           </form>
           {% endif %}
 
         {% elif isolate.status == 'site_banked' %}
           <div class="receiving-notice alert alert-info" role="status"><i class="fas fa-box-open" aria-hidden="true"></i><div><strong>Stored in temporary storage.</strong> Retrieve this isolate to begin Main Lab ID testing.</div></div>
-          <form method="post" action="{% url 'laboratory_retrieve_for_testing' isolate.pk %}">
+          <form method="post" action="{% url 'laboratory_retrieve_for_testing' isolate.pk %}" class="mlid-actions">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ return_to }}">
-            <div class="receiving-form-actions"><button class="btn btn-primary" type="submit"><i class="fas fa-box-open mr-1" aria-hidden="true"></i>Retrieve from temporary storage</button></div>
+            <button class="btn btn-primary" type="submit"><i class="fas fa-box-open mr-1" aria-hidden="true"></i>Retrieve from temporary storage</button>
           </form>
 
         {% elif isolate.status == 'id_testing' %}
           {% if can_test %}
-          <form method="post" action="{% url 'laboratory_record_id' isolate.pk %}">
+          <form method="post" action="{% url 'laboratory_record_id' isolate.pk %}" class="mlid-form">
             {% csrf_token %}
 
             <div class="receiving-form-section">Final ID</div>
-            <div class="receiving-help-panel mb-3">
+            <div class="mlid-panel">
               <div class="lab-organism-picker" data-organism-picker data-endpoint="{% url 'laboratory_organism_search' %}">
-                <label for="mainlab-final-id-search"><strong>Final ID (Main Lab)</strong> — organism used for lyophilization and banking</label>
+                <label for="mainlab-final-id-search" class="mlid-label">Final ID (Main Lab)</label>
+                <p class="mlid-hint">Organism used for lyophilization and banking. Search, then select the confirmed result.</p>
                 <input id="mainlab-final-id-search" class="form-control" type="search" data-organism-search placeholder="Search and select confirmed Final ID" required>
                 <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
-                <div class="organism-picker-pair">
-                  <input data-organism-code name="final_organism_code" type="text" readonly required class="form-control" placeholder="Final WHONET code">
-                  <input data-organism-name name="final_organism" type="text" readonly required class="form-control" placeholder="Final organism">
+                <div class="organism-picker-pair mlid-pair">
+                  <input data-organism-code name="final_organism_code" type="text" readonly required class="form-control mlid-code" placeholder="Code" aria-label="Final organism code">
+                  <input data-organism-name name="final_organism" type="text" readonly required class="form-control mlid-name" placeholder="Organism name appears here after you select" aria-label="Final organism name">
                 </div>
-                <p class="small mt-2 mb-0">This is the confirmed identification Bench A uses for lyophilization and banking. It is also saved as the instrument organism unless a different result is recorded below.</p>
+                <p class="mlid-note"><i class="fas fa-info-circle" aria-hidden="true"></i><span>This is the confirmed identification Bench A uses for lyophilization and banking. It is also saved as the instrument organism unless a different result is recorded below.</span></p>
               </div>
             </div>
 
-            <div class="receiving-form-section">Instrument result <span class="small text-muted" style="text-transform:none;letter-spacing:0;font-weight:500;">(optional)</span></div>
-            <details class="mb-3">
-              <summary class="mb-2">Instrument result differs from the confirmed Final ID</summary>
-              <div class="receiving-help-panel mt-2">
+            <div class="receiving-form-section">Instrument result <span class="mlid-optional">optional</span></div>
+            <details class="mlid-disclosure">
+              <summary>Instrument result differs from the confirmed Final ID</summary>
+              <div class="mlid-panel mlid-panel--inner">
                 <div class="lab-organism-picker" data-organism-picker data-allow-unlisted data-optional-organism data-endpoint="{% url 'laboratory_organism_search' %}">
-                  <label for="mainlab-organism-search">Instrument-reported organism</label>
+                  <label for="mainlab-organism-search" class="mlid-label">Instrument-reported organism</label>
                   <input id="mainlab-organism-search" class="form-control" type="search" data-organism-search placeholder="Search instrument organism name or code">
                   <div class="organism-picker-results" data-organism-results role="listbox" hidden></div>
-                  <div class="organism-picker-pair">
-                    <input data-organism-code name="organism_reported_code" type="text" readonly class="form-control" placeholder="Code (optional for unlisted organism)">
-                    <input data-organism-name name="organism_reported" type="text" readonly class="form-control" placeholder="Selected instrument organism appears here">
+                  <div class="organism-picker-pair mlid-pair">
+                    <input data-organism-code name="organism_reported_code" type="text" readonly class="form-control mlid-code" placeholder="Code" aria-label="Instrument organism code">
+                    <input data-organism-name name="organism_reported" type="text" readonly class="form-control mlid-name" placeholder="Selected instrument organism appears here" aria-label="Instrument organism name">
                   </div>
-                  <p class="small mt-2 mb-0">Leave this section empty if the instrument result matches the confirmed Final ID. If it differs, select the instrument organism (unlisted names are allowed).</p>
+                  <p class="mlid-note"><i class="fas fa-info-circle" aria-hidden="true"></i><span>Leave this empty if the instrument result matches the confirmed Final ID. If it differs, select the instrument organism. Unlisted names are allowed.</span></p>
                 </div>
               </div>
             </details>
 
             <div class="receiving-form-section">Run details</div>
-            <div class="receiving-info-grid">
-              <div class="receiving-field"><label for="mainlab-instrument">Instrument</label><input id="mainlab-instrument" class="form-control" name="instrument" maxlength="100"></div>
-              <div class="receiving-field"><label for="mainlab-cassette">Cassette / slot reference</label><input id="mainlab-cassette" class="form-control" name="cassette_reference" maxlength="100"></div>
+            <div class="receiving-info-grid mlid-run">
+              <div class="receiving-field"><label for="mainlab-instrument" class="mlid-label">Instrument</label><input id="mainlab-instrument" class="form-control" name="instrument" maxlength="100"></div>
+              <div class="receiving-field"><label for="mainlab-cassette" class="mlid-label">Cassette / slot reference</label><input id="mainlab-cassette" class="form-control" name="cassette_reference" maxlength="100"></div>
             </div>
 
-            <div class="receiving-form-actions">
+            <div class="mlid-footer">
               <input type="hidden" name="next" value="{{ return_to }}">
+              <p class="mlid-footnote">Check the Final ID before saving. The result is recorded in the instrument history.</p>
               <button class="btn btn-primary" type="submit"><i class="fas fa-save mr-1" aria-hidden="true"></i>Save ID result</button>
             </div>
           </form>
@@ -166,9 +168,10 @@
         <h2 id="recorded-final-title">Main Lab Final ID</h2>
       </div>
       <div class="receiving-card-body">
-        <div class="receiving-help-panel mb-3">
-          <strong>{{ isolate.approved_organism_code }} — {{ isolate.final_organism }}</strong>
-          <div class="small mt-1">Recorded by {{ isolate.final_identified_by }} on {{ isolate.final_identified_at|date:"M j, Y g:i A" }}</div>
+        <div class="mlid-recorded">
+          <span class="mlid-recorded-label">Confirmed</span>
+          <strong class="mlid-recorded-value">{{ isolate.approved_organism_code }} — {{ isolate.final_organism }}</strong>
+          <span class="mlid-recorded-meta">Recorded by {{ isolate.final_identified_by }} on {{ isolate.final_identified_at|date:"M j, Y g:i A" }}</span>
         </div>
         {% include 'laboratory/_identification_correction_form.html' with correction_kind='final' %}
       </div>
@@ -187,7 +190,6 @@
         {% endif %}
       </div>
     </section>
-
 
   </div>
 </main>
