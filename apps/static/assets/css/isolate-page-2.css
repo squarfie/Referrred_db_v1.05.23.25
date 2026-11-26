@@ -80,7 +80,7 @@
 .isolate-detail-page .ip-record > summary::-webkit-details-marker { display: none; }
 .isolate-detail-page .ip-record > summary:hover { background: #edf8fc; }
 .isolate-detail-page .ip-record[open] > summary { border-bottom: 1px solid var(--receiving-border); background: #fff; }
-.isolate-detail-page .ip-record-title { color: var(--receiving-navy); font-size: .95rem; font-weight: 700; }
+.isolate-detail-page .ip-record-title { color: var(--receiving-navy); font-size: .95rem; font-weight: 700; text-align: left; }
 .isolate-detail-page .ip-record-title i { color: #0e8ea3; }
 .isolate-detail-page .ip-record-hint { color: #7a8ea1; font-size: .78rem; }
 .isolate-detail-page .ip-record-body { padding: 1.1rem 1.2rem 1.3rem; }

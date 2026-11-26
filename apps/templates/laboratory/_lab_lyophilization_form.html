@@ -1,15 +1,35 @@
-<p>Record harvest and lyophilization dates. {% if isolate.lyophilization_started_at %}The organism is taken automatically from the Main Lab ID.{% else %}The recorded organism is used automatically.{% endif %}</p>
-<form method="post" action="{% url 'laboratory_lyophilization_complete' isolate.pk %}" class="row align-items-end">
-{% csrf_token %}<input type="hidden" name="next" value="{{ return_to }}">
-<div class="col-md-4 mb-2"><label for="lyo-harvest-{{ isolate.pk }}">Date harvested</label><input id="lyo-harvest-{{ isolate.pk }}" data-model="LaboratoryBiobank" data-field="date_harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control" {% if biobank.date_harvested %}readonly{% endif %} required></div>
-<div class="col-md-4 mb-2"><label for="lyo-date-{{ isolate.pk }}">Date lyophilized</label><input id="lyo-date-{{ isolate.pk }}" data-model="LaboratoryBiobank" data-field="date_lyophilized" name="date_lyophilized" type="date" class="form-control" required></div>
-<div class="col-md-12 mb-2">
-  {% if isolate.lyophilization_started_at %}
-    <p class="mb-1"><strong>Main Lab Final ID:</strong> {{ isolate.approved_organism_code|default:"No WHONET code" }} &mdash; {{ isolate.final_organism|default:"Not recorded" }}</p>
-    {% if not isolate.approved_organism_code or not isolate.final_identified_at %}<p class="text-warning mb-1">Main Lab must record or correct the Final ID before lyophilization can be completed.</p>{% endif %}
-  {% elif isolate.approved_organism_code %}
-    <p class="mb-1"><strong>Recorded ID:</strong> {{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}</p>
-  {% endif %}
-</div>
-<div class="col-md-12 mb-2"><button class="btn btn-primary mb-0" type="submit"{% if isolate.lyophilization_started_at and not isolate.approved_organism_code %} disabled{% endif %}>Complete lyophilization</button></div>
+{% comment %}Lyophilization completion form. Organism is taken from the Main Lab ID, so this form only records dates.{% endcomment %}
+<p class="receiving-note mb-3"><i class="fas fa-info-circle" aria-hidden="true"></i><span>Record harvest and lyophilization dates. {% if isolate.lyophilization_started_at %}The organism is taken automatically from the Main Lab ID.{% else %}The recorded organism is used automatically.{% endif %}</span></p>
+
+<form method="post" action="{% url 'laboratory_lyophilization_complete' isolate.pk %}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ return_to }}">
+
+  <div class="receiving-info-grid">
+    <div class="receiving-field">
+      <label for="lyo-harvest-{{ isolate.pk }}">Date harvested{% if biobank.date_harvested %} <span class="receiving-endorse-hint">(recorded)</span>{% endif %}</label>
+      <input id="lyo-harvest-{{ isolate.pk }}" data-model="LaboratoryBiobank" data-field="date_harvested" name="date_harvested" type="date" value="{{ biobank.date_harvested|date:'Y-m-d' }}" class="form-control" {% if biobank.date_harvested %}readonly{% endif %} required>
+    </div>
+    <div class="receiving-field">
+      <label for="lyo-date-{{ isolate.pk }}">Date lyophilized</label>
+      <input id="lyo-date-{{ isolate.pk }}" data-model="LaboratoryBiobank" data-field="date_lyophilized" name="date_lyophilized" type="date" class="form-control" required>
+    </div>
+  </div>
+
+  <div class="receiving-help-panel mt-3">
+    {% if isolate.lyophilization_started_at %}
+      <strong>Main Lab Final ID</strong>
+      <div>{{ isolate.approved_organism_code|default:"No WHONET code" }} &mdash; {{ isolate.final_organism|default:"Not recorded" }}</div>
+      {% if not isolate.approved_organism_code or not isolate.final_identified_at %}
+        <div class="receiving-notice alert alert-warning mt-2 mb-0" role="alert"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><div>Main Lab must record or correct the Final ID before lyophilization can be completed.</div></div>
+      {% endif %}
+    {% elif isolate.approved_organism_code %}
+      <strong>Recorded ID</strong>
+      <div>{{ isolate.approved_organism_code }} &mdash; {{ isolate.final_organism }}</div>
+    {% endif %}
+  </div>
+
+  <div class="receiving-form-actions">
+    <button class="btn btn-primary" type="submit"{% if isolate.lyophilization_started_at and not isolate.approved_organism_code %} disabled{% endif %}><i class="fas fa-check mr-1" aria-hidden="true"></i>Complete lyophilization</button>
+  </div>
 </form>

@@ -193,7 +193,7 @@
               </td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
                 {% if item.isolate_records.exists %}
-                  <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_batch_detail' item.pk %}?area=processing&amp;next={{ return_to|urlencode }}">Open Batch</a>
+                  <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'laboratory_batch_detail' item.pk %}?area=processing&amp;next={{ return_to|urlencode }}" style="text-align: right;">Open Batch</a>
                   {% if item.can_endorse_id and can_edit %}
                   <form method="post" action="{% url 'laboratory_endorse_id' item.pk %}" class="d-inline" onsubmit="return confirm('Endorse this entire ready batch from Laboratory Receiving to Main Lab ID testing?');">{% csrf_token %}<button class="btn btn-sm btn-primary mb-1" type="submit">Endorse whole batch to Main Lab</button></form>
                   {% endif %}
@@ -378,13 +378,13 @@
           </a>
         {% endfor %}
       </nav>
-      <p class="text-muted small mb-3">
+      <small>
         {% if active_final_tab == 'biobank' %}Lyophilization is complete. Open the full biobanking form to record final storage.
         {% elif active_final_tab == 'in_progress' %}Begin or complete lyophilization for isolates with a confirmed Main Lab Final ID.
         {% elif active_final_tab == 'pending' %}Waiting for Bench A processing or Main Laboratory results.
         {% elif active_final_tab == 'completed' %}Fully banked or formally closed isolates.
         {% else %}All isolates in this worksheet.{% endif %}
-      </p>
+      </small>
     {% for row in final_rows %}
     {% with isolate=row.isolate biobank=row.bank %}
       <details class="border rounded mb-2">
@@ -408,17 +408,18 @@
               <button type="submit" class="btn btn-primary">Proceed to Lyophilization</button>
             </form>
           {% elif row.action.section == 'lyophilization' and row.has_final_id and can_edit %}
-            <small style="font-weight: bold;"><i class="fas fa-info-circle mr-1"></i> Record harvest and lyophilization dates; Final ID is supplied by Main Lab.</small>
+            <small style="font-weight: bold;">Record harvest and lyophilization dates; Final ID is supplied by Main Lab.</small>
             {% include 'laboratory/_lab_lyophilization_form.html' with return_to=worksheet_next_biobank %}
           {% elif row.action.section == 'biobank' and row.has_final_id and isolate.identification_source == 'main_lab' and can_edit %}
-            <small>Lyophilization is complete. Continue final storage encoding in the full biobanking form.</small>
+            <!-- <small>Lyophilization is complete. Continue final storage encoding in the full biobanking form.</small> -->
             <a class="btn btn-success" href="{% url 'laboratory_isolate_detail' isolate.pk %}?next={{ worksheet_next_completed|urlencode }}#biobank">Open Biobanking</a>
           {% elif row.state == 'completed' %}
             <small style="color: rgb(27, 43, 187); background-color: rgb(215, 241, 250);">This isolate's Bench A workflow is completed or formally closed.</small>
           {% else %}
             <small class="mb-2" style="background-color: rgb(204, 253, 253);" >{{ row.pending_message }}</small>
             {% if row.next_href %}
-              <a class="btn btn-sm btn-outline-primary" href="{{ row.next_href }}{% if '?' in row.next_href %}&amp;{% else %}?{% endif %}next={{ worksheet_return_url|urlencode }}">{{ row.next_label }}</a>
+            <small></small>
+            <a class="btn btn-sm btn-outline-primary" href="{{ row.next_href }}{% if '?' in row.next_href %}&amp;{% else %}?{% endif %}next={{ worksheet_return_url|urlencode }}" style="float: right;">{{ row.next_label }}</a>
             {% else %}
              <br> <small class="small text-muted mb-0" style="font-weight: bold;"><i class="fas fa-info-circle mr-1"></i> Responsible team: {{ row.action.owner }}. This is not an editable Bench A step.</small>
             {% endif %}
