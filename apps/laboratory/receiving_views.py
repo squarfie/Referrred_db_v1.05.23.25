@@ -795,7 +795,10 @@ def worksheet_step_done(form, ranges, organism_rows, workflow_rows, final_tabs, 
     # historical batch has already been generated. DMU owns new creation.
     batch = bool(batch_rows) and all(
         bool(_g(_g(r, "accession"), "batch"))
-        or bool(_g(_g(r, "accession"), "dmu_handoff"))
+        or bool(
+            _g(_g(r, "accession"), "dmu_handoff")
+            and _g(_g(_g(r, "accession"), "dmu_handoff"), "status") != "recalled"
+        )
         for r in batch_rows
     )
 
