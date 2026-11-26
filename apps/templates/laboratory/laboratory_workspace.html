@@ -335,6 +335,12 @@
                 <button class="btn btn-sm btn-primary mb-0" type="submit">Endorse Batch to Main Lab</button>
               </form>
             {% endif %}
+            {% if row.can_recall_id %}
+              <form method="post" class="d-inline mb-0" action="{% url 'laboratory_recall_main_lab' row.accession.pk %}" onsubmit="return confirm('Undo the latest unacknowledged Main Lab endorsement for this batch?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-warning mb-0" type="submit"><i class="fas fa-undo mr-1" aria-hidden="true"></i>Undo Endorsement</button>
+              </form>
+            {% endif %}
           </div>
         </div>
       {% empty %}
@@ -435,6 +441,7 @@
                 {% elif item.dmu_handoff %}
                   {% if item.dmu_handoff.status == 'pending' %}<span class="badge badge-warning">Awaiting DMU receipt</span>
                   {% elif item.dmu_handoff.status == 'confirmed' %}<span class="badge badge-info">Received by DMU</span>
+                  {% elif item.dmu_handoff.status == 'recalled' %}<span class="badge badge-secondary">Endorsement recalled</span>
                   {% else %}<span class="badge badge-success">Created by DMU</span>{% endif %}
                 {% else %}
                   {% if row.preview.blocked %}<span class="badge badge-danger">Endorsement blocked</span>
@@ -448,7 +455,7 @@
                 {% endif %}
               </td>
               <td data-label="Actions" class="receiving-actions"><div class="receiving-action-group">
-                {% if can_edit and not item.batch and not item.dmu_handoff %}
+                {% if can_edit and not item.batch and not item.dmu_handoff or can_edit and not item.batch and item.dmu_handoff.status == 'recalled' %}
                 <div class="receiving-batch-action">
                   {% if row.preview.blocked %}
                     <button type="button" class="btn btn-sm btn-secondary" disabled aria-disabled="true">Endorse to DMU</button>
@@ -464,6 +471,11 @@
                     </form>
                   {% endif %}
                 </div>
+                {% elif row.can_recall_dmu %}
+                  <form method="post" action="{% url 'laboratory_batch_recall_dmu' item.pk %}" onsubmit="return confirm('Recall this pending endorsement before DMU receives it?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-warning">Undo Endorsement</button>
+                  </form>
                 {% elif item.batch %}
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'show_batches' %}?batch_code={{ item.batch.bat_Batch_Code|urlencode }}">View batch</a>
                 {% else %}
