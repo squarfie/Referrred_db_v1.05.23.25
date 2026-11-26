@@ -9,7 +9,7 @@
       <p class="receiving-eyebrow">Role-owned batch handoff</p><h1>{{ custody.batch.bat_Batch_Code }}</h1>
       <p class="receiving-hero-subtitle">Custody transfer is separate from data checking, laboratory work and report approval.</p>
     </div></div>
-    <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'receiving_role_handoffs' %}">Back to My Handoffs</a>
+    <div class="receiving-hero-actions"><a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}?section=handoffs">Back to My Handoffs</a>
       <a class="btn btn-outline-light" href="{% url 'receiving_workflow_detail' custody.batch_id %}">View Tracking History</a>
     </div>
   </header>
