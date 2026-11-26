@@ -1358,7 +1358,7 @@ class ReceivingTemplateTests(TestCase):
         role_page = self.client.get(
             self.route("receiving_role_handoff_detail", batch_id=batch.pk)
         )
-        self.assertContains(role_page, "Endorse Batch")
+        self.assertContains(role_page, 'action="' + self.route("receiving_workflow_endorse", batch_id=batch.pk) + '"', html=False)
         self.assertContains(role_page, home_permissions.ROLE_ENCODER)
         submitted = self.client.post(
             self.route("receiving_workflow_endorse", batch_id=batch.pk),
