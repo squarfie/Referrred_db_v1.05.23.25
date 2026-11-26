@@ -308,6 +308,12 @@
           {% if not row.preparation_pending and row.count %}
             <span class="badge badge-success">{{ row.accession.reference_range }}: Bench A Preparation Done</span>
           {% endif %}
+          {% if row.endorsed_to_main_lab %}
+            <span class="badge badge-success">{{ row.accession.reference_range }}: {{ row.endorsed_to_main_lab }} Endorsed to Main Lab</span>
+          {% endif %}
+          {% if row.temporarily_banked %}
+            <span class="badge badge-info">{{ row.accession.reference_range }}: {{ row.temporarily_banked }} Temporary Site ID routes selected</span>
+          {% endif %}
         {% endfor %}
       </div>
     </div>
@@ -334,6 +340,12 @@
                 {% csrf_token %}
                 <button class="btn btn-sm btn-primary mb-0" type="submit">Endorse Batch to Main Lab</button>
               </form>
+            {% endif %}
+            {% if row.endorsed_to_main_lab %}
+              <span class="small text-success font-weight-bold">{{ row.endorsed_to_main_lab }} endorsed · awaiting or undergoing Main Lab work</span>
+            {% endif %}
+            {% if row.temporarily_banked %}
+              <span class="small text-info font-weight-bold">{{ row.temporarily_banked }} routed for temporary Site ID storage</span>
             {% endif %}
             {% if row.can_recall_id %}
               <form method="post" class="d-inline mb-0" action="{% url 'laboratory_recall_main_lab' row.accession.pk %}" onsubmit="return confirm('Undo the latest unacknowledged Main Lab endorsement for this batch?');">
