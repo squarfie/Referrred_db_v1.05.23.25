@@ -373,6 +373,14 @@ def bank_using_site_id(isolate_id, user):
     bank, _ = LaboratoryBiobank.objects.get_or_create(isolate=item)
     bank.whonet_code, bank.recorded_by = code, user
     bank.save(update_fields=["whonet_code", "recorded_by"])
+    ReceivingEvent.objects.create(
+        receipt=item.accession_range.laboratory_receiving.receipt,
+        event_type=ReceivingEvent.EventType.CORRECTED,
+        performed_by=user,
+        remarks=(f"Disposition: Temporary Site ID banking selected for "
+                 f"{item.accession_number} (isolate {item.pk}); "
+                 f"{code} — {organism}."),
+    )
     return item
 
 
