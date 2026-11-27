@@ -14,7 +14,11 @@
       </div>
     </div>
     <div class="receiving-hero-actions">
+      {% if handoff_return_url %}
+      <a class="btn btn-outline-light" href="{{ handoff_return_url }}"><i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>Back to My Handoffs</a>
+      {% else %}
       <a class="btn btn-outline-light" href="{% url 'receiving_workflow_dashboard' %}"><i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>Back to Receiving</a>
+      {% endif %}
     </div>
   </header>
 

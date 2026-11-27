@@ -3,11 +3,13 @@
 Courier intake and laboratory worksheets remain in their existing applications.
 Custody transitions do not replace scientific checking or report approval.
 """
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
-from django.db.models import Count, F, Q
+from django.db.models import BooleanField, Case, Count, Exists, F, OuterRef, Q, Value, When
 from django.http import Http404
 from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -17,6 +19,8 @@ from django.views.decorators.http import require_POST
 from apps.home.permissions import ROLE_ADMIN, ROLE_SECRETARIAT, ROLE_ENCODER, ROLE_LAB_ENCODER
 from apps.laboratory.permissions import can_read_laboratory_receiving, can_confirm_lab_receipt
 from apps.receiving.permissions import receiving_read_required
+from apps.verification.models import VerificationCase
+from .dashboard import handoff_queue_url
 from .handoffs import (
     DESTINATION_ROLES, confirm_batch_receipt, custody_roles,
     endorse_batch, undo_batch_endorsement,
@@ -198,11 +202,25 @@ def workflow_dashboard(request):
     base = visible_custodies(request.user)
     physical_receipts = visible_receipts(request.user)
     prebatch_base = visible_prebatch_handoffs(request.user)
+    roles = custody_roles(request.user)
+    role_handoff_allowed = bool(roles - {ROLE_SECRETARIAT})
+    section = "receiving"
+    if role_handoff_allowed and request.GET.get("section") == "handoffs":
+        section = "handoffs"
+        role_rows = BatchCustody.objects.select_related("batch", "endorsed_by")
+        if ROLE_ADMIN not in roles:
+            role_rows = role_rows.filter(
+                Q(current_role__in=roles) | Q(pending_role__in=roles)
+            )
+        year_sources = (role_rows.dates("batch__bat_Referral_Date", "year"),)
+    else:
+        year_sources = (
+            base.dates("batch__bat_Referral_Date", "year"),
+            physical_receipts.dates("date_received", "year"),
+            prebatch_base.dates("accession__date_referred", "year"),
+        )
     years = sorted(
-        {value.year for value in base.exclude(batch__bat_Referral_Date__isnull=True).dates("batch__bat_Referral_Date", "year")}
-        | {value.year for value in physical_receipts.dates("date_received", "year")}
-        | {value.year for value in prebatch_base.dates("accession__date_referred", "year")}
-        | {current_year},
+        {value.year for source in year_sources for value in source} | {current_year},
         reverse=True,
     )
     year_param = (request.GET.get("year") or "").strip()
@@ -239,7 +257,6 @@ def workflow_dashboard(request):
     prebatch_page_obj = Paginator(
         prebatch_rows.order_by("-endorsed_at", "-pk"), per_page,
     ).get_page(request.GET.get("handoff_page"))
-    roles = custody_roles(request.user)
     for handoff in prebatch_page_obj:
         # Show the exact accessions that Raw Data creation will generate.
         # These come from LaboratoryAccession.accession_numbers, which shares
@@ -313,26 +330,41 @@ def workflow_dashboard(request):
             and (ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk)
         )
 
-    section = "handoffs" if request.GET.get("section") == "handoffs" else "receiving"
-    role_handoff_allowed = bool(roles - {ROLE_SECRETARIAT})
-    if section == "handoffs" and not role_handoff_allowed:
-        section = "receiving"
     role_page_obj = None
-    if role_handoff_allowed and section == "handoffs":
-        role_rows = visible_custodies(request.user).filter(
-            Q(current_role__in=roles) | Q(pending_role__in=roles)
-        ).select_related("batch", "endorsed_by").order_by("-updated_at", "-pk").distinct()
-        if ROLE_ADMIN in roles:
-            role_rows = BatchCustody.objects.select_related(
-                "batch", "endorsed_by"
-            ).order_by("-updated_at", "-pk")
+    handoff_category = request.GET.get("category", "all")
+    if handoff_category not in ("all", "ready", "endorsed"):
+        handoff_category = "all"
+    if section == "handoffs":
+        role_rows = role_rows.select_related("batch__laboratory_accession__laboratory_receiving__receipt").annotate(
+            verification_released=Exists(VerificationCase.objects.filter(
+                final_batch_id=OuterRef("batch_id"), status=VerificationCase.STATUS_RELEASED,
+            )),
+        )
+        if selected_year != "all":
+            role_rows = role_rows.filter(batch__bat_Referral_Date__year=selected_year)
         if query:
             role_rows = role_rows.filter(
                 Q(batch__bat_Batch_Code__icontains=query)
                 | Q(batch__bat_SiteCode__icontains=query)
                 | Q(batch__bat_RefNo__icontains=query)
             )
-        role_page_obj = Paginator(role_rows, per_page).get_page(request.GET.get("role_page"))
+        ready_for_endorsement = Q(pending_role="", verification_released=False) & ~Q(
+            batch__tat_entry__tat_Status_Release="Released"
+        )
+        if ROLE_ADMIN not in roles:
+            ready_for_endorsement &= Q(current_role__in=roles) & ~Q(current_role=ROLE_SECRETARIAT)
+        role_rows = role_rows.annotate(can_endorse_here=Case(
+            When(ready_for_endorsement, then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        ))
+        if handoff_category == "ready":
+            role_rows = role_rows.filter(can_endorse_here=True)
+        elif handoff_category == "endorsed":
+            role_rows = role_rows.exclude(pending_role="")
+        role_page_obj = Paginator(role_rows.order_by("-updated_at", "-pk"), per_page).get_page(
+            request.GET.get("role_page")
+        )
         for item in role_page_obj:
             item.can_confirm_here = bool(
                 item.pending_role and (
@@ -347,10 +379,16 @@ def workflow_dashboard(request):
                 )
             )
 
+    queue_filters = {"section": "handoffs", "year": selected_year, "per_page": per_page, "q": query}
     return render(request, "receiving/workflow_dashboard.html", {
         "section": section,
         "role_handoff_allowed": role_handoff_allowed,
         "role_page_obj": role_page_obj,
+        "handoff_category": handoff_category,
+        "handoff_tab_filters": urlencode(queue_filters),
+        "handoff_filters": urlencode(
+            {**queue_filters, "category": handoff_category} if handoff_category != "all" else queue_filters
+        ),
         "page_obj": page_obj,
         "courier_page_obj": courier_page_obj,
         "prebatch_page_obj": prebatch_page_obj,
@@ -428,18 +466,12 @@ def workflow_detail(request, batch_id):
                 "source": "Verification",
             })
     activity.sort(key=lambda entry: entry["when"])
-    roles = custody_roles(request.user)
-    is_holder = ROLE_ADMIN in roles or custody.current_role in roles
-    is_released = (
-        custody.batch.verification_cases.filter(status="released").exists()
-        or getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) == "Released"
-    )
     return render(request, "receiving/workflow_detail.html", {
         "custody": custody, "activity": activity,
         "receipt": receipt,
-        "destination_roles": DESTINATION_ROLES,
-        "can_endorse_here": False,  # Receiving history must stay read-only.
-        "role_handoff_url_available": bool(is_holder and not custody.pending_role and not is_released),
+        "handoff_return_url": (
+            handoff_queue_url(request.GET) if request.GET.get("section") == "handoffs" else ""
+        ),
     })
 
 
@@ -480,38 +512,32 @@ def role_handoffs(request):
 @login_required
 @receiving_read_required
 def role_handoff_detail(request, batch_id):
-    """Dedicated workflow action screen, while Receiving details stay read-only."""
+    """Keep bookmarked handoff links working after retiring the action page."""
     roles = custody_roles(request.user)
     if not (roles - {ROLE_SECRETARIAT}):
         raise PermissionDenied("Your role does not handle generated-batch custody.")
-    custody = get_object_or_404(visible_custodies(request.user), batch_id=batch_id)
+    custody = get_object_or_404(
+        visible_custodies(request.user).select_related(
+            "batch__laboratory_accession__laboratory_receiving__receipt"
+        ),
+        batch_id=batch_id,
+    )
     if ROLE_ADMIN not in roles and custody.current_role == ROLE_SECRETARIAT:
         raise PermissionDenied("Secretariat endorsements belong to courier intake.")
-    is_holder = ROLE_ADMIN in roles or custody.current_role in roles
-    is_released = (
-        custody.batch.verification_cases.filter(status="released").exists()
-        or getattr(getattr(custody.batch, "tat_entry", None), "tat_Status_Release", None) == "Released"
-    )
-    can_endorse = bool(is_holder and not custody.pending_role and not is_released)
-    can_confirm = bool(
-        custody.pending_role and (ROLE_ADMIN in roles or (
-            custody.pending_role in roles and custody.endorsed_by_id != request.user.pk
-        ))
-    )
-    can_recall = bool(
-        custody.pending_role and (ROLE_ADMIN in roles or custody.endorsed_by_id == request.user.pk)
-    )
-    return render(request, "receiving/role_handoff_detail.html", {
-        "custody": custody,
-        "destination_roles": DESTINATION_ROLES,
-        "can_endorse": can_endorse,
-        "can_confirm": can_confirm,
-        "can_recall": can_recall,
-    })
+    accession = getattr(custody.batch, "laboratory_accession", None)
+    if accession is not None:
+        receipt = accession.laboratory_receiving.receipt
+        target = reverse("receiving_detail", kwargs={"receiving_id": receipt.receiving_id})
+    else:
+        target = reverse("receiving_workflow_detail", kwargs={"batch_id": batch_id})
+    params = request.GET.copy()
+    params["section"] = "handoffs"
+    return redirect(f"{target}?{params.urlencode()}")
 
 
 def _transition(request, batch_id, action):
     get_object_or_404(visible_custodies(request.user), batch_id=batch_id)
+    return_filters = request.GET.copy()
     try:
         if action == "endorse":
             destination_role = (request.POST.get("destination_role") or "").strip()
@@ -520,6 +546,9 @@ def _transition(request, batch_id, action):
                 remarks=(request.POST.get("remarks") or "").strip(),
             )
             messages.success(request, "Batch endorsed. The recipient must confirm receipt.")
+            if return_filters.get("category") == "ready":
+                return_filters["category"] = "endorsed"
+                return_filters.pop("role_page", None)
         elif action == "confirm":
             confirm_batch_receipt(batch_id=batch_id, user=request.user)
             messages.success(request, "Receipt confirmed.")
@@ -529,16 +558,21 @@ def _transition(request, batch_id, action):
                 remarks=(request.POST.get("remarks") or "").strip(),
             )
             messages.success(request, "Unconfirmed endorsement recalled.")
+            if return_filters.get("category") == "endorsed":
+                return_filters["category"] = "ready"
+                return_filters.pop("role_page", None)
         else:
             raise Http404
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
     # PermissionDenied intentionally returns HTTP 403.
     if request.POST.get("next") == "receiving_handoffs":
-        return redirect(f"{reverse('receiving_workflow_dashboard')}?section=handoffs")
+        return redirect(handoff_queue_url(return_filters))
     if request.POST.get("next") == "receiving":
         return redirect(f"{reverse('receiving_workflow_dashboard')}?tab=all")
-    return redirect("receiving_role_handoff_detail", batch_id=batch_id)
+    detail_url = reverse("receiving_role_handoff_detail", kwargs={"batch_id": batch_id})
+    query = request.GET.urlencode()
+    return redirect(f"{detail_url}?{query}" if query else detail_url)
 
 
 @login_required

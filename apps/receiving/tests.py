@@ -1319,6 +1319,36 @@ class ReceivingTemplateTests(TestCase):
             html=False,
         )
 
+    def test_handoff_filters_count_only_matching_assigned_batches(self):
+        from apps.receiving.models import BatchCustody
+
+        year = timezone.localdate().year
+        for index, (code, referral_year, holder) in enumerate(
+            [("MATCH", year - 1, home_permissions.ROLE_LAB_ENCODER)] * 11
+            + [
+                ("MATCH", year, home_permissions.ROLE_LAB_ENCODER),
+                ("OTHER", year - 1, home_permissions.ROLE_LAB_ENCODER),
+                ("MATCH", year - 1, home_permissions.ROLE_CHECKER),
+            ]
+        ):
+            batch = Batch_Table.objects.create(
+                bat_Batch_Code=f"{code}-{index:02d}",
+                bat_Referral_Date=date(referral_year, 1, 1),
+            )
+            BatchCustody.objects.create(batch=batch, current_role=holder)
+
+        self.client.force_login(self.lab_encoder)
+        filters = {"section": "handoffs", "year": year - 1, "per_page": 10, "q": "MATCH"}
+        route = self.route("receiving_workflow_dashboard")
+        first = self.client.get(route, filters)
+        self.assertContains(first, "Showing 1–10 of 11 matching records")
+        second = self.client.get(route, {**filters, "role_page": 2})
+        self.assertContains(second, "Showing 11–11 of 11 matching records")
+        self.assertContains(first, f"year={year - 1}&amp;per_page=10&amp;q=MATCH&amp;role_page=2")
+        self.assertNotContains(second, "MATCH-13")
+        empty = self.client.get(route, {**filters, "q": "absent"})
+        self.assertContains(empty, "Showing 0 matching records")
+
     def test_processing_endorse_works_when_authorized_batch_exists(self):
         from apps.receiving.models import BatchCustody
 
@@ -1342,6 +1372,16 @@ class ReceivingTemplateTests(TestCase):
             batch=batch, current_role=home_permissions.ROLE_LAB_ENCODER,
         )
         self.client.force_login(self.lab_encoder)
+        handoff_query = (
+            "section=handoffs&year=2026&per_page=10&q=VSM-HANDOFF&role_page=1"
+        )
+        queue_url = self.route("receiving_workflow_dashboard") + "?" + handoff_query
+        receipt_url = self.route("receiving_detail", receiving_id=receipt.receiving_id)
+        queue = self.client.get(queue_url)
+        self.assertContains(queue, 'href="' + receipt_url + "?" + handoff_query.replace("&", "&amp;") + '"')
+        receipt_page = self.client.get(receipt_url + "?" + handoff_query)
+        self.assertContains(receipt_page, "Activity and Tracking History")
+        self.assertContains(receipt_page, 'href="' + queue_url.replace("&", "&amp;") + '"')
         processing = self.client.get(
             self.route("receiving_workflow_dashboard"), {"tab": "processing"}
         )
@@ -1356,10 +1396,9 @@ class ReceivingTemplateTests(TestCase):
         self.assertNotContains(detail, 'id="receiving-endorsement"')
         self.assertNotContains(detail, "Endorse Batch")
         role_page = self.client.get(
-            self.route("receiving_role_handoff_detail", batch_id=batch.pk)
+            self.route("receiving_role_handoff_detail", batch_id=batch.pk) + "?" + handoff_query
         )
-        self.assertContains(role_page, 'action="' + self.route("receiving_workflow_endorse", batch_id=batch.pk) + '"', html=False)
-        self.assertContains(role_page, home_permissions.ROLE_ENCODER)
+        self.assertRedirects(role_page, receipt_url + "?" + handoff_query)
         submitted = self.client.post(
             self.route("receiving_workflow_endorse", batch_id=batch.pk),
             {"destination_role": home_permissions.ROLE_ENCODER},

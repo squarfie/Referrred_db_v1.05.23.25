@@ -125,10 +125,7 @@ def laboratory_receiving_workspace(request, receiving_id):
         from apps.receiving.prebatch import endorsement_blocker
         from apps.home.services.batch_creation import build_batch_code
         for accession in ranges:
-            if accession.batch_id or (
-                hasattr(accession, "dmu_handoff")
-                and accession.dmu_handoff.status != "recalled"
-            ):
+            if accession.batch_id or accession.has_active_dmu_handoff:
                 continue
             blocker = endorsement_blocker(accession)
             # Preserve the existing conflict preview, but do not present an
@@ -457,7 +454,7 @@ def laboratory_accession_edit(request, accession_id):
     if accession.isolate_records.exists():
         messages.error(request, "This range has been endorsed to ID testing and cannot be edited.")
         return destination
-    if hasattr(accession, "dmu_handoff"):
+    if accession.has_active_dmu_handoff:
         messages.error(request, "Endorsed accession ranges cannot be edited. Contact DMU to resolve a correction.")
         return destination
     if accession.batch_id:
@@ -550,7 +547,7 @@ def laboratory_organism_matrix_save(request, accession_id):
         "laboratory_receiving_workspace",
         receiving_id=accession.laboratory_receiving.receipt.receiving_id,
     )
-    if hasattr(accession, "dmu_handoff"):
+    if accession.has_active_dmu_handoff:
         messages.error(request, "Organism counts are locked after endorsement to DMU.")
         return destination
     counts = {}
@@ -589,7 +586,7 @@ def laboratory_organism_add(request, accession_id):
     accession = get_object_or_404(
         LaboratoryAccession.objects.select_for_update().select_related("laboratory_receiving__receipt"), pk=accession_id
     )
-    if hasattr(accession, "dmu_handoff"):
+    if accession.has_active_dmu_handoff:
         messages.error(request, "Organism counts are locked after endorsement to DMU.")
         return redirect("laboratory_receiving_workspace", receiving_id=accession.laboratory_receiving.receipt.receiving_id)
     form = LaboratoryOrganismCountForm(request.POST)

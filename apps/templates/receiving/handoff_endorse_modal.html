@@ -1,0 +1,35 @@
+<div class="modal fade handoff-endorse-modal" id="handoff-endorse-{{ batch_id }}" tabindex="-1" role="dialog" aria-labelledby="handoff-endorse-title-{{ batch_id }}" aria-describedby="handoff-endorse-description-{{ batch_id }}" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+    <form class="modal-content" method="post" action="{% url 'receiving_workflow_endorse' batch_id %}?{{ handoff_filters }}&amp;role_page={{ role_page_obj.number }}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="receiving_handoffs">
+      <div class="modal-header">
+        <h2 class="modal-title" id="handoff-endorse-title-{{ batch_id }}">Endorse batch</h2>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <span class="handoff-endorse-icon" aria-hidden="true"><i class="fas fa-paper-plane"></i></span>
+        <p class="handoff-endorse-batch">{{ custody.batch.bat_Batch_Code }}</p>
+        <p class="handoff-endorse-description" id="handoff-endorse-description-{{ batch_id }}">The recipient must confirm receipt separately.</p>
+        <div class="form-group">
+          <label for="handoff-destination-{{ batch_id }}">Destination role</label>
+          <select class="form-control" id="handoff-destination-{{ batch_id }}" name="destination_role" required>
+            <option value="">Select destination role</option>
+            {% for role in destination_roles %}
+              {% if role != custody.current_role %}<option value="{{ role }}">{{ role }}</option>{% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group mb-0">
+          <label for="handoff-reason-{{ batch_id }}">Handoff reason</label>
+          <input class="form-control" id="handoff-reason-{{ batch_id }}" name="remarks" maxlength="1000" aria-describedby="handoff-reason-help-{{ batch_id }}">
+          <small class="form-text" id="handoff-reason-help-{{ batch_id }}">Required for destinations outside the usual route.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal"><i class="fas fa-times mr-1" aria-hidden="true"></i>Cancel</button>
+        <button type="submit" class="btn btn-sm btn-info"><i class="fas fa-paper-plane mr-1" aria-hidden="true"></i>Endorse</button>
+      </div>
+    </form>
+  </div>
+</div>

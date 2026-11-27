@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}Receiving{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-inline-workspaces-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-inline-workspaces-1">{% if section == 'handoffs' %}<link rel="stylesheet" href="{% static 'assets/css/role-handoff.css' %}?v=20261127-handoff-categories">{% endif %}{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page">
   <header class="receiving-hero">
@@ -25,47 +25,97 @@
       {% endif %}
     </nav>
     {% if section == 'handoffs' %}
-      <section class="receiving-surface receiving-table-card" aria-label="Assigned generated batch handoffs">
+      <section class="receiving-surface receiving-table-card handoffs-page" aria-labelledby="handoffs-title">
         <div class="receiving-board-toolbar">
           <div>
-            <h2 class="receiving-board-title">My Batch Handoffs</h2>
-            <p class="receiving-board-subtitle">Confirm incoming custody, or undo your own unacknowledged endorsement. Scientific verification remains separate.</p>
+            <h2 class="receiving-board-title" id="handoffs-title">My Batch Handoffs</h2>
+            <p class="receiving-board-subtitle">Manage generated-batch custody assigned to your role.</p>
           </div>
-          <form method="get" class="receiving-search-group">
+        </div>
+        <div class="receiving-tabbar handoffs-filterbar">
+          <nav class="receiving-tabs receiving-workflow-tabs" aria-label="Batch handoff categories">
+            <a class="receiving-tab{% if handoff_category == 'all' %} active{% endif %}" href="?{{ handoff_tab_filters }}"{% if handoff_category == 'all' %} aria-current="page"{% endif %}>All Records</a>
+            <a class="receiving-tab{% if handoff_category == 'ready' %} active{% endif %}" href="?{{ handoff_tab_filters }}&amp;category=ready"{% if handoff_category == 'ready' %} aria-current="page"{% endif %}>For Endorsement</a>
+            <a class="receiving-tab{% if handoff_category == 'endorsed' %} active{% endif %}" href="?{{ handoff_tab_filters }}&amp;category=endorsed"{% if handoff_category == 'endorsed' %} aria-current="page"{% endif %}>Endorsed</a>
+          </nav>
+          <form method="get" class="receiving-filters receiving-filters--inline" aria-label="Filter my batch handoffs">
             <input type="hidden" name="section" value="handoffs">
-            <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Search batch code or site" aria-label="Search my batch handoffs">
-            <button class="btn btn-primary" type="submit">Search</button>
+            {% if handoff_category != 'all' %}<input type="hidden" name="category" value="{{ handoff_category }}">{% endif %}
+            <div class="receiving-filter receiving-filter--inline">
+              <label for="handoffs-year">Year</label>
+              <select class="form-control" id="handoffs-year" name="year" onchange="this.form.submit()">
+                {% for year in available_years %}
+                <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+                <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All years</option>
+              </select>
+            </div>
+            <div class="receiving-filter receiving-filter--inline">
+              <label for="handoffs-per-page">Rows</label>
+              <select class="form-control" id="handoffs-per-page" name="per_page" onchange="this.form.submit()">
+                {% for size in allowed_page_sizes %}
+                <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="receiving-search-group">
+              <div class="receiving-search-wrap">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Batch code, site code or reference no." aria-label="Search my batch handoffs">
+              </div>
+              <button class="btn btn-primary" type="submit">Search</button>
+            </div>
+            <a class="receiving-filter-reset" href="?section=handoffs{% if handoff_category != 'all' %}&amp;category={{ handoff_category }}{% endif %}"><i class="fas fa-undo-alt mr-1" aria-hidden="true"></i>Reset</a>
           </form>
         </div>
         <div class="table-responsive">
-          <table class="table receiving-table receiving-unified-table">
-            <thead><tr><th>Batch</th><th>Current holder</th><th>Awaiting receipt</th><th>Updated</th><th>Actions</th></tr></thead>
+          <table class="table receiving-table receiving-unified-table handoffs-table">
+            <caption class="sr-only">Generated batches assigned to your role</caption>
+            <thead><tr><th scope="col">Batch</th><th scope="col">Current holder</th><th scope="col">Awaiting receipt</th><th scope="col">Updated</th><th scope="col">Actions</th></tr></thead>
             <tbody>
               {% for custody in role_page_obj %}
               <tr>
-                <td><strong>{{ custody.batch.bat_Batch_Code }}</strong></td>
-                <td>{{ custody.current_role }}</td>
-                <td>{{ custody.pending_role|default:"—" }}</td>
-                <td>{{ custody.updated_at|date:"M j, Y g:i A" }}</td>
-                <td class="receiving-actions">
-                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_role_handoff_detail' custody.batch_id %}">Open Handoff</a>
-                  {% if custody.can_confirm_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">{% csrf_token %}<input type="hidden" name="next" value="receiving_handoffs"><button type="submit" class="btn btn-sm btn-success">Confirm Receipt</button></form>{% endif %}
-                  {% if custody.can_recall_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}" onsubmit="return confirm('Undo this unacknowledged endorsement?');">{% csrf_token %}<input type="hidden" name="next" value="receiving_handoffs"><button type="submit" class="endorsement-undo-icon" title="Undo unconfirmed batch endorsement" aria-label="Undo unconfirmed batch endorsement"><i class="fas fa-undo" aria-hidden="true"></i></button></form>{% endif %}
+                <td data-label="Batch"><span class="handoffs-batch">{{ custody.batch.bat_Batch_Code }}</span></td>
+                <td data-label="Current holder"><span class="handoffs-role">{{ custody.current_role }}</span></td>
+                <td data-label="Awaiting receipt">{% if custody.pending_role %}<span class="handoffs-pending">{{ custody.pending_role }}</span>{% else %}<span class="handoffs-none">None</span>{% endif %}</td>
+                <td data-label="Updated">{{ custody.updated_at|date:"M j, Y g:i A" }}</td>
+                <td data-label="Actions" class="receiving-actions">
+                  {% with row_query=handoff_filters|add:"&role_page=" %}
+                  {% if custody.can_endorse_here %}
+                  <button type="button" class="btn btn-sm btn-info" data-toggle="modal" data-target="#handoff-endorse-{{ custody.batch_id }}" aria-haspopup="dialog">
+                    <i class="fas fa-paper-plane mr-1" aria-hidden="true"></i>Endorse
+                  </button>
+                  {% elif custody.can_recall_here %}
+                  <form method="post" class="d-inline" action="{% url 'receiving_workflow_undo' custody.batch_id %}?{{ row_query }}{{ role_page_obj.number }}" onsubmit="return confirm('Undo this unacknowledged endorsement?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="receiving_handoffs">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Undo unconfirmed batch endorsement"><i class="fas fa-undo mr-1" aria-hidden="true"></i><span>Undo</span></button>
+                  </form>
+                  {% endif %}
+                  {% with receipt=custody.batch.laboratory_accession.laboratory_receiving.receipt %}
+                  {% if receipt %}
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_detail' receipt.receiving_id %}?{{ row_query }}{{ role_page_obj.number }}">Details</a>
+                  {% else %}
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_workflow_detail' custody.batch_id %}?{{ row_query }}{{ role_page_obj.number }}">Details</a>
+                  {% endif %}
+                  {% endwith %}
+                  {% if custody.can_confirm_here %}<form method="post" class="d-inline" action="{% url 'receiving_workflow_confirm' custody.batch_id %}?{{ row_query }}{{ role_page_obj.number }}">{% csrf_token %}<input type="hidden" name="next" value="receiving_handoffs"><button type="submit" class="btn btn-sm btn-success">Confirm Receipt</button></form>{% endif %}
+                  {% endwith %}
                 </td>
               </tr>
-              {% empty %}<tr><td colspan="5" class="receiving-empty">No generated batch handoffs currently assigned to your role.</td></tr>{% endfor %}
+              {% empty %}<tr><td colspan="5" class="receiving-empty">No batch handoffs match the selected filters.</td></tr>{% endfor %}
             </tbody>
           </table>
         </div>
-        {% if role_page_obj.has_other_pages %}
-        <nav class="receiving-unified-pagination" aria-label="My Batch Handoffs pages">
-          <span>Page {{ role_page_obj.number }} of {{ role_page_obj.paginator.num_pages }}</span>
-          <div>
-            {% if role_page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?section=handoffs&amp;q={{ q|urlencode }}&amp;role_page={{ role_page_obj.previous_page_number }}">Previous</a>{% endif %}
-            {% if role_page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?section=handoffs&amp;q={{ q|urlencode }}&amp;role_page={{ role_page_obj.next_page_number }}">Next</a>{% endif %}
-          </div>
-        </nav>
-        {% endif %}
+        <div class="receiving-unified-pagination">
+          <span class="handoffs-page-count">{% if role_page_obj.paginator.count %}Showing {{ role_page_obj.start_index }}–{{ role_page_obj.end_index }} of {{ role_page_obj.paginator.count }} matching record{{ role_page_obj.paginator.count|pluralize }}{% else %}Showing 0 matching records{% endif %}</span>
+          {% if role_page_obj.has_other_pages %}
+          <nav aria-label="My Batch Handoffs pages">
+            {% if role_page_obj.has_previous %}<a class="btn btn-sm btn-outline-primary" href="?{{ handoff_filters }}&amp;role_page={{ role_page_obj.previous_page_number }}">Previous</a>{% endif %}
+            {% if role_page_obj.has_next %}<a class="btn btn-sm btn-outline-primary" href="?{{ handoff_filters }}&amp;role_page={{ role_page_obj.next_page_number }}">Next</a>{% endif %}
+          </nav>
+          {% endif %}
+        </div>
       </section>
     {% else %}
     <section class="receiving-surface receiving-table-card" aria-label="Unified receiving worklist">
@@ -236,4 +286,11 @@
     {% endif %}
   </div>
 </main>
+{% if section == 'handoffs' %}
+  {% for custody in role_page_obj %}
+    {% if custody.can_endorse_here %}
+      {% include "receiving/handoff_endorse_modal.html" with batch_id=custody.batch_id %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
 {% endblock %}

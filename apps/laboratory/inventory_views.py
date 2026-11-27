@@ -23,7 +23,7 @@ def inventory_row_save(request, accession_id=None, row_id=None):
     item = get_object_or_404(LaboratoryAdditionalOrganismCount, pk=row_id) if row_id else LaboratoryAdditionalOrganismCount(accession_range=accession)
     response = redirect("laboratory_receiving_workspace", receiving_id=accession.laboratory_receiving.receipt.receiving_id)
     response["Location"] += "#organism-inventory"
-    if hasattr(accession, "dmu_handoff"):
+    if accession.has_active_dmu_handoff:
         messages.error(request, "Organism inventory is locked after endorsement to DMU.")
         return response
     counts = {}
@@ -55,7 +55,7 @@ def additional_organism_save(request, accession_id=None, row_id=None):
         pk=existing.accession_range_id if existing else accession_id)
     if row_id:
         existing = get_object_or_404(LaboratoryAdditionalOrganismCount, pk=row_id)
-    if hasattr(accession, "dmu_handoff"):
+    if accession.has_active_dmu_handoff:
         messages.error(request, "Organism inventory is locked after endorsement to DMU.")
         return redirect("laboratory_receiving_workspace", receiving_id=accession.laboratory_receiving.receipt.receiving_id)
     item = existing or LaboratoryAdditionalOrganismCount(accession_range=accession)
@@ -77,7 +77,7 @@ def additional_organism_save(request, accession_id=None, row_id=None):
 def additional_organism_remove(request, row_id):
     item = get_object_or_404(LaboratoryAdditionalOrganismCount, pk=row_id)
     accession = get_object_or_404(LaboratoryAccession.objects.select_for_update(), pk=item.accession_range_id)
-    if hasattr(accession, "dmu_handoff"):
+    if accession.has_active_dmu_handoff:
         messages.error(request, "Organism inventory is locked after endorsement to DMU.")
         return redirect("laboratory_receiving_workspace", receiving_id=accession.laboratory_receiving.receipt.receiving_id)
     item.delete()

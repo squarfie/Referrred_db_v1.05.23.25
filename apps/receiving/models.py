@@ -417,6 +417,11 @@ class LaboratoryAccession(models.Model):
         return f"{self.start_number:04d}-{self.end_number:04d}"
 
     @property
+    def has_active_dmu_handoff(self):
+        handoff = getattr(self, "dmu_handoff", None)
+        return handoff is not None and handoff.status != LaboratoryBatchHandoff.Status.RECALLED
+
+    @property
     def isolate_count(self):
         return self.end_number - self.start_number + 1
 

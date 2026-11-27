@@ -1,12 +1,25 @@
 """Shared receipt queue presentation for Secretariat and laboratory custody."""
+from urllib.parse import urlencode
+
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils import timezone
 from .models import ReferralReceipt
 from .permissions import can_manage_secretariat_receiving
 from apps.laboratory.permissions import can_read_laboratory_receiving
 from .services import can_delete_receipt_safely
+
+
+def handoff_queue_url(params):
+    filters = {"section": "handoffs"}
+    filters.update(
+        (key, params[key]) for key in ("year", "per_page", "q", "category", "role_page")
+        if params.get(key)
+    )
+    return f"{reverse('receiving_workflow_dashboard')}?{urlencode(filters)}"
+
 
 def render_receiving_dashboard(request, queue=None):
     if queue == "laboratory" or (queue is None and can_read_laboratory_receiving(request.user)):

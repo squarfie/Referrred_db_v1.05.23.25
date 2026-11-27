@@ -34,10 +34,12 @@ def endorsement_blocker(accession):
         return "Confirm physical receipt in Receiving first."
     if accession.batch_id:
         return "The Raw Data batch has already been generated."
-    if LaboratoryBatchHandoff.objects.filter(accession=accession).exclude(
-        status=LaboratoryBatchHandoff.Status.RECALLED,
-    ).exists():
+    if accession.has_active_dmu_handoff:
         return "This accession is already endorsed to DMU."
+    return _lab_readiness_blocker(accession)
+
+
+def _lab_readiness_blocker(accession):
     isolates = list(accession.isolate_records.all())
     if len(isolates) != accession.isolate_count:
         return "Complete laboratory isolate records before endorsing to DMU."
@@ -125,6 +127,9 @@ def create_dmu_batch(*, handoff_id, user):
     accession = LaboratoryAccession.objects.select_for_update().get(pk=handoff.accession_id)
     if accession.batch_id:
         raise ValidationError("This accession range already has a generated batch.")
+    blocker = _lab_readiness_blocker(accession)
+    if blocker:
+        raise ValidationError(blocker)
     receipt = handoff.accession.laboratory_receiving.receipt
     result = create_referred_batch(
         site_code=receipt.site.SiteCode,

@@ -6,7 +6,7 @@ from django.http import HttpResponse
 from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
-from .dashboard import render_receiving_dashboard as _render_receiving_dashboard
+from .dashboard import handoff_queue_url, render_receiving_dashboard as _render_receiving_dashboard
 from .activity import receipt_activity, receipt_progress_milestones
 from .forms import ReferralReceiptForm
 from .models import ReferralReceipt
@@ -85,6 +85,9 @@ def receiving_detail(request, receiving_id):
         {
             "receipt": receipt,
             "return_tab": from_tab,
+            "handoff_return_url": (
+                handoff_queue_url(request.GET) if request.GET.get("section") == "handoffs" else ""
+            ),
             "events": events,
             "activity": receipt_activity(receipt),
             "progress": receipt_progress_milestones(receipt),

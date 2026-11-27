@@ -272,6 +272,31 @@ class LaboratoryToDMUHandoffTests(TestCase):
         self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.CREATED)
         self.assertEqual(Batch_Table.objects.filter(bat_SiteCode="PBD").count(), 1)
 
+    def test_batch_creation_rechecks_lab_readiness_after_endorsement(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.isolate.status = LaboratoryIsolate.Status.REVIVED
+        self.isolate.save(update_fields=["status"])
+
+        with self.assertRaisesMessage(ValidationError, "Complete Bench A final processing"):
+            confirm_dmu_receipt_and_create_batch(handoff_id=handoff.pk, user=self.dmu)
+
+        handoff.refresh_from_db()
+        self.assertEqual(handoff.status, LaboratoryBatchHandoff.Status.PENDING)
+        self.assertEqual(list(handoff.events.values_list("action", flat=True)), ["endorsed"])
+        self.assertFalse(Batch_Table.objects.filter(bat_SiteCode="PBD").exists())
+
+    def test_recalled_handoff_allows_organism_count_correction(self):
+        handoff = endorse_accession_to_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.client.force_login(self.lab)
+        url = reverse("laboratory_organism_matrix_save", args=[self.accession.pk])
+        self.client.post(url, {"organism_HA": "1"})
+        self.assertFalse(self.accession.organism_counts.exists())
+
+        recall_accession_from_dmu(accession_id=self.accession.pk, user=self.lab)
+        self.client.post(url, {"organism_HA": "1"})
+        self.assertEqual(self.accession.organism_counts.get(organism_code="HA").count, 1)
+        self.assertEqual(list(handoff.events.values_list("action", flat=True)), ["endorsed", "recalled"])
+
     def test_existing_manual_batch_creation_and_signatory_editor_are_preserved(self):
         self.client.force_login(self.dmu)
         manual_form = self.client.get(reverse("batch_create_view"))

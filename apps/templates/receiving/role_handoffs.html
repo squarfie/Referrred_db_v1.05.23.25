@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 {% block title %}My Batch Handoffs{% endblock %}
-{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1"><link rel="stylesheet" href="{% static 'assets/css/handoffs-page.css' %}?v=20261126-handoffs-1">{% endblock stylesheets %}
+{% block stylesheets %}<link rel="stylesheet" href="{% static 'assets/css/receiving.css' %}?v=20261126-undo-icons-1"><link rel="stylesheet" href="{% static 'assets/css/role-handoff.css' %}?v=20261127-filters">{% endblock stylesheets %}
 {% block content %}
 <main class="receiving-page handoffs-page">
 
@@ -52,7 +52,7 @@
               </td>
               <td data-label="Actions" class="receiving-actions">
                 <div class="receiving-action-group handoffs-actions">
-                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_role_handoff_detail' custody.batch_id %}"><i class="fas fa-folder-open mr-1" aria-hidden="true"></i>Open handoff</a>
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'receiving_role_handoff_detail' custody.batch_id %}"><i class="fas fa-folder-open mr-1" aria-hidden="true"></i>Details</a>
                   {% if custody.can_confirm_here %}
                   <form method="post" action="{% url 'receiving_workflow_confirm' custody.batch_id %}">
                     {% csrf_token %}
