@@ -7,7 +7,7 @@
 .isolate-detail-page .ip-step-body > * + * { margin-top: 1rem; }
 .isolate-detail-page .ip-lead { margin: 0; color: #3f566b; font-size: .9rem; line-height: 1.55; }
 .isolate-detail-page .ip-hint { color: #7a8ea1; font-weight: 500; text-transform: none; letter-spacing: 0; }
-.isolate-detail-page .ip-hint-block { margin: .3rem 0 0; color: #7a8ea1; font-size: .78rem; line-height: 1.5; }
+.isolate-detail-page .ip-hint-block { margin: .3rem 0 0; color: #7a8ea1; font-size: .78rem; line-height: 1.5; font-weight: bold; }
 .isolate-detail-page .ip-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .25rem; }
 .isolate-detail-page .ip-actions .btn { margin: 0; }
 .isolate-detail-page .ip-inline-form { display: inline-flex; margin: 0; }
@@ -32,14 +32,14 @@
 .isolate-detail-page .isolate-site-id-panel { margin: 0; }
 
 /* Disclosures inside the step card */
-.isolate-detail-page .ip-disclosure { margin: 0; border: 1px solid var(--receiving-border); border-radius: 10px; background: #f8fbfd; overflow: hidden; }
+.isolate-detail-page .ip-disclosure { margin: 0; border: 1px solid var(--receiving-border); border-radius: 10px; background: #ffffff; overflow: hidden; }
 .isolate-detail-page .ip-disclosure > summary { display: flex; align-items: center; gap: .5rem; padding: .65rem .95rem; color: var(--receiving-navy); font-size: .86rem; font-weight: 700; cursor: pointer; list-style: none; }
 .isolate-detail-page .ip-disclosure > summary::-webkit-details-marker { display: none; }
 .isolate-detail-page .ip-disclosure > summary::before { content: "\f105"; font-family: "Font Awesome 5 Free"; font-weight: 900; color: #7a8ea1; transition: transform .2s; }
 .isolate-detail-page .ip-disclosure[open] > summary::before { transform: rotate(90deg); }
 .isolate-detail-page .ip-disclosure[open] > summary { background: #fff; border-bottom: 1px solid var(--receiving-border); }
 .isolate-detail-page .ip-disclosure > summary:hover { background: #edf8fc; }
-.isolate-detail-page .ip-disclosure-body { padding: 1rem 1.1rem; display: grid; gap: .9rem; }
+.isolate-detail-page .ip-disclosure-body { padding: 1rem 1.1rem; display: grid; gap: .9rem; background-color:  #d4f1f5;; }
 
 /* Forms */
 .isolate-detail-page .ip-form { display: grid; gap: .9rem; }

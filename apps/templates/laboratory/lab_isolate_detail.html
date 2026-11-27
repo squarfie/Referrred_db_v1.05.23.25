@@ -229,7 +229,7 @@
       <form method="post" action="{% url 'laboratory_proceed_lyophilization' isolate.pk %}" class="ip-actions">
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ return_to }}">
-        <button class="btn btn-primary" type="submit"><i class="fas fa-arrow-right mr-1" aria-hidden="true"></i>Proceed to lyophilization</button>
+        <button class="btn btn-primary" type="submit">Proceed to lyophilization</button>
       </form>
 
     {% elif next_action.section == 'lyophilization' and can_review %}
@@ -271,7 +271,7 @@
             {% if revival_outcome_locked %}
               <input class="form-control" value="Locked after subsequent processing" readonly>
               <input type="hidden" name="status" value="unchanged">
-              <p class="ip-hint-block">Later processing is already recorded; only revival dates and observations can be corrected.</p>
+              <small class="ip-hint-block"><i class="fas fa-info-circle" aria-hidden="true"></i> Later processing is already recorded; only revival dates and observations can be corrected.</small>
             {% else %}
               <select id="correction-revival-status" name="status" class="form-control" required>
                 <option value="revived" {% if isolate.status == 'revived' %}selected{% endif %}>Revived</option>
@@ -284,7 +284,7 @@
         <div class="receiving-field">
           <label for="correction-revival-notes">Saved observations / reason</label>
           <textarea id="correction-revival-notes" name="observations" class="form-control" maxlength="1000" rows="3">{{ isolate.revival_failed_reason }}</textarea>
-          <p class="ip-hint-block">Previous observations remain available in the correction audit after saving.</p>
+          <p class="ip-hint-block"><i class="fas fa-info-circle" aria-hidden="true"></i> Previous observations remain available in the correction audit after saving.</p>
         </div>
         <div class="ip-actions"><button type="submit" class="btn btn-primary"><i class="fas fa-save mr-1" aria-hidden="true"></i>Save revival correction</button></div>
       </form>
